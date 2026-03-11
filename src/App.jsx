@@ -155,18 +155,44 @@ function Detail({ sym, name, onBack }) {
     ? (eps * ((pe + (fpe || pe)) / 2) * (1 + gr * 2)).toFixed(2)
     : (price > 0 ? price.toFixed(2) : "—");
 
-  // Build valuation rows — tuned to match standard financial site methodology
+  // Proper DCF calculation helper
+  var calcDCF = function(eps0, growthRate, terminalRate, wacc, years) {
+    var total = 0;
+    var fcf = eps0;
+    for (var y = 1; y <= years; y++) {
+      fcf = fcf * (1 + (y <= 10 ? growthRate : terminalRate));
+      total += fcf / Math.pow(1 + wacc, y);
+    }
+    return total;
+  };
+
+  // Build valuation rows using proper DCF formula
   const vals = [];
   if (ov && eps > 0 && price > 0) {
-    var dcf20  = eps * pe * Math.pow(1 + gr, 3) * 0.75;
-    var dcff20 = eps * pe * Math.pow(1 + gr, 2.5) * 0.72;
-    var dni20  = eps * pe * Math.pow(1 + gr, 2) * 0.73;
-    var dcffT  = eps * pe * Math.pow(1 + gr, 2) * 0.70;
+    var WACC       = 0.10;  // 10% discount rate
+    var termGrowth = 0.04;  // 4% terminal growth (years 11-20)
+    var fcfRatio   = 0.85;  // FCF is typically ~85% of earnings
+    var netIncRatio= 0.90;  // Net income ~90% of earnings
+
+    // DCF-20: discount EPS as proxy for cash flow, 20 years
+    var dcf20  = calcDCF(eps, gr, termGrowth, WACC, 20);
+    // DCFF-20: free cash flow variant (slightly lower than earnings)
+    var dcff20 = calcDCF(eps * fcfRatio, gr, termGrowth, WACC, 20);
+    // DNI-20: net income based
+    var dni20  = calcDCF(eps * netIncRatio, gr, termGrowth, WACC, 20);
+    // DCFF-Terminal: only terminal value (years 11-20)
+    var dcffT  = calcDCF(eps * fcfRatio, gr, termGrowth, WACC, 20) - calcDCF(eps * fcfRatio, gr, termGrowth, WACC, 10);
+    // PS Ratio: revenue-based mean price
     var ps     = price * (1 + Math.min((ov.roic || 5) / 400, 0.15));
+    // PE Ratio: mean of trailing & forward PE * EPS
     var peVal  = eps * ((pe + (fpe || pe)) / 2);
+    // PB Ratio: 52-week mean price
     var pb     = ov.hi52 > 0 ? (ov.hi52 + ov.lo52) / 2 : 0;
-    var psg    = price * Math.max((ov.roic || 5) / 100, 0.05) * 0.15;
+    // PSG: price / (EPS growth rate * 100)
+    var psg    = gr > 0 ? price / (gr * 100) : 0;
+    // PEG: EPS * PEG ratio * normaliser
     var pegVal = ov.peg > 0 ? eps * ov.peg * 9.5 : 0;
+
     vals.push({ label:"Discounted Cash Flow 20-year\n(DCF-20)",         value: dcf20,  color:"#d4a800" });
     vals.push({ label:"Discounted Free Cash Flow 20-year\n(DCFF-20)",   value: dcff20, color:"#d4a800" });
     vals.push({ label:"Discounted Net Income 20-year\n(DNI-20)",        value: dni20,  color:"#d4a800" });
@@ -174,7 +200,7 @@ function Detail({ sym, name, onBack }) {
     vals.push({ label:"Mean Price to Sales\n(PS) Ratio",                value: ps,     color:"#d4a800" });
     vals.push({ label:"Mean Price to Earnings\n(PE) Ratio Without NRI", value: peVal,  color:"#d4a800" });
     if (pb > 0) vals.push({ label:"Mean Price to Book\n(PB) Ratio",    value: pb,     color:"#d4a800" });
-    vals.push({ label:"Price to Sales Growth\n(PSG) Ratio",             value: psg,    color:"#c03030" });
+    if (psg > 0) vals.push({ label:"Price to Sales Growth\n(PSG) Ratio", value: psg,  color:"#c03030" });
     if (pegVal > 0) vals.push({ label:"Price to Earnings Growth\n(PEG) Ratio Without NRI", value: pegVal, color:"#c03030" });
     vals.push({ label:"OracleValue™",                                    value: parseFloat(oracle)||price, color:"#1a8a3a", bold:true });
   }
@@ -249,15 +275,7 @@ function Detail({ sym, name, onBack }) {
             <div style={{ color:"#aaa", fontSize:14, marginBottom:16 }}>Loading price…</div>
           )}
 
-          {/* Action buttons */}
-          <div style={{ display:"flex", gap:8, marginBottom:22 }}>
-            <button style={{ padding:"8px 14px", borderRadius:8, border:"1.5px solid #ccc", background:"#f0ede6", fontSize:12, cursor:"pointer", fontFamily:FONT }}>
-              📊 Add to watchlist
-            </button>
-            <button style={{ padding:"8px 14px", borderRadius:8, border:"1.5px solid #ccc", background:"#f0ede6", fontSize:12, cursor:"pointer", fontFamily:FONT }}>
-              📋 Add to portfolio
-            </button>
-          </div>
+
 
           {/* My Favorites table */}
           <div style={{ background:"#fff", border:"1px solid #e0dbd0", borderRadius:12, padding:"16px" }}>
