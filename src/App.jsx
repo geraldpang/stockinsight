@@ -144,7 +144,9 @@ function Detail({ sym, name, onBack }) {
         var result = data && data.chart && data.chart.result && data.chart.result[0];
         if (!result) return;
         var timestamps = result.timestamp || [];
-        var closes = result.indicators && result.indicators.adjclose && result.indicators.adjclose[0] && result.indicators.adjclose[0].adjclose || [];
+        var closes = (result.indicators && result.indicators.adjclose && result.indicators.adjclose[0] && result.indicators.adjclose[0].adjclose)
+          || (result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].close)
+          || [];
         // Get year-end price for each of last 5 years
         var yearPrices = {};
         timestamps.forEach(function(ts, i) {
@@ -398,9 +400,9 @@ function Detail({ sym, name, onBack }) {
 
           {/* Historical Valuation Ratios Table */}
           <div style={{ border:"1px solid #e0dbd0", borderRadius:12, padding:"20px 22px", background:"#faf8f4", marginTop:20 }}>
-            <div style={{ fontSize:15, fontWeight:700, color:"#111", marginBottom:10 }}>Valuation Ratios</div>
+            <div style={{ fontSize:15, fontWeight:700, color:"#111", marginBottom:10 }}>Historic Data</div>
             <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:14 }}>
-              <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Historical</span>
+              <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Valuation Ratios</span>
             </div>
             {ratios && ov ? (
               <div style={{ overflowX:"auto" }}>
