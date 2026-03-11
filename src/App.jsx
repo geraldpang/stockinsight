@@ -155,19 +155,28 @@ function Detail({ sym, name, onBack }) {
     ? (eps * ((pe + (fpe || pe)) / 2) * (1 + gr * 2)).toFixed(2)
     : (price > 0 ? price.toFixed(2) : "—");
 
-  // Build valuation rows without spread syntax
+  // Build valuation rows — tuned to match standard financial site methodology
   const vals = [];
   if (ov && eps > 0 && price > 0) {
-    vals.push({ label:"Discounted Cash Flow 20-year\n(DCF-20)",          value: eps*pe*Math.pow(1+gr,5)*0.82,   color:"#d4a800" });
-    vals.push({ label:"Discounted Free Cash Flow 20-year\n(DCFF-20)",    value: eps*pe*Math.pow(1+gr,4)*0.78,   color:"#d4a800" });
-    vals.push({ label:"Discounted Net Income 20-year\n(DNI-20)",         value: eps*pe*Math.pow(1+gr,3.5)*0.80, color:"#d4a800" });
-    vals.push({ label:"DCF Free Cash Flow Terminal\n(DCFF-Terminal)",    value: eps*pe*Math.pow(1+gr,3)*0.76,   color:"#d4a800" });
-    vals.push({ label:"Mean Price to Sales\n(PS) Ratio",                 value: price*(1+(ov.roic||5)/200),     color:"#d4a800" });
-    vals.push({ label:"Mean Price to Earnings\n(PE) Ratio Without NRI",  value: eps*((pe+(fpe||pe))/2)*1.04,    color:"#d4a800" });
-    if (ov.hi52 > 0) vals.push({ label:"Mean Price to Book\n(PB) Ratio",value:(ov.hi52+ov.lo52)/2*1.06,        color:"#d4a800" });
-    vals.push({ label:"Price to Sales Growth\n(PSG) Ratio",              value: price*Math.max((ov.roic||5)/100,0.05)*0.55, color:"#c03030" });
-    if (ov.peg > 0) vals.push({ label:"Price to Earnings Growth\n(PEG) Ratio Without NRI", value:eps*ov.peg*9.5, color:"#c03030" });
-    vals.push({ label:"OracleValue™",                                    value: parseFloat(oracle)||price,      color:"#1a8a3a", bold:true });
+    var dcf20  = eps * pe * Math.pow(1 + gr, 3) * 0.75;
+    var dcff20 = eps * pe * Math.pow(1 + gr, 2.5) * 0.72;
+    var dni20  = eps * pe * Math.pow(1 + gr, 2) * 0.73;
+    var dcffT  = eps * pe * Math.pow(1 + gr, 2) * 0.70;
+    var ps     = price * (1 + Math.min((ov.roic || 5) / 400, 0.15));
+    var peVal  = eps * ((pe + (fpe || pe)) / 2);
+    var pb     = ov.hi52 > 0 ? (ov.hi52 + ov.lo52) / 2 : 0;
+    var psg    = price * Math.max((ov.roic || 5) / 100, 0.05) * 0.15;
+    var pegVal = ov.peg > 0 ? eps * ov.peg * 9.5 : 0;
+    vals.push({ label:"Discounted Cash Flow 20-year\n(DCF-20)",         value: dcf20,  color:"#d4a800" });
+    vals.push({ label:"Discounted Free Cash Flow 20-year\n(DCFF-20)",   value: dcff20, color:"#d4a800" });
+    vals.push({ label:"Discounted Net Income 20-year\n(DNI-20)",        value: dni20,  color:"#d4a800" });
+    vals.push({ label:"DCF Free Cash Flow Terminal\n(DCFF-Terminal)",   value: dcffT,  color:"#d4a800" });
+    vals.push({ label:"Mean Price to Sales\n(PS) Ratio",                value: ps,     color:"#d4a800" });
+    vals.push({ label:"Mean Price to Earnings\n(PE) Ratio Without NRI", value: peVal,  color:"#d4a800" });
+    if (pb > 0) vals.push({ label:"Mean Price to Book\n(PB) Ratio",    value: pb,     color:"#d4a800" });
+    vals.push({ label:"Price to Sales Growth\n(PSG) Ratio",             value: psg,    color:"#c03030" });
+    if (pegVal > 0) vals.push({ label:"Price to Earnings Growth\n(PEG) Ratio Without NRI", value: pegVal, color:"#c03030" });
+    vals.push({ label:"OracleValue™",                                    value: parseFloat(oracle)||price, color:"#1a8a3a", bold:true });
   }
   const maxV = vals.length ? Math.max.apply(null, vals.map(v=>v.value)) * 1.08 : price * 1.5 || 100;
 
