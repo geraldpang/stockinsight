@@ -16,76 +16,67 @@ const NAMES = {
   QCOM:"Qualcomm", TXN:"Texas Instruments", MU:"Micron Technology",
 };
 
-const qCache  = {};
-const ovCache = {};
+const dataCache = {};
 
-// Yahoo Finance — quote (price, change, OHLV)
-async function getQuote(sym) {
-  if (qCache[sym]) return qCache[sym];
-  try {
-    const url = "https://query1.finance.yahoo.com/v8/finance/chart/" + sym + "?interval=1d&range=1d";
-    const r = await fetch(url, { headers: { "Accept": "application/json" } });
-    const d = await r.json();
-    const meta = d && d.chart && d.chart.result && d.chart.result[0] && d.chart.result[0].meta;
-    if (!meta) return null;
-    const price  = meta.regularMarketPrice || 0;
-    const prev   = meta.chartPreviousClose || meta.previousClose || price;
-    const change = parseFloat((price - prev).toFixed(2));
-    const pct    = prev > 0 ? parseFloat(((change / prev) * 100).toFixed(2)) : 0;
-    const out = {
-      price,
-      change,
-      pct,
-      open: String(meta.regularMarketOpen    || "—"),
-      high: String(meta.regularMarketDayHigh || "—"),
-      low:  String(meta.regularMarketDayLow  || "—"),
-      vol:  meta.regularMarketVolume ? meta.regularMarketVolume.toLocaleString() : "—",
-    };
-    qCache[sym] = out;
-    return out;
-  } catch(e) {
-    return null;
-  }
+// Anthropic API with web_search — fetches real-time stock data
+async function fetchStockData(sym) {
+  if (dataCache[sym]) return dataCache[sym];
+
+  const prompt = "You are a financial data API. Search the web for current stock data for " + sym + " and return ONLY a JSON object with no markdown, no explanation, no extra text. Use this exact structure: {"price": <number>, "change": <number>, "pct": <number>, "open": "<string>", "high": "<string>", "low": "<string>", "vol": "<string with commas>", "exchange": "<string>", "marketCap": "<string e.g. $2.9T>", "pe": <number>, "fpe": <number>, "peg": <number>, "epsG": <percent number>, "ltG": <percent number>, "divY": <percent number>, "roe": <percent number>, "roic": <percent number>, "de": <number>, "hi52": <number>, "lo52": <number>}";
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1000,
+      tools: [{ type: "web_search_20250305", name: "web_search" }],
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+
+  const data = await response.json();
+  const textBlock = data.content && data.content.filter(function(b) { return b.type === "text"; });
+  if (!textBlock || textBlock.length === 0) return null;
+  const text = textBlock.map(function(b) { return b.text; }).join("");
+  const clean = text.replace(/```json|```/g, "").trim();
+  const parsed = JSON.parse(clean);
+  dataCache[sym] = parsed;
+  return parsed;
 }
 
-// Yahoo Finance — fundamentals (PE, ROE, market cap, etc.)
+async function getQuote(sym) {
+  const d = await fetchStockData(sym);
+  if (!d) return null;
+  return {
+    price:  parseFloat(d.price)  || 0,
+    change: parseFloat(d.change) || 0,
+    pct:    parseFloat(d.pct)    || 0,
+    open:   String(d.open  || "—"),
+    high:   String(d.high  || "—"),
+    low:    String(d.low   || "—"),
+    vol:    String(d.vol   || "—"),
+  };
+}
+
 async function getOverview(sym) {
-  if (ovCache[sym]) return ovCache[sym];
-  try {
-    const url = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym +
-      "?modules=summaryDetail%2CdefaultKeyStatistics%2CfinancialData%2CassetProfile%2CpageViews";
-    const r = await fetch(url, { headers: { "Accept": "application/json" } });
-    const d = await r.json();
-    const res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
-    if (!res) return null;
-    const sd = res.summaryDetail        || {};
-    const ks = res.defaultKeyStatistics || {};
-    const fd = res.financialData        || {};
-    const ap = res.assetProfile         || {};
-    const mc = (sd.marketCap && sd.marketCap.raw) || 0;
-    const mcStr = mc >= 1e12 ? "$" + (mc/1e12).toFixed(2) + "T"
-                : mc >= 1e9  ? "$" + (mc/1e9).toFixed(1)  + "B"
-                : mc >= 1e6  ? "$" + (mc/1e6).toFixed(0)  + "M" : "—";
-    const out = {
-      exchange:  ap.exchange || sd.exchange || "NASDAQ",
-      marketCap: mcStr,
-      pe:   (sd.trailingPE  && sd.trailingPE.raw)   || 0,
-      fpe:  (sd.forwardPE   && sd.forwardPE.raw)    || 0,
-      peg:  (ks.pegRatio    && ks.pegRatio.raw)     || 0,
-      epsG: ((fd.earningsGrowth && fd.earningsGrowth.raw) || 0) * 100,
-      ltG:  ((fd.revenueGrowth  && fd.revenueGrowth.raw)  || 0) * 100,
-      divY: ((sd.dividendYield  && sd.dividendYield.raw)  || 0) * 100,
-      roe:  ((fd.returnOnEquity && fd.returnOnEquity.raw) || 0) * 100,
-      roic: ((fd.returnOnAssets && fd.returnOnAssets.raw) || 0) * 100,
-      de:   (fd.debtToEquity   && fd.debtToEquity.raw)   || 0,
-      hi52: (sd.fiftyTwoWeekHigh && sd.fiftyTwoWeekHigh.raw) || 0,
-      lo52: (sd.fiftyTwoWeekLow  && sd.fiftyTwoWeekLow.raw)  || 0,
-    };
-    ovCache[sym] = out;
-    return out;
-  } catch(e) {
-    return null;
-  }
+  const d = await fetchStockData(sym);
+  if (!d) return null;
+  return {
+    exchange:  d.exchange  || "NASDAQ",
+    marketCap: d.marketCap || "—",
+    pe:   parseFloat(d.pe)   || 0,
+    fpe:  parseFloat(d.fpe)  || 0,
+    peg:  parseFloat(d.peg)  || 0,
+    epsG: parseFloat(d.epsG) || 0,
+    ltG:  parseFloat(d.ltG)  || 0,
+    divY: parseFloat(d.divY) || 0,
+    roe:  parseFloat(d.roe)  || 0,
+    roic: parseFloat(d.roic) || 0,
+    de:   parseFloat(d.de)   || 0,
+    hi52: parseFloat(d.hi52) || 0,
+    lo52: parseFloat(d.lo52) || 0,
+  };
 }
 
 function fmt2(n) { return n != null ? n.toFixed(2) : "—"; }
