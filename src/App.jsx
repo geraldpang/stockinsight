@@ -19,7 +19,7 @@ const NAMES = {
 const qCache  = {};
 const ovCache = {};
 
-// Proxy runs on same domain (stock.colaboree.com/proxy) — no CORS issues
+// Proxy runs on same domain (stock.colaboree.com/proxy) - no CORS issues
 async function yfetch(url) {
   var proxyUrl = "/proxy?url=" + encodeURIComponent(url);
   var r = await fetch(proxyUrl);
@@ -40,10 +40,10 @@ async function getQuote(sym) {
     price:  price,
     change: change,
     pct:    pct,
-    open:   String(meta.regularMarketOpen    || "—"),
-    high:   String(meta.regularMarketDayHigh || "—"),
-    low:    String(meta.regularMarketDayLow  || "—"),
-    vol:    meta.regularMarketVolume ? meta.regularMarketVolume.toLocaleString() : "—",
+    open:   String(meta.regularMarketOpen    || "-"),
+    high:   String(meta.regularMarketDayHigh || "-"),
+    low:    String(meta.regularMarketDayLow  || "-"),
+    vol:    meta.regularMarketVolume ? meta.regularMarketVolume.toLocaleString() : "-",
   };
   qCache[sym] = out;
   return out;
@@ -61,7 +61,7 @@ async function getOverview(sym) {
   var mc = (sd.marketCap && sd.marketCap.raw) || 0;
   var mcStr = mc >= 1e12 ? "$" + (mc/1e12).toFixed(2) + "T"
             : mc >= 1e9  ? "$" + (mc/1e9).toFixed(1)  + "B"
-            : mc >= 1e6  ? "$" + (mc/1e6).toFixed(0)  + "M" : "—";
+            : mc >= 1e6  ? "$" + (mc/1e6).toFixed(0)  + "M" : "-";
   var out = {
     exchange:  ap.exchange || sd.exchange || "NASDAQ",
     marketCap: mcStr,
@@ -93,10 +93,10 @@ async function getOverview(sym) {
   return out;
 }
 
-function fmt2(n) { return n != null ? n.toFixed(2) : "—"; }
-function pct(n)  { return n ? n.toFixed(2) + "%" : "—"; }
+function fmt2(n) { return n != null ? n.toFixed(2) : "-"; }
+function pct(n)  { return n ? n.toFixed(2) + "%" : "-"; }
 
-// ── Valuation bar ────────────────────────────────────────────────────────────
+// -- Valuation bar ------------------------------------------------------------
 function VBar({ label, value, maxV, color, bold }) {
   if (!value || !maxV) return null;
   const w = Math.min(value / maxV * 100, 100);
@@ -115,15 +115,15 @@ function VBar({ label, value, maxV, color, bold }) {
   );
 }
 
-// ── Detail page ───────────────────────────────────────────────────────────────
+// -- Detail page ---------------------------------------------------------------
 function Detail({ sym, name, onBack }) {
   const [q,     setQ]     = useState(null);
   const [ov,    setOv]    = useState(null);
   const [ratios, setRatios] = useState(null);
-  const [msg,   setMsg]   = useState("Loading…");
+  const [msg,   setMsg]   = useState("Loading...");
 
   useEffect(function() {
-    setQ(null); setOv(null); setMsg("Fetching live data for " + sym + "…");
+    setQ(null); setOv(null); setMsg("Fetching live data for " + sym + "...");
 
     // Fetch quote and overview in parallel from Yahoo Finance
     getQuote(sym).then(function(res) {
@@ -149,20 +149,20 @@ function Detail({ sym, name, onBack }) {
   const price = q ? q.price : 0;
   const up    = q ? q.pct >= 0 : true;
   const sign  = up ? "+" : "";
-  const chg   = q ? sign + q.change.toFixed(2) + " (" + sign + q.pct.toFixed(2) + "%)" : "—";
+  const chg   = q ? sign + q.change.toFixed(2) + " (" + sign + q.pct.toFixed(2) + "%)" : "-";
 
   const pe  = ov ? ov.pe  : 0;
   const fpe = ov ? ov.fpe : 0;
   const eps = (pe > 0 && price > 0) ? price / pe : 0;
   const gr  = Math.max(ov ? (ov.epsG || 5) : 5, 2) / 100;
 
-  const moat   = !ov ? "—" : (pe > 0 && pe < 15) ? "Wide" : (pe > 0 && pe < 25) ? "Narrow" : "None";
+  const moat   = !ov ? "-" : (pe > 0 && pe < 15) ? "Wide" : (pe > 0 && pe < 25) ? "Narrow" : "None";
   const moatBg = moat === "Wide" ? "#1a6a1a" : moat === "Narrow" ? "#b88000" : "#ccc";
   const moatFg = (moat === "Wide" || moat === "Narrow") ? "#fff" : "#555";
 
 
 
-  // DCF helper — must be defined before oracle and vals
+  // DCF helper - must be defined before oracle and vals
   var calcDCF = function(eps0, growthRate, terminalRate, wacc, years) {
     var total = 0;
     var fcf = eps0;
@@ -173,13 +173,13 @@ function Detail({ sym, name, onBack }) {
     return total;
   };
 
-  // Oracle placeholder — real value computed as average of vals below
+  // Oracle placeholder - real value computed as average of vals below
   // Used as fallback in badge before vals are built
   const oracleDCF = (eps > 0 && pe > 0)
     ? calcDCF(eps, gr, 0.04, 0.10, 10)
     : (price > 0 ? price : 0);
   // oracle will be overridden by oracleAvg after vals are built
-  var oracle = oracleDCF > 0 ? oracleDCF.toFixed(2) : "—";
+  var oracle = oracleDCF > 0 ? oracleDCF.toFixed(2) : "-";
 
 
 
@@ -224,19 +224,19 @@ function Detail({ sym, name, onBack }) {
     if (pb > 0) vals.push({ label:"Mean Price to Book\n(PB) Ratio",    value: pb,     color:"#d4a800" });
     if (psg > 0) vals.push({ label:"Price to Sales Growth\n(PSG) Ratio", value: psg,  color:"#c03030" });
     if (pegVal > 0) vals.push({ label:"Price to Earnings Growth\n(PEG) Ratio Without NRI", value: pegVal, color:"#c03030" });
-    // OracleValue™ = average of all valuation methods above
+    // OracleValue(TM) = average of all valuation methods above
     var oracleAvg = vals.reduce(function(sum, v) { return sum + v.value; }, 0) / vals.length;
     oracle = oracleAvg.toFixed(2);
-    vals.push({ label:"OracleValue™",                                    value: oracleAvg, color:"#1a8a3a", bold:true });
+    vals.push({ label:"OracleValue(TM)",                                    value: oracleAvg, color:"#1a8a3a", bold:true });
   }
   const maxV = vals.length ? Math.max.apply(null, vals.map(v=>v.value)) * 1.08 : price * 1.5 || 100;
 
   const funds = ov ? [
-    ["P/E Ratio (TTM)",             pe>0?fmt2(pe):"—",         "Return on Equity (TTM)",   ov.roe>0?pct(ov.roe):"—"],
-    ["Forward P/E (Next Year)",     fpe>0?fmt2(fpe):"—",       "Return on Inv. Cap (TTM)", ov.roic>0?pct(ov.roic):"—"],
-    ["EPS Growth (TTM)",             ov.epsG?pct(ov.epsG):"—", "Total Debt / Equity",      ov.de>0?fmt2(ov.de):"—"],
-    ["LT EPS Growth (Projected)",   ov.ltG?pct(ov.ltG):"—",   "Market Capitalization",    ov.marketCap],
-    ["PEG Value without NRI",       ov.peg>0?fmt2(ov.peg):"—","Dividend Yield (TTM)",     ov.divY>0?pct(ov.divY):"—"],
+    ["P/E Ratio (TTM)",             pe>0?fmt2(pe):"-",         "Return on Equity (TTM)",   ov.roe>0?pct(ov.roe):"-"],
+    ["Forward P/E (Next Year)",     fpe>0?fmt2(fpe):"-",       "Return on Inv. Cap (TTM)", ov.roic>0?pct(ov.roic):"-"],
+    ["EPS Growth (TTM)",             ov.epsG?pct(ov.epsG):"-", "Total Debt / Equity",      ov.de>0?fmt2(ov.de):"-"],
+    ["LT EPS Growth (Projected)",   ov.ltG?pct(ov.ltG):"-",   "Market Capitalization",    ov.marketCap],
+    ["PEG Value without NRI",       ov.peg>0?fmt2(ov.peg):"-","Dividend Yield (TTM)",     ov.divY>0?pct(ov.divY):"-"],
   ] : [];
 
   return (
@@ -246,7 +246,7 @@ function Detail({ sym, name, onBack }) {
       <div style={{ background:"#fff", borderBottom:"1px solid #e0dbd0", padding:"8px 20px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ border:"1px solid #ccc", borderRadius:6, padding:"5px 12px", background:"#f5f2ec", cursor:"pointer", fontSize:12, fontFamily:FONT }}>
-            ← Back
+            <- Back
           </button>
           <span style={{ fontWeight:800, fontSize:15 }}>
             Colabo<span style={{ color:"#ff5c3a" }}>ree</span> <span style={{ color:"#7abd00" }}>StockInsight</span>
@@ -254,13 +254,13 @@ function Detail({ sym, name, onBack }) {
           <span style={{ color:"#aaa", fontSize:12 }}>/ {sym}</span>
         </div>
         <span style={{ fontSize:10, background:"#111", color:LIME, padding:"3px 12px", borderRadius:20, fontWeight:700, letterSpacing:"0.06em" }}>
-          LIVE · YAHOO FINANCE
+          LIVE . YAHOO FINANCE
         </span>
       </div>
 
       {msg && (
         <div style={{ background: msg.startsWith("Error") ? "#fff0f0" : "#f0f7ff", border: "1px solid " + (msg.startsWith("Error") ? "#ffaaaa" : "#aaccff"), margin:"10px 20px", padding:"9px 14px", borderRadius:8, fontSize:13, color: msg.startsWith("Error") ? "#990000" : "#003388" }}>
-          {msg.startsWith("Error") ? "⚠ " : "⏳ "}{msg}
+          {msg.startsWith("Error") ? "! " : " "}{msg}
         </div>
       )}
 
@@ -279,7 +279,7 @@ function Detail({ sym, name, onBack }) {
               {moat} Moat
             </span>
             <div style={{ display:"flex", border:"1px solid #ccc", borderRadius:6, overflow:"hidden", fontSize:12 }}>
-              <span style={{ background:"#111", color:"#f0ede6", fontWeight:700, padding:"4px 10px" }}>IntrinsicValue™</span>
+              <span style={{ background:"#111", color:"#f0ede6", fontWeight:700, padding:"4px 10px" }}>IntrinsicValue(TM)</span>
               <span style={{ background:"#e8e4dc", color:"#111", fontWeight:700, padding:"4px 10px" }}>{oracle}</span>
             </div>
           </div>
@@ -294,10 +294,10 @@ function Detail({ sym, name, onBack }) {
                 <span style={{ fontSize:13, color:"#999", marginLeft:8 }}>USD</span>
                 <span style={{ fontSize:14, fontWeight:700, marginLeft:10, color: up?"#2a8a2a":"#c03030" }}>{chg}</span>
               </div>
-              <div style={{ fontSize:12, color:"#aaa" }}>Next Earnings Date: <span style={{ color:"#555" }}>—</span></div>
+              <div style={{ fontSize:12, color:"#aaa" }}>Next Earnings Date: <span style={{ color:"#555" }}>-</span></div>
             </div>
           ) : (
-            <div style={{ color:"#aaa", fontSize:14, marginBottom:16 }}>Loading price…</div>
+            <div style={{ color:"#aaa", fontSize:14, marginBottom:16 }}>Loading price...</div>
           )}
 
 
@@ -322,7 +322,7 @@ function Detail({ sym, name, onBack }) {
               </table>
             ) : (
               <div style={{ color:"#aaa", fontSize:13, textAlign:"center", padding:"16px 0" }}>
-                {msg ? "Unavailable" : "Loading fundamentals…"}
+                {msg ? "Unavailable" : "Loading fundamentals..."}
               </div>
             )}
           </div>
@@ -335,7 +335,7 @@ function Detail({ sym, name, onBack }) {
           <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden", marginBottom:20 }}>
             <div style={{ background:"#faf8f4", borderBottom:"1px solid #e0dbd0", padding:"8px 14px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <span style={{ fontSize:12, fontWeight:600, color:"#444" }}>
-                {name} · Daily · {ov ? ov.exchange : "NASDAQ"}
+                {name} . Daily . {ov ? ov.exchange : "NASDAQ"}
               </span>
               {q && (
                 <span style={{ fontSize:11, color:"#999" }}>
@@ -369,7 +369,7 @@ function Detail({ sym, name, onBack }) {
             {vals.length > 0 ? (
               <div>
                 <div style={{ textAlign:"right", marginBottom:8 }}>
-                  <span style={{ fontSize:11, color:"#aaa" }}>IntrinsicValue™ {oracle}</span>
+                  <span style={{ fontSize:11, color:"#aaa" }}>IntrinsicValue(TM) {oracle}</span>
                 </div>
                 {vals.map(function(v, i) {
                   return <VBar key={i} label={v.label} value={v.value} maxV={maxV} color={v.color} bold={v.bold} />;
@@ -380,7 +380,7 @@ function Detail({ sym, name, onBack }) {
               </div>
             ) : (
               <div style={{ textAlign:"center", padding:"28px 0", color:"#aaa", fontSize:13 }}>
-                {msg ? "Data unavailable" : "Loading valuation data…"}
+                {msg ? "Data unavailable" : "Loading valuation data..."}
               </div>
             )}
           </div>
@@ -446,12 +446,12 @@ function Detail({ sym, name, onBack }) {
   );
 }
 
-// ── Landing page ──────────────────────────────────────────────────────────────
+// -- Landing page --------------------------------------------------------------
 export default function App() {
   const [input,   setInput]   = useState("");
   const [focused, setFocused] = useState(false);
 
-  // Hash-based routing: #AAPL → detail view for AAPL
+  // Hash-based routing: #AAPL -> detail view for AAPL
   var getHash = function() {
     var h = window.location.hash.replace("#", "").toUpperCase().trim();
     return h || null;
@@ -512,7 +512,7 @@ export default function App() {
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(14,14,12,0.9)", border:"1px solid rgba(200,240,0,0.28)", borderRadius:20, padding:"5px 16px" }}>
           <span style={{ width:6, height:6, borderRadius:"50%", background:LIME, display:"inline-block" }} />
-          <span style={{ fontSize:11, fontWeight:600, color:LIME }}>Live Market Data · Yahoo Finance</span>
+          <span style={{ fontSize:11, fontWeight:600, color:LIME }}>Live Market Data . Yahoo Finance</span>
         </div>
       </nav>
 
@@ -532,7 +532,7 @@ export default function App() {
         </div>
 
         <p style={{ fontSize:14, color:"#a09a8a", textAlign:"center", maxWidth:500, lineHeight:1.75, margin:"0 0 40px" }}>
-          Live prices · P/E ratios · IntrinsicValue™ intrinsic estimates · Valuation charts
+          Live prices . P/E ratios . IntrinsicValue(TM) intrinsic estimates . Valuation charts
         </p>
 
         {/* Search */}
@@ -549,7 +549,7 @@ export default function App() {
               onFocus={function() { setFocused(true); }}
               onBlur={function() { setTimeout(function() { setFocused(false); }, 180); }}
               onKeyDown={function(e) { if (e.key === "Enter") go(); }}
-              placeholder="Enter ticker — e.g. AAPL, NVDA, TSLA"
+              placeholder="Enter ticker - e.g. AAPL, NVDA, TSLA"
               style={{ flex:1, border:"none", outline:"none", fontSize:14, padding:"15px 8px", color:"#f0ede6", background:"transparent", fontFamily:FONT }}
             />
             <button
@@ -579,7 +579,7 @@ export default function App() {
                       <span style={{ fontWeight:800, fontSize:12, color:BG, background:LIME, padding:"2px 8px", borderRadius:4, minWidth:48, textAlign:"center" }}>{s.symbol}</span>
                       <span style={{ fontSize:13, color:"#a09a8a" }}>{s.name}</span>
                     </div>
-                    <span style={{ color:"#6a6460", fontSize:12 }}>→</span>
+                    <span style={{ color:"#6a6460", fontSize:12 }}>-></span>
                   </div>
                 );
               })}
