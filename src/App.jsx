@@ -19,32 +19,12 @@ const NAMES = {
 const qCache  = {};
 const ovCache = {};
 
-// Try multiple CORS proxies in order until one works
+// Proxy runs on same domain (stock.colaboree.com/proxy) — no CORS issues
 async function yfetch(url) {
-  var proxies = [
-    function(u) { return "https://api.allorigins.win/get?url=" + encodeURIComponent(u); },
-    function(u) { return "https://corsproxy.io/?" + encodeURIComponent(u); },
-    function(u) { return "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u); },
-  ];
-  var lastErr = null;
-  for (var i = 0; i < proxies.length; i++) {
-    try {
-      var proxyUrl = proxies[i](url);
-      var r = await fetch(proxyUrl);
-      var text = await r.text();
-      // allorigins wraps in {contents:...}, others return raw
-      try {
-        var j = JSON.parse(text);
-        if (j && j.contents) return JSON.parse(j.contents);
-        return j;
-      } catch(e) {
-        return JSON.parse(text);
-      }
-    } catch(e) {
-      lastErr = e;
-    }
-  }
-  throw lastErr;
+  var proxyUrl = "/proxy?url=" + encodeURIComponent(url);
+  var r = await fetch(proxyUrl);
+  var text = await r.text();
+  return JSON.parse(text);
 }
 
 async function getQuote(sym) {
