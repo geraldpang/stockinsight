@@ -153,6 +153,17 @@ function Detail({ sym, name, onBack }) {
 
 
 
+  // DCF helper — must be defined before oracle and vals
+  var calcDCF = function(eps0, growthRate, terminalRate, wacc, years) {
+    var total = 0;
+    var fcf = eps0;
+    for (var y = 1; y <= years; y++) {
+      fcf = fcf * (1 + (y <= 10 ? growthRate : terminalRate));
+      total += fcf / Math.pow(1 + wacc, y);
+    }
+    return total;
+  };
+
   // OracleValue: 10-year DCF intrinsic value
   const oracle = (eps > 0 && pe > 0)
     ? calcDCF(eps, gr, 0.04, 0.10, 10).toFixed(2)
@@ -197,7 +208,7 @@ function Detail({ sym, name, onBack }) {
     if (pb > 0) vals.push({ label:"Mean Price to Book\n(PB) Ratio",    value: pb,     color:"#d4a800" });
     if (psg > 0) vals.push({ label:"Price to Sales Growth\n(PSG) Ratio", value: psg,  color:"#c03030" });
     if (pegVal > 0) vals.push({ label:"Price to Earnings Growth\n(PEG) Ratio Without NRI", value: pegVal, color:"#c03030" });
-    vals.push({ label:"OracleValue™",                                    value: parseFloat(oracle)||price, color:"#1a8a3a", bold:true });
+    vals.push({ label:"IntrinsicValue™",                                    value: parseFloat(oracle)||price, color:"#1a8a3a", bold:true });
   }
   const maxV = vals.length ? Math.max.apply(null, vals.map(v=>v.value)) * 1.08 : price * 1.5 || 100;
 
@@ -249,7 +260,7 @@ function Detail({ sym, name, onBack }) {
               {moat} Moat
             </span>
             <div style={{ display:"flex", border:"1px solid #ccc", borderRadius:6, overflow:"hidden", fontSize:12 }}>
-              <span style={{ background:"#111", color:"#f0ede6", fontWeight:700, padding:"4px 10px" }}>OracleValue™</span>
+              <span style={{ background:"#111", color:"#f0ede6", fontWeight:700, padding:"4px 10px" }}>IntrinsicValue™</span>
               <span style={{ background:"#e8e4dc", color:"#111", fontWeight:700, padding:"4px 10px" }}>{oracle}</span>
             </div>
           </div>
@@ -339,7 +350,7 @@ function Detail({ sym, name, onBack }) {
             {vals.length > 0 ? (
               <div>
                 <div style={{ textAlign:"right", marginBottom:8 }}>
-                  <span style={{ fontSize:11, color:"#aaa" }}>OracleValue™ {oracle}</span>
+                  <span style={{ fontSize:11, color:"#aaa" }}>IntrinsicValue™ {oracle}</span>
                 </div>
                 {vals.map(function(v, i) {
                   return <VBar key={i} label={v.label} value={v.value} maxV={maxV} color={v.color} bold={v.bold} />;
@@ -446,7 +457,7 @@ export default function App() {
         </div>
 
         <p style={{ fontSize:14, color:"#a09a8a", textAlign:"center", maxWidth:500, lineHeight:1.75, margin:"0 0 40px" }}>
-          Live prices · P/E ratios · OracleValue™ intrinsic estimates · Valuation charts
+          Live prices · P/E ratios · IntrinsicValue™ intrinsic estimates · Valuation charts
         </p>
 
         {/* Search */}
