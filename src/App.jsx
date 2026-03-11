@@ -51,7 +51,7 @@ async function getQuote(sym) {
 
 async function getOverview(sym) {
   if (ovCache[sym]) return ovCache[sym];
-  var d = await yfetch("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym + "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile");
+  var d = await yfetch("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym + "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile,earningsTrend");
   var res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
   if (!res) return null;
   var sd = res.summaryDetail        || {};
@@ -63,17 +63,29 @@ async function getOverview(sym) {
             : mc >= 1e9  ? "$" + (mc/1e9).toFixed(1)  + "B"
             : mc >= 1e6  ? "$" + (mc/1e6).toFixed(0)  + "M" : "—";
   var out = {
-    exchange:  ap.exchange || "NASDAQ",
+    exchange:  ap.exchange || sd.exchange || "NASDAQ",
     marketCap: mcStr,
     pe:   (sd.trailingPE   && sd.trailingPE.raw)   || 0,
     fpe:  (sd.forwardPE    && sd.forwardPE.raw)    || 0,
     peg:  (ks.pegRatio     && ks.pegRatio.raw)     || 0,
     epsG: ((fd.earningsGrowth && fd.earningsGrowth.raw) || 0) * 100,
-    ltG:  ((fd.revenueGrowth  && fd.revenueGrowth.raw)  || 0) * 100,
+    // Long-term EPS growth from earningsTrend (+5yr analyst estimate)
+    ltG:  (function() {
+      var et = res.earningsTrend;
+      if (et && et.trend) {
+        for (var i = 0; i < et.trend.length; i++) {
+          if (et.trend[i].period === "+5y" && et.trend[i].growth && et.trend[i].growth.raw) {
+            return et.trend[i].growth.raw * 100;
+          }
+        }
+      }
+      return ((fd.revenueGrowth && fd.revenueGrowth.raw) || 0) * 100;
+    })(),
     divY: ((sd.dividendYield  && sd.dividendYield.raw)  || 0) * 100,
     roe:  ((fd.returnOnEquity && fd.returnOnEquity.raw) || 0) * 100,
     roic: ((fd.returnOnAssets && fd.returnOnAssets.raw) || 0) * 100,
-    de:   (fd.debtToEquity   && fd.debtToEquity.raw)   || 0,
+    // Yahoo returns D/E as percentage (102.63 = 1.0263 ratio), divide by 100
+    de:   ((fd.debtToEquity && fd.debtToEquity.raw) || 0) / 100,
     hi52: (sd.fiftyTwoWeekHigh && sd.fiftyTwoWeekHigh.raw) || 0,
     lo52: (sd.fiftyTwoWeekLow  && sd.fiftyTwoWeekLow.raw)  || 0,
   };
@@ -162,7 +174,7 @@ function Detail({ sym, name, onBack }) {
   const funds = ov ? [
     ["P/E Ratio (TTM)",             pe>0?fmt2(pe):"—",         "Return on Equity (TTM)",   ov.roe>0?pct(ov.roe):"—"],
     ["Forward P/E (Next Year)",     fpe>0?fmt2(fpe):"—",       "Return on Inv. Cap (TTM)", ov.roic>0?pct(ov.roic):"—"],
-    ["3-5Y EPS Growth (Projected)", ov.epsG?pct(ov.epsG):"—", "Total Debt / Equity",      ov.de>0?fmt2(ov.de):"—"],
+    ["EPS Growth (TTM)",             ov.epsG?pct(ov.epsG):"—", "Total Debt / Equity",      ov.de>0?fmt2(ov.de):"—"],
     ["LT EPS Growth (Projected)",   ov.ltG?pct(ov.ltG):"—",   "Market Capitalization",    ov.marketCap],
     ["PEG Value without NRI",       ov.peg>0?fmt2(ov.peg):"—","Dividend Yield (TTM)",     ov.divY>0?pct(ov.divY):"—"],
   ] : [];
