@@ -438,7 +438,6 @@ function Detail({ sym, name, onBack }) {
               <div style={{ textAlign:"center", padding:"20px 0", color:"#aaa", fontSize:13 }}>Loading historical ratios...</div>
             )}
           </div>
-        </div>
 
         </div>
       </div>
