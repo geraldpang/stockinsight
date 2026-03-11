@@ -339,7 +339,7 @@ function Detail({ sym, name, onBack }) {
               </span>
               {q && (
                 <span style={{ fontSize:11, color:"#999" }}>
-                  O{q.open} H{q.high} L{q.low} &nbsp;
+                  O{q.open} H{q.high} L{q.low} {" "}
                   <span style={{ color: up?"#2a8a2a":"#c03030" }}>C{price.toFixed(2)} {chg}</span>
                 </span>
               )}
