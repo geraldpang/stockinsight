@@ -19,12 +19,32 @@ const NAMES = {
 const qCache  = {};
 const ovCache = {};
 
-// Uses allorigins.win as CORS proxy to reach Yahoo Finance from any domain
+// Try multiple CORS proxies in order until one works
 async function yfetch(url) {
-  var proxy = "https://api.allorigins.win/get?url=" + encodeURIComponent(url);
-  var r = await fetch(proxy);
-  var d = await r.json();
-  return JSON.parse(d.contents);
+  var proxies = [
+    function(u) { return "https://api.allorigins.win/get?url=" + encodeURIComponent(u); },
+    function(u) { return "https://corsproxy.io/?" + encodeURIComponent(u); },
+    function(u) { return "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u); },
+  ];
+  var lastErr = null;
+  for (var i = 0; i < proxies.length; i++) {
+    try {
+      var proxyUrl = proxies[i](url);
+      var r = await fetch(proxyUrl);
+      var text = await r.text();
+      // allorigins wraps in {contents:...}, others return raw
+      try {
+        var j = JSON.parse(text);
+        if (j && j.contents) return JSON.parse(j.contents);
+        return j;
+      } catch(e) {
+        return JSON.parse(text);
+      }
+    } catch(e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr;
 }
 
 async function getQuote(sym) {
