@@ -246,7 +246,7 @@ function Detail({ sym, name, onBack }) {
       <div style={{ background:"#fff", borderBottom:"1px solid #e0dbd0", padding:"8px 20px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ border:"1px solid #ccc", borderRadius:6, padding:"5px 12px", background:"#f5f2ec", cursor:"pointer", fontSize:12, fontFamily:FONT }}>
-            <- Back
+            Back
           </button>
           <span style={{ fontWeight:800, fontSize:15 }}>
             Colabo<span style={{ color:"#ff5c3a" }}>ree</span> <span style={{ color:"#7abd00" }}>StockInsight</span>
@@ -542,7 +542,7 @@ export default function App() {
             border: "1.5px solid " + (focused ? LIME : "#2c2c26"),
             transition:"border-color 0.2s"
           }}>
-            <span style={{ padding:"0 10px 0 20px", fontSize:16 }}>🔍</span>
+            <span style={{ padding:"0 10px 0 20px", fontSize:16 }}></span>
             <input
               value={input}
               onChange={handleInput}
@@ -579,7 +579,7 @@ export default function App() {
                       <span style={{ fontWeight:800, fontSize:12, color:BG, background:LIME, padding:"2px 8px", borderRadius:4, minWidth:48, textAlign:"center" }}>{s.symbol}</span>
                       <span style={{ fontSize:13, color:"#a09a8a" }}>{s.name}</span>
                     </div>
-                    <span style={{ color:"#6a6460", fontSize:12 }}>-></span>
+                    <span style={{ color:"#6a6460", fontSize:12 }}>&gt;</span>
                   </div>
                 );
               })}
