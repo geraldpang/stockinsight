@@ -390,53 +390,45 @@ function Detail({ sym, name, onBack }) {
           <div style={{ border:"1px solid #e0dbd0", borderRadius:12, padding:"20px 22px", background:"#faf8f4", marginTop:20 }}>
             <div style={{ fontSize:15, fontWeight:700, color:"#111", marginBottom:10 }}>Valuation Ratios</div>
             <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:14 }}>
-              <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>
-                Historical
-              </span>
+              <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Historical</span>
             </div>
             {ratios ? (
               <div style={{ overflowX:"auto" }}>
                 <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                   <thead>
                     <tr style={{ borderBottom:"2px solid #e0dbd0" }}>
-                      <td style={{ padding:"6px 8px", color:"#888", fontWeight:600, minWidth:200 }}>Metric</td>
-                      {ratios.map(function(r) {
-                        return <td key={r.date} style={{ padding:"6px 8px", textAlign:"right", color:"#888", fontWeight:600, minWidth:70 }}>{r.date ? r.date.substring(0,4) : "—"}</td>;
+                      <td style={{ padding:"6px 8px", color:"#888", fontWeight:600, minWidth:220 }}>Metric</td>
+                      {ratios.map(function(r, ri) {
+                        return (
+                          <td key={ri} style={{ padding:"6px 8px", textAlign:"right", color:"#888", fontWeight:600, minWidth:70 }}>
+                            {r.date ? r.date.substring(0,4) : "-"}
+                          </td>
+                        );
                       })}
                       <td style={{ padding:"6px 8px", textAlign:"right", color:"#111", fontWeight:700, minWidth:70 }}>Current</td>
                     </tr>
                   </thead>
                   <tbody>
                     {[
-                      { label:"Price to Earnings (PE) Ratio",           key:"priceEarningsRatio" },
-                      { label:"PE Ratio without NRI",                    key:"priceToEarningsRatio" },
-                      { label:"Forward PE Ratio (Next Year)",            key:"priceEarningsToGrowthRatio" },
-                      { label:"Price to Earnings Growth (PEG) Ratio",   key:"priceEarningsToGrowthRatio" },
-                      { label:"Price to Sales (PS) Ratio",              key:"priceToSalesRatio" },
-                      { label:"Price to Sales Growth (PSG) Ratio",      key:"priceToSalesRatio" },
-                      { label:"Price to Book (PB) Ratio",               key:"priceToBookRatio" },
-                    ].map(function(row, i) {
+                      { label:"Price to Earnings (PE) Ratio",         key:"priceEarningsRatio",        cur: pe > 0 ? pe.toFixed(2) : "-" },
+                      { label:"Forward PE Ratio (Next Year)",          key:"forwardPE",                 cur: fpe > 0 ? fpe.toFixed(2) : "-" },
+                      { label:"PEG Ratio without NRI",                 key:"priceEarningsToGrowthRatio",cur: ov && ov.peg > 0 ? ov.peg.toFixed(2) : "-" },
+                      { label:"Price to Sales (PS) Ratio",            key:"priceToSalesRatio",          cur: "-" },
+                      { label:"Price to Sales Growth (PSG) Ratio",    key:"priceToSalesRatio",          cur: "-" },
+                      { label:"Price to Book (PB) Ratio",             key:"priceToBookRatio",           cur: ov && ov.hi52 > 0 ? ((ov.hi52+ov.lo52)/2/price).toFixed(2) : "-" },
+                    ].map(function(row, ri) {
                       return (
-                        <tr key={i} style={{ borderBottom:"1px solid #f0ede6" }}>
+                        <tr key={ri} style={{ borderBottom:"1px solid #f0ede6" }}>
                           <td style={{ padding:"7px 8px", color:"#555", fontSize:12 }}>{row.label}</td>
-                          {ratios.map(function(r) {
+                          {ratios.map(function(r, rj) {
                             var val = r[row.key];
-                            return <td key={r.date} style={{ padding:"7px 8px", textAlign:"right", color:"#333", fontWeight:500 }}>
-                              {val != null ? parseFloat(val).toFixed(2) : "—"}
-                            </td>;
+                            return (
+                              <td key={rj} style={{ padding:"7px 8px", textAlign:"right", color:"#333", fontWeight:500 }}>
+                                {val != null ? parseFloat(val).toFixed(2) : "-"}
+                              </td>
+                            );
                           })}
-                          <td style={{ padding:"7px 8px", textAlign:"right", color:"#111", fontWeight:700 }}>
-                          <td style={{ padding:"7px 8px", textAlign:"right", color:"#111", fontWeight:700 }}>
-                             {row.key === "priceEarningsRatio" || row.key === "priceToEarningsRatio"
-                               ? (pe > 0 ? pe.toFixed(2) : "-")
-                               : row.key === "priceToSalesRatio"
-                               ? (ov && ov.hi52 > 0 ? (price / ov.hi52).toFixed(2) : "-")
-                               : row.key === "priceToBookRatio"
-                               ? (ov && ov.hi52 > 0 ? ((ov.hi52+ov.lo52)/2/price).toFixed(2) : "-")
-                               : row.key === "priceEarningsToGrowthRatio"
-                               ? (ov && ov.peg > 0 ? ov.peg.toFixed(2) : "-")
-                               : "-"}
-                           </td>
+                          <td style={{ padding:"7px 8px", textAlign:"right", color:"#111", fontWeight:700 }}>{row.cur}</td>
                         </tr>
                       );
                     })}
@@ -444,7 +436,7 @@ function Detail({ sym, name, onBack }) {
                 </table>
               </div>
             ) : (
-              <div style={{ textAlign:"center", padding:"20px 0", color:"#aaa", fontSize:13 }}>Loading historical ratios…</div>
+              <div style={{ textAlign:"center", padding:"20px 0", color:"#aaa", fontSize:13 }}>Loading historical ratios...</div>
             )}
           </div>
 
