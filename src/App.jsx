@@ -384,7 +384,6 @@ function Detail({ sym, name, onBack }) {
               </div>
             )}
           </div>
-        </div>
 
           {/* Historical Valuation Ratios Table */}
           <div style={{ border:"1px solid #e0dbd0", borderRadius:12, padding:"20px 22px", background:"#faf8f4", marginTop:20 }}>
@@ -439,6 +438,7 @@ function Detail({ sym, name, onBack }) {
               <div style={{ textAlign:"center", padding:"20px 0", color:"#aaa", fontSize:13 }}>Loading historical ratios...</div>
             )}
           </div>
+        </div>
 
         </div>
       </div>
