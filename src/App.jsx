@@ -22,7 +22,8 @@ const dataCache = {};
 async function fetchStockData(sym) {
   if (dataCache[sym]) return dataCache[sym];
 
-  const prompt = "You are a financial data API. Search the web for current stock data for " + sym + " and return ONLY a JSON object with no markdown, no explanation, no extra text. Use this exact structure: {"price": <number>, "change": <number>, "pct": <number>, "open": "<string>", "high": "<string>", "low": "<string>", "vol": "<string with commas>", "exchange": "<string>", "marketCap": "<string e.g. $2.9T>", "pe": <number>, "fpe": <number>, "peg": <number>, "epsG": <percent number>, "ltG": <percent number>, "divY": <percent number>, "roe": <percent number>, "roic": <percent number>, "de": <number>, "hi52": <number>, "lo52": <number>}";
+  const fields = '{"price":0,"change":0,"pct":0,"open":"","high":"","low":"","vol":"","exchange":"","marketCap":"","pe":0,"fpe":0,"peg":0,"epsG":0,"ltG":0,"divY":0,"roe":0,"roic":0,"de":0,"hi52":0,"lo52":0}';
+  const prompt = "You are a financial data API. Search the web for the latest stock data for " + sym + ". Return ONLY a valid JSON object matching this structure (no markdown, no explanation): " + fields + ". Fill all fields with real current values.";
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
