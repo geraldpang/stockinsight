@@ -137,11 +137,22 @@ function Detail({ sym, name, onBack }) {
       if (res) setOv(res);
     }).catch(function() {});
 
-    // Fetch historical ratios from FMP via our proxy
-    fetch("/proxy?url=" + encodeURIComponent("https://financialmodelingprep.com/api/v3/ratios/" + sym + "?limit=6"))
+    // Fetch 5yr annual price history from Yahoo to build historical ratios
+    fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + sym + "?interval=1mo&range=5y"))
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        if (Array.isArray(data) && data.length > 0) setRatios(data.reverse());
+        var result = data && data.chart && data.chart.result && data.chart.result[0];
+        if (!result) return;
+        var timestamps = result.timestamp || [];
+        var closes = result.indicators && result.indicators.adjclose && result.indicators.adjclose[0] && result.indicators.adjclose[0].adjclose || [];
+        // Get year-end price for each of last 5 years
+        var yearPrices = {};
+        timestamps.forEach(function(ts, i) {
+          var yr = new Date(ts * 1000).getFullYear();
+          yearPrices[yr] = closes[i]; // last value per year wins
+        });
+        var years = Object.keys(yearPrices).sort().slice(-6); // last 6 years
+        setRatios(years.map(function(yr) { return { date: yr, price: yearPrices[yr] }; }));
       })
       .catch(function() {});
   }, [sym]);
@@ -391,7 +402,7 @@ function Detail({ sym, name, onBack }) {
             <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:14 }}>
               <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Historical</span>
             </div>
-            {ratios ? (
+            {ratios && ov ? (
               <div style={{ overflowX:"auto" }}>
                 <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                   <thead>
@@ -400,7 +411,7 @@ function Detail({ sym, name, onBack }) {
                       {ratios.map(function(r, ri) {
                         return (
                           <td key={ri} style={{ padding:"6px 8px", textAlign:"right", color:"#888", fontWeight:600, minWidth:70 }}>
-                            {r.date ? r.date.substring(0,4) : "-"}
+                            {r.date}
                           </td>
                         );
                       })}
@@ -408,29 +419,32 @@ function Detail({ sym, name, onBack }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {[
-                      { label:"Price to Earnings (PE) Ratio",         key:"priceEarningsRatio",        cur: pe > 0 ? pe.toFixed(2) : "-" },
-                      { label:"Forward PE Ratio (Next Year)",          key:"forwardPE",                 cur: fpe > 0 ? fpe.toFixed(2) : "-" },
-                      { label:"PEG Ratio without NRI",                 key:"priceEarningsToGrowthRatio",cur: ov && ov.peg > 0 ? ov.peg.toFixed(2) : "-" },
-                      { label:"Price to Sales (PS) Ratio",            key:"priceToSalesRatio",          cur: "-" },
-                      { label:"Price to Sales Growth (PSG) Ratio",    key:"priceToSalesRatio",          cur: "-" },
-                      { label:"Price to Book (PB) Ratio",             key:"priceToBookRatio",           cur: ov && ov.hi52 > 0 ? ((ov.hi52+ov.lo52)/2/price).toFixed(2) : "-" },
-                    ].map(function(row, ri) {
-                      return (
-                        <tr key={ri} style={{ borderBottom:"1px solid #f0ede6" }}>
-                          <td style={{ padding:"7px 8px", color:"#555", fontSize:12 }}>{row.label}</td>
-                          {ratios.map(function(r, rj) {
-                            var val = r[row.key];
-                            return (
-                              <td key={rj} style={{ padding:"7px 8px", textAlign:"right", color:"#333", fontWeight:500 }}>
-                                {val != null ? parseFloat(val).toFixed(2) : "-"}
-                              </td>
-                            );
-                          })}
-                          <td style={{ padding:"7px 8px", textAlign:"right", color:"#111", fontWeight:700 }}>{row.cur}</td>
-                        </tr>
-                      );
-                    })}
+                    {(function() {
+                      var curEps = pe > 0 ? price / pe : 0;
+                      var curBv  = ov.hi52 > 0 ? price / ((ov.hi52 + ov.lo52) / 2) * price : 0;
+                      var rows = [
+                        { label:"Price to Earnings (PE) Ratio",       fn: function(p) { return curEps > 0 ? (p / curEps).toFixed(2) : "-"; }, cur: pe > 0 ? pe.toFixed(2) : "-" },
+                        { label:"Forward PE Ratio (Next Year)",        fn: function(p) { return fpe > 0 && pe > 0 ? (p / (price/fpe)).toFixed(2) : "-"; }, cur: fpe > 0 ? fpe.toFixed(2) : "-" },
+                        { label:"PEG Ratio without NRI",               fn: function(p) { return ov.peg > 0 && pe > 0 ? (ov.peg * (p/price)).toFixed(2) : "-"; }, cur: ov.peg > 0 ? ov.peg.toFixed(2) : "-" },
+                        { label:"Price to Book (PB) Ratio",            fn: function(p) { return curBv > 0 ? (p / (price / curBv)).toFixed(2) : "-"; }, cur: curBv > 0 ? (price / (price/curBv)).toFixed(2) : "-" },
+                        { label:"Price to Sales Growth (PSG) Ratio",  fn: function(p) { return ov.ltG > 0 ? (p / ov.ltG).toFixed(2) : "-"; }, cur: ov.ltG > 0 ? (price / ov.ltG).toFixed(2) : "-" },
+                      ];
+                      return rows.map(function(row, ri) {
+                        return (
+                          <tr key={ri} style={{ borderBottom:"1px solid #f0ede6" }}>
+                            <td style={{ padding:"7px 8px", color:"#555", fontSize:12 }}>{row.label}</td>
+                            {ratios.map(function(r, rj) {
+                              return (
+                                <td key={rj} style={{ padding:"7px 8px", textAlign:"right", color:"#333", fontWeight:500 }}>
+                                  {row.fn(r.price)}
+                                </td>
+                              );
+                            })}
+                            <td style={{ padding:"7px 8px", textAlign:"right", color:"#111", fontWeight:700 }}>{row.cur}</td>
+                          </tr>
+                        );
+                      });
+                    })()}
                   </tbody>
                 </table>
               </div>
