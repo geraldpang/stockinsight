@@ -146,12 +146,13 @@ function VBar({ label, value, maxV, color, bold }) {
 
 // -- Detail page --------------------------------------------------------------
 function Detail({ sym, name, onBack }) {
-  const [q,   setQ]   = useState(null);
-  const [ov,  setOv]  = useState(null);
+  const [q,        setQ]        = useState(null);
+  const [ov,       setOv]       = useState(null);
+  const [epsHistory, setEpsHistory] = useState(null);
   const [msg, setMsg] = useState("Loading...");
 
   useEffect(function() {
-    setQ(null); setOv(null); setMsg("Fetching live data for " + sym + "...");
+    setQ(null); setOv(null); setEpsHistory(null); setMsg("Fetching live data for " + sym + "...");
 
     getQuote(sym).then(function(res) {
       if (res) { setQ(res); setMsg(""); }
@@ -163,6 +164,41 @@ function Detail({ sym, name, onBack }) {
     getOverview(sym).then(function(res) {
       if (res) setOv(res);
     }).catch(function() {});
+
+    // Fetch 10-year annual EPS from Yahoo fundamentals-timeseries
+    var period1 = Math.floor(new Date("2014-01-01").getTime() / 1000);
+    var period2 = Math.floor(Date.now() / 1000);
+    fetch("/proxy?url=" + encodeURIComponent(
+      "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/" + sym +
+      "?type=annualEpsActual,annualEpsBasic&period1=" + period1 + "&period2=" + period2
+    )).then(function(r) { return r.json(); })
+      .then(function(data) {
+        var ts = data && data.timeseries && data.timeseries.result;
+        if (!ts) return;
+        // Prefer annualEpsActual, fallback to annualEpsBasic
+        var series = null;
+        for (var i = 0; i < ts.length; i++) {
+          if (ts[i].type === "annualEpsActual" && ts[i].annualEpsActual) {
+            series = ts[i].annualEpsActual; break;
+          }
+        }
+        if (!series) {
+          for (var j = 0; j < ts.length; j++) {
+            if (ts[j].type === "annualEpsBasic" && ts[j].annualEpsBasic) {
+              series = ts[j].annualEpsBasic; break;
+            }
+          }
+        }
+        if (!series) return;
+        var rows = series.map(function(item) {
+          return {
+            year:  new Date(item.asOfDate).getFullYear(),
+            eps:   item.reportedValue && item.reportedValue.raw != null ? item.reportedValue.raw : null,
+          };
+        }).filter(function(r) { return r.eps != null; });
+        rows.sort(function(a, b) { return a.year - b.year; });
+        setEpsHistory(rows);
+      }).catch(function() {});
   }, [sym]);
 
   const price = q ? q.price : 0;
@@ -452,6 +488,59 @@ function Detail({ sym, name, onBack }) {
             ) : (
               <div style={{ textAlign:"center", padding:"28px 0", color:"#aaa", fontSize:13 }}>
                 {msg ? "Data unavailable" : "Loading valuation data..."}
+              </div>
+            )}
+          </div>
+
+          {/* Historical Data - EPS 10 years */}
+          <div style={{ border:"1px solid #e0dbd0", borderRadius:12, padding:"20px 22px", background:"#faf8f4", marginTop:20 }}>
+            <div style={{ fontSize:15, fontWeight:700, color:"#111", marginBottom:14 }}>Historical Data</div>
+            {epsHistory && epsHistory.length > 0 ? (
+              <div style={{ overflowX:"auto" }}>
+                <table style={{ borderCollapse:"collapse", fontSize:12, width:"100%" }}>
+                  <thead>
+                    <tr style={{ borderBottom:"2px solid #e0dbd0" }}>
+                      <td style={{ padding:"6px 10px", color:"#888", fontWeight:600, minWidth:160 }}>Metric</td>
+                      {epsHistory.map(function(row) {
+                        return (
+                          <td key={row.year} style={{ padding:"6px 10px", textAlign:"right", color:"#888", fontWeight:600, minWidth:65 }}>
+                            {row.year}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ borderBottom:"1px solid #f0ede6" }}>
+                      <td style={{ padding:"7px 10px", color:"#555" }}>EPS (Annual)</td>
+                      {epsHistory.map(function(row) {
+                        return (
+                          <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#111", fontWeight:600 }}>
+                            {"$" + row.eps.toFixed(2)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    <tr>
+                      <td style={{ padding:"7px 10px", color:"#555" }}>EPS Growth YoY</td>
+                      {epsHistory.map(function(row, i) {
+                        if (i === 0) return <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#aaa" }}>-</td>;
+                        var prev = epsHistory[i-1].eps;
+                        var growth = prev !== 0 ? ((row.eps - prev) / Math.abs(prev)) * 100 : 0;
+                        var color = growth >= 0 ? "#2a8a2a" : "#c03030";
+                        return (
+                          <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:color, fontWeight:600 }}>
+                            {(growth >= 0 ? "+" : "") + growth.toFixed(1) + "%"}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ textAlign:"center", padding:"20px 0", color:"#aaa", fontSize:13 }}>
+                Loading historical EPS data...
               </div>
             )}
           </div>
