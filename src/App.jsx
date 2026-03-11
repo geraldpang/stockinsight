@@ -16,68 +16,69 @@ const NAMES = {
   QCOM:"Qualcomm", TXN:"Texas Instruments", MU:"Micron Technology",
 };
 
-const dataCache = {};
+const qCache  = {};
+const ovCache = {};
 
-// Anthropic API with web_search — fetches real-time stock data
-async function fetchStockData(sym) {
-  if (dataCache[sym]) return dataCache[sym];
-
-  const fields = '{"price":0,"change":0,"pct":0,"open":"","high":"","low":"","vol":"","exchange":"","marketCap":"","pe":0,"fpe":0,"peg":0,"epsG":0,"ltG":0,"divY":0,"roe":0,"roic":0,"de":0,"hi52":0,"lo52":0}';
-  const prompt = "You are a financial data API. Search the web for the latest stock data for " + sym + ". Return ONLY a valid JSON object matching this structure (no markdown, no explanation): " + fields + ". Fill all fields with real current values.";
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      tools: [{ type: "web_search_20250305", name: "web_search" }],
-      messages: [{ role: "user", content: prompt }]
-    })
-  });
-
-  const data = await response.json();
-  const textBlock = data.content && data.content.filter(function(b) { return b.type === "text"; });
-  if (!textBlock || textBlock.length === 0) return null;
-  const text = textBlock.map(function(b) { return b.text; }).join("");
-  const clean = text.replace(/```json|```/g, "").trim();
-  const parsed = JSON.parse(clean);
-  dataCache[sym] = parsed;
-  return parsed;
+// Uses allorigins.win as CORS proxy to reach Yahoo Finance from any domain
+async function yfetch(url) {
+  var proxy = "https://api.allorigins.win/get?url=" + encodeURIComponent(url);
+  var r = await fetch(proxy);
+  var d = await r.json();
+  return JSON.parse(d.contents);
 }
 
 async function getQuote(sym) {
-  const d = await fetchStockData(sym);
-  if (!d) return null;
-  return {
-    price:  parseFloat(d.price)  || 0,
-    change: parseFloat(d.change) || 0,
-    pct:    parseFloat(d.pct)    || 0,
-    open:   String(d.open  || "—"),
-    high:   String(d.high  || "—"),
-    low:    String(d.low   || "—"),
-    vol:    String(d.vol   || "—"),
+  if (qCache[sym]) return qCache[sym];
+  var d = await yfetch("https://query1.finance.yahoo.com/v8/finance/chart/" + sym + "?interval=1d&range=1d");
+  var meta = d && d.chart && d.chart.result && d.chart.result[0] && d.chart.result[0].meta;
+  if (!meta) return null;
+  var price  = meta.regularMarketPrice || 0;
+  var prev   = meta.chartPreviousClose || meta.previousClose || price;
+  var change = parseFloat((price - prev).toFixed(2));
+  var pct    = prev > 0 ? parseFloat(((change / prev) * 100).toFixed(2)) : 0;
+  var out = {
+    price:  price,
+    change: change,
+    pct:    pct,
+    open:   String(meta.regularMarketOpen    || "—"),
+    high:   String(meta.regularMarketDayHigh || "—"),
+    low:    String(meta.regularMarketDayLow  || "—"),
+    vol:    meta.regularMarketVolume ? meta.regularMarketVolume.toLocaleString() : "—",
   };
+  qCache[sym] = out;
+  return out;
 }
 
 async function getOverview(sym) {
-  const d = await fetchStockData(sym);
-  if (!d) return null;
-  return {
-    exchange:  d.exchange  || "NASDAQ",
-    marketCap: d.marketCap || "—",
-    pe:   parseFloat(d.pe)   || 0,
-    fpe:  parseFloat(d.fpe)  || 0,
-    peg:  parseFloat(d.peg)  || 0,
-    epsG: parseFloat(d.epsG) || 0,
-    ltG:  parseFloat(d.ltG)  || 0,
-    divY: parseFloat(d.divY) || 0,
-    roe:  parseFloat(d.roe)  || 0,
-    roic: parseFloat(d.roic) || 0,
-    de:   parseFloat(d.de)   || 0,
-    hi52: parseFloat(d.hi52) || 0,
-    lo52: parseFloat(d.lo52) || 0,
+  if (ovCache[sym]) return ovCache[sym];
+  var d = await yfetch("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym + "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile");
+  var res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
+  if (!res) return null;
+  var sd = res.summaryDetail        || {};
+  var ks = res.defaultKeyStatistics || {};
+  var fd = res.financialData        || {};
+  var ap = res.assetProfile         || {};
+  var mc = (sd.marketCap && sd.marketCap.raw) || 0;
+  var mcStr = mc >= 1e12 ? "$" + (mc/1e12).toFixed(2) + "T"
+            : mc >= 1e9  ? "$" + (mc/1e9).toFixed(1)  + "B"
+            : mc >= 1e6  ? "$" + (mc/1e6).toFixed(0)  + "M" : "—";
+  var out = {
+    exchange:  ap.exchange || "NASDAQ",
+    marketCap: mcStr,
+    pe:   (sd.trailingPE   && sd.trailingPE.raw)   || 0,
+    fpe:  (sd.forwardPE    && sd.forwardPE.raw)    || 0,
+    peg:  (ks.pegRatio     && ks.pegRatio.raw)     || 0,
+    epsG: ((fd.earningsGrowth && fd.earningsGrowth.raw) || 0) * 100,
+    ltG:  ((fd.revenueGrowth  && fd.revenueGrowth.raw)  || 0) * 100,
+    divY: ((sd.dividendYield  && sd.dividendYield.raw)  || 0) * 100,
+    roe:  ((fd.returnOnEquity && fd.returnOnEquity.raw) || 0) * 100,
+    roic: ((fd.returnOnAssets && fd.returnOnAssets.raw) || 0) * 100,
+    de:   (fd.debtToEquity   && fd.debtToEquity.raw)   || 0,
+    hi52: (sd.fiftyTwoWeekHigh && sd.fiftyTwoWeekHigh.raw) || 0,
+    lo52: (sd.fiftyTwoWeekLow  && sd.fiftyTwoWeekLow.raw)  || 0,
   };
+  ovCache[sym] = out;
+  return out;
 }
 
 function fmt2(n) { return n != null ? n.toFixed(2) : "—"; }
