@@ -177,30 +177,34 @@ function Detail({ sym, name, onBack }) {
   // Build valuation rows using proper DCF formula
   const vals = [];
   if (ov && eps > 0 && price > 0) {
-    var WACC       = 0.10;  // 10% discount rate
-    var termGrowth = 0.04;  // 4% terminal growth (years 11-20)
-    var fcfRatio   = 0.85;  // FCF is typically ~85% of earnings
-    var netIncRatio= 0.90;  // Net income ~90% of earnings
+    var WACC       = 0.10;              // 10% discount rate
+    var termGrowth = 0.04;              // 4% terminal growth (years 11-20)
+    var fcfRatio   = 0.85;              // FCF ~85% of earnings
+    var netIncRatio= 0.90;              // Net income ~90% of earnings
+    var grCapped   = Math.min(gr, 0.25); // Cap growth at 25% to prevent DCF explosion
+    var maxVal     = price * 3;         // Cap all valuations at 3x current price
 
-    // DCF-20: discount EPS as proxy for cash flow, 20 years
-    var dcf20  = calcDCF(eps, gr, termGrowth, WACC, 20);
-    // DCFF-20: free cash flow variant (slightly lower than earnings)
-    var dcff20 = calcDCF(eps * fcfRatio, gr, termGrowth, WACC, 20);
+    var cap = function(v) { return Math.min(v, maxVal); };
+
+    // DCF-20: proper 20-year discounted cash flow
+    var dcf20  = cap(calcDCF(eps, grCapped, termGrowth, WACC, 20));
+    // DCFF-20: free cash flow variant
+    var dcff20 = cap(calcDCF(eps * fcfRatio, grCapped, termGrowth, WACC, 20));
     // DNI-20: net income based
-    var dni20  = calcDCF(eps * netIncRatio, gr, termGrowth, WACC, 20);
-    // DCFF-Terminal: only terminal value (years 11-20)
-    var dcffT  = calcDCF(eps * fcfRatio, gr, termGrowth, WACC, 20) - calcDCF(eps * fcfRatio, gr, termGrowth, WACC, 10);
-    // PE Ratio: forward PE * EPS (conservative — uses analyst forward estimate)
-    var peVal  = fpe > 0 ? eps * fpe : eps * pe;
-    // PB Ratio: 52-week mean price (simple average of high/low)
+    var dni20  = cap(calcDCF(eps * netIncRatio, grCapped, termGrowth, WACC, 20));
+    // DCFF-Terminal: years 11-20 only (terminal value)
+    var dcffT  = cap(calcDCF(eps * fcfRatio, grCapped, termGrowth, WACC, 20) - calcDCF(eps * fcfRatio, grCapped, termGrowth, WACC, 10));
+    // PE Ratio: forward PE * EPS (uses analyst forward estimate)
+    var peVal  = cap(fpe > 0 ? eps * fpe : eps * pe);
+    // PB Ratio: 52-week mean price
     var pb     = ov.hi52 > 0 ? (ov.hi52 + ov.lo52) / 2 : 0;
-    // PS Ratio: conservative — forward PE * EPS * sales margin adjustment
-    var ps     = peVal * Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0);
-    // PSG: Price / Sales Growth — price divided by revenue growth rate (%)
-    var ltgRate = ov.ltG > 0 ? ov.ltG : (gr * 100);
-    var psg    = ltgRate > 0 ? price / ltgRate : 0;
-    // PEG: EPS / (long-term growth rate) — standard Peter Lynch formula
-    var pegVal = gr > 0 ? eps / gr : 0;
+    // PS Ratio: price adjusted by profitability
+    var ps     = cap(peVal * Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0));
+    // PSG: price divided by revenue growth % (like GuruFocus)
+    var ltgRate = ov.ltG > 0 ? ov.ltG : (grCapped * 100);
+    var psg    = ltgRate > 0 ? Math.min(price / ltgRate, maxVal) : 0;
+    // PEG: EPS * PEG ratio * 15 (fair value at PEG=1 is 15x earnings)
+    var pegVal = ov.peg > 0 ? Math.min(eps * 15, maxVal) : 0;
 
     vals.push({ label:"Discounted Cash Flow 20-year\n(DCF-20)",         value: dcf20,  color:"#d4a800" });
     vals.push({ label:"Discounted Free Cash Flow 20-year\n(DCFF-20)",   value: dcff20, color:"#d4a800" });
