@@ -78,6 +78,39 @@ async function getOverview(sym) {
   };
 }
 
+async function getHistory(sym) {
+  var d = await yfetch("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym +
+    "?modules=incomeStatementHistory,balanceSheetHistory");
+  var res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
+  if (!res) return {};
+  var inc = (res.incomeStatementHistory && res.incomeStatementHistory.incomeStatementHistory) || [];
+  var bal = (res.balanceSheetHistory && res.balanceSheetHistory.balanceSheetStatements) || [];
+  var out = {};
+  inc.forEach(function(stmt) {
+    var yr = stmt.endDate && stmt.endDate.raw
+      ? new Date(stmt.endDate.raw * 1000).getFullYear()
+      : null;
+    if (!yr) return;
+    var eps    = stmt.dilutedEPS && stmt.dilutedEPS.raw;
+    var rev    = stmt.totalRevenue && stmt.totalRevenue.raw;
+    out[yr] = out[yr] || {};
+    if (eps != null) out[yr].eps = eps;
+    if (rev != null) out[yr].rev = rev;
+  });
+  bal.forEach(function(stmt) {
+    var yr = stmt.endDate && stmt.endDate.raw
+      ? new Date(stmt.endDate.raw * 1000).getFullYear()
+      : null;
+    if (!yr) return;
+    var shares = stmt.commonStockSharesOutstanding && stmt.commonStockSharesOutstanding.raw;
+    var equity = stmt.totalStockholderEquity && stmt.totalStockholderEquity.raw;
+    out[yr] = out[yr] || {};
+    if (shares != null) out[yr].shares = shares;
+    if (equity != null) out[yr].equity = equity;
+  });
+  return out;
+}
+
 function fmt2(n) { return n != null ? n.toFixed(2) : "-"; }
 function fpct(n) { return n ? n.toFixed(2) + "%" : "-"; }
 
@@ -131,12 +164,16 @@ function Detail(props) {
   var ratios     = ratioState[0];
   var setRatios  = ratioState[1];
 
+  var histState  = useState({});
+  var hist       = histState[0];
+  var setHist    = histState[1];
+
   var msgState   = useState("Loading...");
   var msg        = msgState[0];
   var setMsg     = msgState[1];
 
   useEffect(function() {
-    setQ(null); setOv(null); setRatios(null);
+    setQ(null); setOv(null); setRatios(null); setHist({});
     setMsg("Fetching data for " + sym + "...");
 
     getQuote(sym).then(function(res) {
@@ -173,6 +210,13 @@ function Detail(props) {
         return { date: String(yr), price: yearPrices[yr] };
       }));
     }).catch(function() {});
+
+    // Fetch historical income/balance statements with a delay to avoid crumb conflict
+    setTimeout(function() {
+      getHistory(sym).then(function(h) {
+        if (h) setHist(h);
+      }).catch(function() {});
+    }, 800);
 
   }, [sym]);
 
@@ -376,21 +420,40 @@ function Detail(props) {
                   </thead>
                   <tbody>
                     {[
-                      { label:"Price ($)",                             cur: price > 0 ? "$" + price.toFixed(2) : "-" },
-                      { label:"Price to Earnings (PE) Ratio",          cur: pe > 0 ? pe.toFixed(2) : "-" },
-                      { label:"Price to Book (PB) Ratio",              cur: ov.pbRatio > 0 ? ov.pbRatio.toFixed(2) : "-" },
-                      { label:"Price to Sales (PS) Ratio",             cur: ov.psRatio > 0 ? ov.psRatio.toFixed(2) : "-" },
-                      { label:"PEG Ratio without NRI",                 cur: ov.peg > 0 ? ov.peg.toFixed(2) : "-" }
+                      { label:"Price ($)",                             key:"price" },
+                      { label:"Price to Earnings (PE) Ratio",          key:"pe" },
+                      { label:"Price to Book (PB) Ratio",              key:"pb" },
+                      { label:"Price to Sales (PS) Ratio",             key:"ps" },
+                      { label:"PEG Ratio without NRI",                 key:"peg" }
                     ].map(function(row, ri) {
+                      var curVal = "-";
+                      if (row.key === "price") curVal = price > 0 ? "$" + price.toFixed(2) : "-";
+                      if (row.key === "pe")    curVal = pe > 0 ? pe.toFixed(2) : "-";
+                      if (row.key === "pb")    curVal = ov.pbRatio > 0 ? ov.pbRatio.toFixed(2) : "-";
+                      if (row.key === "ps")    curVal = ov.psRatio > 0 ? ov.psRatio.toFixed(2) : "-";
+                      if (row.key === "peg")   curVal = ov.peg > 0 ? ov.peg.toFixed(2) : "-";
                       return (
                         <tr key={ri} style={{ borderBottom:"1px solid #f0ede6" }}>
                           <td style={{ padding:"7px 8px", color:"#555", fontSize:12 }}>{row.label}</td>
                           {ratios.map(function(r, rj) {
+                            var yr  = parseInt(r.date);
+                            var h   = hist[yr] || hist[yr - 1] || {};
                             var val = "-";
-                            if (ri === 0 && r.price) val = "$" + r.price.toFixed(2);
+                            if (row.key === "price" && r.price) {
+                              val = "$" + r.price.toFixed(2);
+                            } else if (row.key === "pe" && r.price && h.eps && h.eps > 0) {
+                              val = (r.price / h.eps).toFixed(1);
+                            } else if (row.key === "pb" && r.price && h.equity && h.shares && h.shares > 0) {
+                              val = (r.price / (h.equity / h.shares)).toFixed(1);
+                            } else if (row.key === "ps" && r.price && h.rev && h.shares && h.shares > 0) {
+                              val = (r.price / (h.rev / h.shares)).toFixed(1);
+                            } else if (row.key === "peg" && r.price && h.eps && h.eps > 0) {
+                              var histPE = r.price / h.eps;
+                              val = gr > 0 ? (histPE / (gr * 100)).toFixed(1) : "-";
+                            }
                             return <td key={rj} style={{ padding:"7px 8px", textAlign:"right", color:"#999" }}>{val}</td>;
                           })}
-                          <td style={{ padding:"7px 8px", textAlign:"right", color:"#111", fontWeight:700 }}>{row.cur}</td>
+                          <td style={{ padding:"7px 8px", textAlign:"right", color:"#111", fontWeight:700 }}>{curVal}</td>
                         </tr>
                       );
                     })}
