@@ -426,14 +426,17 @@ function Detail({ sym, name, onBack }) {
                             </td>;
                           })}
                           <td style={{ padding:"7px 8px", textAlign:"right", color:"#111", fontWeight:700 }}>
-                            {(function() {
-                              if (row.key === "priceEarningsRatio" || row.key === "priceToEarningsRatio") return pe > 0 ? pe.toFixed(2) : "—";
-                              if (row.key === "priceToSalesRatio") return ov ? (price / (ov.marketCap ? parseFloat(ov.marketCap) : 1)).toFixed(2) : "—";
-                              if (row.key === "priceToBookRatio") return ov && ov.hi52 > 0 ? ((ov.hi52+ov.lo52)/2/price).toFixed(2) : "—";
-                              if (row.key === "priceEarningsToGrowthRatio") return ov && ov.peg > 0 ? ov.peg.toFixed(2) : "—";
-                              return "—";
-                            })()}
-                          </td>
+                          <td style={{ padding:"7px 8px", textAlign:"right", color:"#111", fontWeight:700 }}>
+                             {row.key === "priceEarningsRatio" || row.key === "priceToEarningsRatio"
+                               ? (pe > 0 ? pe.toFixed(2) : "-")
+                               : row.key === "priceToSalesRatio"
+                               ? (ov && ov.hi52 > 0 ? (price / ov.hi52).toFixed(2) : "-")
+                               : row.key === "priceToBookRatio"
+                               ? (ov && ov.hi52 > 0 ? ((ov.hi52+ov.lo52)/2/price).toFixed(2) : "-")
+                               : row.key === "priceEarningsToGrowthRatio"
+                               ? (ov && ov.peg > 0 ? ov.peg.toFixed(2) : "-")
+                               : "-"}
+                           </td>
                         </tr>
                       );
                     })}
