@@ -51,7 +51,7 @@ async function getQuote(sym) {
 
 async function getOverview(sym) {
   if (ovCache[sym]) return ovCache[sym];
-  var d = await yfetch("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym + "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile,earningsTrend");
+  var d = await yfetch("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym + "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile,earningsTrend,incomeStatementHistory,balanceSheetHistory");
   var res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
   if (!res) return null;
   var sd = res.summaryDetail        || {};
@@ -91,21 +91,11 @@ async function getOverview(sym) {
     pbRatio: (ks.priceToBook && ks.priceToBook.raw) || 0,
     psRatio: (sd.priceToSalesTrailing12Months && sd.priceToSalesTrailing12Months.raw) || 0,
   };
-  ovCache[sym] = out;
-  return out;
-}
 
-// Fetch historical fundamentals: dilutedEPS, revenue, book value per share by fiscal year
-async function getHistory(sym) {
-  var url = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym + "?modules=incomeStatementHistory,balanceSheetHistory";
-  var d = await yfetch(url);
-  var res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
-  if (!res) { console.log("[getHistory] no result for", sym); return {}; }
-
+  // Parse historical fundamentals from the same API call
   var ish = (res.incomeStatementHistory && res.incomeStatementHistory.incomeStatements) || [];
   var bsh = (res.balanceSheetHistory && res.balanceSheetHistory.balanceSheets) || [];
   var byYear = {};
-
   ish.forEach(function(s) {
     var yr = s.endDate && s.endDate.raw ? new Date(s.endDate.raw * 1000).getFullYear() : null;
     if (!yr) return;
@@ -118,7 +108,6 @@ async function getHistory(sym) {
     if (ni)  byYear[yr].netIncome = ni;
     if (eps && ni && Math.abs(eps) > 0.001) byYear[yr].shares = ni / eps;
   });
-
   bsh.forEach(function(s) {
     var yr = s.endDate && s.endDate.raw ? new Date(s.endDate.raw * 1000).getFullYear() : null;
     if (!yr) return;
@@ -128,7 +117,6 @@ async function getHistory(sym) {
     if (bv) byYear[yr].bookValue = bv;
     if (sh && sh > 0) byYear[yr].shares = sh;
   });
-
   Object.keys(byYear).forEach(function(yr) {
     var f = byYear[yr];
     var sh = f.shares || 0;
@@ -138,10 +126,14 @@ async function getHistory(sym) {
       if (f.bookValue) f.bvPS  = f.bookValue / sh;
     }
   });
+  console.log("[getOverview] byYear for", sym, ":", JSON.stringify(byYear));
+  out.byYear = byYear;
 
-  console.log("[getHistory]", sym, byYear);
-  return byYear;
+  ovCache[sym] = out;
+  return out;
 }
+
+
 
 function fmt2(n) { return n != null ? n.toFixed(2) : "-"; }
 function pct(n)  { return n ? n.toFixed(2) + "%" : "-"; }
@@ -170,12 +162,11 @@ function Detail({ sym, name, onBack }) {
   const [q,     setQ]     = useState(null);
   const [ov,    setOv]    = useState(null);
   const [ratios, setRatios] = useState(null);
-  const [history, setHistory] = useState({});
 
   const [msg,   setMsg]   = useState("Loading...");
 
   useEffect(function() {
-    setQ(null); setOv(null); setHistory({}); setMsg("Fetching live data for " + sym + "...");
+    setQ(null); setOv(null); setMsg("Fetching live data for " + sym + "...");
 
     // Fetch quote and overview in parallel from Yahoo Finance
     getQuote(sym).then(function(res) {
@@ -186,14 +177,12 @@ function Detail({ sym, name, onBack }) {
     });
 
     getHistory(sym).then(function(h) {
-      setHistory(h || {});
     }).catch(function(e) { console.error("[getHistory]", e); });
 
     getOverview(sym).then(function(res) {
       if (res) setOv(res);
     }).catch(function() {});
 
-    // Fetch historical EPS/revenue/book value
     // Fetch 5yr price history for ratios table
     fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + sym + "?interval=1mo&range=5y"))
       .then(function(r) { return r.json(); })
@@ -212,20 +201,13 @@ function Detail({ sym, name, onBack }) {
           yearPrices[yr] = closes[i];
         });
         console.log("[chart] yearPrices:", yearPrices);
-        // Store prices in ratios; fundamentals merged later when history arrives
         var years = Object.keys(yearPrices).sort().slice(-6);
         setRatios(years.map(function(yr) {
           return { date: String(yr), price: yearPrices[yr] };
         }));
       }).catch(function(err) { console.error("[chart] error:", err); });
 
-    // Fetch historical fundamentals (EPS, revenue, book value per share by year)
-    getHistory(sym).then(function(h) {
-      if (h) {
-        setHistory(h);
-        console.log("[history] set:", h);
-      }
-    }).catch(function(err) { console.error("[history] error:", err); });
+
   }, [sym]);
 
   const price = q ? q.price : 0;
@@ -492,32 +474,45 @@ function Detail({ sym, name, onBack }) {
                       {
                         label:"Price to Earnings (PE) Ratio",
                         fn: function(r) {
-                          var h = history[parseInt(r.date)] || history[parseInt(r.date)-1] || {};
-                          return h.eps && h.eps > 0 && r.price ? (r.price / h.eps).toFixed(2) : "-";
+                          var h = (ov.byYear && (ov.byYear[parseInt(r.date)] || ov.byYear[parseInt(r.date)-1])) || {};
+                          var epsVal = h.eps || (pe > 0 && price > 0 ? price / pe : 0);
+                          return epsVal > 0 && r.price ? (r.price / epsVal).toFixed(2) : "-";
                         },
                         cur: pe > 0 ? pe.toFixed(2) : "-"
                       },
                       {
+                        label:"Forward PE Ratio (Next Year)",
+                        fn: function(r) {
+                          // Forward EPS = current price / current fpe; scale by historical price
+                          var fepsVal = fpe > 0 && price > 0 ? price / fpe : 0;
+                          return fepsVal > 0 && r.price ? (r.price / fepsVal).toFixed(2) : "-";
+                        },
+                        cur: fpe > 0 ? fpe.toFixed(2) : "-"
+                      },
+                      {
                         label:"Price to Book (PB) Ratio",
                         fn: function(r) {
-                          var h = history[parseInt(r.date)] || history[parseInt(r.date)-1] || {};
-                          return h.bvPS && h.bvPS > 0 && r.price ? (r.price / h.bvPS).toFixed(2) : "-";
+                          var h = (ov.byYear && (ov.byYear[parseInt(r.date)] || ov.byYear[parseInt(r.date)-1])) || {};
+                          var bvVal = h.bvPS || (ov.pbRatio > 0 && price > 0 ? price / ov.pbRatio : 0);
+                          return bvVal > 0 && r.price ? (r.price / bvVal).toFixed(2) : "-";
                         },
                         cur: ov.pbRatio > 0 ? ov.pbRatio.toFixed(2) : "-"
                       },
                       {
                         label:"Price to Sales (PS) Ratio",
                         fn: function(r) {
-                          var h = history[parseInt(r.date)] || history[parseInt(r.date)-1] || {};
-                          return h.revPS && h.revPS > 0 && r.price ? (r.price / h.revPS).toFixed(2) : "-";
+                          var h = (ov.byYear && (ov.byYear[parseInt(r.date)] || ov.byYear[parseInt(r.date)-1])) || {};
+                          var revVal = h.revPS || (ov.psRatio > 0 && price > 0 ? price / ov.psRatio : 0);
+                          return revVal > 0 && r.price ? (r.price / revVal).toFixed(2) : "-";
                         },
                         cur: ov.psRatio > 0 ? ov.psRatio.toFixed(2) : "-"
                       },
                       {
                         label:"Price to Sales Growth (PSG) Ratio",
                         fn: function(r) {
-                          var h = history[parseInt(r.date)] || history[parseInt(r.date)-1] || {};
-                          var ps = h.revPS && h.revPS > 0 && r.price ? r.price / h.revPS : 0;
+                          var h = (ov.byYear && (ov.byYear[parseInt(r.date)] || ov.byYear[parseInt(r.date)-1])) || {};
+                          var revVal = h.revPS || (ov.psRatio > 0 && price > 0 ? price / ov.psRatio : 0);
+                          var ps = revVal > 0 && r.price ? r.price / revVal : 0;
                           return ps > 0 && ov.ltG > 0 ? (ps / ov.ltG).toFixed(2) : "-";
                         },
                         cur: ov.ltG > 0 ? (price / ov.ltG).toFixed(2) : "-"
@@ -525,9 +520,11 @@ function Detail({ sym, name, onBack }) {
                       {
                         label:"PEG Ratio without NRI",
                         fn: function(r) {
-                          var h = history[parseInt(r.date)] || history[parseInt(r.date)-1] || {};
-                          var peVal = h.eps && h.eps > 0 && r.price ? r.price / h.eps : 0;
-                          return peVal > 0 && ov.epsG > 0 ? (peVal / ov.epsG).toFixed(2) : "-";
+                          var h = (ov.byYear && (ov.byYear[parseInt(r.date)] || ov.byYear[parseInt(r.date)-1])) || {};
+                          var epsVal = h.eps || (pe > 0 && price > 0 ? price / pe : 0);
+                          var peVal = epsVal > 0 && r.price ? r.price / epsVal : 0;
+                          var growth = ov.epsG > 0 ? ov.epsG : (ov.ltG > 0 ? ov.ltG : 0);
+                          return peVal > 0 && growth > 0 ? (peVal / growth).toFixed(2) : "-";
                         },
                         cur: ov.peg > 0 ? ov.peg.toFixed(2) : "-"
                       },
