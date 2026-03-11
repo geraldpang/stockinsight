@@ -95,44 +95,58 @@ async function getOverview(sym) {
 
 // Fetch historical EPS + revenue per share for accurate ratio calculation
 async function getHistory(sym) {
-  var d = await yfetch("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym + "?modules=incomeStatementHistory,balanceSheetHistory,earningsTrend");
+  // Fetch income statement (has netIncome, totalRevenue, dilutedEPS, shares outstanding)
+  // and balance sheet (has totalStockholderEquity, shares)
+  var d = await yfetch("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym + "?modules=incomeStatementHistory,balanceSheetHistory");
   var res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
   if (!res) return null;
 
   var ish = res.incomeStatementHistory && res.incomeStatementHistory.incomeStatements || [];
   var bsh = res.balanceSheetHistory && res.balanceSheetHistory.balanceSheets || [];
 
-  // Build per-year data: EPS = netIncome / sharesOutstanding, RevenuePS = revenue / shares
   var byYear = {};
+
   ish.forEach(function(s) {
     var yr = s.endDate && s.endDate.fmt ? s.endDate.fmt.substring(0,4) : null;
     if (!yr) return;
-    var ni = s.netIncome && s.netIncome.raw || 0;
+    if (!byYear[yr]) byYear[yr] = {};
+    // dilutedEPS is directly available - most reliable
+    var dEps = s.dilutedEPS && s.dilutedEPS.raw;
+    if (dEps) byYear[yr].eps = dEps;
+    // revenue
     var rev = s.totalRevenue && s.totalRevenue.raw || 0;
-    if (!byYear[yr]) byYear[yr] = {};
-    byYear[yr].netIncome = ni;
     byYear[yr].revenue = rev;
-  });
-  bsh.forEach(function(s) {
-    var yr = s.endDate && s.endDate.fmt ? s.endDate.fmt.substring(0,4) : null;
-    if (!yr) return;
-    var shares = s.commonStock && s.commonStock.raw || 0;
-    var bv = s.totalStockholderEquity && s.totalStockholderEquity.raw || 0;
-    if (!byYear[yr]) byYear[yr] = {};
-    byYear[yr].shares = shares;
-    byYear[yr].bookValue = bv;
-  });
-
-  // Calculate per-share metrics
-  Object.keys(byYear).forEach(function(yr) {
-    var y = byYear[yr];
-    if (y.shares > 0) {
-      y.eps = y.netIncome / y.shares;
-      y.revPS = y.revenue / y.shares;
-      y.bvPS = y.bookValue / y.shares;
+    // diluted shares = netIncome / dilutedEPS (for per-share calcs)
+    var ni = s.netIncome && s.netIncome.raw || 0;
+    byYear[yr].netIncome = ni;
+    if (dEps && Math.abs(dEps) > 0) {
+      byYear[yr].shares = ni / dEps;
     }
   });
 
+  bsh.forEach(function(s) {
+    var yr = s.endDate && s.endDate.fmt ? s.endDate.fmt.substring(0,4) : null;
+    if (!yr) return;
+    if (!byYear[yr]) byYear[yr] = {};
+    var bv = s.totalStockholderEquity && s.totalStockholderEquity.raw || 0;
+    byYear[yr].bookValue = bv;
+    // commonStockSharesOutstanding is the correct shares field in balance sheet
+    var sh = s.commonStockSharesOutstanding && s.commonStockSharesOutstanding.raw || 0;
+    if (sh > 0 && !byYear[yr].shares) byYear[yr].shares = sh;
+  });
+
+  // Derive per-share metrics
+  Object.keys(byYear).forEach(function(yr) {
+    var y = byYear[yr];
+    var sh = y.shares || 0;
+    if (sh > 0) {
+      if (!y.eps && y.netIncome) y.eps = y.netIncome / sh;
+      if (y.revenue) y.revPS = y.revenue / sh;
+      if (y.bookValue) y.bvPS = y.bookValue / sh;
+    }
+  });
+
+  console.log("[getHistory] byYear result:", JSON.stringify(byYear));
   return byYear;
 }
 
@@ -183,8 +197,9 @@ function Detail({ sym, name, onBack }) {
 
     // Fetch historical EPS/revenue/book value
     getHistory(sym).then(function(res) {
+      console.log("[getHistory] fetched:", res);
       if (res) setHistory(res);
-    }).catch(function() {});
+    }).catch(function(err) { console.error("[getHistory] error:", err); });
 
     // Fetch 5yr annual price history from Yahoo to build historical ratios
     fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + sym + "?interval=1mo&range=5y"))
