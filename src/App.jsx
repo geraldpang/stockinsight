@@ -149,10 +149,11 @@ function Detail({ sym, name, onBack }) {
   const [q,        setQ]        = useState(null);
   const [ov,       setOv]       = useState(null);
   const [epsHistory, setEpsHistory] = useState(null);
+  const [epsError,   setEpsError]   = useState(false);
   const [msg, setMsg] = useState("Loading...");
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setMsg("Fetching live data for " + sym + "...");
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setMsg("Fetching live data for " + sym + "...");
 
     getQuote(sym).then(function(res) {
       if (res) { setQ(res); setMsg(""); }
@@ -165,40 +166,40 @@ function Detail({ sym, name, onBack }) {
       if (res) setOv(res);
     }).catch(function() {});
 
-    // Fetch 10-year annual EPS from Yahoo fundamentals-timeseries
+    // Fetch annual EPS history from Yahoo fundamentals-timeseries
     var period1 = Math.floor(new Date("2014-01-01").getTime() / 1000);
     var period2 = Math.floor(Date.now() / 1000);
     fetch("/proxy?url=" + encodeURIComponent(
-      "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/" + sym +
-      "?type=annualEpsActual,annualEpsBasic&period1=" + period1 + "&period2=" + period2
+      "https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/" + sym +
+      "?symbol=" + sym + "&type=annualEpsActual,annualEpsBasic,annualDilutedEps" +
+      "&period1=" + period1 + "&period2=" + period2
     )).then(function(r) { return r.json(); })
       .then(function(data) {
         var ts = data && data.timeseries && data.timeseries.result;
-        if (!ts) return;
-        // Prefer annualEpsActual, fallback to annualEpsBasic
+        if (!ts || !ts.length) return;
+        // Try each EPS type - pick whichever has data
+        var keys = ["annualEpsActual", "annualEpsBasic", "annualDilutedEps"];
         var series = null;
-        for (var i = 0; i < ts.length; i++) {
-          if (ts[i].type === "annualEpsActual" && ts[i].annualEpsActual) {
-            series = ts[i].annualEpsActual; break;
-          }
-        }
-        if (!series) {
-          for (var j = 0; j < ts.length; j++) {
-            if (ts[j].type === "annualEpsBasic" && ts[j].annualEpsBasic) {
-              series = ts[j].annualEpsBasic; break;
+        for (var k = 0; k < keys.length; k++) {
+          for (var i = 0; i < ts.length; i++) {
+            var key = keys[k];
+            if (ts[i][key] && ts[i][key].length > 0) {
+              series = ts[i][key]; break;
             }
           }
+          if (series) break;
         }
         if (!series) return;
         var rows = series.map(function(item) {
-          return {
-            year:  new Date(item.asOfDate).getFullYear(),
-            eps:   item.reportedValue && item.reportedValue.raw != null ? item.reportedValue.raw : null,
-          };
+          var val = item.reportedValue != null
+            ? (typeof item.reportedValue === "object" ? item.reportedValue.raw : item.reportedValue)
+            : item.value != null ? item.value : null;
+          return { year: new Date(item.asOfDate).getFullYear(), eps: val };
         }).filter(function(r) { return r.eps != null; });
         rows.sort(function(a, b) { return a.year - b.year; });
-        setEpsHistory(rows);
-      }).catch(function() {});
+        if (rows.length > 0) setEpsHistory(rows);
+        else setEpsError(true);
+      }).catch(function() { setEpsError(true); });
   }, [sym]);
 
   const price = q ? q.price : 0;
@@ -540,7 +541,7 @@ function Detail({ sym, name, onBack }) {
               </div>
             ) : (
               <div style={{ textAlign:"center", padding:"20px 0", color:"#aaa", fontSize:13 }}>
-                Loading historical EPS data...
+                {epsError ? "Historical EPS data unavailable for this symbol." : "Loading historical EPS data..."}
               </div>
             )}
           </div>
