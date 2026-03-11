@@ -200,7 +200,7 @@ function Detail({ sym, name, onBack }) {
 
     const oracleAvg = vals.reduce(function(sum, v) { return sum + v.value; }, 0) / vals.length;
     oracle = oracleAvg.toFixed(2);
-    vals.push({ label:"OracleValue(TM)", value:oracleAvg, color:"#1a8a3a", bold:true });
+    vals.push({ label:"IntrinsicValue(TM)", value:oracleAvg, color:"#1a8a3a", bold:true });
   }
 
   const maxV = vals.length
