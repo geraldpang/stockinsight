@@ -330,21 +330,33 @@ function Detail({ sym, name, onBack }) {
 export default function App() {
   const [input,   setInput]   = useState("");
   const [focused, setFocused] = useState(false);
-  const [view,    setView]    = useState(null);
+
+  // Hash-based routing: #AAPL → detail view for AAPL
+  var getHash = function() {
+    var h = window.location.hash.replace("#", "").toUpperCase().trim();
+    return h || null;
+  };
+  const [hashSym, setHashSym] = useState(getHash);
+
+  useEffect(function() {
+    var onHash = function() { setHashSym(getHash()); };
+    window.addEventListener("hashchange", onHash);
+    return function() { window.removeEventListener("hashchange", onHash); };
+  }, []);
 
   const go = function(sym) {
     var s = (sym || input).toUpperCase().trim();
     if (!s) return;
     setFocused(false);
-    setView({ sym: s, name: NAMES[s] || s });
+    window.location.hash = s;
   };
 
   const handleInput = function(e) {
     setInput(e.target.value);
   };
 
-  if (view) {
-    return <Detail sym={view.sym} name={view.name} onBack={function() { setView(null); }} />;
+  if (hashSym) {
+    return <Detail sym={hashSym} name={NAMES[hashSym] || hashSym} onBack={function() { window.location.hash = ""; }} />;
   }
 
   const allStocks = Object.keys(NAMES).map(function(k) { return { symbol:k, name:NAMES[k] }; });
