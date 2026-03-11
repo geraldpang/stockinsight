@@ -102,6 +102,18 @@ async function getOverview(sym) {
     de:           ((fd.debtToEquity && fd.debtToEquity.raw) || 0) / 100,
     currentRatio: (fd.currentRatio && fd.currentRatio.raw) || 0,
     fcf:          fcfStr,
+    // Financial Health extras
+    quickRatio:   (fd.quickRatio && fd.quickRatio.raw) || 0,
+    revenue:      (function() {
+      var r = (fd.totalRevenue && fd.totalRevenue.raw) || 0;
+      return r >= 1e12 ? "$" + (r/1e12).toFixed(2) + "T"
+           : r >= 1e9  ? "$" + (r/1e9).toFixed(1)  + "B"
+           : r >= 1e6  ? "$" + (r/1e6).toFixed(0)  + "M" : "-";
+    })(),
+    revGrowth:    ((fd.revenueGrowth && fd.revenueGrowth.raw) || 0) * 100,
+    // Growth & Profile
+    beta:         (sd.beta && sd.beta.raw) || 0,
+    pb:           (ks.priceToBook && ks.priceToBook.raw) || 0,
     // For DCF calcs
     hi52: (sd.fiftyTwoWeekHigh && sd.fiftyTwoWeekHigh.raw) || 0,
     lo52: (sd.fiftyTwoWeekLow  && sd.fiftyTwoWeekLow.raw)  || 0,
@@ -224,15 +236,24 @@ function Detail({ sym, name, onBack }) {
     : price * 1.5 || 100;
 
   const valRows = ov ? [
-    ["P/E Ratio (TTM)",         pe>0?fmt2(pe):"-",            "Price / Sales (TTM)",    ov.ps>0?fmt2(ov.ps):"-"],
-    ["Forward P/E (Next Year)", fpe>0?fmt2(fpe):"-",          "EV / EBITDA",            ov.evEbitda>0?fmt2(ov.evEbitda):"-"],
-    ["PEG Ratio",               ov.peg>0?fmt2(ov.peg):"-",   "Price / Free Cash Flow", ov.pFcf>0?fmt2(ov.pFcf):"-"],
+    ["P/E Ratio (TTM)",         pe>0?fmt2(pe):"-",            "Price / Sales (TTM)",      ov.ps>0?fmt2(ov.ps):"-"],
+    ["Forward P/E (Next Year)", fpe>0?fmt2(fpe):"-",          "EV / EBITDA",              ov.evEbitda>0?fmt2(ov.evEbitda):"-"],
+    ["PEG Ratio",               ov.peg>0?fmt2(ov.peg):"-",   "Price / Free Cash Flow",   ov.pFcf>0?fmt2(ov.pFcf):"-"],
+    ["Price / Book (P/B)",      ov.pb>0?fmt2(ov.pb):"-",     "Dividend Yield (TTM)",     ov.divY>0?fpct(ov.divY):"-"],
   ] : [];
 
   const healthRows = ov ? [
     ["Gross Margin",        ov.grossMargin?fpct(ov.grossMargin):"-", "Return on Equity",    ov.roe>0?fpct(ov.roe):"-"],
-    ["Net Profit Margin",   ov.netMargin?fpct(ov.netMargin):"-",     "Current Ratio",       ov.currentRatio>0?fmt2(ov.currentRatio):"-"],
+    ["Operating Margin",    ov.opMargin?fpct(ov.opMargin):"-",      "Current Ratio",       ov.currentRatio>0?fmt2(ov.currentRatio):"-"],
+    ["Net Profit Margin",   ov.netMargin?fpct(ov.netMargin):"-",     "Quick Ratio",         ov.quickRatio>0?fmt2(ov.quickRatio):"-"],
     ["Free Cash Flow",      ov.fcf||"-",                              "Total Debt / Equity", ov.de>0?fmt2(ov.de):"-"],
+    ["Revenue (TTM)",       ov.revenue||"-",                          "Revenue Growth YoY",  ov.revGrowth?fpct(ov.revGrowth):"-"],
+  ] : [];
+
+  const growthRows = ov ? [
+    ["EPS Growth (TTM)",          ov.epsG?fpct(ov.epsG):"-",   "Revenue Growth YoY",      ov.revGrowth?fpct(ov.revGrowth):"-"],
+    ["LT EPS Growth (5yr Est.)",  ov.ltG?fpct(ov.ltG):"-",     "Beta",                    ov.beta>0?fmt2(ov.beta):"-"],
+    ["Market Capitalization",     ov.marketCap||"-",            "Dividend Yield (TTM)",    ov.divY>0?fpct(ov.divY):"-"],
   ] : [];
 
   return (
@@ -328,7 +349,7 @@ function Detail({ sym, name, onBack }) {
           </div>
 
           {/* Financial Health Section */}
-          <div style={{ background:"#fff", border:"1px solid #e0dbd0", borderRadius:12, padding:"16px" }}>
+          <div style={{ background:"#fff", border:"1px solid #e0dbd0", borderRadius:12, padding:"16px", marginBottom:12 }}>
             <div style={{ fontSize:12, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Financial Health</div>
             {healthRows.length > 0 ? (
               <table style={{ width:"100%", borderCollapse:"collapse" }}>
@@ -336,6 +357,31 @@ function Detail({ sym, name, onBack }) {
                   {healthRows.map(function(row, i) {
                     return (
                       <tr key={i} style={{ borderBottom:i < healthRows.length-1 ? "1px solid #f0ede6" : "none" }}>
+                        <td style={{ padding:"6px 0", fontSize:11, color:"#888", width:"34%", lineHeight:1.4 }}>{row[0]}</td>
+                        <td style={{ padding:"6px 8px", fontSize:13, fontWeight:700, color:"#111", width:"16%" }}>{row[1]}</td>
+                        <td style={{ padding:"6px 0", fontSize:11, color:"#888", width:"34%", lineHeight:1.4 }}>{row[2]}</td>
+                        <td style={{ padding:"6px 0", fontSize:13, fontWeight:700, color:"#111", width:"16%", textAlign:"right" }}>{row[3]}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <div style={{ color:"#aaa", fontSize:13, textAlign:"center", padding:"12px 0" }}>
+                {msg ? "Unavailable" : "Loading..."}
+              </div>
+            )}
+          </div>
+
+          {/* Growth & Profile Section */}
+          <div style={{ background:"#fff", border:"1px solid #e0dbd0", borderRadius:12, padding:"16px" }}>
+            <div style={{ fontSize:12, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Growth & Profile</div>
+            {growthRows.length > 0 ? (
+              <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                <tbody>
+                  {growthRows.map(function(row, i) {
+                    return (
+                      <tr key={i} style={{ borderBottom:i < growthRows.length-1 ? "1px solid #f0ede6" : "none" }}>
                         <td style={{ padding:"6px 0", fontSize:11, color:"#888", width:"34%", lineHeight:1.4 }}>{row[0]}</td>
                         <td style={{ padding:"6px 8px", fontSize:13, fontWeight:700, color:"#111", width:"16%" }}>{row[1]}</td>
                         <td style={{ padding:"6px 0", fontSize:11, color:"#888", width:"34%", lineHeight:1.4 }}>{row[2]}</td>
