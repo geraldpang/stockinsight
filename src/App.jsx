@@ -151,20 +151,14 @@ function Detail({ sym, name, onBack }) {
   const moatBg = moat === "Wide" ? "#1a6a1a" : moat === "Narrow" ? "#b88000" : "#ccc";
   const moatFg = (moat === "Wide" || moat === "Narrow") ? "#fff" : "#555";
 
+
+
+  // OracleValue: 10-year DCF intrinsic value
   const oracle = (eps > 0 && pe > 0)
-    ? (eps * ((pe + (fpe || pe)) / 2) * (1 + gr * 2)).toFixed(2)
+    ? calcDCF(eps, gr, 0.04, 0.10, 10).toFixed(2)
     : (price > 0 ? price.toFixed(2) : "—");
 
-  // Proper DCF calculation helper
-  var calcDCF = function(eps0, growthRate, terminalRate, wacc, years) {
-    var total = 0;
-    var fcf = eps0;
-    for (var y = 1; y <= years; y++) {
-      fcf = fcf * (1 + (y <= 10 ? growthRate : terminalRate));
-      total += fcf / Math.pow(1 + wacc, y);
-    }
-    return total;
-  };
+
 
   // Build valuation rows using proper DCF formula
   const vals = [];
@@ -182,16 +176,17 @@ function Detail({ sym, name, onBack }) {
     var dni20  = calcDCF(eps * netIncRatio, gr, termGrowth, WACC, 20);
     // DCFF-Terminal: only terminal value (years 11-20)
     var dcffT  = calcDCF(eps * fcfRatio, gr, termGrowth, WACC, 20) - calcDCF(eps * fcfRatio, gr, termGrowth, WACC, 10);
-    // PS Ratio: revenue-based mean price
-    var ps     = price * (1 + Math.min((ov.roic || 5) / 400, 0.15));
-    // PE Ratio: mean of trailing & forward PE * EPS
-    var peVal  = eps * ((pe + (fpe || pe)) / 2);
-    // PB Ratio: 52-week mean price
+    // PE Ratio: forward PE * EPS (conservative — uses analyst forward estimate)
+    var peVal  = fpe > 0 ? eps * fpe : eps * pe;
+    // PB Ratio: 52-week mean price (simple average of high/low)
     var pb     = ov.hi52 > 0 ? (ov.hi52 + ov.lo52) / 2 : 0;
-    // PSG: price / (EPS growth rate * 100)
-    var psg    = gr > 0 ? price / (gr * 100) : 0;
-    // PEG: EPS * PEG ratio * normaliser
-    var pegVal = ov.peg > 0 ? eps * ov.peg * 9.5 : 0;
+    // PS Ratio: conservative — forward PE * EPS * sales margin adjustment
+    var ps     = peVal * Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0);
+    // PSG: Price / Sales Growth — price divided by revenue growth rate (%)
+    var ltgRate = ov.ltG > 0 ? ov.ltG : (gr * 100);
+    var psg    = ltgRate > 0 ? price / ltgRate : 0;
+    // PEG: EPS / (long-term growth rate) — standard Peter Lynch formula
+    var pegVal = gr > 0 ? eps / gr : 0;
 
     vals.push({ label:"Discounted Cash Flow 20-year\n(DCF-20)",         value: dcf20,  color:"#d4a800" });
     vals.push({ label:"Discounted Free Cash Flow 20-year\n(DCFF-20)",   value: dcff20, color:"#d4a800" });
