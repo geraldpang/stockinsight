@@ -164,10 +164,13 @@ function Detail({ sym, name, onBack }) {
     return total;
   };
 
-  // OracleValue: 10-year DCF intrinsic value
-  const oracle = (eps > 0 && pe > 0)
-    ? calcDCF(eps, gr, 0.04, 0.10, 10).toFixed(2)
-    : (price > 0 ? price.toFixed(2) : "—");
+  // Oracle placeholder — real value computed as average of vals below
+  // Used as fallback in badge before vals are built
+  const oracleDCF = (eps > 0 && pe > 0)
+    ? calcDCF(eps, gr, 0.04, 0.10, 10)
+    : (price > 0 ? price : 0);
+  // oracle will be overridden by oracleAvg after vals are built
+  var oracle = oracleDCF > 0 ? oracleDCF.toFixed(2) : "—";
 
 
 
@@ -208,7 +211,10 @@ function Detail({ sym, name, onBack }) {
     if (pb > 0) vals.push({ label:"Mean Price to Book\n(PB) Ratio",    value: pb,     color:"#d4a800" });
     if (psg > 0) vals.push({ label:"Price to Sales Growth\n(PSG) Ratio", value: psg,  color:"#c03030" });
     if (pegVal > 0) vals.push({ label:"Price to Earnings Growth\n(PEG) Ratio Without NRI", value: pegVal, color:"#c03030" });
-    vals.push({ label:"IntrinsicValue™",                                    value: parseFloat(oracle)||price, color:"#1a8a3a", bold:true });
+    // OracleValue™ = average of all valuation methods above
+    var oracleAvg = vals.reduce(function(sum, v) { return sum + v.value; }, 0) / vals.length;
+    oracle = oracleAvg.toFixed(2);
+    vals.push({ label:"OracleValue™",                                    value: oracleAvg, color:"#1a8a3a", bold:true });
   }
   const maxV = vals.length ? Math.max.apply(null, vals.map(v=>v.value)) * 1.08 : price * 1.5 || 100;
 
