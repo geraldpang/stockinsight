@@ -50,7 +50,7 @@ async function getOverview(sym) {
   if (ovCache[sym]) return ovCache[sym];
   var d   = await yfetch(
     "https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym +
-    "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile,earningsTrend,incomeStatementHistory"
+    "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile,earningsTrend"
   );
   var res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
   if (!res) return null;
@@ -118,23 +118,6 @@ async function getOverview(sym) {
     hi52: (sd.fiftyTwoWeekHigh && sd.fiftyTwoWeekHigh.raw) || 0,
     lo52: (sd.fiftyTwoWeekLow  && sd.fiftyTwoWeekLow.raw)  || 0,
   };
-  // Extract annual EPS history from incomeStatementHistory (up to 4 years)
-  var ish = res.incomeStatementHistory && res.incomeStatementHistory.incomeStatementHistory;
-  var epsHist = [];
-  if (ish && ish.length) {
-    ish.forEach(function(stmt) {
-      var date = stmt.endDate && (stmt.endDate.fmt || stmt.endDate.raw);
-      var ni   = stmt.netIncome && stmt.netIncome.raw;
-      var sh   = stmt.dilutedAverageShares && stmt.dilutedAverageShares.raw;
-      var eps  = stmt.dilutedEps && stmt.dilutedEps.raw;
-      if (!eps && ni && sh && sh > 0) eps = ni / sh;
-      if (date && eps != null) {
-        epsHist.push({ year: parseInt(date.slice(0, 4)), eps: parseFloat(eps.toFixed(2)) });
-      }
-    });
-    epsHist.sort(function(a, b) { return a.year - b.year; });
-  }
-  out.epsHist = epsHist;
   ovCache[sym] = out;
   return out;
 }
@@ -180,18 +163,24 @@ function Detail({ sym, name, onBack }) {
     });
 
     getOverview(sym).then(function(res) {
-      if (res) {
-        setOv(res);
-        console.log("[EPS] epsHist:", JSON.stringify(res.epsHist));
-        if (res.epsHist && res.epsHist.length > 0) {
-          setEpsHistory(res.epsHist);
-        } else {
-          setEpsError(true);
-        }
-      } else {
-        setEpsError(true);
-      }
-    }).catch(function(e) { console.log("[EPS] overview error:", e); setEpsError(true); });
+      if (res) setOv(res);
+    }).catch(function() {});
+
+    // Fetch 10-year annual EPS from FMP income statement
+    fetch("/proxy?url=" + encodeURIComponent(
+      "https://financialmodelingprep.com/api/v3/income-statement/" + sym + "?limit=10"
+    )).then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data || !Array.isArray(data) || data.length === 0) { setEpsError(true); return; }
+        var rows = data
+          .filter(function(d) { return d.eps != null; })
+          .map(function(d) {
+            return { year: parseInt(d.date.slice(0, 4)), eps: parseFloat(parseFloat(d.eps).toFixed(2)) };
+          });
+        rows.sort(function(a, b) { return a.year - b.year; });
+        if (rows.length > 0) setEpsHistory(rows);
+        else setEpsError(true);
+      }).catch(function() { setEpsError(true); });
 
 
   }, [sym]);
