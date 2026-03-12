@@ -166,16 +166,20 @@ function Detail({ sym, name, onBack }) {
       if (res) setOv(res);
     }).catch(function() {});
 
-    // Fetch 10-year annual EPS from FMP income statement
+    // Fetch 10-year annual EPS from Alpha Vantage EARNINGS endpoint
     fetch("/proxy?url=" + encodeURIComponent(
-      "https://financialmodelingprep.com/api/v3/income-statement/" + sym + "?limit=10"
+      "https://www.alphavantage.co/query?function=EARNINGS&symbol=" + sym
     )).then(function(r) { return r.json(); })
       .then(function(data) {
-        if (!data || !Array.isArray(data) || data.length === 0) { setEpsError(true); return; }
-        var rows = data
-          .filter(function(d) { return d.eps != null; })
+        var annual = data && data.annualEarnings;
+        if (!annual || !annual.length) { setEpsError(true); return; }
+        var rows = annual
+          .filter(function(d) { return d.reportedEPS && d.reportedEPS !== "None"; })
           .map(function(d) {
-            return { year: parseInt(d.date.slice(0, 4)), eps: parseFloat(parseFloat(d.eps).toFixed(2)) };
+            return {
+              year: parseInt(d.fiscalDateEnding.slice(0, 4)),
+              eps:  parseFloat(parseFloat(d.reportedEPS).toFixed(2))
+            };
           });
         rows.sort(function(a, b) { return a.year - b.year; });
         if (rows.length > 0) setEpsHistory(rows);
