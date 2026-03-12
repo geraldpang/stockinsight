@@ -102,7 +102,14 @@ async function getOverview(sym) {
     de:           ((fd.debtToEquity && fd.debtToEquity.raw) || 0) / 100,
     currentRatio: (fd.currentRatio && fd.currentRatio.raw) || 0,
     fcf:          fcfStr,
+    // Net Income formatting
+    var niRaw = (fd.netIncomeToCommon && fd.netIncomeToCommon.raw) || 0;
+    var niStr = niRaw >= 1e12 ? "$" + (niRaw/1e12).toFixed(2) + "T"
+              : niRaw >= 1e9  ? "$" + (niRaw/1e9).toFixed(1)  + "B"
+              : niRaw >= 1e6  ? "$" + (niRaw/1e6).toFixed(0)  + "M"
+              : niRaw < 0     ? "-$" + Math.abs(niRaw/1e9).toFixed(1) + "B" : "-";
     // Financial Health extras
+    netIncome:    niStr,
     quickRatio:   (fd.quickRatio && fd.quickRatio.raw) || 0,
     revenue:      (function() {
       var r = (fd.totalRevenue && fd.totalRevenue.raw) || 0;
@@ -275,7 +282,8 @@ function Detail({ sym, name, onBack }) {
     ["Operating Margin",    ov.opMargin?fpct(ov.opMargin):"-",      "Current Ratio",       ov.currentRatio>0?fmt2(ov.currentRatio):"-"],
     ["Net Profit Margin",   ov.netMargin?fpct(ov.netMargin):"-",     "Quick Ratio",         ov.quickRatio>0?fmt2(ov.quickRatio):"-"],
     ["Free Cash Flow",      ov.fcf||"-",                              "Total Debt / Equity", ov.de>0?fmt2(ov.de):"-"],
-    ["Revenue (TTM)",       ov.revenue||"-",                          "Revenue Growth YoY",  ov.revGrowth?fpct(ov.revGrowth):"-"],
+    ["Net Income (TTM)",    ov.netIncome||"-",                        "Revenue Growth YoY",  ov.revGrowth?fpct(ov.revGrowth):"-"],
+    ["Revenue (TTM)",       ov.revenue||"-",                          "",                    ""],
   ] : [];
 
   const growthRows = ov ? [
