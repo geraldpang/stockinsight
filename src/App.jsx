@@ -494,6 +494,9 @@ function Detail({ sym, name, onBack }) {
                   <thead>
                     <tr style={{ borderBottom:"2px solid #e0dbd0" }}>
                       <td style={{ padding:"6px 10px", color:"#888", fontWeight:600, minWidth:160 }}>Metric</td>
+                      <td style={{ padding:"6px 10px", textAlign:"right", color:"#1a6a1a", fontWeight:700, minWidth:65, borderRight:"2px solid #e0dbd0" }}>
+                        {new Date().getFullYear()} *
+                      </td>
                       {epsHistory.map(function(row) {
                         return (
                           <td key={row.year} style={{ padding:"6px 10px", textAlign:"right", color:"#888", fontWeight:600, minWidth:65 }}>
@@ -501,14 +504,14 @@ function Detail({ sym, name, onBack }) {
                           </td>
                         );
                       })}
-                      <td style={{ padding:"6px 10px", textAlign:"right", color:"#1a6a1a", fontWeight:700, minWidth:65, borderLeft:"2px solid #e0dbd0" }}>
-                        {new Date().getFullYear()} *
-                      </td>
                     </tr>
                   </thead>
                   <tbody>
                     <tr style={{ borderBottom:"1px solid #f0ede6" }}>
                       <td style={{ padding:"7px 10px", color:"#555", whiteSpace:"nowrap" }}>EPS (Diluted)</td>
+                      <td style={{ padding:"7px 10px", textAlign:"right", color:"#1a6a1a", fontWeight:700, borderRight:"2px solid #e0dbd0" }}>
+                        {eps > 0 ? "$" + eps.toFixed(2) : "-"}
+                      </td>
                       {epsHistory.map(function(row) {
                         return (
                           <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#111", fontWeight:600 }}>
@@ -516,12 +519,22 @@ function Detail({ sym, name, onBack }) {
                           </td>
                         );
                       })}
-                      <td style={{ padding:"7px 10px", textAlign:"right", color:"#1a6a1a", fontWeight:700, borderLeft:"2px solid #e0dbd0" }}>
-                        {eps > 0 ? "$" + eps.toFixed(2) : "-"}
-                      </td>
                     </tr>
                     <tr style={{ borderBottom:"1px solid #f0ede6" }}>
                       <td style={{ padding:"7px 10px", color:"#555", whiteSpace:"nowrap" }}>EPS Growth YoY</td>
+                      {(function() {
+                        var prevEps = epsHistory[0] && epsHistory[0].eps;
+                        if (!prevEps || !eps) return (
+                          <td style={{ padding:"7px 10px", textAlign:"right", borderRight:"2px solid #e0dbd0", fontWeight:700, color:"#aaa" }}>-</td>
+                        );
+                        var g = (eps - prevEps) / Math.abs(prevEps) * 100;
+                        var col = g >= 0 ? "#2a8a2a" : "#c03030";
+                        return (
+                          <td style={{ padding:"7px 10px", textAlign:"right", borderRight:"2px solid #e0dbd0", fontWeight:700, color:col }}>
+                            {(g >= 0 ? "+" : "") + g.toFixed(1) + "%"}
+                          </td>
+                        );
+                      })()}
                       {epsHistory.map(function(row, i) {
                         var prevRow = epsHistory[i+1];
                         if (!prevRow || !prevRow.eps) return <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#aaa" }}>-</td>;
@@ -533,22 +546,12 @@ function Detail({ sym, name, onBack }) {
                           </td>
                         );
                       })}
-                      {(function() {
-                        var prevEps = epsHistory[0] && epsHistory[0].eps;
-                        if (!prevEps || !eps) return (
-                          <td style={{ padding:"7px 10px", textAlign:"right", borderLeft:"2px solid #e0dbd0", fontWeight:700, color:"#aaa" }}>-</td>
-                        );
-                        var g = (eps - prevEps) / Math.abs(prevEps) * 100;
-                        var col = g >= 0 ? "#2a8a2a" : "#c03030";
-                        return (
-                          <td style={{ padding:"7px 10px", textAlign:"right", borderLeft:"2px solid #e0dbd0", fontWeight:700, color:col }}>
-                            {(g >= 0 ? "+" : "") + g.toFixed(1) + "%"}
-                          </td>
-                        );
-                      })()}
                     </tr>
                     <tr>
                       <td style={{ padding:"7px 10px", color:"#555", whiteSpace:"nowrap" }}>Revenue</td>
+                      <td style={{ padding:"7px 10px", textAlign:"right", color:"#1a6a1a", fontWeight:700, borderRight:"2px solid #e0dbd0" }}>
+                        {ov && ov.revenue ? ov.revenue : "-"}
+                      </td>
                       {epsHistory.map(function(row) {
                         return (
                           <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#111", fontWeight:600 }}>
@@ -556,9 +559,6 @@ function Detail({ sym, name, onBack }) {
                           </td>
                         );
                       })}
-                      <td style={{ padding:"7px 10px", textAlign:"right", color:"#1a6a1a", fontWeight:700, borderLeft:"2px solid #e0dbd0" }}>
-                        {ov && ov.revenue ? ov.revenue : "-"}
-                      </td>
                     </tr>
                   </tbody>
                 </table>
