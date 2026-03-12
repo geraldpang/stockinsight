@@ -102,14 +102,14 @@ async function getOverview(sym) {
     de:           ((fd.debtToEquity && fd.debtToEquity.raw) || 0) / 100,
     currentRatio: (fd.currentRatio && fd.currentRatio.raw) || 0,
     fcf:          fcfStr,
-    // Net Income formatting
-    var niRaw = (fd.netIncomeToCommon && fd.netIncomeToCommon.raw) || 0;
-    var niStr = niRaw >= 1e12 ? "$" + (niRaw/1e12).toFixed(2) + "T"
-              : niRaw >= 1e9  ? "$" + (niRaw/1e9).toFixed(1)  + "B"
-              : niRaw >= 1e6  ? "$" + (niRaw/1e6).toFixed(0)  + "M"
-              : niRaw < 0     ? "-$" + Math.abs(niRaw/1e9).toFixed(1) + "B" : "-";
     // Financial Health extras
-    netIncome:    niStr,
+    netIncome:    (function() {
+      var n = (fd.netIncomeToCommon && fd.netIncomeToCommon.raw) || 0;
+      return n >= 1e12 ? "$" + (n/1e12).toFixed(2) + "T"
+           : n >= 1e9  ? "$" + (n/1e9).toFixed(1)  + "B"
+           : n >= 1e6  ? "$" + (n/1e6).toFixed(0)  + "M"
+           : n < 0     ? "-$" + Math.abs(n/1e9).toFixed(1) + "B" : "-";
+    })(),
     quickRatio:   (fd.quickRatio && fd.quickRatio.raw) || 0,
     revenue:      (function() {
       var r = (fd.totalRevenue && fd.totalRevenue.raw) || 0;
