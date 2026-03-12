@@ -169,10 +169,9 @@ function Detail({ sym, name, onBack }) {
     // Fetch annual EPS history from Yahoo fundamentals-timeseries
     var period1 = Math.floor(new Date("2014-01-01").getTime() / 1000);
     var period2 = Math.floor(Date.now() / 1000);
-    var tsUrl = "https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/" + sym +
-      "?symbol=" + sym + "&type=annualEpsActual,annualEpsBasic,annualDilutedEps" +
-      "&period1=" + period1 + "&period2=" + period2;
-    fetch("/proxy?url=" + encodeURIComponent(tsUrl))
+    var tsBase = "https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/" + sym;
+    var tsParams = "symbol=" + sym + "&type=annualEpsActual%2CannualEpsBasic%2CannualDilutedEps&period1=" + period1 + "&period2=" + period2;
+    fetch("/proxy?url=" + encodeURIComponent(tsBase) + "%3F" + tsParams)
       .then(function(r) { return r.json(); })
       .then(function(data) {
         console.log("[EPS-DEBUG] raw response:", JSON.stringify(data).slice(0, 1000));
