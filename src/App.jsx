@@ -166,49 +166,39 @@ function Detail({ sym, name, onBack }) {
       if (res) setOv(res);
     }).catch(function() {});
 
-    // Fetch annual EPS history from Yahoo fundamentals-timeseries
+    // Fetch annual EPS history from Yahoo chart earnings events
     var period1 = Math.floor(new Date("2014-01-01").getTime() / 1000);
     var period2 = Math.floor(Date.now() / 1000);
-    var tsBase = "https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/" + sym;
-    var tsParams = "symbol=" + sym + "&type=annualEpsActual%2CannualEpsBasic%2CannualDilutedEps&period1=" + period1 + "&period2=" + period2;
-    fetch("/proxy?url=" + encodeURIComponent(tsBase) + "%3F" + tsParams)
+    // Fetch historical quarterly EPS via chart earnings events (free endpoint)
+    var chartUrl = "https://query1.finance.yahoo.com/v8/finance/chart/" + sym +
+      "?interval=3mo&range=10y&events=earnings";
+    fetch("/proxy?url=" + encodeURIComponent(chartUrl))
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        console.log("[EPS-DEBUG] raw response:", JSON.stringify(data).slice(0, 1000));
-        var ts = data && data.timeseries && data.timeseries.result;
-        if (!ts || !ts.length) {
-          console.log("[EPS-DEBUG] no timeseries.result, keys:", data ? Object.keys(data) : "null");
-          setEpsError(true); return;
-        }
-        console.log("[EPS-DEBUG] result count:", ts.length, "first item keys:", Object.keys(ts[0]));
-        // Try each EPS type - pick whichever has data
-        var keys = ["annualEpsActual", "annualEpsBasic", "annualDilutedEps"];
-        var series = null;
-        for (var k = 0; k < keys.length; k++) {
-          for (var i = 0; i < ts.length; i++) {
-            var key = keys[k];
-            if (ts[i][key] && ts[i][key].length > 0) {
-              console.log("[EPS-DEBUG] found series under key:", key, "length:", ts[i][key].length);
-              series = ts[i][key]; break;
-            }
-          }
-          if (series) break;
-        }
-        if (!series) {
-          console.log("[EPS-DEBUG] no series found, ts[0]:", JSON.stringify(ts[0]).slice(0, 300));
-          setEpsError(true); return;
-        }
-        var rows = series.map(function(item) {
-          var val = item.reportedValue != null
-            ? (typeof item.reportedValue === "object" ? item.reportedValue.raw : item.reportedValue)
-            : item.value != null ? item.value : null;
-          return { year: new Date(item.asOfDate).getFullYear(), eps: val };
-        }).filter(function(r) { return r.eps != null; });
+        var result = data && data.chart && data.chart.result && data.chart.result[0];
+        if (!result) { setEpsError(true); return; }
+        var earnings = result.events && result.events.earnings;
+        if (!earnings) { setEpsError(true); return; }
+        // Group quarterly EPS into annual buckets (sum quarters per year)
+        var annualMap = {};
+        Object.keys(earnings).forEach(function(ts) {
+          var e = earnings[ts];
+          if (!e || e.actual == null) return;
+          var yr = new Date(parseInt(ts) * 1000).getFullYear();
+          if (!annualMap[yr]) annualMap[yr] = { sum: 0, count: 0 };
+          annualMap[yr].sum   += e.actual;
+          annualMap[yr].count += 1;
+        });
+        // Only include years with 4 complete quarters
+        var rows = Object.keys(annualMap)
+          .filter(function(yr) { return annualMap[yr].count === 4; })
+          .map(function(yr) {
+            return { year: parseInt(yr), eps: parseFloat(annualMap[yr].sum.toFixed(2)) };
+          });
         rows.sort(function(a, b) { return a.year - b.year; });
-        console.log("[EPS-DEBUG] final rows:", JSON.stringify(rows));
         if (rows.length > 0) setEpsHistory(rows);
         else setEpsError(true);
-      }).catch(function(e) { console.log("[EPS-DEBUG] fetch error:", e); setEpsError(true); });
+      }).catch(function() { setEpsError(true); });
   }, [sym]);
 
   const price = q ? q.price : 0;
