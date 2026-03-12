@@ -488,6 +488,7 @@ function Detail({ sym, name, onBack }) {
           <div style={{ border:"1px solid #e0dbd0", borderRadius:12, padding:"20px 22px", background:"#faf8f4", marginTop:20 }}>
             <div style={{ fontSize:15, fontWeight:700, color:"#111", marginBottom:14 }}>Historical Data</div>
             {epsHistory && epsHistory.length > 0 ? (
+              <>
               <div style={{ overflowX:"auto" }}>
                 <table style={{ borderCollapse:"collapse", fontSize:12, width:"100%" }}>
                   <thead>
@@ -565,6 +566,7 @@ function Detail({ sym, name, onBack }) {
               <div style={{ fontSize:11, color:"#aaa", marginTop:8 }}>
                 * {new Date().getFullYear()} figures are TTM estimates from Yahoo Finance
               </div>
+            </>
             ) : (
               <div style={{ textAlign:"center", padding:"20px 0", color:"#aaa", fontSize:13 }}>
                 {epsError ? "Historical EPS data unavailable for this symbol." : "Loading historical EPS data..."}
