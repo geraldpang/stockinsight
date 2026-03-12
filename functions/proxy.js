@@ -46,6 +46,22 @@ export async function onRequest(context) {
       });
     }
 
+    // Alpha Vantage — key injected server-side from Cloudflare env var
+    if (target.includes("alphavantage.co")) {
+      const avKey = context.env.AV_KEY;
+      if (!avKey) return new Response(JSON.stringify({ error: "AV_KEY not configured" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+      const sep      = target.includes("?") ? "&" : "?";
+      const finalUrl = target + sep + "apikey=" + avKey;
+      const res      = await fetch(finalUrl, { headers: { "User-Agent": UA } });
+      const body     = await res.text();
+      return new Response(body, {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
     // Yahoo endpoints that require crumb: quoteSummary + fundamentals-timeseries
     if (target.includes("quoteSummary") || target.includes("fundamentals-timeseries")) {
       const { crumb, cookies } = await getYahooCrumb();
