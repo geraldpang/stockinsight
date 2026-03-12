@@ -170,7 +170,7 @@ function Detail({ sym, name, onBack }) {
   const [msg, setMsg] = useState("Loading...");
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setMsg("Fetching live data for " + sym + "...");
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
 
     getQuote(sym).then(function(res) {
       if (res) { setQ(res); setMsg(""); }
@@ -182,10 +182,16 @@ function Detail({ sym, name, onBack }) {
     getOverview(sym).then(function(res) {
       if (res) {
         setOv(res);
-        if (res.epsHist && res.epsHist.length > 0) setEpsHistory(res.epsHist);
-        else setEpsError(true);
+        console.log("[EPS] epsHist:", JSON.stringify(res.epsHist));
+        if (res.epsHist && res.epsHist.length > 0) {
+          setEpsHistory(res.epsHist);
+        } else {
+          setEpsError(true);
+        }
+      } else {
+        setEpsError(true);
       }
-    }).catch(function() { setEpsError(true); });
+    }).catch(function(e) { console.log("[EPS] overview error:", e); setEpsError(true); });
 
 
   }, [sym]);
