@@ -169,14 +169,19 @@ function Detail({ sym, name, onBack }) {
     // Fetch annual EPS history from Yahoo fundamentals-timeseries
     var period1 = Math.floor(new Date("2014-01-01").getTime() / 1000);
     var period2 = Math.floor(Date.now() / 1000);
-    fetch("/proxy?url=" + encodeURIComponent(
-      "https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/" + sym +
+    var tsUrl = "https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/" + sym +
       "?symbol=" + sym + "&type=annualEpsActual,annualEpsBasic,annualDilutedEps" +
-      "&period1=" + period1 + "&period2=" + period2
-    )).then(function(r) { return r.json(); })
+      "&period1=" + period1 + "&period2=" + period2;
+    fetch("/proxy?url=" + encodeURIComponent(tsUrl))
+      .then(function(r) { return r.json(); })
       .then(function(data) {
+        console.log("[EPS-DEBUG] raw response:", JSON.stringify(data).slice(0, 1000));
         var ts = data && data.timeseries && data.timeseries.result;
-        if (!ts || !ts.length) return;
+        if (!ts || !ts.length) {
+          console.log("[EPS-DEBUG] no timeseries.result, keys:", data ? Object.keys(data) : "null");
+          setEpsError(true); return;
+        }
+        console.log("[EPS-DEBUG] result count:", ts.length, "first item keys:", Object.keys(ts[0]));
         // Try each EPS type - pick whichever has data
         var keys = ["annualEpsActual", "annualEpsBasic", "annualDilutedEps"];
         var series = null;
@@ -184,12 +189,16 @@ function Detail({ sym, name, onBack }) {
           for (var i = 0; i < ts.length; i++) {
             var key = keys[k];
             if (ts[i][key] && ts[i][key].length > 0) {
+              console.log("[EPS-DEBUG] found series under key:", key, "length:", ts[i][key].length);
               series = ts[i][key]; break;
             }
           }
           if (series) break;
         }
-        if (!series) return;
+        if (!series) {
+          console.log("[EPS-DEBUG] no series found, ts[0]:", JSON.stringify(ts[0]).slice(0, 300));
+          setEpsError(true); return;
+        }
         var rows = series.map(function(item) {
           var val = item.reportedValue != null
             ? (typeof item.reportedValue === "object" ? item.reportedValue.raw : item.reportedValue)
@@ -197,9 +206,10 @@ function Detail({ sym, name, onBack }) {
           return { year: new Date(item.asOfDate).getFullYear(), eps: val };
         }).filter(function(r) { return r.eps != null; });
         rows.sort(function(a, b) { return a.year - b.year; });
+        console.log("[EPS-DEBUG] final rows:", JSON.stringify(rows));
         if (rows.length > 0) setEpsHistory(rows);
         else setEpsError(true);
-      }).catch(function() { setEpsError(true); });
+      }).catch(function(e) { console.log("[EPS-DEBUG] fetch error:", e); setEpsError(true); });
   }, [sym]);
 
   const price = q ? q.price : 0;
