@@ -122,8 +122,11 @@ async function getOverview(sym) {
     beta:         (sd.beta && sd.beta.raw) || 0,
     pb:           (ks.priceToBook && ks.priceToBook.raw) || 0,
     // For DCF calcs
-    hi52: (sd.fiftyTwoWeekHigh && sd.fiftyTwoWeekHigh.raw) || 0,
-    lo52: (sd.fiftyTwoWeekLow  && sd.fiftyTwoWeekLow.raw)  || 0,
+    hi52:             (sd.fiftyTwoWeekHigh && sd.fiftyTwoWeekHigh.raw) || 0,
+    lo52:             (sd.fiftyTwoWeekLow  && sd.fiftyTwoWeekLow.raw)  || 0,
+    sharesOut:        (ks.sharesOutstanding && ks.sharesOutstanding.raw) || 0,
+    fcfRaw:           (fd.freeCashflow && fd.freeCashflow.raw) || 0,
+    niRaw:            (fd.netIncomeToCommon && fd.netIncomeToCommon.raw) || 0,
   };
   ovCache[sym] = out;
   return out;
@@ -223,38 +226,83 @@ function Detail({ sym, name, onBack }) {
     return total;
   }
 
+  // --- Improved base values ---
+  // 1) Previous year EPS from historical data (most accurate base)
+  var baseEps = eps; // fallback to TTM EPS derived from PE
+  if (epsHistory && epsHistory.length > 0) {
+    var prevYearRow = epsHistory[0]; // already sorted newest first
+    if (prevYearRow && prevYearRow.eps && prevYearRow.eps > 0) {
+      baseEps = prevYearRow.eps;
+    }
+  }
+
+  // 2) Historical 5-year average EPS growth rate
+  var histGrowthRate = gr; // fallback
+  if (epsHistory && epsHistory.length >= 2) {
+    var sorted = epsHistory.slice().sort(function(a, b) { return b.year - a.year; });
+    var recent = sorted.slice(0, 5); // up to 5 most recent years
+    var growthRates = [];
+    for (var i = 0; i < recent.length - 1; i++) {
+      var curr = recent[i].eps, prev = recent[i + 1].eps;
+      if (prev > 0 && curr > 0) growthRates.push((curr - prev) / prev);
+    }
+    if (growthRates.length > 0) {
+      var avgG = growthRates.reduce(function(s, v) { return s + v; }, 0) / growthRates.length;
+      histGrowthRate = Math.max(Math.min(avgG, 0.40), 0.02); // cap 2%-40%
+    }
+  }
+
+  // 3) Beta-adjusted WACC: risk-free 4.5% + beta x 5.5%
+  var beta = ov ? (ov.beta || 1.0) : 1.0;
+  var WACC_ADJ = Math.min(Math.max(0.045 + beta * 0.055, 0.06), 0.18); // clamp 6%-18%
+
+  // 4) Real FCF per share = freeCashflow / sharesOutstanding
+  var fcfPerShare = 0;
+  if (ov && ov.fcfRaw && ov.sharesOut > 0) {
+    fcfPerShare = ov.fcfRaw / ov.sharesOut;
+  } else if (baseEps > 0) {
+    fcfPerShare = baseEps * 0.85; // fallback
+  }
+
+  // 5) Real Net Income per share = netIncomeToCommon / sharesOutstanding
+  var niPerShare = 0;
+  if (ov && ov.niRaw && ov.sharesOut > 0) {
+    niPerShare = ov.niRaw / ov.sharesOut;
+  } else if (baseEps > 0) {
+    niPerShare = baseEps * 0.90; // fallback
+  }
+
   // Initial oracle estimate (overridden below once vals are built)
-  var oracle = (eps > 0 && pe > 0)
-    ? calcDCF(eps, gr, 0.04, 0.10, 10).toFixed(2)
+  var oracle = (baseEps > 0 && pe > 0)
+    ? calcDCF(baseEps, histGrowthRate, 0.04, WACC_ADJ, 10).toFixed(2)
     : (price > 0 ? price.toFixed(2) : "-");
 
   // Build valuation rows
   const vals = [];
-  if (ov && eps > 0 && price > 0) {
-    const WACC       = 0.10;
+  if (ov && baseEps > 0 && price > 0) {
     const termGrowth = 0.04;
-    const grCapped   = Math.min(gr, 0.25);
+    const grCapped   = Math.min(histGrowthRate, 0.25);
     const maxVal     = price * 3;
     const cap        = function(v) { return Math.min(v, maxVal); };
 
-    const dcf20  = cap(calcDCF(eps,        grCapped, termGrowth, WACC, 20));
-    const dcff20 = cap(calcDCF(eps * 0.85, grCapped, termGrowth, WACC, 20));
-    const dni20  = cap(calcDCF(eps * 0.90, grCapped, termGrowth, WACC, 20));
-    const dcffT  = cap(
-      calcDCF(eps * 0.85, grCapped, termGrowth, WACC, 20) -
-      calcDCF(eps * 0.85, grCapped, termGrowth, WACC, 10)
-    );
-    const peVal   = cap(fpe > 0 ? eps * fpe : eps * pe);
+    const dcf20  = cap(calcDCF(baseEps,   grCapped, termGrowth, WACC_ADJ, 20));
+    const dcff20 = fcfPerShare > 0 ? cap(calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 20)) : 0;
+    const dni20  = niPerShare  > 0 ? cap(calcDCF(niPerShare,  grCapped, termGrowth, WACC_ADJ, 20)) : 0;
+    const dcffT  = fcfPerShare > 0 ? cap(
+      calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 20) -
+      calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 10)
+    ) : 0;
+    const peVal   = cap(fpe > 0 ? baseEps * fpe : baseEps * pe);
     const pb      = ov.hi52 > 0 ? (ov.hi52 + ov.lo52) / 2 : 0;
     const ps      = cap(peVal * Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0));
     const ltgRate = ov.ltG > 0 ? ov.ltG : grCapped * 100;
     const psg     = ltgRate > 0 ? Math.min(price / ltgRate, maxVal) : 0;
-    const pegVal  = ov.peg > 0 ? Math.min(eps * 15, maxVal) : 0;
+    const pegVal  = ov.peg > 0 ? Math.min(baseEps * 15, maxVal) : 0;
 
     vals.push({ label:"Discounted Cash Flow 20-year\n(DCF-20)",         value:dcf20,  color:"#d4a800" });
-    vals.push({ label:"Discounted Free Cash Flow 20-year\n(DCFF-20)",   value:dcff20, color:"#d4a800" });
-    vals.push({ label:"Discounted Net Income 20-year\n(DNI-20)",        value:dni20,  color:"#d4a800" });
-    vals.push({ label:"DCF Free Cash Flow Terminal\n(DCFF-Terminal)",   value:dcffT,  color:"#d4a800" });
+    if (dcff20 > 0) vals.push({ label:"Discounted Free Cash Flow 20-year\n(DCFF-20)",   value:dcff20, color:"#d4a800" });
+    if (dni20  > 0) vals.push({ label:"Discounted Net Income 20-year\n(DNI-20)",        value:dni20,  color:"#d4a800" });
+    if (dcffT  > 0) vals.push({ label:"DCF Free Cash Flow Terminal\n(DCFF-Terminal)",   value:dcffT,  color:"#d4a800" });
     vals.push({ label:"Mean Price to Sales\n(PS) Ratio",                value:ps,     color:"#d4a800" });
     vals.push({ label:"Mean Price to Earnings\n(PE) Ratio Without NRI", value:peVal,  color:"#d4a800" });
     if (pb > 0)     vals.push({ label:"Mean Price to Book\n(PB) Ratio",                        value:pb,     color:"#d4a800" });
