@@ -1,9 +1,7 @@
 export async function onRequest(context) {
   const url    = new URL(context.request.url);
   const target = url.searchParams.get("url");
-  if (!target) return new Response("Missing url", { status: 400 });
-
-  const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+  const UA     = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
   // Helper: fetch Yahoo crumb + cookies
   async function getYahooCrumb() {
@@ -30,7 +28,39 @@ export async function onRequest(context) {
   }
 
   try {
-    // FMP — key injected server-side from Cloudflare env var
+    // -----------------------------------------------------------------------
+    // ANTHROPIC API route — POST /anthropic
+    // -----------------------------------------------------------------------
+    if (url.pathname === "/anthropic") {
+      const anthropicKey = context.env.ANTHROPIC_KEY;
+      if (!anthropicKey) {
+        return new Response(JSON.stringify({ error: "ANTHROPIC_KEY not configured" }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+      const body = await context.request.text();
+      const res  = await fetch("https://api.anthropic.com/v1/messages", {
+        method:  "POST",
+        headers: {
+          "Content-Type":      "application/json",
+          "x-api-key":         anthropicKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body,
+      });
+      const data = await res.text();
+      return new Response(data, {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // All URL-based proxy routes below
+    // -----------------------------------------------------------------------
+    if (!target) return new Response("Missing url", { status: 400 });
+
+    // FMP — key injected server-side
     if (target.includes("financialmodelingprep.com")) {
       const fmpKey = context.env.FMP_KEY;
       if (!fmpKey) return new Response(JSON.stringify({ error: "FMP_KEY not configured" }), {
@@ -46,7 +76,7 @@ export async function onRequest(context) {
       });
     }
 
-    // Alpha Vantage — key injected server-side from Cloudflare env var
+    // Alpha Vantage — key injected server-side
     if (target.includes("alphavantage.co")) {
       const avKey = context.env.AV_KEY;
       if (!avKey) return new Response(JSON.stringify({ error: "AV_KEY not configured" }), {
@@ -62,7 +92,7 @@ export async function onRequest(context) {
       });
     }
 
-    // Yahoo endpoints that require crumb: quoteSummary + fundamentals-timeseries
+    // Yahoo endpoints that require crumb
     if (target.includes("quoteSummary") || target.includes("fundamentals-timeseries")) {
       const { crumb, cookies } = await getYahooCrumb();
       if (!crumb || crumb.includes("{")) {
@@ -87,7 +117,7 @@ export async function onRequest(context) {
       });
     }
 
-    // All other requests (chart/price history etc.)
+    // All other requests (chart/price etc.)
     const res  = await fetch(target, {
       headers: {
         "User-Agent": UA,
