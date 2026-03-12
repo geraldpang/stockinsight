@@ -166,24 +166,28 @@ function Detail({ sym, name, onBack }) {
       if (res) setOv(res);
     }).catch(function() {});
 
-    // Fetch 10-year annual EPS from Alpha Vantage EARNINGS endpoint
-    fetch("/proxy?url=" + encodeURIComponent(
-      "https://www.alphavantage.co/query?function=EARNINGS&symbol=" + sym
-    )).then(function(r) { return r.json(); })
+    // Fetch 10-year annual EPS + Revenue from Anthropic API (Claude)
+    fetch("/anthropic", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1024,
+        messages: [{
+          role: "user",
+          content: "Return ONLY a valid JSON array, no markdown, no explanation, no curly braces in this prompt. For stock symbol " + sym + ", provide annual data for the last 10 completed fiscal years. Each item has three fields: year as a number, eps as a decimal number, revenue as a string like $XB or $XT. Use diluted EPS. Skip years with no data."
+        }]
+      })
+    }).then(function(r) { return r.json(); })
       .then(function(data) {
-        var annual = data && data.annualEarnings;
-        if (!annual || !annual.length) { setEpsError(true); return; }
-        var rows = annual
-          .filter(function(d) { return d.reportedEPS && d.reportedEPS !== "None"; })
-          .map(function(d) {
-            return {
-              year: parseInt(d.fiscalDateEnding.slice(0, 4)),
-              eps:  parseFloat(parseFloat(d.reportedEPS).toFixed(2))
-            };
-          });
+        var text = data && data.content && data.content[0] && data.content[0].text;
+        if (!text) { setEpsError(true); return; }
+        // Strip any accidental markdown fences
+        text = text.replace(/```json|```/g, "").trim();
+        var rows = JSON.parse(text);
+        if (!Array.isArray(rows) || rows.length === 0) { setEpsError(true); return; }
         rows.sort(function(a, b) { return a.year - b.year; });
-        if (rows.length > 0) setEpsHistory(rows);
-        else setEpsError(true);
+        setEpsHistory(rows);
       }).catch(function() { setEpsError(true); });
 
 
@@ -500,25 +504,36 @@ function Detail({ sym, name, onBack }) {
                   </thead>
                   <tbody>
                     <tr style={{ borderBottom:"1px solid #f0ede6" }}>
-                      <td style={{ padding:"7px 10px", color:"#555" }}>EPS (Annual)</td>
+                      <td style={{ padding:"7px 10px", color:"#555", whiteSpace:"nowrap" }}>EPS (Diluted)</td>
                       {epsHistory.map(function(row) {
                         return (
                           <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#111", fontWeight:600 }}>
-                            {"$" + row.eps.toFixed(2)}
+                            {"$" + (row.eps != null ? row.eps.toFixed(2) : "-")}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    <tr style={{ borderBottom:"1px solid #f0ede6" }}>
+                      <td style={{ padding:"7px 10px", color:"#555", whiteSpace:"nowrap" }}>EPS Growth YoY</td>
+                      {epsHistory.map(function(row, i) {
+                        if (i === 0) return <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#aaa" }}>-</td>;
+                        var prev = epsHistory[i-1].eps;
+                        if (!prev) return <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#aaa" }}>-</td>;
+                        var growth = ((row.eps - prev) / Math.abs(prev)) * 100;
+                        var color = growth >= 0 ? "#2a8a2a" : "#c03030";
+                        return (
+                          <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:color, fontWeight:600 }}>
+                            {(growth >= 0 ? "+" : "") + growth.toFixed(1) + "%"}
                           </td>
                         );
                       })}
                     </tr>
                     <tr>
-                      <td style={{ padding:"7px 10px", color:"#555" }}>EPS Growth YoY</td>
-                      {epsHistory.map(function(row, i) {
-                        if (i === 0) return <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#aaa" }}>-</td>;
-                        var prev = epsHistory[i-1].eps;
-                        var growth = prev !== 0 ? ((row.eps - prev) / Math.abs(prev)) * 100 : 0;
-                        var color = growth >= 0 ? "#2a8a2a" : "#c03030";
+                      <td style={{ padding:"7px 10px", color:"#555", whiteSpace:"nowrap" }}>Revenue</td>
+                      {epsHistory.map(function(row) {
                         return (
-                          <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:color, fontWeight:600 }}>
-                            {(growth >= 0 ? "+" : "") + growth.toFixed(1) + "%"}
+                          <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#111", fontWeight:600 }}>
+                            {row.revenue || "-"}
                           </td>
                         );
                       })}
