@@ -175,7 +175,7 @@ function Detail({ sym, name, onBack }) {
         max_tokens: 1024,
         messages: [{
           role: "user",
-          content: "Return ONLY a valid JSON array, no markdown, no explanation, no curly braces in this prompt. For stock symbol " + sym + ", provide annual data for the last 10 completed fiscal years. Each item has three fields: year as a number, eps as a decimal number, revenue as a string like $XB or $XT. Use diluted EPS. Skip years with no data."
+          content: "Return ONLY a valid JSON array, no markdown, no explanation. For stock symbol " + sym + ", provide annual data for the 10 most recent completed fiscal years up to and including " + (new Date().getFullYear() - 1) + ". Each item has three fields: year as a number, eps as a decimal number, revenue as a string like $XB or $XT. Use diluted EPS. Skip years with no data. Most recent year must be " + (new Date().getFullYear() - 1) + "."
         }]
       })
     }).then(function(r) { return r.json(); })
@@ -186,7 +186,7 @@ function Detail({ sym, name, onBack }) {
         text = text.replace(/```json|```/g, "").trim();
         var rows = JSON.parse(text);
         if (!Array.isArray(rows) || rows.length === 0) { setEpsError(true); return; }
-        rows.sort(function(a, b) { return a.year - b.year; });
+        rows.sort(function(a, b) { return b.year - a.year; });
         setEpsHistory(rows);
       }).catch(function() { setEpsError(true); });
 
@@ -500,6 +500,9 @@ function Detail({ sym, name, onBack }) {
                           </td>
                         );
                       })}
+                      <td style={{ padding:"6px 10px", textAlign:"right", color:"#1a6a1a", fontWeight:700, minWidth:65, borderLeft:"2px solid #e0dbd0" }}>
+                        {new Date().getFullYear()} *
+                      </td>
                     </tr>
                   </thead>
                   <tbody>
@@ -512,14 +515,16 @@ function Detail({ sym, name, onBack }) {
                           </td>
                         );
                       })}
+                      <td style={{ padding:"7px 10px", textAlign:"right", color:"#1a6a1a", fontWeight:700, borderLeft:"2px solid #e0dbd0" }}>
+                        {eps > 0 ? "$" + eps.toFixed(2) : "-"}
+                      </td>
                     </tr>
                     <tr style={{ borderBottom:"1px solid #f0ede6" }}>
                       <td style={{ padding:"7px 10px", color:"#555", whiteSpace:"nowrap" }}>EPS Growth YoY</td>
                       {epsHistory.map(function(row, i) {
-                        if (i === 0) return <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#aaa" }}>-</td>;
-                        var prev = epsHistory[i-1].eps;
-                        if (!prev) return <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#aaa" }}>-</td>;
-                        var growth = ((row.eps - prev) / Math.abs(prev)) * 100;
+                        var prevRow = epsHistory[i+1];
+                        if (!prevRow || !prevRow.eps) return <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#aaa" }}>-</td>;
+                        var growth = ((row.eps - prevRow.eps) / Math.abs(prevRow.eps)) * 100;
                         var color = growth >= 0 ? "#2a8a2a" : "#c03030";
                         return (
                           <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:color, fontWeight:600 }}>
@@ -527,6 +532,19 @@ function Detail({ sym, name, onBack }) {
                           </td>
                         );
                       })}
+                      {(function() {
+                        var prevEps = epsHistory[0] && epsHistory[0].eps;
+                        if (!prevEps || !eps) return (
+                          <td style={{ padding:"7px 10px", textAlign:"right", borderLeft:"2px solid #e0dbd0", fontWeight:700, color:"#aaa" }}>-</td>
+                        );
+                        var g = (eps - prevEps) / Math.abs(prevEps) * 100;
+                        var col = g >= 0 ? "#2a8a2a" : "#c03030";
+                        return (
+                          <td style={{ padding:"7px 10px", textAlign:"right", borderLeft:"2px solid #e0dbd0", fontWeight:700, color:col }}>
+                            {(g >= 0 ? "+" : "") + g.toFixed(1) + "%"}
+                          </td>
+                        );
+                      })()}
                     </tr>
                     <tr>
                       <td style={{ padding:"7px 10px", color:"#555", whiteSpace:"nowrap" }}>Revenue</td>
@@ -537,9 +555,15 @@ function Detail({ sym, name, onBack }) {
                           </td>
                         );
                       })}
+                      <td style={{ padding:"7px 10px", textAlign:"right", color:"#1a6a1a", fontWeight:700, borderLeft:"2px solid #e0dbd0" }}>
+                        {ov && ov.revenue ? ov.revenue : "-"}
+                      </td>
                     </tr>
                   </tbody>
                 </table>
+              </div>
+              <div style={{ fontSize:11, color:"#aaa", marginTop:8 }}>
+                * {new Date().getFullYear()} figures are TTM estimates from Yahoo Finance
               </div>
             ) : (
               <div style={{ textAlign:"center", padding:"20px 0", color:"#aaa", fontSize:13 }}>
