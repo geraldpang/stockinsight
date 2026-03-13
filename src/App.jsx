@@ -179,6 +179,40 @@ function Detail({ sym, name, onBack }) {
       if (res) setOv(res);
     }).catch(function() {});
 
+    // Auto-generate all 4 AI insight tabs in parallel
+    var aiTabs = ["business", "moat", "financial", "technical"];
+    aiTabs.forEach(function(tabId) {
+      var prompts = {
+        business: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), write a concise Business Overview covering: what the company does, how it makes money, key products or services, major competitors, and overall industry position. Be analytical and factual. Use plain text paragraphs, no markdown headers.",
+        moat: "You are a professional equity research analyst trained in Warren Buffett and Morningstar-style analysis. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), write exactly 2 sentences for each of the following moat dimensions. Label each section clearly. Format: [Label]: [2 sentences]. Sections: 1. Network Effects 2. Switching Costs 3. Cost Advantage 4. Intangible Assets (brand, patents, licenses, regulatory approvals) 5. Efficient Scale 6. Ecosystem / Customer Lock-in. End with one line: Moat Classification: Wide / Narrow / None",
+        financial: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), assess Financial Strength across these 7 dimensions in concise paragraphs: 1. Revenue Growth Trend 2. Gross Margin Stability 3. Operating Margin Trend 4. Free Cash Flow Consistency 5. Debt Level 6. Share Dilution or Buyback Discipline 7. Earnings Predictability. End with: Financial Strength Classification: Strong / Moderate / Weak and one sentence of reasoning.",
+        technical: "You are a professional technical analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), provide a technical analysis covering: Trend (50-day MA, 200-day MA, direction), Momentum (RSI condition, MACD condition), Support and Resistance zones, Volume analysis (confirms move? accumulation or distribution?), Chart Patterns (breakout / consolidation / reversal / double bottom / head and shoulders / flag/pennant / no clear pattern). End with: Technical Rating: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish and Entry Timing View: Good Entry / Wait for Pullback / Breakout Watch / Avoid for Now. Be specific with price levels where possible."
+      };
+      fetch("/anthropic", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 900,
+          messages: [{ role: "user", content: prompts[tabId] }]
+        })
+      }).then(function(r) { return r.json(); })
+        .then(function(data) {
+          var text = data && data.content && data.content[0] && data.content[0].text;
+          setInsightCache(function(prev) {
+            var next = Object.assign({}, prev);
+            next[tabId] = text || "Analysis unavailable.";
+            return next;
+          });
+        }).catch(function() {
+          setInsightCache(function(prev) {
+            var next = Object.assign({}, prev);
+            next[tabId] = "Analysis unavailable. Please try again.";
+            return next;
+          });
+        });
+    });
+
     // Fetch 10-year annual EPS + Revenue from Anthropic API (Claude)
     fetch("/anthropic", {
       method: "POST",
@@ -225,7 +259,7 @@ function Detail({ sym, name, onBack }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 900,
         messages: [{ role: "user", content: prompts[tabId] }]
       })
@@ -661,7 +695,6 @@ function Detail({ sym, name, onBack }) {
 
             function handleTab(id) {
               setInsightTab(id);
-              if (id !== "intrinsic") fetchInsight(id);
             }
 
             // Parse moat section into named rows
@@ -714,9 +747,7 @@ function Detail({ sym, name, onBack }) {
             }
 
             var tabContent = insightCache[insightTab];
-            var isLoading  = insightLoading && !tabContent;
-
-            return (
+            var isLoading  = !tabContent;           return (
               <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden" }}>
 
                 {/* Tab bar */}
@@ -774,10 +805,11 @@ function Detail({ sym, name, onBack }) {
                   {/* AI-powered tabs */}
                   {insightTab !== "intrinsic" && (
                     <div>
-                      {isLoading && (
+                      {!tabContent && (
                         <div style={{ textAlign:"center", padding:"40px 0" }}>
-                          <div style={{ fontSize:12, color:"#aaa", marginBottom:12 }}>Generating analysis for {sym}...</div>
-                          <div style={{ display:"inline-block", width:28, height:28, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%" }} />
+                          <div style={{ fontSize:12, color:"#888", marginBottom:14 }}>Generating {insightTab} analysis for {sym}...</div>
+                          <div style={{ display:"inline-block", width:26, height:26, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
+                          <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
                         </div>
                       )}
 
@@ -858,15 +890,7 @@ function Detail({ sym, name, onBack }) {
                         );
                       })()}
 
-                      {/* Prompt to generate on first load */}
-                      {!tabContent && !isLoading && (
-                        <div style={{ textAlign:"center", padding:"40px 0" }}>
-                          <div style={{ fontSize:13, color:"#aaa", marginBottom:14 }}>AI analysis not yet generated.</div>
-                          <button onClick={function() { fetchInsight(insightTab); }} style={{ padding:"10px 24px", background:LIME, border:"none", borderRadius:30, fontWeight:700, fontSize:13, color:"#0e0e0c", cursor:"pointer", fontFamily:FONT }}>
-                            Generate Analysis
-                          </button>
-                        </div>
-                      )}
+
                     </div>
                   )}
 
