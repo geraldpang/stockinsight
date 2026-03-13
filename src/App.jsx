@@ -127,6 +127,13 @@ async function getOverview(sym) {
     sharesOut:        (ks.sharesOutstanding && ks.sharesOutstanding.raw) || 0,
     fcfRaw:           (fd.freeCashflow && fd.freeCashflow.raw) || 0,
     niRaw:            (fd.netIncomeToCommon && fd.netIncomeToCommon.raw) || 0,
+    // Business profile from Yahoo assetProfile
+    bizSummary:       ap.longBusinessSummary || "",
+    industry:         ap.industry || "",
+    sector:           ap.sector || "",
+    country:          ap.country || "",
+    employees:        ap.fullTimeEmployees || 0,
+    website:          ap.website || "",
   };
   ovCache[sym] = out;
   return out;
@@ -180,10 +187,9 @@ function Detail({ sym, name, onBack }) {
     }).catch(function() {});
 
     // Auto-generate all 4 AI insight tabs in parallel
-    var aiTabs = ["business", "moat", "financial", "technical"];
+    var aiTabs = ["moat", "financial", "technical"];
     aiTabs.forEach(function(tabId) {
       var prompts = {
-        business: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), write a concise Business Overview covering: what the company does, how it makes money, key products or services, major competitors, and overall industry position. Be analytical and factual. Use plain text paragraphs, no markdown headers.",
         moat: "You are a professional equity research analyst trained in Warren Buffett and Morningstar-style analysis. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), write exactly 2 sentences for each of the following moat dimensions. Label each section clearly. Format: [Label]: [2 sentences]. Sections: 1. Network Effects 2. Switching Costs 3. Cost Advantage 4. Intangible Assets (brand, patents, licenses, regulatory approvals) 5. Efficient Scale 6. Ecosystem / Customer Lock-in. End with one line: Moat Classification: Wide / Narrow / None",
         financial: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), assess Financial Strength across these 7 dimensions in concise paragraphs: 1. Revenue Growth Trend 2. Gross Margin Stability 3. Operating Margin Trend 4. Free Cash Flow Consistency 5. Debt Level 6. Share Dilution or Buyback Discipline 7. Earnings Predictability. End with: Financial Strength Classification: Strong / Moderate / Weak and one sentence of reasoning.",
         technical: "You are a professional technical analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), provide a technical analysis covering: Trend (50-day MA, 200-day MA, direction), Momentum (RSI condition, MACD condition), Support and Resistance zones, Volume analysis (confirms move? accumulation or distribution?), Chart Patterns (breakout / consolidation / reversal / double bottom / head and shoulders / flag/pennant / no clear pattern). End with: Technical Rating: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish and Entry Timing View: Good Entry / Wait for Pullback / Breakout Watch / Avoid for Now. Be specific with price levels where possible."
@@ -805,7 +811,7 @@ function Detail({ sym, name, onBack }) {
                   {/* AI-powered tabs */}
                   {insightTab !== "intrinsic" && (
                     <div>
-                      {!tabContent && (
+                      {!tabContent && insightTab !== "business" && (
                         <div style={{ textAlign:"center", padding:"40px 0" }}>
                           <div style={{ fontSize:12, color:"#888", marginBottom:14 }}>Generating {insightTab} analysis for {sym}...</div>
                           <div style={{ display:"inline-block", width:26, height:26, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
@@ -813,10 +819,69 @@ function Detail({ sym, name, onBack }) {
                         </div>
                       )}
 
-                      {/* Business Overview */}
-                      {insightTab === "business" && tabContent && (
-                        <div style={{ fontSize:13, color:"#333", lineHeight:1.8 }}>
-                          {tabContent}
+                      {/* Business Overview - sourced from Yahoo Finance assetProfile */}
+                      {insightTab === "business" && (
+                        <div>
+                          {ov && ov.bizSummary ? (
+                            <div>
+                              {/* Profile chips */}
+                              <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:16 }}>
+                                {ov.sector && (
+                                  <span style={{ padding:"3px 10px", background:"#f0f7e6", border:"1px solid #c8f000", borderRadius:20, fontSize:11, fontWeight:600, color:"#3a6000" }}>
+                                    {ov.sector}
+                                  </span>
+                                )}
+                                {ov.industry && (
+                                  <span style={{ padding:"3px 10px", background:"#f5f2ec", border:"1px solid #d0c8b8", borderRadius:20, fontSize:11, fontWeight:600, color:"#555" }}>
+                                    {ov.industry}
+                                  </span>
+                                )}
+                                {ov.country && (
+                                  <span style={{ padding:"3px 10px", background:"#f5f2ec", border:"1px solid #d0c8b8", borderRadius:20, fontSize:11, fontWeight:600, color:"#555" }}>
+                                    {ov.country}
+                                  </span>
+                                )}
+                                {ov.employees > 0 && (
+                                  <span style={{ padding:"3px 10px", background:"#f5f2ec", border:"1px solid #d0c8b8", borderRadius:20, fontSize:11, fontWeight:600, color:"#555" }}>
+                                    {ov.employees.toLocaleString()} employees
+                                  </span>
+                                )}
+                              </div>
+                              {/* Business description */}
+                              <p style={{ fontSize:13, color:"#333", lineHeight:1.85, margin:"0 0 16px 0" }}>
+                                {ov.bizSummary}
+                              </p>
+                              {/* Key stats row */}
+                              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:12 }}>
+                                {[
+                                  { label:"Market Cap",       value: ov.marketCap },
+                                  { label:"Revenue (TTM)",    value: ov.revenue },
+                                  { label:"Net Income (TTM)", value: ov.netIncome },
+                                  { label:"Gross Margin",     value: ov.grossMargin ? ov.grossMargin.toFixed(1)+"%" : "-" },
+                                  { label:"Operating Margin", value: ov.opMargin ? ov.opMargin.toFixed(1)+"%" : "-" },
+                                  { label:"Free Cash Flow",   value: ov.fcf },
+                                ].map(function(item, i) {
+                                  return (
+                                    <div key={i} style={{ background:"#f5f2ec", borderRadius:8, padding:"10px 12px" }}>
+                                      <div style={{ fontSize:10, color:"#999", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:3 }}>{item.label}</div>
+                                      <div style={{ fontSize:14, fontWeight:700, color:"#111" }}>{item.value || "-"}</div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              {/* Website link */}
+                              {ov.website && (
+                                <a href={ov.website} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:"#888", textDecoration:"none" }}>
+                                  {ov.website}
+                                </a>
+                              )}
+                              <div style={{ fontSize:10, color:"#ccc", marginTop:10 }}>Business description sourced from Yahoo Finance</div>
+                            </div>
+                          ) : (
+                            <div style={{ textAlign:"center", padding:"40px 0", color:"#aaa", fontSize:13 }}>
+                              {ov ? "Business description unavailable for this symbol." : "Loading company data..."}
+                            </div>
+                          )}
                         </div>
                       )}
 
