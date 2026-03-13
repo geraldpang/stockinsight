@@ -193,7 +193,7 @@ function Detail({ sym, name, onBack }) {
         var text = data && data.content && data.content[0] && data.content[0].text;
         if (!text) { setEpsError(true); return; }
         // Strip any accidental markdown fences
-        text = text.replace(/```json|```/g, "").trim();
+        text = text.split("\x60\x60\x60json").join("").split("\x60\x60\x60").join("").trim();
         var rows = JSON.parse(text);
         if (!Array.isArray(rows) || rows.length === 0) { setEpsError(true); return; }
         rows.sort(function(a, b) { return b.year - a.year; });
