@@ -154,218 +154,6 @@ function VBar({ label, value, maxV, color, bold }) {
   );
 }
 
-
-// -- AI Analysis Report Renderer -----------------------------------------------
-function AiReport({ text, sym }) {
-  // Parse the structured sections from the AI response
-  function parseSection(label) {
-    var re = new RegExp("====+\\s*\\n" + label + "\\n====+([\\s\\S]*?)(?=====|$)");
-    var m = text.match(re);
-    return m ? m[1].trim() : null;
-  }
-
-  // Extract Final Investment Summary block
-  var summaryBlock = parseSection("9\\. FINAL INVESTMENT SUMMARY");
-  var fullText = text;
-
-  // Color helpers for ratings
-  function ratingColor(val) {
-    if (!val) return "#888";
-    var v = val.toLowerCase();
-    if (v.includes("strong buy") || v.includes("wide") || v.includes("excellent") || v.includes("strong") || v.includes("high") || v.includes("deeply under")) return "#1a6a1a";
-    if (v.includes("buy") || v.includes("narrow") || v.includes("good") || v.includes("bullish") || v.includes("moderately under")) return "#2a8a2a";
-    if (v.includes("hold") || v.includes("moderate") || v.includes("fairly") || v.includes("neutral") || v.includes("medium")) return "#b88000";
-    if (v.includes("avoid") || v.includes("none") || v.includes("weak") || v.includes("bearish") || v.includes("over") || v.includes("speculative")) return "#c03030";
-    return "#555";
-  }
-
-  // Parse a key:value line from the summary
-  function extract(key) {
-    var re = new RegExp(key + ":\\s*(.+)");
-    var m = text.match(re);
-    return m ? m[1].trim() : null;
-  }
-
-  var finalView   = extract("Final Investment View");
-  var confidence  = extract("Confidence Level");
-  var moatClass   = extract("Moat Classification");
-  var qualClass   = extract("Quality Classification");
-  var finStr      = extract("Financial Strength");
-  var valView     = extract("Valuation View");
-  var techRating  = extract("Technical Rating");
-  var entryView   = extract("Entry Timing View");
-  var compounder  = extract("Long-Term Compounder Potential");
-  var qualScore   = extract("Total Quality Score");
-  var moatDur     = extract("Moat Durability");
-
-  // Extract scorecard lines
-  function extractScores(prefix) {
-    var lines = text.split("\n");
-    var scores = [];
-    var inBlock = false;
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i].includes(prefix + " Scorecard:")) { inBlock = true; continue; }
-      if (inBlock && lines[i].trim().startsWith("- ")) {
-        scores.push(lines[i].trim().replace(/^- /, ""));
-      } else if (inBlock && lines[i].trim() === "") {
-        if (scores.length > 0) break;
-      } else if (inBlock && !lines[i].trim().startsWith("- ")) {
-        if (scores.length > 0) break;
-      }
-    }
-    return scores;
-  }
-
-  var moatScores    = extractScores("Moat");
-  var buffettScores = extractScores("Buffett Quality");
-
-  // Extract full section text (between section headers)
-  function sectionText(num, nextNum) {
-    var re = new RegExp(num + "\\.[^\\n]+\\n={3,}([\\s\\S]*?)(?=" + (nextNum ? nextNum + "\\." : "$") + ")");
-    var m = text.match(re);
-    return m ? m[1].replace(/={3,}/g, "").trim() : null;
-  }
-
-  var sections = [
-    { num:1, title:"Business Overview",        next:2 },
-    { num:2, title:"Economic Moat Analysis",   next:3 },
-    { num:3, title:"Buffett Quality Analysis", next:4 },
-    { num:4, title:"Financial Strength",       next:5 },
-    { num:5, title:"Intrinsic Value",          next:6 },
-    { num:6, title:"Technical Analysis",       next:7 },
-    { num:7, title:"Risk Analysis",            next:8 },
-    { num:8, title:"Moat Destroyer Test",      next:9 },
-  ];
-
-  var pill = function(val, label) {
-    if (!val) return null;
-    return (
-      <span style={{ display:"inline-block", padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:ratingColor(val) + "18", color:ratingColor(val), border:"1px solid " + ratingColor(val) + "40", marginLeft:6 }}>
-        {label || val}
-      </span>
-    );
-  };
-
-  return (
-    <div style={{ fontFamily:FONT }}>
-
-      {/* Hero verdict bar */}
-      <div style={{ background:"#0e0e0c", borderRadius:12, padding:"20px 24px", marginBottom:20, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
-        <div>
-          <div style={{ fontSize:11, color:"#888", fontWeight:600, marginBottom:4, textTransform:"uppercase", letterSpacing:"0.08em" }}>AI Investment Verdict</div>
-          <div style={{ fontSize:22, fontWeight:900, color: ratingColor(finalView) }}>{finalView || "Analysing..."}</div>
-          <div style={{ fontSize:11, color:"#666", marginTop:3 }}>Confidence: {confidence}</div>
-        </div>
-        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {moatClass  && <div style={{ textAlign:"center", background:"#1a1a14", borderRadius:8, padding:"8px 14px" }}><div style={{ fontSize:10, color:"#666", marginBottom:2 }}>MOAT</div><div style={{ fontSize:13, fontWeight:700, color:ratingColor(moatClass) }}>{moatClass}</div></div>}
-          {qualClass  && <div style={{ textAlign:"center", background:"#1a1a14", borderRadius:8, padding:"8px 14px" }}><div style={{ fontSize:10, color:"#666", marginBottom:2 }}>QUALITY</div><div style={{ fontSize:13, fontWeight:700, color:ratingColor(qualClass) }}>{qualClass.replace(" Business","")}</div></div>}
-          {finStr     && <div style={{ textAlign:"center", background:"#1a1a14", borderRadius:8, padding:"8px 14px" }}><div style={{ fontSize:10, color:"#666", marginBottom:2 }}>FINANCIALS</div><div style={{ fontSize:13, fontWeight:700, color:ratingColor(finStr) }}>{finStr}</div></div>}
-          {compounder && <div style={{ textAlign:"center", background:"#1a1a14", borderRadius:8, padding:"8px 14px" }}><div style={{ fontSize:10, color:"#666", marginBottom:2 }}>COMPOUNDER</div><div style={{ fontSize:13, fontWeight:700, color:ratingColor(compounder) }}>{compounder}</div></div>}
-        </div>
-      </div>
-
-      {/* Scorecard row */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
-        {/* Moat scorecard */}
-        <div style={{ background:"#faf8f4", border:"1px solid #e0dbd0", borderRadius:12, padding:"16px 18px" }}>
-          <div style={{ fontSize:12, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:10 }}>Moat Scorecard</div>
-          {moatScores.map(function(s, i) {
-            var parts = s.split(":");
-            var label = parts[0] ? parts[0].trim() : s;
-            var score = parts[1] ? parts[1].trim() : "";
-            var num   = parseFloat(score);
-            return (
-              <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
-                <span style={{ fontSize:12, color:"#555" }}>{label}</span>
-                <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                  {[1,2,3,4,5].map(function(d) {
-                    return <div key={d} style={{ width:10, height:10, borderRadius:2, background: d <= num ? LIME : "#e0dbd0" }} />;
-                  })}
-                  <span style={{ fontSize:11, color:"#888", marginLeft:4 }}>{score}</span>
-                </div>
-              </div>
-            );
-          })}
-          <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #e0dbd0", fontSize:11, color:"#888" }}>
-            Durability: <strong style={{ color:"#444" }}>{moatDur}</strong>
-          </div>
-        </div>
-
-        {/* Buffett scorecard */}
-        <div style={{ background:"#faf8f4", border:"1px solid #e0dbd0", borderRadius:12, padding:"16px 18px" }}>
-          <div style={{ fontSize:12, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:10 }}>Buffett Quality Scorecard</div>
-          {buffettScores.map(function(s, i) {
-            var parts = s.split(":");
-            var label = parts[0] ? parts[0].trim() : s;
-            var score = parts[1] ? parts[1].trim() : "";
-            var num   = parseFloat(score);
-            return (
-              <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
-                <span style={{ fontSize:12, color:"#555" }}>{label}</span>
-                <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                  {[1,2,3,4,5].map(function(d) {
-                    return <div key={d} style={{ width:10, height:10, borderRadius:2, background: d <= num ? "#d4a800" : "#e0dbd0" }} />;
-                  })}
-                  <span style={{ fontSize:11, color:"#888", marginLeft:4 }}>{score}</span>
-                </div>
-              </div>
-            );
-          })}
-          <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #e0dbd0", fontSize:11, color:"#888" }}>
-            Total Score: <strong style={{ color:"#444" }}>{qualScore}</strong>
-          </div>
-        </div>
-      </div>
-
-      {/* Valuation + Technical row */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
-        <div style={{ background:"#faf8f4", border:"1px solid #e0dbd0", borderRadius:12, padding:"16px 18px" }}>
-          <div style={{ fontSize:12, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>Valuation View</div>
-          <div style={{ fontSize:15, fontWeight:700, color:ratingColor(valView) }}>{valView}</div>
-        </div>
-        <div style={{ background:"#faf8f4", border:"1px solid #e0dbd0", borderRadius:12, padding:"16px 18px" }}>
-          <div style={{ fontSize:12, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>Technical Signal</div>
-          <div style={{ fontSize:14, fontWeight:700, color:ratingColor(techRating) }}>{techRating}</div>
-          <div style={{ fontSize:11, color:"#888", marginTop:3 }}>Entry: {entryView}</div>
-        </div>
-      </div>
-
-      {/* Full analysis sections */}
-      {[
-        { label:"1. Business Overview",        key:"BUSINESS OVERVIEW" },
-        { label:"2. Economic Moat Analysis",   key:"ECONOMIC MOAT ANALYSIS" },
-        { label:"3. Buffett Quality Analysis", key:"BUFFETT QUALITY ANALYSIS" },
-        { label:"4. Financial Strength",       key:"FINANCIAL STRENGTH" },
-        { label:"5. Intrinsic Value Perspective", key:"INTRINSIC VALUE PERSPECTIVE" },
-        { label:"6. Technical Analysis",       key:"TECHNICAL ANALYSIS" },
-        { label:"7. Risk Analysis",            key:"RISK ANALYSIS" },
-        { label:"8. Moat Destroyer Test",      key:"MOAT DESTROYER TEST" },
-        { label:"9. Final Investment Summary", key:"FINAL INVESTMENT SUMMARY" },
-      ].map(function(sec, idx) {
-        var re = new RegExp("={3,}\\s*\\n" + sec.key + "\\s*\\n={3,}([\\s\\S]*?)(?===|$)");
-        var m = text.match(re);
-        var body = m ? m[1].trim() : null;
-        if (!body) return null;
-        return (
-          <details key={idx} style={{ marginBottom:10, border:"1px solid #e0dbd0", borderRadius:10, overflow:"hidden" }} open={idx === 0}>
-            <summary style={{ padding:"12px 18px", background:"#faf8f4", cursor:"pointer", fontWeight:700, fontSize:13, color:"#111", listStyle:"none", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              {sec.label}
-              <span style={{ fontSize:11, color:"#bbb" }}>click to expand</span>
-            </summary>
-            <div style={{ padding:"14px 18px", fontSize:13, color:"#333", lineHeight:1.7, whiteSpace:"pre-wrap" }}>
-              {body}
-            </div>
-          </details>
-        );
-      })}
-
-      <div style={{ fontSize:10, color:"#bbb", marginTop:16, textAlign:"center" }}>
-        AI analysis generated by Claude (Anthropic). For informational purposes only. Not financial advice.
-      </div>
-    </div>
-  );
-}
-
 // -- Detail page --------------------------------------------------------------
 function Detail({ sym, name, onBack }) {
   const [q,        setQ]        = useState(null);
@@ -373,13 +161,12 @@ function Detail({ sym, name, onBack }) {
   const [epsHistory, setEpsHistory] = useState(null);
   const [epsError,   setEpsError]   = useState(false);
   const [msg, setMsg] = useState("Loading...");
-  const [activeTab,  setActiveTab]  = useState("charts");
-  const [aiAnalysis, setAiAnalysis] = useState(null);
-  const [aiLoading,  setAiLoading]  = useState(false);
-  const [aiError,    setAiError]    = useState(false);
+  const [insightTab,    setInsightTab]    = useState("business");
+  const [insightCache,  setInsightCache]  = useState({});
+  const [insightLoading,setInsightLoading]= useState(false);
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setAiAnalysis(null); setAiError(false); setAiLoading(false); setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
 
     getQuote(sym).then(function(res) {
       if (res) { setQ(res); setMsg(""); }
@@ -419,31 +206,51 @@ function Detail({ sym, name, onBack }) {
 
   }, [sym]);
 
-  // -- AI Analysis fetch -------------------------------------------------
-  function fetchAiAnalysis() {
-    if (aiLoading || aiAnalysis) return;
-    setAiLoading(true);
-    setAiError(false);
-    var prompt = "You are a professional equity research analyst trained in Warren Buffett, Charlie Munger, Benjamin Graham, and Morningstar-style investment analysis.\n\nYour task is to evaluate a company as a long-term investment candidate for a stock analysis website.\n\nCompany: " + sym + " (" + (NAMES[sym] || sym) + ")\n\nImportant instructions:\n- Focus on long-term fundamentals and historical business performance rather than short-term hype.\n- Be balanced, analytical, and evidence-based.\n- Do not overstate certainty.\n- If information is limited, say so and reduce confidence.\n- Separate business quality from valuation and technical timing.\n- A great company is not always a great buy at the current price.\n- A cheap stock is not always a good business.\n\nPerform the analysis in the following sections.\n\n====================================================\n1. BUSINESS OVERVIEW\n====================================================\n\nExplain briefly: what the company does, how it makes money, key products or services, major competitors, overall industry position.\n\n====================================================\n2. ECONOMIC MOAT ANALYSIS\n====================================================\n\nEvaluate the company across these moat sources:\n1. Network Effects (0-5)\n2. Switching Costs (0-5)\n3. Cost Advantage (0-5)\n4. Intangible Assets (0-5)\n5. Efficient Scale (0-5)\n6. Ecosystem / Customer Lock-in (0-5)\n\nFor each: assign score and explain briefly.\nThen: Moat Durability (<10 years / 10-20 years / 20+ years) and Moat Classification (Wide / Narrow / None).\nExplain why the moat exists and what could weaken or destroy it.\n\n====================================================\n3. BUFFETT QUALITY ANALYSIS\n====================================================\n\nEvaluate using these factors (score 1-5 each):\n1. Business Simplicity\n2. Profit Consistency\n3. Return on Capital\n4. Debt Discipline\n5. Pricing Power\n6. Management Capital Allocation\n7. Industry Durability\n\nProvide Total Quality Score out of 35 and Quality Classification (Excellent / Good / Average / Weak Business).\n\n====================================================\n4. FINANCIAL STRENGTH\n====================================================\n\nAssess: revenue growth, gross margin stability, operating margin, free cash flow consistency, debt level, share dilution/buybacks, earnings predictability.\nClassify as: Strong / Moderate / Weak with reasoning.\n\n====================================================\n5. INTRINSIC VALUE PERSPECTIVE\n====================================================\n\nAssess earnings power, growth potential, reinvestment opportunities, capital intensity, long-term compounding potential.\nClassify as: Deeply Undervalued / Moderately Undervalued / Fairly Valued / Overvalued / Highly Speculative Valuation.\n\n====================================================\n6. TECHNICAL ANALYSIS\n====================================================\n\nAssess: trend (50d/200d MA), momentum (RSI, MACD), support/resistance zones, volume patterns.\nProvide: Technical Rating (Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish) and Entry Timing View (Good Entry / Wait for Pullback / Breakout Watch / Avoid for Now).\n\n====================================================\n7. RISK ANALYSIS\n====================================================\n\nIdentify major risks: competition, disruption, regulatory, cyclicality, balance sheet, management, valuation.\nState biggest overall risk and whether it is temporary, cyclical, or structural.\n\n====================================================\n8. MOAT DESTROYER TEST\n====================================================\n\nAnswer: If you were a well-funded competitor trying to destroy this company moat, how would you do it?\nAssess moat vulnerability and what type of competitor would be most dangerous.\n\n====================================================\n9. FINAL INVESTMENT SUMMARY\n====================================================\n\nReturn in EXACTLY this format:\n\nCompany: [Name]\nBusiness Overview:\n[Short paragraph]\n\nMoat Scorecard:\n- Network Effects: X/5\n- Switching Costs: X/5\n- Cost Advantage: X/5\n- Intangible Assets: X/5\n- Efficient Scale: X/5\n- Ecosystem Lock-in: X/5\n\nMoat Durability: [<10 years / 10-20 years / 20+ years]\nMoat Classification: [Wide / Narrow / None]\n\nBuffett Quality Scorecard:\n- Business Simplicity: X/5\n- Profit Consistency: X/5\n- Return on Capital: X/5\n- Debt Discipline: X/5\n- Pricing Power: X/5\n- Management Capital Allocation: X/5\n- Industry Durability: X/5\n\nTotal Quality Score: XX/35\nQuality Classification: [Excellent / Good / Average / Weak]\n\nFinancial Strength: [Strong / Moderate / Weak]\n\nValuation View: [Deeply Undervalued / Moderately Undervalued / Fairly Valued / Overvalued / Highly Speculative Valuation]\n\nTechnical Summary:\n- Trend: [Uptrend / Downtrend / Sideways]\n- Momentum: [Bullish / Neutral / Bearish]\n- Support: [level or zone]\n- Resistance: [level or zone]\n- Technical Rating: [Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish]\n- Entry Timing View: [Good Entry / Wait for Pullback / Breakout Watch / Avoid for Now]\n\nLong-Term Compounder Potential: [High / Medium / Low]\n\nKey Advantage:\n[Short explanation]\n\nBiggest Risk:\n[Short explanation]\n\nFinal Investment View: [Strong Buy / Buy / Hold / Watchlist / Avoid]\n\nConfidence Level: [High / Medium / Low]\n\n[Concise paragraph separating business quality, valuation, timing, and risk]";
+  // -- Insight tab fetch -------------------------------------------------------
+  function fetchInsight(tabId) {
+    if (insightCache[tabId] || insightLoading) return;
+    setInsightLoading(true);
+
+    var prompts = {
+      business: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), write a concise Business Overview covering: what the company does, how it makes money, key products or services, major competitors, and overall industry position. Be analytical and factual. Use plain text paragraphs, no markdown headers.",
+
+      moat: "You are a professional equity research analyst trained in Warren Buffett and Morningstar-style analysis. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), write exactly 2 sentences for each of the following moat dimensions. Label each section clearly. Format: [Label]: [2 sentences]. Sections: 1. Network Effects 2. Switching Costs 3. Cost Advantage 4. Intangible Assets (brand, patents, licenses, regulatory approvals) 5. Efficient Scale 6. Ecosystem / Customer Lock-in. End with one line: Moat Classification: Wide / Narrow / None",
+
+      financial: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), assess Financial Strength across these 7 dimensions in concise paragraphs: 1. Revenue Growth Trend 2. Gross Margin Stability 3. Operating Margin Trend 4. Free Cash Flow Consistency 5. Debt Level 6. Share Dilution or Buyback Discipline 7. Earnings Predictability. End with: Financial Strength Classification: Strong / Moderate / Weak and one sentence of reasoning.",
+
+      technical: "You are a professional technical analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), provide a technical analysis covering: Trend (50-day MA, 200-day MA, direction), Momentum (RSI condition, MACD condition), Support and Resistance zones, Volume analysis (confirms move? accumulation or distribution?), Chart Patterns (breakout / consolidation / reversal / double bottom / head and shoulders / flag/pennant / no clear pattern). End with: Technical Rating: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish and Entry Timing View: Good Entry / Wait for Pullback / Breakout Watch / Avoid for Now. Be specific with price levels where possible."
+    };
 
     fetch("/anthropic", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 3000,
-        messages: [{ role: "user", content: prompt }]
+        max_tokens: 900,
+        messages: [{ role: "user", content: prompts[tabId] }]
       })
     }).then(function(r) { return r.json(); })
       .then(function(data) {
         var text = data && data.content && data.content[0] && data.content[0].text;
-        if (!text) { setAiError(true); setAiLoading(false); return; }
-        setAiAnalysis(text);
-        setAiLoading(false);
-      }).catch(function() { setAiError(true); setAiLoading(false); });
+        setInsightCache(function(prev) {
+          var next = {};
+          Object.keys(prev).forEach(function(k) { next[k] = prev[k]; });
+          next[tabId] = text || "Analysis unavailable.";
+          return next;
+        });
+        setInsightLoading(false);
+      }).catch(function() {
+        setInsightCache(function(prev) {
+          var next = {};
+          Object.keys(prev).forEach(function(k) { next[k] = prev[k]; });
+          next[tabId] = "Analysis unavailable. Please try again.";
+          return next;
+        });
+        setInsightLoading(false);
+      });
   }
 
-  const price = q ? q.price : 0;
+    const price = q ? q.price : 0;
   const up    = q ? q.pct >= 0 : true;
   const sign  = up ? "+" : "";
   const chg   = q ? sign + q.change.toFixed(2) + " (" + sign + q.pct.toFixed(2) + "%)" : "-";
@@ -726,36 +533,6 @@ function Detail({ sym, name, onBack }) {
         {/* RIGHT PANEL */}
         <div style={{ padding:"24px", background:"#fff" }}>
 
-          {/* Tab Bar */}
-          <div style={{ display:"flex", gap:0, marginBottom:20, borderBottom:"2px solid #e0dbd0" }}>
-            {[
-              { id:"charts", label:"Charts & Data" },
-              { id:"ai",     label:"AI Analysis" }
-            ].map(function(tab) {
-              var active = activeTab === tab.id;
-              return (
-                <button key={tab.id} onClick={function() {
-                  setActiveTab(tab.id);
-                  if (tab.id === "ai") fetchAiAnalysis();
-                }} style={{
-                  padding:"10px 22px", border:"none", background:"transparent", cursor:"pointer",
-                  fontSize:13, fontWeight:active ? 700 : 500,
-                  color: active ? "#111" : "#999",
-                  borderBottom: active ? "2px solid #111" : "2px solid transparent",
-                  marginBottom:"-2px", fontFamily:FONT,
-                }}>
-                  {tab.id === "ai" && (
-                    <span style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:LIME, marginRight:6, verticalAlign:"middle" }} />
-                  )}
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Charts & Data Tab */}
-          {activeTab === "charts" && (
-          <div>
           {/* TradingView Chart */}
           <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden", marginBottom:20 }}>
             <div style={{ background:"#faf8f4", borderBottom:"1px solid #e0dbd0", padding:"8px 14px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -782,36 +559,8 @@ function Detail({ sym, name, onBack }) {
             </div>
           </div>
 
-          {/* Valuation Chart */}
-          <div style={{ border:"1px solid #e0dbd0", borderRadius:12, padding:"20px 22px", background:"#faf8f4" }}>
-            <div style={{ fontSize:15, fontWeight:700, color:"#111", marginBottom:10 }}>Valuation Chart</div>
-            <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:14 }}>
-              <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>
-                Summary
-              </span>
-            </div>
-
-            {vals.length > 0 ? (
-              <div>
-                <div style={{ textAlign:"right", marginBottom:8 }}>
-                  <span style={{ fontSize:11, color:"#aaa" }}>IntrinsicValue(TM) {oracle}</span>
-                </div>
-                {vals.map(function(v, i) {
-                  return <VBar key={i} label={v.label} value={v.value} maxV={maxV} color={v.color} bold={v.bold} />;
-                })}
-                <div style={{ marginTop:10, paddingTop:8, borderTop:"1px solid #e0dbd0", textAlign:"right" }}>
-                  <span style={{ fontSize:11, color:"#aaa" }}>Stock price: ${price.toFixed(2)}</span>
-                </div>
-              </div>
-            ) : (
-              <div style={{ textAlign:"center", padding:"28px 0", color:"#aaa", fontSize:13 }}>
-                {msg ? "Data unavailable" : "Loading valuation data..."}
-              </div>
-            )}
-          </div>
-
           {/* Historical Data - EPS 10 years */}
-          <div style={{ border:"1px solid #e0dbd0", borderRadius:12, padding:"20px 22px", background:"#faf8f4", marginTop:20 }}>
+          <div style={{ border:"1px solid #e0dbd0", borderRadius:12, padding:"20px 22px", background:"#faf8f4", marginBottom:20 }}>
             <div style={{ fontSize:15, fontWeight:700, color:"#111", marginBottom:14 }}>Historical Data</div>
             {epsHistory && epsHistory.length > 0 ? (
               <>
@@ -899,39 +648,235 @@ function Detail({ sym, name, onBack }) {
               </div>
             )}
           </div>
-          </div>
-          )}
 
-          {/* AI Analysis Panel */}
-          {activeTab === "ai" && (
-            <div>
-              {aiLoading && (
-                <div style={{ textAlign:"center", padding:"60px 20px" }}>
-                  <div style={{ width:36, height:36, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite", margin:"0 auto 16px" }} />
-                  <div style={{ fontSize:13, color:"#888" }}>Analysing {sym} using Claude AI...</div>
-                  <div style={{ fontSize:11, color:"#bbb", marginTop:6 }}>This may take 15-30 seconds</div>
-                  <style>{".spin-anim { animation: spin 0.8s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }"}</style>
+          {/* 5-Tab Insight Panel */}
+          {(function() {
+            var TABS = [
+              { id:"business",  label:"Business Overview" },
+              { id:"moat",      label:"Economic MOAT" },
+              { id:"intrinsic", label:"Intrinsic Value" },
+              { id:"financial", label:"Financial Strength" },
+              { id:"technical", label:"Technical Analysis" },
+            ];
+
+            function handleTab(id) {
+              setInsightTab(id);
+              if (id !== "intrinsic") fetchInsight(id);
+            }
+
+            // Parse moat section into named rows
+            function parseMoat(text) {
+              if (!text) return null;
+              var sections = [
+                "Network Effects","Switching Costs","Cost Advantage",
+                "Intangible Assets","Efficient Scale","Ecosystem / Customer Lock-in"
+              ];
+              var result = [];
+              sections.forEach(function(sec) {
+                var re = new RegExp(sec + "[^:]*:\s*([\s\S]*?)(?=Network Effects|Switching Costs|Cost Advantage|Intangible Assets|Efficient Scale|Ecosystem|Moat Classification|$)");
+                var m = text.match(re);
+                if (m) result.push({ label: sec, body: m[1].trim() });
+              });
+              var classMatch = text.match(/Moat Classification:\s*(.+)/);
+              return { sections: result, classification: classMatch ? classMatch[1].trim() : null };
+            }
+
+            // Parse technical into structured sections
+            function parseTechnical(text) {
+              if (!text) return null;
+              var ratingMatch = text.match(/Technical Rating:\s*(.+)/);
+              var entryMatch  = text.match(/Entry Timing View:\s*(.+)/);
+              return {
+                body:   text,
+                rating: ratingMatch ? ratingMatch[1].trim() : null,
+                entry:  entryMatch  ? entryMatch[1].trim()  : null,
+              };
+            }
+
+            // Parse financial strength
+            function parseFinancial(text) {
+              if (!text) return null;
+              var classMatch = text.match(/Financial Strength Classification:\s*(.+)/);
+              return {
+                body:           text,
+                classification: classMatch ? classMatch[1].trim() : null,
+              };
+            }
+
+            function ratingColor(val) {
+              if (!val) return "#888";
+              var v = val.toLowerCase();
+              if (v.includes("wide") || v.includes("strong") || v.includes("good entry")) return "#1a6a1a";
+              if (v.includes("narrow") || v.includes("bullish") || v.includes("breakout")) return "#2a8a2a";
+              if (v.includes("neutral") || v.includes("moderate") || v.includes("pullback") || v.includes("fairly")) return "#b88000";
+              if (v.includes("none") || v.includes("bearish") || v.includes("avoid") || v.includes("weak")) return "#c03030";
+              return "#555";
+            }
+
+            var tabContent = insightCache[insightTab];
+            var isLoading  = insightLoading && !tabContent;
+
+            return (
+              <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden" }}>
+
+                {/* Tab bar */}
+                <div style={{ display:"flex", background:"#faf8f4", borderBottom:"1px solid #e0dbd0", overflowX:"auto" }}>
+                  {TABS.map(function(tab) {
+                    var active = insightTab === tab.id;
+                    return (
+                      <button key={tab.id} onClick={function() { handleTab(tab.id); }} style={{
+                        flex:"0 0 auto", padding:"11px 16px", border:"none", background:"transparent",
+                        cursor:"pointer", fontSize:12, fontWeight: active ? 700 : 500,
+                        color: active ? "#111" : "#888",
+                        borderBottom: active ? "2px solid #111" : "2px solid transparent",
+                        fontFamily:FONT, whiteSpace:"nowrap",
+                      }}>
+                        {tab.id === "intrinsic" ? null : (
+                          <span style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background: active ? LIME : "#ccc", marginRight:5, verticalAlign:"middle" }} />
+                        )}
+                        {tab.label}
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
-              {aiError && (
-                <div style={{ textAlign:"center", padding:"40px 20px", color:"#c03030", fontSize:13 }}>
-                  AI analysis unavailable. Please try again.
-                  <br />
-                  <button onClick={function() { setAiError(false); setAiAnalysis(null); fetchAiAnalysis(); }} style={{ marginTop:12, padding:"8px 20px", border:"1px solid #c03030", borderRadius:6, background:"transparent", color:"#c03030", cursor:"pointer", fontSize:12, fontFamily:FONT }}>
-                    Retry
-                  </button>
+
+                {/* Tab content */}
+                <div style={{ padding:"20px 22px", background:"#fff", minHeight:200 }}>
+
+                  {/* Intrinsic Value tab - show existing valuation chart */}
+                  {insightTab === "intrinsic" && (
+                    <div>
+                      <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:14 }}>
+                        <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>
+                          Summary
+                        </span>
+                      </div>
+                      {vals.length > 0 ? (
+                        <div>
+                          <div style={{ textAlign:"right", marginBottom:8 }}>
+                            <span style={{ fontSize:11, color:"#aaa" }}>IntrinsicValue(TM) {oracle}</span>
+                          </div>
+                          {vals.map(function(v, i) {
+                            return <VBar key={i} label={v.label} value={v.value} maxV={maxV} color={v.color} bold={v.bold} />;
+                          })}
+                          <div style={{ marginTop:10, paddingTop:8, borderTop:"1px solid #e0dbd0", textAlign:"right" }}>
+                            <span style={{ fontSize:11, color:"#aaa" }}>Stock price: ${price.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ textAlign:"center", padding:"28px 0", color:"#aaa", fontSize:13 }}>
+                          {msg ? "Data unavailable" : "Loading valuation data..."}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* AI-powered tabs */}
+                  {insightTab !== "intrinsic" && (
+                    <div>
+                      {isLoading && (
+                        <div style={{ textAlign:"center", padding:"40px 0" }}>
+                          <div style={{ fontSize:12, color:"#aaa", marginBottom:12 }}>Generating analysis for {sym}...</div>
+                          <div style={{ display:"inline-block", width:28, height:28, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%" }} />
+                        </div>
+                      )}
+
+                      {/* Business Overview */}
+                      {insightTab === "business" && tabContent && (
+                        <div style={{ fontSize:13, color:"#333", lineHeight:1.8 }}>
+                          {tabContent}
+                        </div>
+                      )}
+
+                      {/* Economic MOAT */}
+                      {insightTab === "moat" && tabContent && (function() {
+                        var parsed = parseMoat(tabContent);
+                        if (!parsed || parsed.sections.length === 0) {
+                          return <div style={{ fontSize:13, color:"#333", lineHeight:1.8 }}>{tabContent}</div>;
+                        }
+                        return (
+                          <div>
+                            {parsed.sections.map(function(sec, i) {
+                              return (
+                                <div key={i} style={{ marginBottom:14, paddingBottom:14, borderBottom: i < parsed.sections.length-1 ? "1px solid #f0ede6" : "none" }}>
+                                  <div style={{ fontSize:12, fontWeight:700, color:"#111", marginBottom:4 }}>{sec.label}</div>
+                                  <div style={{ fontSize:13, color:"#444", lineHeight:1.7 }}>{sec.body}</div>
+                                </div>
+                              );
+                            })}
+                            {parsed.classification && (
+                              <div style={{ marginTop:12, padding:"8px 14px", background:"#f5f2ec", borderRadius:8, display:"inline-block" }}>
+                                <span style={{ fontSize:12, color:"#888" }}>Moat Classification: </span>
+                                <span style={{ fontSize:13, fontWeight:700, color:ratingColor(parsed.classification) }}>{parsed.classification}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Financial Strength */}
+                      {insightTab === "financial" && tabContent && (function() {
+                        var parsed = parseFinancial(tabContent);
+                        return (
+                          <div>
+                            <div style={{ fontSize:13, color:"#333", lineHeight:1.8, marginBottom:14 }}>
+                              {parsed.body.replace(/Financial Strength Classification:.+/, "").trim()}
+                            </div>
+                            {parsed.classification && (
+                              <div style={{ padding:"8px 14px", background:"#f5f2ec", borderRadius:8, display:"inline-block" }}>
+                                <span style={{ fontSize:12, color:"#888" }}>Financial Strength: </span>
+                                <span style={{ fontSize:13, fontWeight:700, color:ratingColor(parsed.classification) }}>{parsed.classification}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Technical Analysis */}
+                      {insightTab === "technical" && tabContent && (function() {
+                        var parsed = parseTechnical(tabContent);
+                        return (
+                          <div>
+                            <div style={{ fontSize:13, color:"#333", lineHeight:1.8, marginBottom:14 }}>
+                              {parsed.body.replace(/Technical Rating:.+/, "").replace(/Entry Timing View:.+/, "").trim()}
+                            </div>
+                            <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+                              {parsed.rating && (
+                                <div style={{ padding:"8px 14px", background:"#f5f2ec", borderRadius:8 }}>
+                                  <span style={{ fontSize:12, color:"#888" }}>Technical Rating: </span>
+                                  <span style={{ fontSize:13, fontWeight:700, color:ratingColor(parsed.rating) }}>{parsed.rating}</span>
+                                </div>
+                              )}
+                              {parsed.entry && (
+                                <div style={{ padding:"8px 14px", background:"#f5f2ec", borderRadius:8 }}>
+                                  <span style={{ fontSize:12, color:"#888" }}>Entry Timing: </span>
+                                  <span style={{ fontSize:13, fontWeight:700, color:ratingColor(parsed.entry) }}>{parsed.entry}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Prompt to generate on first load */}
+                      {!tabContent && !isLoading && (
+                        <div style={{ textAlign:"center", padding:"40px 0" }}>
+                          <div style={{ fontSize:13, color:"#aaa", marginBottom:14 }}>AI analysis not yet generated.</div>
+                          <button onClick={function() { fetchInsight(insightTab); }} style={{ padding:"10px 24px", background:LIME, border:"none", borderRadius:30, fontWeight:700, fontSize:13, color:"#0e0e0c", cursor:"pointer", fontFamily:FONT }}>
+                            Generate Analysis
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                 </div>
-              )}
-              {aiAnalysis && !aiLoading && (
-                <AiReport text={aiAnalysis} sym={sym} />
-              )}
-              {!aiAnalysis && !aiLoading && !aiError && (
-                <div style={{ textAlign:"center", padding:"60px 20px", color:"#bbb", fontSize:13 }}>
-                  Click the AI Analysis tab to generate a full equity research report.
+                <div style={{ padding:"6px 16px", background:"#faf8f4", borderTop:"1px solid #f0ede6", fontSize:10, color:"#ccc" }}>
+                  AI analysis by Claude (Anthropic). For informational purposes only. Not financial advice.
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            );
+          })()}
 
         </div>
       </div>
