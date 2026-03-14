@@ -219,27 +219,12 @@ function Detail({ sym, name, onBack }) {
         });
     });
 
-    // Fetch 10-year annual EPS + Revenue from Anthropic API (Claude)
-    fetch("/anthropic", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 1024,
-        messages: [{
-          role: "user",
-          content: "Return ONLY a valid JSON array, no markdown, no explanation. For stock symbol " + sym + ", provide annual data for the 10 most recent completed fiscal years up to and including " + (new Date().getFullYear() - 1) + ". Each item has three fields: year as a number, eps as a decimal number, revenue as a string like $XB or $XT. Use diluted EPS. Skip years with no data. Most recent year must be " + (new Date().getFullYear() - 1) + "."
-        }]
-      })
-    }).then(function(r) { return r.json(); })
+    // Fetch 10-year historical EPS + Revenue from Macrotrends via proxy
+    fetch("/eps?sym=" + sym)
+      .then(function(r) { return r.json(); })
       .then(function(data) {
-        var text = data && data.content && data.content[0] && data.content[0].text;
-        if (!text) { setEpsError(true); return; }
-        // Strip any accidental markdown fences
-        text = text.split("\x60\x60\x60json").join("").split("\x60\x60\x60").join("").trim();
-        var rows = JSON.parse(text);
-        if (!Array.isArray(rows) || rows.length === 0) { setEpsError(true); return; }
-        rows.sort(function(a, b) { return b.year - a.year; });
+        if (data.error || !data.data || data.data.length === 0) { setEpsError(true); return; }
+        var rows = data.data.slice().sort(function(a, b) { return b.year - a.year; });
         setEpsHistory(rows);
       }).catch(function() { setEpsError(true); });
 
@@ -679,7 +664,7 @@ function Detail({ sym, name, onBack }) {
                 </table>
               </div>
               <div style={{ fontSize:11, color:"#aaa", marginTop:8 }}>
-                * {new Date().getFullYear()} figures are TTM estimates from Yahoo Finance
+                * {new Date().getFullYear()} figures are TTM (Yahoo Finance) &nbsp;|&nbsp; Historical data: Macrotrends
               </div>
             </>
             ) : (
