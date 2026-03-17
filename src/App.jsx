@@ -50,7 +50,7 @@ async function getOverview(sym) {
   if (ovCache[sym]) return ovCache[sym];
   var d   = await yfetch(
     "https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym +
-    "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile,earningsTrend"
+    "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile,earningsTrend,recommendationTrend,upgradeDowngradeHistory,balanceSheetHistory,earningsHistory,calendarEvents"
   );
   var res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
   if (!res) return null;
@@ -135,6 +135,51 @@ async function getOverview(sym) {
     employees:        ap.fullTimeEmployees || 0,
     website:          ap.website || "",
   };
+  // ---- Additional data modules ----
+  var rt  = res.recommendationTrend || {};
+  var udh = res.upgradeDowngradeHistory || {};
+  var bsh = res.balanceSheetHistory || {};
+  var eh  = res.earningsHistory || {};
+  var ce  = res.calendarEvents || {};
+
+  // Recommendation trend (most recent period)
+  var rtTrend = (rt.trend && rt.trend[0]) || {};
+  out.recBuy        = rtTrend.strongBuy  ? (rtTrend.strongBuy  + (rtTrend.buy  || 0)) : 0;
+  out.recHold       = rtTrend.hold       || 0;
+  out.recSell       = rtTrend.strongSell ? (rtTrend.strongSell + (rtTrend.sell || 0)) : 0;
+  out.recPeriod     = rtTrend.period     || "";
+
+  // Upgrades/downgrades (last 5)
+  var udhList = (udh.history || []).slice(0, 5);
+  out.upgrades = udhList.map(function(u) {
+    return { firm: u.firm, action: u.action, from: u.fromGrade, to: u.toGrade, date: u.epochGradeDate ? new Date(u.epochGradeDate * 1000).toISOString().slice(0,10) : "" };
+  });
+
+  // Balance sheet (most recent annual)
+  var bs0 = (bsh.balanceSheetStatements && bsh.balanceSheetStatements[0]) || {};
+  out.cash         = bs0.cash                    ? bs0.cash.raw                    : null;
+  out.totalDebt    = bs0.longTermDebt            ? bs0.longTermDebt.raw            : null;
+  out.totalAssets  = bs0.totalAssets             ? bs0.totalAssets.raw             : null;
+  out.bookValue    = bs0.totalStockholderEquity  ? bs0.totalStockholderEquity.raw  : null;
+  out.bsDate       = bs0.endDate                 ? bs0.endDate.fmt                 : "";
+
+  // Earnings history (last 4 quarters)
+  var ehList = (eh.history || []).slice().reverse().slice(0,4);
+  out.earningsQ = ehList.map(function(e) {
+    return {
+      date:     e.quarter         ? e.quarter.fmt         : "",
+      actual:   e.epsActual       ? e.epsActual.raw       : null,
+      estimate: e.epsEstimate     ? e.epsEstimate.raw     : null,
+      surprise: e.epsDifference   ? e.epsDifference.raw  : null,
+      surprisePct: e.surprisePercent ? e.surprisePercent.raw : null,
+    };
+  });
+
+  // Next earnings date
+  var earnings = ce.earnings || {};
+  var earningsDate = earnings.earningsDate && earnings.earningsDate[0] ? earnings.earningsDate[0].fmt : null;
+  out.nextEarnings = earningsDate;
+
   ovCache[sym] = out;
   return out;
 }
@@ -172,6 +217,9 @@ function Detail({ sym, name, onBack }) {
   const [insightCache,  setInsightCache]  = useState({});
   const [insightLoading,setInsightLoading]= useState(false);
   const [parsedInsights,setParsedInsights]= useState({});
+  const [addlInfo,      setAddlInfo]      = useState(null);
+  const [addlLoading,   setAddlLoading]   = useState(false);
+  const [massiveInfo,   setMassiveInfo]   = useState(null);
 
   function parseAndStoreInsight(tabId, text) {
     if (!text) return;
@@ -232,7 +280,7 @@ function Detail({ sym, name, onBack }) {
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
 
     getQuote(sym).then(function(res) {
       if (res) { setQ(res); setMsg(""); }
@@ -306,6 +354,16 @@ function Detail({ sym, name, onBack }) {
           } catch(e) { setEpsError(true); }
         }).catch(function() { setEpsError(true); });
     })()
+
+    // Fetch Massive.com data (news + ticker reference + dividends + splits)
+    setAddlLoading(true);
+    fetch("/massive?sym=" + sym)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data && !data.error) setMassiveInfo(data);
+        setAddlLoading(false);
+      }).catch(function() { setAddlLoading(false); });
+
   }, [sym]);
 
   // -- Insight tab fetch -------------------------------------------------------
@@ -541,7 +599,7 @@ function Detail({ sym, name, onBack }) {
                 <span style={{ fontSize:13, color:"#999", marginLeft:8 }}>USD</span>
                 <span style={{ fontSize:14, fontWeight:700, marginLeft:10, color:up?"#2a8a2a":"#c03030" }}>{chg}</span>
               </div>
-              <div style={{ fontSize:12, color:"#aaa" }}>Next Earnings Date: <span style={{ color:"#555" }}>-</span></div>
+              <div style={{ fontSize:12, color:"#aaa" }}>Next Earnings Date: <span style={{ color:"#555" }}>{ov && ov.nextEarnings ? ov.nextEarnings : "-"}</span></div>
             </div>
           ) : (
             <div style={{ color:"#aaa", fontSize:14, marginBottom:16 }}>Loading price...</div>
@@ -816,6 +874,7 @@ function Detail({ sym, name, onBack }) {
               { id:"intrinsic", label:"Intrinsic Value" },
               { id:"financial", label:"Financial Strength" },
               { id:"technical", label:"Technical Analysis" },
+              { id:"addlinfo",  label:"Additional Information" },
             ];
 
             function handleTab(id) {
@@ -1259,6 +1318,223 @@ function Detail({ sym, name, onBack }) {
 
                     </div>
                   )}
+
+                  {/* Additional Information Tab */}
+                  {insightTab === "addlinfo" && (function() {
+                    function fmtB(v) {
+                      if (v == null) return "-";
+                      var a = Math.abs(v);
+                      var s = a >= 1e12 ? "$" + (a/1e12).toFixed(2) + "T"
+                            : a >= 1e9  ? "$" + (a/1e9).toFixed(1)  + "B"
+                            : a >= 1e6  ? "$" + (a/1e6).toFixed(0)  + "M" : "$" + a.toFixed(0);
+                      return v < 0 ? "-" + s : s;
+                    }
+                    var SectionTitle = function(props) {
+                      return (
+                        <div style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10, marginTop: props.top ? 0 : 20, paddingTop: props.top ? 0 : 16, borderTop: props.top ? "none" : "1px solid #f0ede6", display:"flex", alignItems:"center", gap:6 }}>
+                          <span style={{ display:"inline-block", width:3, height:14, background: props.massive ? "#0066ff" : "#c8f000", borderRadius:2 }} />
+                          {props.children}
+                          <span style={{ fontSize:9, fontWeight:500, background: props.massive ? "#e6f0ff" : "#f0f7e0", color: props.massive ? "#0044cc" : "#3a6000", padding:"1px 6px", borderRadius:10 }}>{props.massive ? "Massive.com" : "Yahoo Finance"}</span>
+                        </div>
+                      );
+                    };
+                    return (
+                      <div style={{ fontSize:13 }}>
+
+                        {/* YAHOO SECTION */}
+                        <SectionTitle top={true}>Analyst Recommendations</SectionTitle>
+                        {ov && (ov.recBuy > 0 || ov.recHold > 0 || ov.recSell > 0) ? (
+                          <div>
+                            <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+                              {[["Buy", ov.recBuy, "#1a6a1a", "#e6f4e6"], ["Hold", ov.recHold, "#b88000", "#fdf8e6"], ["Sell", ov.recSell, "#c03030", "#fff0f0"]].map(function(r) {
+                                return r[1] > 0 ? (
+                                  <div key={r[0]} style={{ flex:1, textAlign:"center", padding:"10px 8px", background:r[3], borderRadius:8 }}>
+                                    <div style={{ fontSize:20, fontWeight:700, color:r[2] }}>{r[1]}</div>
+                                    <div style={{ fontSize:10, color:r[2], fontWeight:600, textTransform:"uppercase" }}>{r[0]}</div>
+                                  </div>
+                                ) : null;
+                              })}
+                            </div>
+                            {ov.recPeriod && <div style={{ fontSize:11, color:"#aaa" }}>Period: {ov.recPeriod}</div>}
+                          </div>
+                        ) : <div style={{ color:"#aaa" }}>No analyst data available.</div>}
+
+                        <SectionTitle>Recent Analyst Actions</SectionTitle>
+                        {ov && ov.upgrades && ov.upgrades.length > 0 ? (
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                            <thead>
+                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
+                                {["Date","Firm","Action","From","To"].map(function(h) {
+                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600 }}>{h}</td>;
+                                })}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {ov.upgrades.map(function(u, i) {
+                                var ac = (u.action||"").toLowerCase();
+                                var col = ac.includes("up") ? "#1a6a1a" : ac.includes("down") ? "#c03030" : "#888";
+                                return (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                    <td style={{ padding:"5px 8px", color:"#888" }}>{u.date}</td>
+                                    <td style={{ padding:"5px 8px", fontWeight:600 }}>{u.firm}</td>
+                                    <td style={{ padding:"5px 8px", color:col, fontWeight:600, textTransform:"capitalize" }}>{u.action}</td>
+                                    <td style={{ padding:"5px 8px", color:"#aaa" }}>{u.from || "-"}</td>
+                                    <td style={{ padding:"5px 8px", color:"#333", fontWeight:600 }}>{u.to || "-"}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        ) : <div style={{ color:"#aaa" }}>No recent analyst actions.</div>}
+
+                        <SectionTitle>Balance Sheet Snapshot</SectionTitle>
+                        {ov && ov.totalAssets ? (
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                            {[
+                              ["Total Assets",    fmtB(ov.totalAssets)],
+                              ["Cash & Equiv.",   fmtB(ov.cash)],
+                              ["Long-term Debt",  fmtB(ov.totalDebt)],
+                              ["Book Value (Equity)", fmtB(ov.bookValue)],
+                            ].map(function(row, i) {
+                              return (
+                                <div key={i} style={{ background:"#f9f7f4", borderRadius:8, padding:"8px 12px" }}>
+                                  <div style={{ fontSize:10, color:"#999", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
+                                  <div style={{ fontSize:15, fontWeight:700, color:"#111" }}>{row[1]}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : <div style={{ color:"#aaa" }}>Balance sheet data unavailable.</div>}
+                        {ov && ov.bsDate && <div style={{ fontSize:11, color:"#aaa", marginTop:6 }}>As of {ov.bsDate}</div>}
+
+                        <SectionTitle>Earnings Track Record (Last 4 Quarters)</SectionTitle>
+                        {ov && ov.earningsQ && ov.earningsQ.length > 0 ? (
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                            <thead>
+                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
+                                {["Quarter","Actual EPS","Est. EPS","Surprise","Surprise %"].map(function(h) {
+                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600, textAlign: h==="Quarter" ? "left" : "right" }}>{h}</td>;
+                                })}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {ov.earningsQ.map(function(q, i) {
+                                var beat = q.surprise > 0;
+                                return (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                    <td style={{ padding:"5px 8px", fontWeight:600 }}>{q.date}</td>
+                                    <td style={{ padding:"5px 8px", textAlign:"right", fontWeight:700, color: beat ? "#1a6a1a" : "#c03030" }}>{q.actual != null ? "$" + q.actual.toFixed(2) : "-"}</td>
+                                    <td style={{ padding:"5px 8px", textAlign:"right", color:"#888" }}>{q.estimate != null ? "$" + q.estimate.toFixed(2) : "-"}</td>
+                                    <td style={{ padding:"5px 8px", textAlign:"right", color: beat ? "#1a6a1a" : "#c03030" }}>{q.surprise != null ? (beat ? "+" : "") + "$" + q.surprise.toFixed(2) : "-"}</td>
+                                    <td style={{ padding:"5px 8px", textAlign:"right", fontWeight:600, color: beat ? "#1a6a1a" : "#c03030" }}>{q.surprisePct != null ? (beat ? "+" : "") + q.surprisePct.toFixed(1) + "%" : "-"}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        ) : <div style={{ color:"#aaa" }}>Earnings history unavailable.</div>}
+
+                        {/* MASSIVE SECTION */}
+                        <SectionTitle massive={true}>Company News</SectionTitle>
+                        {addlLoading ? (
+                          <div style={{ color:"#aaa", fontSize:12 }}>Loading Massive.com data...</div>
+                        ) : massiveInfo && massiveInfo.news && massiveInfo.news.length > 0 ? (
+                          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                            {massiveInfo.news.map(function(article, i) {
+                              var daysAgo = article.published_utc ? Math.floor((Date.now() - new Date(article.published_utc).getTime()) / 86400000) : null;
+                              return (
+                                <div key={i} style={{ padding:"10px 12px", background:"#f9f7f4", borderRadius:8, borderLeft:"3px solid #0066ff" }}>
+                                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
+                                    <a href={article.article_url} target="_blank" rel="noopener noreferrer" style={{ fontSize:13, fontWeight:600, color:"#111", textDecoration:"none", lineHeight:1.4, flex:1 }}>
+                                      {article.title}
+                                    </a>
+                                    {article.image_url && (
+                                      <img src={article.image_url} alt="" style={{ width:60, height:40, objectFit:"cover", borderRadius:4, flexShrink:0 }} />
+                                    )}
+                                  </div>
+                                  <div style={{ display:"flex", gap:8, marginTop:5, fontSize:10, color:"#aaa" }}>
+                                    <span style={{ fontWeight:600, color:"#0044cc" }}>{article.publisher && article.publisher.name}</span>
+                                    <span>{daysAgo === 0 ? "Today" : daysAgo === 1 ? "Yesterday" : daysAgo + "d ago"}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : <div style={{ color:"#aaa" }}>News unavailable. Check MASSIVE_KEY in Cloudflare.</div>}
+
+                        <SectionTitle massive={true}>Company Reference</SectionTitle>
+                        {massiveInfo && massiveInfo.ticker ? (function() {
+                          var t = massiveInfo.ticker;
+                          return (
+                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                              {[
+                                ["Listed",         t.list_date || "-"],
+                                ["SIC Industry",   t.sic_description || "-"],
+                                ["Shares Outstanding", t.share_class_shares_outstanding ? (t.share_class_shares_outstanding / 1e6).toFixed(0) + "M" : "-"],
+                                ["Primary Exchange", t.primary_exchange || "-"],
+                              ].map(function(row, i) {
+                                return (
+                                  <div key={i} style={{ background:"#f0f3ff", borderRadius:8, padding:"8px 12px" }}>
+                                    <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
+                                    <div style={{ fontSize:13, fontWeight:600, color:"#111" }}>{row[1]}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })() : addlLoading ? null : <div style={{ color:"#aaa" }}>Company reference unavailable.</div>}
+
+                        <SectionTitle massive={true}>Dividends</SectionTitle>
+                        {massiveInfo && massiveInfo.dividends && massiveInfo.dividends.length > 0 ? (
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                            <thead>
+                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
+                                {["Ex-Date","Pay Date","Amount","Frequency"].map(function(h) {
+                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600 }}>{h}</td>;
+                                })}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {massiveInfo.dividends.slice(0,6).map(function(d, i) {
+                                return (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                    <td style={{ padding:"5px 8px" }}>{d.ex_dividend_date || "-"}</td>
+                                    <td style={{ padding:"5px 8px", color:"#888" }}>{d.pay_date || "-"}</td>
+                                    <td style={{ padding:"5px 8px", fontWeight:700, color:"#1a6a1a" }}>${d.cash_amount ? d.cash_amount.toFixed(4) : "-"}</td>
+                                    <td style={{ padding:"5px 8px", color:"#888", textTransform:"capitalize" }}>{d.frequency === 4 ? "Quarterly" : d.frequency === 2 ? "Semi-annual" : d.frequency === 1 ? "Annual" : "-"}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        ) : addlLoading ? null : <div style={{ color:"#aaa" }}>No dividend history found.</div>}
+
+                        <SectionTitle massive={true}>Stock Splits</SectionTitle>
+                        {massiveInfo && massiveInfo.splits && massiveInfo.splits.length > 0 ? (
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                            <thead>
+                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
+                                {["Date","Split Ratio"].map(function(h) {
+                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600 }}>{h}</td>;
+                                })}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {massiveInfo.splits.map(function(s, i) {
+                                return (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                    <td style={{ padding:"5px 8px", fontWeight:600 }}>{s.execution_date}</td>
+                                    <td style={{ padding:"5px 8px" }}>{s.split_to} for {s.split_from}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        ) : addlLoading ? null : <div style={{ color:"#aaa" }}>No stock split history found.</div>}
+
+                      </div>
+                    );
+                  })()}
 
                 </div>
                 <div style={{ padding:"6px 16px", background:"#faf8f4", borderTop:"1px solid #f0ede6", fontSize:10, color:"#ccc" }}>
