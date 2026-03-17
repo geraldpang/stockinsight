@@ -47,8 +47,7 @@ export async function onRequest(context) {
       try {
         const sr = await fetch("https://www.macrotrends.net/assets/php/ticker_search_list.php?_=" + Date.now(), { headers: MT_HEADERS });
         const st = await sr.text();
-        for (const line of st.split("
-")) {
+        for (const line of st.split("\n")) {
           const parts = line.trim().split("|");
           if (parts.length >= 3 && parts[0].toUpperCase() === sym) {
             slug = parts[2].trim().toLowerCase();
