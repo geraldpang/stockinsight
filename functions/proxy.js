@@ -49,8 +49,7 @@ export async function onRequest(context) {
         const searchRes  = await fetch("https://www.macrotrends.net/assets/php/ticker_search_list.php?_=" + Date.now(), { headers: MT_HEADERS });
         const searchText = await searchRes.text();
         // Format: TICKER|Company Name|slug  (one per line)
-        for (const line of searchText.split("
-")) {
+        for (const line of searchText.split(String.fromCharCode(10))) {
           const parts = line.trim().split("|");
           if (parts.length >= 3 && parts[0].toUpperCase() === sym) {
             // slug is the URL-safe company name e.g. "apple" or "microsoft"
