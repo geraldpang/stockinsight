@@ -26,7 +26,8 @@ export async function onRequest(context) {
 
     // -----------------------------------------------------------------------
     // /eps?sym=AAPL
-    // Yahoo fundamentals-timeseries: 10yr annualDilutedEPS, Revenue, NI, FCF, Debt
+    // Scrape Macrotrends annual EPS table (HTML parse, no API key needed)
+    // URL: macrotrends.net/stocks/charts/{SYM}/{slug}/eps-earnings-per-share-diluted
     // -----------------------------------------------------------------------
     if (url.pathname === "/eps") {
       const sym = (url.searchParams.get("sym") || "").toUpperCase().trim();
@@ -34,98 +35,123 @@ export async function onRequest(context) {
         status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
 
-      const { crumb, cookies } = await getYahooCrumb();
-      if (!crumb || crumb.includes("{")) {
-        return new Response(JSON.stringify({ error: "Could not get Yahoo crumb" }), {
-          status: 502, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
-      }
+      const MT_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+      const MT_HEADERS = {
+        "User-Agent":      MT_UA,
+        "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer":         "https://www.macrotrends.net/",
+      };
 
-      const period2 = Math.floor(Date.now() / 1000);
-      // Confirmed working field names from yfinance source
-      // EPS: try DilutedEPS first, fall back to BasicEPS
-      const types   = "annualDilutedEPS,annualBasicEPS,annualTotalRevenue,annualNetIncome,annualFreeCashFlow,annualLongTermDebt";
-      const tsUrl   = "https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/" + sym
-        + "?symbol=" + sym
-        + "&type=" + types
-        + "&period1=493590046&period2=" + period2
-        + "&crumb=" + encodeURIComponent(crumb);
+      // Step 1: Resolve ticker -> company slug via Macrotrends search list
+      let slug = sym.toLowerCase();
+      try {
+        const searchRes  = await fetch("https://www.macrotrends.net/assets/php/ticker_search_list.php?_=" + Date.now(), { headers: MT_HEADERS });
+        const searchText = await searchRes.text();
+        // Format: TICKER|Company Name|slug  (one per line)
+        for (const line of searchText.split("
+")) {
+          const parts = line.trim().split("|");
+          if (parts.length >= 3 && parts[0].toUpperCase() === sym) {
+            // slug is the URL-safe company name e.g. "apple" or "microsoft"
+            slug = parts[2].trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-");
+            break;
+          }
+        }
+      } catch (_) {}
 
-      const tsRes  = await fetch(tsUrl, {
-        headers: { "User-Agent": UA, "Accept": "application/json", "Cookie": cookies, "Referer": "https://finance.yahoo.com/" },
-      });
-      const tsData = await tsRes.json();
-      const result = tsData && tsData.timeseries && tsData.timeseries.result;
-
-      if (!result || result.length === 0) {
-        return new Response(JSON.stringify({ error: "No timeseries data for " + sym, raw: tsData }), {
+      // Step 2: Fetch the EPS page
+      const epsUrl = "https://www.macrotrends.net/stocks/charts/" + sym + "/" + slug + "/eps-earnings-per-share-diluted";
+      let html = "";
+      try {
+        const pageRes = await fetch(epsUrl, { headers: MT_HEADERS });
+        if (!pageRes.ok) {
+          return new Response(JSON.stringify({ error: "Macrotrends returned " + pageRes.status, url: epsUrl }), {
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
+        html = await pageRes.text();
+      } catch (e) {
+        return new Response(JSON.stringify({ error: "Fetch failed: " + e.message }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       }
 
-      // Extract {year -> value} map from a named timeseries entry
-      // Yahoo structure: entry.timestamp[] + entry[typeName][] with {reportedValue:{raw,fmt}}
-      function indexByYear(typeName) {
-        const map = {};
-        const entry = result.find(r => r.meta && r.meta.type && r.meta.type[0] === typeName);
-        if (!entry) return map;
-        const ts   = entry.timestamp || [];
-        const vals = entry[typeName] || [];
-        ts.forEach((t, i) => {
-          const yr = new Date(t * 1000).getFullYear();
-          const item = vals[i];
-          const v = item && item.reportedValue != null
-            ? (typeof item.reportedValue === "object" ? item.reportedValue.raw : item.reportedValue)
-            : (item && item.raw != null ? item.raw : null);
-          if (yr && v != null) map[yr] = v;
-        });
-        return map;
+      // Step 3: Parse annual EPS table from HTML
+      // Macrotrends has two tables with class "historical_data_table table"
+      // First table = annual EPS, second = quarterly EPS
+      // Each row has two <td>: year and EPS value (starting with $)
+      function parseEpsTable(html, tableIndex) {
+        // Find all tables with the right class
+        const tableRegex = /<table[^>]+class="[^"]*historical_data_table[^"]*"[^>]*>([\s\S]*?)<\/table>/gi;
+        const tables = [];
+        let m;
+        while ((m = tableRegex.exec(html)) !== null) tables.push(m[1]);
+
+        if (!tables[tableIndex]) return [];
+
+        const tableHtml = tables[tableIndex];
+        const rowRegex  = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+        const results   = [];
+        let firstRow    = true;
+
+        let rowMatch;
+        while ((rowMatch = rowRegex.exec(tableHtml)) !== null) {
+          if (firstRow) { firstRow = false; continue; } // skip header row
+          const rowHtml  = rowMatch[1];
+          // Extract cell text -- strip all HTML tags
+          const cellRegex = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
+          const cells     = [];
+          let cellMatch;
+          while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
+            const text = cellMatch[1].replace(/<[^>]+>/g, "").trim();
+            if (text) cells.push(text);
+          }
+          if (cells.length >= 2) results.push({ label: cells[0], value: cells[1] });
+        }
+        return results;
       }
 
-      const dilutedMap = indexByYear("annualDilutedEPS");
-      const basicMap   = indexByYear("annualBasicEPS");
-      // Use diluted EPS where available, fall back to basic
-      const epsMap  = Object.keys({...basicMap, ...dilutedMap}).reduce((m, yr) => {
-        m[yr] = dilutedMap[yr] != null ? dilutedMap[yr] : basicMap[yr];
-        return m;
-      }, {});
-      const revMap  = indexByYear("annualTotalRevenue");
-      const niMap   = indexByYear("annualNetIncome");
-      const fcfMap  = indexByYear("annualFreeCashFlow");
-      const debtMap = indexByYear("annualLongTermDebt");
+      const annualRows = parseEpsTable(html, 0);
 
-      function fmtAmt(v) {
-        if (v == null || v === 0) return "-";
-        const a = Math.abs(v);
-        const s = a >= 1e12 ? (a/1e12).toFixed(2)+"T"
-                : a >= 1e9  ? (a/1e9).toFixed(1)+"B"
-                : a >= 1e6  ? (a/1e6).toFixed(0)+"M"
-                : a.toFixed(0);
-        return (v < 0 ? "-$" : "$") + s;
+      if (annualRows.length === 0) {
+        // Macrotrends may have blocked or changed structure -- return debug info
+        return new Response(JSON.stringify({
+          error:  "Could not parse Macrotrends table",
+          url:    epsUrl,
+          htmlLen: html.length,
+          sample: html.substring(0, 500),
+        }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
       }
 
+      // Step 4: Convert to {year, eps} rows
+      // label = "2024", value = "$6.08" (or "$-1.23")
       const currentYear = new Date().getFullYear();
-      const allYears = Array.from(new Set([
-        ...Object.keys(epsMap).map(Number),
-        ...Object.keys(revMap).map(Number),
-      ])).filter(y => y < currentYear).sort((a, b) => b - a).slice(0, 10);
+      const rows = [];
 
-      const rows = allYears.map(y => ({
-        year:      y,
-        eps:       epsMap[y] != null ? Math.round(epsMap[y] * 100) / 100 : null,
-        revenue:   fmtAmt(revMap[y]),
-        netIncome: fmtAmt(niMap[y]),
-        fcf:       fmtAmt(fcfMap[y]),
-        debt:      fmtAmt(debtMap[y]),
-        _yahoo:    true,
-      }));
+      for (const row of annualRows) {
+        const yr = parseInt(row.label, 10);
+        if (!yr || yr >= currentYear) continue;
+        // Parse EPS -- strip $ and handle negatives like "$-1.23"
+        const epsStr = row.value.replace(/[$,\s]/g, "");
+        const eps    = parseFloat(epsStr);
+        if (isNaN(eps)) continue;
+        rows.push({
+          year:    yr,
+          eps:     Math.round(eps * 100) / 100,
+          revenue: "-", // revenue fetched separately from yahooHistory
+          _yahoo:  false,
+        });
+      }
 
-      return new Response(JSON.stringify({ data: rows, source: "yahoo-timeseries" }), {
+      rows.sort((a, b) => b.year - a.year);
+
+      return new Response(JSON.stringify({ data: rows.slice(0, 10), source: "macrotrends", url: epsUrl }), {
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
     }
     // -----------------------------------------------------------------------
-    // /anthropic — Claude API proxy
+    // /anthropic -- Claude API proxy
     // -----------------------------------------------------------------------
     if (url.pathname === "/anthropic") {
       const anthropicKey = context.env.ANTHROPIC_KEY;
