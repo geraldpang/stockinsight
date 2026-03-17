@@ -231,8 +231,7 @@ function Detail({ sym, name, onBack }) {
         body: JSON.stringify({
           model: "claude-haiku-4-5-20251001",
           max_tokens: 1000,
-          messages: [{ role: "user", content: "Return ONLY a valid JSON array with no markdown or explanation. For " + sym + " (" + (NAMES[sym]||sym) + "), provide annual financial data for fiscal years " + years.join(", ") + ". Each object must have: {"year": number, "eps": number (GAAP diluted EPS from 10-K annual report, NOT adjusted/non-GAAP), "revenue": string (e.g. \"$21.5B\"), "netIncome": string (e.g. \"$5.2B\"), "fcf": string (free cash flow, e.g. \"$4.1B\"), "debt": string (long-term debt, e.g. \"$12.3B\")}. Use null for eps if truly unknown. Be accurate - use actual reported GAAP figures." }]
-        })
+          messages: [{ role: "user", content: 'Return ONLY a valid JSON array, no markdown. For ' + sym + ' (' + (NAMES[sym]||sym) + '), provide annual financial data for fiscal years ' + years.join(', ') + '. Each item: {year:number, eps:number (GAAP diluted EPS from 10-K, NOT non-GAAP), revenue:string (e.g. "$21B"), netIncome:string, fcf:string (free cash flow), debt:string (long-term debt)}. Use null for unknown eps. Use actual reported GAAP figures.' }]        })
       }).then(function(r) { return r.json(); })
         .then(function(d) {
           var text = d && d.content && d.content[0] && d.content[0].text;
