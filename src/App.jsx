@@ -360,60 +360,89 @@ function Detail({ sym, name, onBack }) {
         });
     });
 
-    // EPS history: Yahoo earningsHistory is primary (real GAAP quarterly actuals summed annually)
-    // Haiku fills only the older years Yahoo does not cover
-    getOverview(sym).then(function(ovRes) {
-      var currentYear = new Date().getFullYear();
-      var yahooRows   = (ovRes && ovRes.yahooHistory) ? ovRes.yahooHistory.filter(function(r) { return r.eps !== null; }) : [];
-      var yahooYears  = yahooRows.map(function(r) { return r.year; });
+    // EPS history: Yahoo fundamentals-timeseries via /eps proxy route
+    // Returns 10yr real GAAP diluted EPS, Revenue, NetIncome, FCF, Debt
+    // Haiku only fills years the timeseries doesn't cover
+    fetch("/eps?sym=" + sym)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.error || !data.data || data.data.length === 0) {
+          setEpsError(true); return;
+        }
+        var yahooRows  = data.data.filter(function(r) { return r.eps !== null; });
+        var yahooYears = yahooRows.map(function(r) { return r.year; });
+        var currentYear = new Date().getFullYear();
 
-      // Which years still need Haiku?
-      var yearsNeeded = [];
-      for (var y = currentYear - 1; y >= currentYear - 10; y--) {
-        if (yahooYears.indexOf(y) === -1) yearsNeeded.push(y);
-      }
+        // Any gaps to fill with Haiku?
+        var yearsNeeded = [];
+        for (var y = currentYear - 1; y >= currentYear - 10; y--) {
+          if (yahooYears.indexOf(y) === -1) yearsNeeded.push(y);
+        }
 
-      function mergeAndSet(haikuRows) {
-        var allRows = yahooRows.slice();
-        if (haikuRows) {
-          haikuRows.forEach(function(hr) {
-            if (yahooYears.indexOf(hr.year) === -1 && hr.eps != null) {
-              // Enrich with Yahoo revenue if available
-              var yh = ovRes && ovRes.yahooHistory && ovRes.yahooHistory.find(function(r) { return r.year === hr.year; });
-              allRows.push({
-                year: hr.year, eps: hr.eps,
-                revenue:   (yh && yh.revenue)   || hr.revenue || "-",
-                netIncome: (yh && yh.netIncome)  || "-",
-                fcf:       (yh && yh.fcf)        || "-",
-                debt:      (yh && yh.debt)        || "-",
-                _yahoo: false,
-              });
-            }
+        // Enrich Macrotrends EPS rows with Yahoo revenue/NI/FCF/debt from yahooHistory
+        var ovRes = ovCache[sym];
+        function enrichFromYahoo(rows) {
+          if (!ovRes || !ovRes.yahooHistory) return rows;
+          return rows.map(function(row) {
+            var yh = ovRes.yahooHistory.find(function(r) { return r.year === row.year; });
+            if (!yh) return row;
+            return {
+              year:      row.year,
+              eps:       row.eps,
+              revenue:   (yh.revenue   && yh.revenue   !== "-") ? yh.revenue   : row.revenue,
+              netIncome: (yh.netIncome && yh.netIncome !== "-") ? yh.netIncome : "-",
+              fcf:       (yh.fcf       && yh.fcf       !== "-") ? yh.fcf       : "-",
+              debt:      (yh.debt      && yh.debt      !== "-") ? yh.debt      : "-",
+              _yahoo:    row._yahoo,
+            };
           });
         }
-        allRows.sort(function(a, b) { return b.year - a.year; });
-        if (allRows.length > 0) setEpsHistory(allRows.slice(0, 10));
-        else setEpsError(true);
-      }
 
-      if (yearsNeeded.length === 0) { mergeAndSet(null); return; }
+        function mergeAndSet(haikuRows) {
+          var allRows = enrichFromYahoo(data.data.slice());
+          if (haikuRows) {
+            haikuRows.forEach(function(hr) {
+              if (yahooYears.indexOf(hr.year) === -1 && hr.eps != null) {
+                var existing = allRows.find(function(r) { return r.year === hr.year; });
+                if (existing) {
+                  if (existing.eps == null) { existing.eps = hr.eps; existing._yahoo = false; }
+                } else {
+                  var yh = ovRes && ovRes.yahooHistory && ovRes.yahooHistory.find(function(r) { return r.year === hr.year; });
+                  allRows.push({
+                    year: hr.year, eps: hr.eps,
+                    revenue:   (yh && yh.revenue)   || hr.revenue || "-",
+                    netIncome: (yh && yh.netIncome)  || "-",
+                    fcf:       (yh && yh.fcf)        || "-",
+                    debt:      (yh && yh.debt)        || "-",
+                    _yahoo: false,
+                  });
+                }
+              }
+            });
+          }
+          allRows.sort(function(a, b) { return b.year - a.year; });
+          if (allRows.length > 0) setEpsHistory(allRows.slice(0, 10));
+          else setEpsError(true);
+        }
 
-      fetch("/anthropic", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 800,
-          messages: [{ role: "user", content: "Return ONLY a valid JSON array, no markdown. For stock " + sym + ", give GAAP annual data for fiscal years: " + yearsNeeded.join(", ") + ". Each item: {year, eps (GAAP diluted EPS from 10-K, NOT non-GAAP), revenue (e.g. $21.5B)}. null for eps if unknown." }]
-        })
-      }).then(function(r) { return r.json(); })
-        .then(function(data) {
-          var text = data && data.content && data.content[0] && data.content[0].text;
-          if (!text) { mergeAndSet(null); return; }
-          text = text.replace(/```json|```/g, "").trim();
-          try { mergeAndSet(JSON.parse(text)); } catch(e) { mergeAndSet(null); }
-        }).catch(function() { mergeAndSet(null); });
-    }).catch(function() { setEpsError(true); })
+        if (yearsNeeded.length === 0) { mergeAndSet(null); return; }
+
+        fetch("/anthropic", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 800,
+            messages: [{ role: "user", content: "Return ONLY a valid JSON array, no markdown. For stock " + sym + ", GAAP diluted EPS for fiscal years: " + yearsNeeded.join(", ") + ". Each: {year, eps (GAAP from 10-K, NOT non-GAAP), revenue (e.g. $21B)}. null for eps if unknown." }]
+          })
+        }).then(function(r) { return r.json(); })
+          .then(function(d) {
+            var text = d && d.content && d.content[0] && d.content[0].text;
+            if (!text) { mergeAndSet(null); return; }
+            text = text.replace(/```json|```/g, "").trim();
+            try { mergeAndSet(JSON.parse(text)); } catch(e) { mergeAndSet(null); }
+          }).catch(function() { mergeAndSet(null); });
+      }).catch(function() { setEpsError(true); })
   }, [sym]);
 
   // -- Insight tab fetch -------------------------------------------------------
