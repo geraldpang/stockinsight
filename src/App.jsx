@@ -185,8 +185,7 @@ function Detail({ sym, name, onBack }) {
         else score = 1;
       }
       var expIdx = text.indexOf("Explanation");
-      var explanation = expIdx !== -1 ? text.substring(expIdx).replace(/^Explanation[^:]*:\s*/, "").replace(/
-[\s\S]*/,"").trim() : "";
+      var explanation = expIdx !== -1 ? text.substring(expIdx).replace(/^Explanation[^:]*:\s*/, "").split("\n")[0].trim() : "";
       result = {
         score: score,
         classification: score >= 4 ? "Wide" : score >= 3 ? "Narrow" : "None",
