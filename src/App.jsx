@@ -28,36 +28,19 @@ async function yfetch(url) {
 
 async function getQuote(sym) {
   if (qCache[sym]) return qCache[sym];
-  var d    = await yfetch("https://query1.finance.yahoo.com/v8/finance/chart/" + sym + "?interval=1d&range=5y");
+  var d    = await yfetch("https://query1.finance.yahoo.com/v8/finance/chart/" + sym + "?interval=1d&range=1d");
   var meta = d && d.chart && d.chart.result && d.chart.result[0] && d.chart.result[0].meta;
   if (!meta) return null;
   var price  = meta.regularMarketPrice || 0;
   var prev   = meta.chartPreviousClose || meta.previousClose || price;
   var change = parseFloat((price - prev).toFixed(2));
   var pct    = prev > 0 ? parseFloat(((change / prev) * 100).toFixed(2)) : 0;
-  // annualEarnings = real GAAP diluted EPS per year, up to 4 years
-  var annualEps = [];
-  var earningsNode = d && d.chart && d.chart.result && d.chart.result[0] && d.chart.result[0].earnings;
-  // Yahoo stores annualEarnings at earningsNode.annualData (array) - try both paths
-  var annualArr = (earningsNode && (
-    (earningsNode.annualData && Array.isArray(earningsNode.annualData) && earningsNode.annualData) ||
-    (earningsNode.annualData && earningsNode.annualData.annual)
-  )) || [];
-  annualArr.forEach(function(e) {
-    var yr  = e.date ? parseInt(e.date, 10) : 0;
-    var eps = e.epsActual != null ? e.epsActual : (e.actual != null ? e.actual : null);
-    if (yr && eps != null) {
-      annualEps.push({ year: yr, eps: Math.round(eps * 100) / 100 });
-    }
-  });
-  annualEps.sort(function(a, b) { return b.year - a.year; });
   var out = {
     price, change, pct,
     open: String(meta.regularMarketOpen    || "-"),
     high: String(meta.regularMarketDayHigh || "-"),
     low:  String(meta.regularMarketDayLow  || "-"),
     vol:  meta.regularMarketVolume ? meta.regularMarketVolume.toLocaleString() : "-",
-    annualEps,
   };
   qCache[sym] = out;
   return out;
@@ -67,7 +50,7 @@ async function getOverview(sym) {
   if (ovCache[sym]) return ovCache[sym];
   var d   = await yfetch(
     "https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym +
-    "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile,earningsTrend,incomeStatementHistory,incomeStatementHistoryQuarterly,cashflowStatementHistory,cashflowStatementHistoryQuarterly,balanceSheetHistory,balanceSheetHistoryQuarterly"
+    "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile,earningsTrend,earningsHistory,incomeStatementHistory,incomeStatementHistoryQuarterly,cashflowStatementHistory,cashflowStatementHistoryQuarterly,balanceSheetHistory,balanceSheetHistoryQuarterly"
   );
   var res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
   if (!res) return null;
@@ -75,116 +58,141 @@ async function getOverview(sym) {
   var ks = res.defaultKeyStatistics || {};
   var fd = res.financialData        || {};
   var ap = res.assetProfile         || {};
-  var isArr  = (res.incomeStatementHistory           && res.incomeStatementHistory.incomeStatementHistory)            || [];
-  var isArrQ = (res.incomeStatementHistoryQuarterly  && res.incomeStatementHistoryQuarterly.incomeStatementHistory)    || [];
-  var cfArr  = (res.cashflowStatementHistory         && res.cashflowStatementHistory.cashflowStatements)               || [];
-  var cfArrQ = (res.cashflowStatementHistoryQuarterly && res.cashflowStatementHistoryQuarterly.cashflowStatements)     || [];
-  var bsArr  = (res.balanceSheetHistory              && res.balanceSheetHistory.balanceSheetStatements)                || [];
-  var bsArrQ = (res.balanceSheetHistoryQuarterly     && res.balanceSheetHistoryQuarterly.balanceSheetStatements)       || [];
 
-  // Build 4-year historical table from real Yahoo GAAP filings
+  // -------------------------------------------------------------------------
+  // Build yahooHistory: real GAAP data from Yahoo financial statements
+  // EPS: summed from earningsHistory quarterly actuals (4 qtrs per year)
+  // Revenue, NetIncome: from incomeStatementHistory
+  // FCF: from cashflowStatementHistory (OCF + capex)
+  // Debt: from balanceSheetHistory (longTermDebt)
+  // -------------------------------------------------------------------------
   var yahooHistory = (function() {
-    var cfByYr = {}, bsByYr = {};
     function getYear(s) {
-      if (s.endDate && s.endDate.fmt) return parseInt(s.endDate.fmt.substring(0,4),10);
-      if (s.endDate && s.endDate.raw) return new Date(s.endDate.raw * 1000).getFullYear();
+      if (!s || !s.endDate) return 0;
+      if (s.endDate.fmt) return parseInt(s.endDate.fmt.substring(0,4), 10);
+      if (s.endDate.raw) return new Date(s.endDate.raw * 1000).getFullYear();
       return 0;
     }
-    cfArr.forEach(function(s) { var y = getYear(s); if (y) cfByYr[y] = s; });
-    bsArr.forEach(function(s) { var y = getYear(s); if (y) bsByYr[y] = s; });
     function fmtAmt(v) {
-      if (!v || v === 0) return "-";
-      var abs = Math.abs(v);
-      var str = abs >= 1e12 ? (abs/1e12).toFixed(2)+"T"
-              : abs >= 1e9  ? (abs/1e9).toFixed(1)+"B"
-              : abs >= 1e6  ? (abs/1e6).toFixed(0)+"M" : abs.toFixed(0);
-      return (v < 0 ? "-$" : "$") + str;
+      if (v == null || v === 0) return "-";
+      var a = Math.abs(v);
+      var s = a >= 1e12 ? (a/1e12).toFixed(2)+"T"
+            : a >= 1e9  ? (a/1e9).toFixed(1)+"B"
+            : a >= 1e6  ? (a/1e6).toFixed(0)+"M"
+            : a.toFixed(0);
+      return (v < 0 ? "-$" : "$") + s;
     }
-    var rows = [];
+
+    // --- EPS from earningsHistory (quarterly actuals, sum 4 per year) ---
+    var ehArr = (res.earningsHistory && res.earningsHistory.history) || [];
+    var epsByYear = {};
+    ehArr.forEach(function(q) {
+      var yr = q.period ? parseInt(q.period.substring(0,4), 10) : 0;
+      if (!yr && q.quarter && q.quarter.fmt) yr = parseInt(q.quarter.fmt.substring(0,4), 10);
+      if (!yr && q.quarter && q.quarter.raw) yr = new Date(q.quarter.raw * 1000).getFullYear();
+      var eps = q.epsActual && q.epsActual.raw != null ? q.epsActual.raw : null;
+      if (yr && eps !== null) {
+        if (!epsByYear[yr]) epsByYear[yr] = { sum: 0, count: 0 };
+        epsByYear[yr].sum   += eps;
+        epsByYear[yr].count += 1;
+      }
+    });
+
+    // --- Revenue + NetIncome from incomeStatementHistory ---
+    var isArr  = (res.incomeStatementHistory && res.incomeStatementHistory.incomeStatementHistory) || [];
+    var isArrQ = (res.incomeStatementHistoryQuarterly && res.incomeStatementHistoryQuarterly.incomeStatementHistory) || [];
+    var revByYear = {}, niByYear = {};
     isArr.forEach(function(s) {
       var y = getYear(s);
       if (!y) return;
-      var rev = (s.totalRevenue && s.totalRevenue.raw) || 0;
-      var ni  = (s.netIncome    && s.netIncome.raw)    || 0;
-      // dilutedEPS directly from Yahoo income statement - real GAAP
-      var eps = (s.dilutedEPS   && s.dilutedEPS.raw   != null) ? s.dilutedEPS.raw
-              : (s.dilutedEps   && s.dilutedEps.raw   != null) ? s.dilutedEps.raw
-              : null;
-      var cf  = cfByYr[y] || {};
-      var ocf = (cf.totalCashFromOperatingActivities && cf.totalCashFromOperatingActivities.raw) ||
-                (cf.operatingCashflow && cf.operatingCashflow.raw) || 0;
-      var cap = (cf.capitalExpenditures && cf.capitalExpenditures.raw) ||
-                (cf.capitalExpenditure && cf.capitalExpenditure.raw)  || 0;
-      var fcf = ocf + cap;
-      var bs  = bsByYr[y] || {};
-      var dbt = (bs.longTermDebt && bs.longTermDebt.raw) ||
-                (bs.longTermDebtNoncurrent && bs.longTermDebtNoncurrent.raw) ||
-                (bs.longTermDebtAndCapitalLeaseObligation && bs.longTermDebtAndCapitalLeaseObligation.raw) || 0;
-      rows.push({ year:y, eps: eps !== null ? Math.round(eps*100)/100 : null,
-                  revenue:fmtAmt(rev), netIncome:fmtAmt(ni), fcf:fmtAmt(fcf), debt:fmtAmt(dbt) });
+      revByYear[y] = (s.totalRevenue && s.totalRevenue.raw) || 0;
+      niByYear[y]  = (s.netIncome    && s.netIncome.raw)    || 0;
     });
-    rows.sort(function(a,b) { return b.year - a.year; });
 
-    // Fill most recent year from quarterly data if not already in annual
+    // --- FCF from cashflowStatementHistory ---
+    var cfArr  = (res.cashflowStatementHistory && res.cashflowStatementHistory.cashflowStatements) || [];
+    var fcfByYear = {};
+    cfArr.forEach(function(s) {
+      var y = getYear(s);
+      if (!y) return;
+      var ocf = (s.totalCashFromOperatingActivities && s.totalCashFromOperatingActivities.raw) || 0;
+      var cap = (s.capitalExpenditures && s.capitalExpenditures.raw) || 0;
+      fcfByYear[y] = ocf + cap; // capex is stored as negative
+    });
+
+    // --- Debt from balanceSheetHistory ---
+    var bsArr  = (res.balanceSheetHistory && res.balanceSheetHistory.balanceSheetStatements) || [];
+    var debtByYear = {};
+    bsArr.forEach(function(s) {
+      var y = getYear(s);
+      if (!y) return;
+      debtByYear[y] = (s.longTermDebt && s.longTermDebt.raw) ||
+                      (s.longTermDebtNoncurrent && s.longTermDebtNoncurrent.raw) || 0;
+    });
+
+    // --- Build TTM/recent year from quarterly data if annual not available ---
+    var cfArrQ = (res.cashflowStatementHistoryQuarterly && res.cashflowStatementHistoryQuarterly.cashflowStatements) || [];
+    var bsArrQ = (res.balanceSheetHistoryQuarterly && res.balanceSheetHistoryQuarterly.balanceSheetStatements) || [];
+
+    // Sum 4 most recent quarterly IS for TTM revenue + NI
+    var sortedQIs = isArrQ.slice().sort(function(a,b) { return getYear(b) - getYear(a); }).slice(0,4);
+    var ttmRev = 0, ttmNi = 0;
+    sortedQIs.forEach(function(q) {
+      ttmRev += (q.totalRevenue && q.totalRevenue.raw) || 0;
+      ttmNi  += (q.netIncome    && q.netIncome.raw)    || 0;
+    });
+    // TTM FCF from quarterly cashflow
+    var sortedQCf = cfArrQ.slice().sort(function(a,b) { return getYear(b) - getYear(a); }).slice(0,4);
+    var ttmOcf = 0, ttmCap = 0;
+    sortedQCf.forEach(function(q) {
+      ttmOcf += (q.totalCashFromOperatingActivities && q.totalCashFromOperatingActivities.raw) || 0;
+      ttmCap += (q.capitalExpenditures && q.capitalExpenditures.raw) || 0;
+    });
+    var ttmFcf = ttmOcf + ttmCap;
+    // Latest debt from quarterly BS
+    var sortedQBs = bsArrQ.slice().sort(function(a,b) { return getYear(b) - getYear(a); });
+    var latestBs  = sortedQBs[0] || {};
+    var latestDebt = (latestBs.longTermDebt && latestBs.longTermDebt.raw) ||
+                     (latestBs.longTermDebtNoncurrent && latestBs.longTermDebtNoncurrent.raw) || 0;
+
+    // Determine current fiscal year to fill
     var currentYear = new Date().getFullYear();
-    var recentYear  = currentYear - 1; // e.g. 2025
-    if (!rows.find(function(r) { return r.year === recentYear; }) && isArrQ.length >= 4) {
-      // Sum 4 most recent quarters for revenue + net income
-      var qsByYr = {};
-      isArrQ.forEach(function(q) {
-        var y = getYear(q);
-        if (!qsByYr[y]) qsByYr[y] = [];
-        qsByYr[y].push(q);
-      });
-      // Get 4 most recent quarters regardless of year boundary
-      var sortedQ = isArrQ.slice().sort(function(a,b) {
-        return (getYear(b) || 0) - (getYear(a) || 0);
-      }).slice(0, 4);
-      var sumRev = 0, sumNi = 0;
-      sortedQ.forEach(function(q) {
-        sumRev += (q.totalRevenue && q.totalRevenue.raw) || 0;
-        sumNi  += (q.netIncome    && q.netIncome.raw)    || 0;
-      });
-      // FCF from quarterly cashflow
-      var cfQSorted = cfArrQ.slice().sort(function(a,b) {
-        return (getYear(b)||0) - (getYear(a)||0);
-      }).slice(0,4);
-      var sumOcf = 0, sumCap = 0;
-      cfQSorted.forEach(function(q) {
-        sumOcf += (q.totalCashFromOperatingActivities && q.totalCashFromOperatingActivities.raw) || 0;
-        sumCap += (q.capitalExpenditures && q.capitalExpenditures.raw) || 0;
-      });
-      var fcfQ = sumOcf + sumCap;
-      // Debt from most recent quarter balance sheet
-      var bsQSorted = bsArrQ.slice().sort(function(a,b) {
-        return (getYear(b)||0) - (getYear(a)||0);
-      });
-      var latestBs = bsQSorted[0] || {};
-      var dbtQ = (latestBs.longTermDebt && latestBs.longTermDebt.raw) ||
-                 (latestBs.longTermDebtNoncurrent && latestBs.longTermDebtNoncurrent.raw) || 0;
-      // Also sum diluted EPS from 4 most recent quarterly income statements
-      var sortedQIs = isArrQ.slice().sort(function(a,b) {
-        return (getYear(b)||0) - (getYear(a)||0);
-      }).slice(0, 4);
-      var sumEps = 0, epsCount = 0;
-      sortedQIs.forEach(function(q) {
-        var e = (q.dilutedEPS && q.dilutedEPS.raw != null) ? q.dilutedEPS.raw
-              : (q.dilutedEps && q.dilutedEps.raw != null) ? q.dilutedEps.raw : null;
-        if (e !== null) { sumEps += e; epsCount++; }
-      });
-      var ttmEps = epsCount === 4 ? Math.round(sumEps * 100) / 100 : null;
-      if (sumRev > 0 || sumNi > 0) {
-        rows.unshift({
-          year: recentYear,
-          eps:       ttmEps,
-          revenue:   fmtAmt(sumRev),
-          netIncome: fmtAmt(sumNi),
-          fcf:       fcfQ !== 0 ? fmtAmt(fcfQ) : "-",
-          debt:      dbtQ ? fmtAmt(dbtQ) : "-",
-          _fromQuarterly: true,
-        });
-      }
+    var recentYear  = currentYear - 1;
+
+    // Collect all years with any data
+    var allYears = new Set([
+      ...Object.keys(epsByYear).map(Number),
+      ...Object.keys(revByYear).map(Number),
+    ]);
+
+    // Add recent year if quarterly data available and not in annual
+    if (!allYears.has(recentYear) && ttmRev > 0) {
+      allYears.add(recentYear);
     }
+
+    var rows = [];
+    allYears.forEach(function(y) {
+      if (y >= currentYear) return;
+      var epsEntry = epsByYear[y];
+      // Only use EPS if we have all 4 quarters
+      var eps = (epsEntry && epsEntry.count >= 4) ? Math.round(epsEntry.sum * 100) / 100 : null;
+
+      var isRecent = (y === recentYear && !revByYear[y]);
+      var rev  = isRecent ? ttmRev  : (revByYear[y]  || 0);
+      var ni   = isRecent ? ttmNi   : (niByYear[y]   || 0);
+      var fcf  = isRecent ? ttmFcf  : (fcfByYear[y]  || 0);
+      var debt = isRecent ? latestDebt : (debtByYear[y] || 0);
+
+      rows.push({
+        year:      y,
+        eps:       eps,
+        revenue:   fmtAmt(rev),
+        netIncome: fmtAmt(ni),
+        fcf:       fmtAmt(fcf),
+        debt:      fmtAmt(debt),
+        _yahoo:    true,
+      });
+    });
 
     rows.sort(function(a,b) { return b.year - a.year; });
     return rows;
@@ -258,7 +266,7 @@ async function getOverview(sym) {
     sharesOut:        (ks.sharesOutstanding && ks.sharesOutstanding.raw) || 0,
     fcfRaw:           (fd.freeCashflow && fd.freeCashflow.raw) || 0,
     niRaw:            (fd.netIncomeToCommon && fd.netIncomeToCommon.raw) || 0,
-    // 4-year real GAAP history from Yahoo
+    // Real GAAP history built from Yahoo financial statement modules
     yahooHistory,
     // Business profile from Yahoo assetProfile
     bizSummary:       ap.longBusinessSummary || "",
@@ -352,40 +360,34 @@ function Detail({ sym, name, onBack }) {
         });
     });
 
-    // EPS history: yahooHistory (incomeStatementHistory dilutedEPS) is primary source
-    // annualEarnings from chart API is secondary, Haiku fills remaining older years
+    // EPS history: Yahoo earningsHistory is primary (real GAAP quarterly actuals summed annually)
+    // Haiku fills only the older years Yahoo does not cover
     getOverview(sym).then(function(ovRes) {
       var currentYear = new Date().getFullYear();
-      // Build Yahoo rows from yahooHistory which now includes eps from dilutedEPS field
-      var yahooRows = [];
-      if (ovRes && ovRes.yahooHistory) {
-        ovRes.yahooHistory.forEach(function(r) {
-          if (r.eps !== null && r.eps !== undefined) {
-            yahooRows.push({ year: r.year, eps: r.eps, revenue: r.revenue, netIncome: r.netIncome, fcf: r.fcf, debt: r.debt, _yahoo: true });
-          }
-        });
-      }
-      // Also try annualEps from chart as supplement for any missing years
-      var qRes = qCache[sym];
-      if (qRes && qRes.annualEps) {
-        qRes.annualEps.forEach(function(e) {
-          if (!yahooRows.find(function(r) { return r.year === e.year; })) {
-            yahooRows.push({ year: e.year, eps: e.eps, revenue: "-", _yahoo: true });
-          }
-        });
-      }
-      var yahooYears = yahooRows.map(function(r) { return r.year; });
-      // Years needed from Haiku (not covered by Yahoo)
+      var yahooRows   = (ovRes && ovRes.yahooHistory) ? ovRes.yahooHistory.filter(function(r) { return r.eps !== null; }) : [];
+      var yahooYears  = yahooRows.map(function(r) { return r.year; });
+
+      // Which years still need Haiku?
       var yearsNeeded = [];
       for (var y = currentYear - 1; y >= currentYear - 10; y--) {
         if (yahooYears.indexOf(y) === -1) yearsNeeded.push(y);
       }
+
       function mergeAndSet(haikuRows) {
         var allRows = yahooRows.slice();
         if (haikuRows) {
           haikuRows.forEach(function(hr) {
             if (yahooYears.indexOf(hr.year) === -1 && hr.eps != null) {
-              allRows.push({ year: hr.year, eps: hr.eps, revenue: hr.revenue || "-", _yahoo: false });
+              // Enrich with Yahoo revenue if available
+              var yh = ovRes && ovRes.yahooHistory && ovRes.yahooHistory.find(function(r) { return r.year === hr.year; });
+              allRows.push({
+                year: hr.year, eps: hr.eps,
+                revenue:   (yh && yh.revenue)   || hr.revenue || "-",
+                netIncome: (yh && yh.netIncome)  || "-",
+                fcf:       (yh && yh.fcf)        || "-",
+                debt:      (yh && yh.debt)        || "-",
+                _yahoo: false,
+              });
             }
           });
         }
@@ -393,15 +395,16 @@ function Detail({ sym, name, onBack }) {
         if (allRows.length > 0) setEpsHistory(allRows.slice(0, 10));
         else setEpsError(true);
       }
+
       if (yearsNeeded.length === 0) { mergeAndSet(null); return; }
-      // Haiku only for years Yahoo has no data on
+
       fetch("/anthropic", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-haiku-4-5-20251001",
           max_tokens: 800,
-          messages: [{ role: "user", content: "Return ONLY a valid JSON array, no markdown. For stock ticker " + sym + ", give GAAP annual data for these fiscal years only: " + yearsNeeded.join(", ") + ". Each item: {year, eps (GAAP diluted EPS from annual 10-K, decimal, NOT non-GAAP), revenue (string e.g. $21.5B)}. Use null for eps if unknown." }]
+          messages: [{ role: "user", content: "Return ONLY a valid JSON array, no markdown. For stock " + sym + ", give GAAP annual data for fiscal years: " + yearsNeeded.join(", ") + ". Each item: {year, eps (GAAP diluted EPS from 10-K, NOT non-GAAP), revenue (e.g. $21.5B)}. null for eps if unknown." }]
         })
       }).then(function(r) { return r.json(); })
         .then(function(data) {
@@ -838,13 +841,10 @@ function Detail({ sym, name, onBack }) {
                         {ov && ov.revenue ? ov.revenue : "-"}
                       </td>
                       {epsHistory.map(function(row) {
-                        var yh = ov && ov.yahooHistory && ov.yahooHistory.find(function(r) { return r.year === row.year; });
-                        var val = (yh && yh.revenue && yh.revenue !== "-") ? yh.revenue : (row.revenue || "-");
-                        var isY = !!(yh && yh.revenue && yh.revenue !== "-");
                         return (
                           <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#111", fontWeight:600 }}>
-                            {val}
-                            <span style={{ fontSize:9, color: isY ? "#2a8a2a" : "#ccc", marginLeft:2, verticalAlign:"super" }}>{isY ? "Y" : "~"}</span>
+                            {row.revenue || "-"}
+                            {row._yahoo && row.revenue && row.revenue !== "-" && <span style={{ fontSize:9, color:"#2a8a2a", marginLeft:2, verticalAlign:"super" }}>Y</span>}
                           </td>
                         );
                       })}
@@ -855,12 +855,10 @@ function Detail({ sym, name, onBack }) {
                         {ov && ov.netIncome ? ov.netIncome : "-"}
                       </td>
                       {epsHistory.map(function(row) {
-                        var yh = ov && ov.yahooHistory && ov.yahooHistory.find(function(r) { return r.year === row.year; });
-                        var val = (yh && yh.netIncome && yh.netIncome !== "-") ? yh.netIncome : "-";
                         return (
                           <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#111", fontWeight:600 }}>
-                            {val}
-                            {val !== "-" && <span style={{ fontSize:9, color:"#2a8a2a", marginLeft:2, verticalAlign:"super" }}>Y</span>}
+                            {row.netIncome || "-"}
+                            {row._yahoo && row.netIncome && row.netIncome !== "-" && <span style={{ fontSize:9, color:"#2a8a2a", marginLeft:2, verticalAlign:"super" }}>Y</span>}
                           </td>
                         );
                       })}
@@ -871,12 +869,10 @@ function Detail({ sym, name, onBack }) {
                         {ov && ov.fcf ? ov.fcf : "-"}
                       </td>
                       {epsHistory.map(function(row) {
-                        var yh = ov && ov.yahooHistory && ov.yahooHistory.find(function(r) { return r.year === row.year; });
-                        var val = (yh && yh.fcf && yh.fcf !== "-") ? yh.fcf : "-";
                         return (
                           <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#111", fontWeight:600 }}>
-                            {val}
-                            {val !== "-" && <span style={{ fontSize:9, color:"#2a8a2a", marginLeft:2, verticalAlign:"super" }}>Y</span>}
+                            {row.fcf || "-"}
+                            {row._yahoo && row.fcf && row.fcf !== "-" && <span style={{ fontSize:9, color:"#2a8a2a", marginLeft:2, verticalAlign:"super" }}>Y</span>}
                           </td>
                         );
                       })}
@@ -885,12 +881,10 @@ function Detail({ sym, name, onBack }) {
                       <td style={{ padding:"7px 10px", color:"#555", whiteSpace:"nowrap" }}>Long-term Debt</td>
                       <td style={{ padding:"7px 10px", textAlign:"right", color:"#1a6a1a", fontWeight:700, borderRight:"2px solid #e0dbd0" }}>-</td>
                       {epsHistory.map(function(row) {
-                        var yh = ov && ov.yahooHistory && ov.yahooHistory.find(function(r) { return r.year === row.year; });
-                        var val = (yh && yh.debt && yh.debt !== "-") ? yh.debt : "-";
                         return (
                           <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#111", fontWeight:600 }}>
-                            {val}
-                            {val !== "-" && <span style={{ fontSize:9, color:"#2a8a2a", marginLeft:2, verticalAlign:"super" }}>Y</span>}
+                            {row.debt || "-"}
+                            {row._yahoo && row.debt && row.debt !== "-" && <span style={{ fontSize:9, color:"#2a8a2a", marginLeft:2, verticalAlign:"super" }}>Y</span>}
                           </td>
                         );
                       })}
@@ -899,7 +893,7 @@ function Detail({ sym, name, onBack }) {
                 </table>
               </div>
               <div style={{ fontSize:11, color:"#aaa", marginTop:8 }}>
-                * {new Date().getFullYear()} = TTM (Yahoo) | Y = real GAAP (Yahoo) | ~ = AI estimate (Claude)
+                * {new Date().getFullYear()} = TTM (Yahoo) | Y = real data (Yahoo) | ~ = AI estimate
               </div>
             </>
             ) : (
