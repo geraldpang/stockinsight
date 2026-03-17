@@ -714,32 +714,36 @@ function Detail({ sym, name, onBack }) {
               ];
               var result = [];
               drivers.forEach(function(drv) {
-                var scoreRe = new RegExp(drv + ":\s*(\\d)/5");
-                var resultRe = new RegExp("(?:Result|Assessment):\s*([^\n]+)", "");
-                var block = text.substring(text.indexOf(drv));
+                var drvIdx = text.indexOf(drv);
+                if (drvIdx === -1) return;
                 var nextDrv = drivers[drivers.indexOf(drv) + 1];
-                if (nextDrv) block = block.substring(0, block.indexOf(nextDrv));
-                var scoreMatch = block.match(/(\d)\/5/);
-                var resultMatch = block.match(/Result:\s*([^
-]+)/);
+                var block = nextDrv ? text.substring(drvIdx, text.indexOf(nextDrv)) : text.substring(drvIdx);
+                var scoreMatch = block.match(/([0-9])\/5/);
+                var lines = block.split("\n");
+                var resultLine = "";
+                for (var li = 0; li < lines.length; li++) {
+                  if (lines[li].indexOf("Result:") !== -1) {
+                    resultLine = lines[li].replace(/^.*Result:\s*/, "").trim();
+                    break;
+                  }
+                }
                 if (scoreMatch) {
                   result.push({
                     label: drv,
                     score: parseInt(scoreMatch[1], 10),
-                    body: resultMatch ? resultMatch[1].trim() : ""
+                    body: resultLine
                   });
                 }
               });
-              var ratingMatch = text.match(/Economic Moat Rating:\s*(\d)\s*\/\s*5/);
-              var explanationMatch = text.match(/Explanation[^:]*:\s*([\s\S]*?)(?=$)/);
+              var ratingMatch = text.match(/Economic Moat Rating:\s*([0-9])\s*\/\s*5/);
+              var expIdx = text.indexOf("Explanation");
+              var explanation = expIdx !== -1 ? text.substring(expIdx).replace(/^Explanation[^:]*:\s*/, "").trim() : null;
+              var rating = ratingMatch ? parseInt(ratingMatch[1], 10) : null;
               return {
                 sections: result,
-                rating: ratingMatch ? parseInt(ratingMatch[1], 10) : null,
-                explanation: explanationMatch ? explanationMatch[1].trim() : null,
-                classification: ratingMatch ? (
-                  parseInt(ratingMatch[1],10) >= 4 ? "Wide" :
-                  parseInt(ratingMatch[1],10) >= 3 ? "Narrow" : "None"
-                ) : null,
+                rating: rating,
+                explanation: explanation,
+                classification: rating != null ? (rating >= 4 ? "Wide" : rating >= 3 ? "Narrow" : "None") : null,
               };
             }
 
