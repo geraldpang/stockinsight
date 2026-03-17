@@ -28,93 +28,74 @@ export async function onRequest(context) {
   }
 
   try {
-    // -----------------------------------------------------------------------
-    // /eps?sym=AAPL  -- Massive.com annual financials (real SEC-filed data)
-    // Requires MASSIVE_KEY env var in Cloudflare Pages
-    // -----------------------------------------------------------------------
+    // /eps?sym=AAPL  -- Finnhub annual EPS + financials (real SEC data, free tier)
+    // Requires FINNHUB_KEY env var in Cloudflare Pages
     if (url.pathname === "/eps") {
-      const sym        = (url.searchParams.get("sym") || "").toUpperCase().trim();
-      const massiveKey = context.env.MASSIVE_KEY;
-      if (!sym) {
-        return new Response(JSON.stringify({ error: "Missing sym" }), {
-          status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
-      }
-      if (!massiveKey) {
-        return new Response(JSON.stringify({ error: "MASSIVE_KEY not configured" }), {
-          status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
-      }
+      var sym        = (url.searchParams.get("sym") || "").toUpperCase().trim();
+      var finnhubKey = context.env.FINNHUB_KEY;
+      if (!sym) return new Response(JSON.stringify({ error: "Missing sym" }), { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+      if (!finnhubKey) return new Response(JSON.stringify({ error: "FINNHUB_KEY not configured" }), { status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+
       function fmtAmt(v) {
         if (v == null || v === 0) return "-";
         var a = Math.abs(v);
         if (a >= 1e12) return (v < 0 ? "-$" : "$") + (a/1e12).toFixed(2) + "T";
         if (a >= 1e9)  return (v < 0 ? "-$" : "$") + (a/1e9).toFixed(1)  + "B";
         if (a >= 1e6)  return (v < 0 ? "-$" : "$") + (a/1e6).toFixed(0)  + "M";
-        return (v < 0 ? "-$" : "$") + a.toFixed(0);
+        return (v < 0 ? "-$" : "$") + a.toFixed(2);
       }
-      var isRes  = await fetch("https://api.massive.com/v1/stocks/fundamentals/income-statements?ticker=" + sym + "&timeframe=annual&limit=10&apiKey=" + massiveKey, { headers: { "User-Agent": UA } });
-      var isData = await isRes.json();
-      // Return full raw response so we can debug field names + structure
-      if (!isData || !isData.results || isData.results.length === 0) {
-        return new Response(JSON.stringify({ error: "No results", status: isRes.status, raw: isData }), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+
+      var metricRes  = await fetch("https://finnhub.io/api/v1/stock/metric?symbol=" + sym + "&metric=all&token=" + finnhubKey, { headers: { "User-Agent": UA } });
+      var metricData = await metricRes.json();
+
+      if (!metricData || !metricData.series || !metricData.series.annual) {
+        return new Response(JSON.stringify({ error: "No Finnhub data for " + sym, raw: metricData }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+      }
+
+      var annual = metricData.series.annual;
+
+      function buildMap(arr) {
+        var map = {};
+        if (!arr) return map;
+        arr.forEach(function(item) {
+          var yr = item.period ? parseInt(item.period.substring(0, 4), 10) : 0;
+          if (yr) map[yr] = item.v;
         });
+        return map;
       }
-      // Also expose first result keys for field name debugging
-      var firstResult = isData.results[0] || {};
-      var debugKeys = Object.keys(firstResult);
-      var cfByYear = {};
-      try {
-        var cfRes  = await fetch("https://api.massive.com/v1/stocks/fundamentals/cash-flow-statements?ticker=" + sym + "&timeframe=annual&limit=10&apiKey=" + massiveKey, { headers: { "User-Agent": UA } });
-        var cfData = await cfRes.json();
-        if (cfData && cfData.results) {
-          cfData.results.forEach(function(r) {
-            var yr = r.fiscal_year ? parseInt(r.fiscal_year, 10) : 0;
-            if (yr) cfByYear[yr] = r;
-          });
-        }
-      } catch (_) {}
-      var bsByYear = {};
-      try {
-        var bsRes  = await fetch("https://api.massive.com/v1/stocks/fundamentals/balance-sheets?ticker=" + sym + "&timeframe=annual&limit=10&apiKey=" + massiveKey, { headers: { "User-Agent": UA } });
-        var bsData = await bsRes.json();
-        if (bsData && bsData.results) {
-          bsData.results.forEach(function(r) {
-            var yr = r.fiscal_year ? parseInt(r.fiscal_year, 10) : 0;
-            if (yr) bsByYear[yr] = r;
-          });
-        }
-      } catch (_) {}
-      var rows = [];
-      isData.results.forEach(function(r) {
-        var yr  = r.fiscal_year ? parseInt(r.fiscal_year, 10) : 0;
-        if (!yr) return;
-        var eps = r.diluted_earnings_per_share != null ? r.diluted_earnings_per_share
-                : r.basic_earnings_per_share   != null ? r.basic_earnings_per_share : null;
-        var rev = r.revenues       != null ? r.revenues
-                : r.total_revenues != null ? r.total_revenues : null;
-        var ni  = r.net_income_loss != null ? r.net_income_loss
-                : r.net_income      != null ? r.net_income : null;
-        var cf  = cfByYear[yr] || {};
-        var ocf = cf.net_cash_from_operating_activities != null ? cf.net_cash_from_operating_activities : null;
-        var cap = cf.capital_expenditure != null ? cf.capital_expenditure : null;
-        var bs  = bsByYear[yr] || {};
-        rows.push({
+
+      var epsMap  = buildMap(annual.eps);
+      var revMap  = buildMap(annual.revenue);
+      var niMap   = buildMap(annual.netIncome);
+      var fcfMap  = buildMap(annual.fcf);
+      var debtMap = buildMap(annual.longTermDebt);
+
+      var currentYear = new Date().getFullYear();
+      var merged = Object.assign({}, epsMap, revMap);
+      var allYears = Object.keys(merged).map(Number)
+        .filter(function(y) { return y < currentYear; })
+        .sort(function(a, b) { return b - a; })
+        .slice(0, 10);
+
+      if (allYears.length === 0) {
+        return new Response(JSON.stringify({ error: "Empty series for " + sym, keys: Object.keys(annual) }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+      }
+
+      var rows = allYears.map(function(yr) {
+        return {
           year:      yr,
-          eps:       eps != null ? Math.round(eps * 100) / 100 : null,
-          revenue:   fmtAmt(rev),
-          netIncome: fmtAmt(ni),
-          fcf:       (ocf != null && cap != null) ? fmtAmt(ocf + cap) : "-",
-          debt:      bs.long_term_debt != null ? fmtAmt(bs.long_term_debt) : "-",
+          eps:       epsMap[yr]  != null ? Math.round(epsMap[yr]  * 100) / 100 : null,
+          revenue:   fmtAmt(revMap[yr]  != null ? revMap[yr]  * 1e6 : null),
+          netIncome: fmtAmt(niMap[yr]   != null ? niMap[yr]   * 1e6 : null),
+          fcf:       fmtAmt(fcfMap[yr]  != null ? fcfMap[yr]  * 1e6 : null),
+          debt:      fmtAmt(debtMap[yr] != null ? debtMap[yr] * 1e6 : null),
           _yahoo:    true,
-        });
+        };
       });
-      rows.sort(function(a, b) { return b.year - a.year; });
-      return new Response(JSON.stringify({ data: rows, source: "massive", debug: { keys: debugKeys, sample: firstResult } }), {
-        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-      });
+
+      return new Response(JSON.stringify({ data: rows, source: "finnhub" }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
     }
+
 
     // -----------------------------------------------------------------------
     // ANTHROPIC API route -- POST /anthropic
@@ -224,4 +205,73 @@ export async function onRequest(context) {
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
     });
   }
-}
+}    // /eps?sym=AAPL  -- Finnhub annual EPS + Revenue (real SEC data, free tier)
+    // Requires FINNHUB_KEY env var in Cloudflare Pages
+    if (url.pathname === "/eps") {
+      var sym        = (url.searchParams.get("sym") || "").toUpperCase().trim();
+      var finnhubKey = context.env.FINNHUB_KEY;
+      if (!sym) return new Response(JSON.stringify({ error: "Missing sym" }), { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+      if (!finnhubKey) return new Response(JSON.stringify({ error: "FINNHUB_KEY not configured" }), { status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+
+      function fmtAmt(v) {
+        if (v == null || v === 0) return "-";
+        var a = Math.abs(v);
+        if (a >= 1e12) return (v < 0 ? "-$" : "$") + (a/1e12).toFixed(2) + "T";
+        if (a >= 1e9)  return (v < 0 ? "-$" : "$") + (a/1e9).toFixed(1)  + "B";
+        if (a >= 1e6)  return (v < 0 ? "-$" : "$") + (a/1e6).toFixed(0)  + "M";
+        return (v < 0 ? "-$" : "$") + a.toFixed(2);
+      }
+
+      // Finnhub basic financials -- series.annual has EPS and revenue by year
+      var metricRes  = await fetch("https://finnhub.io/api/v1/stock/metric?symbol=" + sym + "&metric=all&token=" + finnhubKey, { headers: { "User-Agent": UA } });
+      var metricData = await metricRes.json();
+
+      if (!metricData || !metricData.series || !metricData.series.annual) {
+        return new Response(JSON.stringify({ error: "No Finnhub data for " + sym, raw: metricData }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+      }
+
+      var annual = metricData.series.annual;
+
+      // Build year->value maps from Finnhub series
+      // Each series is [{period:"2024-09-28", v:6.08}, ...]
+      function buildMap(arr) {
+        var map = {};
+        if (!arr) return map;
+        arr.forEach(function(item) {
+          var yr = item.period ? parseInt(item.period.substring(0, 4), 10) : 0;
+          if (yr) map[yr] = item.v;
+        });
+        return map;
+      }
+
+      var epsMap  = buildMap(annual.eps);           // diluted EPS
+      var revMap  = buildMap(annual.revenue);       // total revenue
+      var niMap   = buildMap(annual.netIncome);     // net income
+      var fcfMap  = buildMap(annual.fcf);           // free cash flow
+      var debtMap = buildMap(annual.longTermDebt);  // long-term debt
+
+      var currentYear = new Date().getFullYear();
+      var allYears = Object.keys(Object.assign({}, epsMap, revMap))
+        .map(Number)
+        .filter(function(y) { return y < currentYear; })
+        .sort(function(a, b) { return b - a; })
+        .slice(0, 10);
+
+      if (allYears.length === 0) {
+        return new Response(JSON.stringify({ error: "No annual series data for " + sym, keys: Object.keys(annual) }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+      }
+
+      var rows = allYears.map(function(yr) {
+        return {
+          year:      yr,
+          eps:       epsMap[yr]  != null ? Math.round(epsMap[yr]  * 100) / 100 : null,
+          revenue:   fmtAmt(revMap[yr]  != null ? revMap[yr]  * 1e6 : null), // Finnhub revenue in millions
+          netIncome: fmtAmt(niMap[yr]   != null ? niMap[yr]   * 1e6 : null),
+          fcf:       fmtAmt(fcfMap[yr]  != null ? fcfMap[yr]  * 1e6 : null),
+          debt:      fmtAmt(debtMap[yr] != null ? debtMap[yr] * 1e6 : null),
+          _yahoo:    true,
+        };
+      });
+
+      return new Response(JSON.stringify({ data: rows, source: "finnhub" }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+    }
