@@ -171,9 +171,73 @@ function Detail({ sym, name, onBack }) {
   const [insightTab,    setInsightTab]    = useState("business");
   const [insightCache,  setInsightCache]  = useState({});
   const [insightLoading,setInsightLoading]= useState(false);
+  const [parsedInsights,setParsedInsights]= useState({});
+
+  function parseAndStoreInsight(tabId, text) {
+    if (!text) return;
+    var result = {};
+    if (tabId === "moat") {
+      var m = text.match(/Economic Moat Rating[^0-9]*([0-9])/);
+      var score = m ? parseInt(m[1], 10) : 0;
+      if (!score) {
+        if (text.indexOf("Wide") !== -1) score = 4;
+        else if (text.indexOf("Narrow") !== -1) score = 3;
+        else score = 1;
+      }
+      var expIdx = text.indexOf("Explanation");
+      var explanation = expIdx !== -1 ? text.substring(expIdx).replace(/^Explanation[^:]*:\s*/, "").replace(/
+[\s\S]*/,"").trim() : "";
+      result = {
+        score: score,
+        classification: score >= 4 ? "Wide" : score >= 3 ? "Narrow" : "None",
+        explanation: explanation,
+      };
+    } else if (tabId === "financial") {
+      var mc = text.match(/Financial Strength Classification[^:]*:\s*(.+)/);
+      var cls = mc ? mc[1].trim().split(/[\s,]/)[0] : null;
+      if (!cls) {
+        if (text.indexOf("Strong") !== -1) cls = "Strong";
+        else if (text.indexOf("Moderate") !== -1) cls = "Moderate";
+        else cls = "Weak";
+      }
+      var score2 = cls && cls.toLowerCase().includes("strong") ? 4 : cls && cls.toLowerCase().includes("moderate") ? 3 : 2;
+      var rsn = text.match(/Financial Strength Classification[^:]*:\s*.+[
+
+]+([^
+
+]+)/);
+      result = {
+        classification: cls,
+        score: score2,
+        reasoning: rsn ? rsn[1].trim() : "",
+      };
+    } else if (tabId === "technical") {
+      var tr = text.match(/Technical Rating[^:]*:\s*(.+)/);
+      var et = text.match(/Entry Timing[^:]*:\s*(.+)/);
+      var rating = tr ? tr[1].trim() : null;
+      if (!rating) {
+        if (text.indexOf("Strong Bullish") !== -1) rating = "Strong Bullish";
+        else if (text.indexOf("Bullish") !== -1) rating = "Bullish";
+        else if (text.indexOf("Strong Bearish") !== -1) rating = "Strong Bearish";
+        else if (text.indexOf("Bearish") !== -1) rating = "Bearish";
+        else rating = "Neutral";
+      }
+      var tscore = rating.toLowerCase().includes("strong bullish") ? 5 : rating.toLowerCase().includes("bullish") ? 4 : rating.toLowerCase().includes("neutral") ? 3 : rating.toLowerCase().includes("strong bearish") ? 1 : 2;
+      result = {
+        rating: rating,
+        score: tscore,
+        entry: et ? et[1].trim() : null,
+      };
+    }
+    setParsedInsights(function(prev) {
+      var next = Object.assign({}, prev);
+      next[tabId] = result;
+      return next;
+    });
+  }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
 
     getQuote(sym).then(function(res) {
       if (res) { setQ(res); setMsg(""); }
@@ -208,6 +272,7 @@ function Detail({ sym, name, onBack }) {
           setInsightCache(function(prev) {
             var next = Object.assign({}, prev);
             next[tabId] = text || "Analysis unavailable.";
+            parseAndStoreInsight(tabId, next[tabId]);
             return next;
           });
         }).catch(function() {
@@ -507,53 +572,16 @@ function Detail({ sym, name, onBack }) {
               }
               return <span style={{ display:"inline-flex", alignItems:"center" }}>{dots}</span>;
             }
-            function getMoatRating() {
-              if (!insightCache["moat"]) return null;
-              var m = insightCache["moat"].match(/Economic Moat Rating:\s*([0-9])\s*\/\s*5/);
-              if (!m) return null;
-              var r = parseInt(m[1], 10);
-              return r >= 4 ? "Wide" : r >= 3 ? "Narrow" : "None";
-            }
-            function getMoatScore() {
-              if (!insightCache["moat"]) return 0;
-              var m = insightCache["moat"].match(/Economic Moat Rating:\s*([0-9])\s*\/\s*5/);
-              return m ? parseInt(m[1], 10) : 0;
-            }
-            function getFinancialRating() {
-              if (!insightCache["financial"]) return null;
-              var m = insightCache["financial"].match(/Financial Strength Classification:\s*(.+)/);
-              return m ? m[1].trim().split(/[\s,]/)[0] : null;
-            }
-            function getFinancialScore() {
-              var r = getFinancialRating();
-              if (!r) return 0;
-              var v = r.toLowerCase();
-              if (v.includes("strong")) return 4;
-              if (v.includes("moderate")) return 3;
-              return 2;
-            }
-            function getTechnicalRating() {
-              if (!insightCache["technical"]) return null;
-              var m = insightCache["technical"].match(/Technical Rating:\s*(.+)/);
-              return m ? m[1].trim() : null;
-            }
-            function getTechnicalScore() {
-              var r = getTechnicalRating();
-              if (!r) return 0;
-              var v = r.toLowerCase();
-              if (v.includes("strong bullish")) return 5;
-              if (v.includes("bullish")) return 4;
-              if (v.includes("neutral")) return 3;
-              if (v.includes("bearish") && !v.includes("strong")) return 2;
-              if (v.includes("strong bearish")) return 1;
-              return 3;
-            }
-            var moatRating    = getMoatRating();
-            var moatScore     = getMoatScore();
-            var finRating     = getFinancialRating();
-            var finScore      = getFinancialScore();
-            var techRating    = getTechnicalRating();
-            var techScore     = getTechnicalScore();
+            // Read directly from parsedInsights -- single source of truth
+            var moatParsed  = parsedInsights["moat"]      || {};
+            var finParsed   = parsedInsights["financial"]  || {};
+            var techParsed  = parsedInsights["technical"]  || {};
+            var moatRating  = moatParsed.classification || null;
+            var moatScore   = moatParsed.score          || 0;
+            var finRating   = finParsed.classification  || null;
+            var finScore    = finParsed.score           || 0;
+            var techRating  = techParsed.rating         || null;
+            var techScore   = techParsed.score          || 0;
             var ivLabel       = vals.length > 0 ? (parseFloat(oracle) > price ? "Undervalued" : "Overvalued") : null;
             var ivColors      = ivLabel ? pillColor(ivLabel) : pillColor(null);
             var moatColors    = moatRating  ? pillColor(moatRating)  : pillColor(null);
@@ -844,8 +872,8 @@ function Detail({ sym, name, onBack }) {
             // Parse technical into structured sections
             function parseTechnical(text) {
               if (!text) return null;
-              var ratingMatch = text.match(/Technical Rating:\s*(.+)/);
-              var entryMatch  = text.match(/Entry Timing View:\s*(.+)/);
+              var ratingMatch = text.match(/Technical Rating[^:]*:\s*(.+)/);
+              var entryMatch  = text.match(/Entry Timing[^:]*:\s*(.+)/);
               return {
                 body:   text,
                 rating: ratingMatch ? ratingMatch[1].trim() : null,
@@ -856,11 +884,14 @@ function Detail({ sym, name, onBack }) {
             // Parse financial strength
             function parseFinancial(text) {
               if (!text) return null;
-              var classMatch = text.match(/Financial Strength Classification:\s*(.+)/);
-              return {
-                body:           text,
-                classification: classMatch ? classMatch[1].trim() : null,
-              };
+              var classMatch = text.match(/Financial Strength Classification[^:]*:\s*(.+)/);
+              var classification = classMatch ? classMatch[1].trim() : null;
+              if (!classification) {
+                if (text.indexOf("Strong") !== -1) classification = "Strong";
+                else if (text.indexOf("Moderate") !== -1) classification = "Moderate";
+                else if (text.indexOf("Weak") !== -1) classification = "Weak";
+              }
+              return { body: text, classification: classification };
             }
 
             function ratingColor(val) {
@@ -904,6 +935,21 @@ function Detail({ sym, name, onBack }) {
                   {/* Intrinsic Value tab - show existing valuation chart */}
                   {insightTab === "intrinsic" && (
                     <div>
+                      {vals.length > 0 && (function() {
+                        var iv = parseFloat(oracle);
+                        var isUnder = iv > price;
+                        var pct = price > 0 ? Math.round(Math.abs(iv - price) / price * 100) : 0;
+                        return (
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background: isUnder ? "#e6f4e6" : "#fff0f0", borderRadius:8, marginBottom:16, border:"0.5px solid " + (isUnder ? "#7abd00" : "#e08080") }}>
+                            <div>
+                              <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Intrinsic Value</div>
+                              <div style={{ fontSize:15, fontWeight:700, color: isUnder ? "#1a6a1a" : "#c03030" }}>{isUnder ? "Undervalued" : "Overvalued"} by {pct}%</div>
+                              <div style={{ fontSize:11, color:"#555", marginTop:2 }}>Est. fair value ${oracle} vs current ${price.toFixed(2)}</div>
+                            </div>
+                            <div style={{ fontSize:22, fontWeight:900, color: isUnder ? "#1a6a1a" : "#c03030" }}>${oracle}</div>
+                          </div>
+                        );
+                      })()}
                       <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:14 }}>
                         <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>
                           Summary
@@ -1042,8 +1088,19 @@ function Detail({ sym, name, onBack }) {
                             </span>
                           );
                         }
+                        var pi = parsedInsights["moat"] || {};
                         return (
                           <div>
+                            {pi.classification && (
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background: pi.score >= 4 ? "#e6f4e6" : pi.score >= 3 ? "#f0f7e6" : "#fff0f0", borderRadius:8, marginBottom:16, border:"0.5px solid " + (pi.score >= 4 ? "#7abd00" : pi.score >= 3 ? "#9ab800" : "#e08080") }}>
+                                <div>
+                                  <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Economic Moat Rating</div>
+                                  <div style={{ fontSize:15, fontWeight:700, color: pi.score >= 4 ? "#1a6a1a" : pi.score >= 3 ? "#2a7a2a" : "#c03030" }}>{pi.classification}</div>
+                                  {pi.explanation ? <div style={{ fontSize:11, color:"#555", marginTop:2, maxWidth:400 }}>{pi.explanation}</div> : null}
+                                </div>
+                                <DotBar score={pi.score} />
+                              </div>
+                            )}
                             {parsed.sections.map(function(sec, i) {
                               return (
                                 <div key={i} style={{ marginBottom:12, paddingBottom:12, borderBottom: i < parsed.sections.length-1 ? "1px solid #f0ede6" : "none" }}>
@@ -1103,8 +1160,18 @@ function Detail({ sym, name, onBack }) {
                           }
                           return <span style={{ display:"inline-flex", alignItems:"center" }}>{dots}</span>;
                         }
+                        var piF = parsedInsights["financial"] || {};
                         return (
                           <div>
+                            {piF.classification && (
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background: piF.score >= 4 ? "#e6f4e6" : piF.score >= 3 ? "#fdf8e6" : "#fff0f0", borderRadius:8, marginBottom:16, border:"0.5px solid " + (piF.score >= 4 ? "#7abd00" : piF.score >= 3 ? "#d4a800" : "#e08080") }}>
+                                <div>
+                                  <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Financial Strength</div>
+                                  <div style={{ fontSize:15, fontWeight:700, color:fsColor(piF.classification) }}>{piF.classification}</div>
+                                </div>
+                                <DotBar score={fsScore(piF.classification)} label={piF.classification} />
+                              </div>
+                            )}
                             <div style={{ fontSize:13, color:"#333", lineHeight:1.8, marginBottom:14 }}>
                               {parsed.body.replace(/Financial Strength Classification:.+/, "").trim()}
                             </div>
@@ -1157,8 +1224,19 @@ function Detail({ sym, name, onBack }) {
                           }
                           return <span style={{ display:"inline-flex", alignItems:"center" }}>{dots}</span>;
                         }
+                        var piT = parsedInsights["technical"] || {};
                         return (
                           <div>
+                            {piT.rating && (
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background: piT.score >= 4 ? "#e6f4e6" : piT.score >= 3 ? "#fdf8e6" : "#fff0f0", borderRadius:8, marginBottom:16, border:"0.5px solid " + (piT.score >= 4 ? "#7abd00" : piT.score >= 3 ? "#d4a800" : "#e08080") }}>
+                                <div>
+                                  <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Technical Rating</div>
+                                  <div style={{ fontSize:15, fontWeight:700, color:techColor(piT.rating) }}>{piT.rating}</div>
+                                  {piT.entry && <div style={{ fontSize:11, color:"#555", marginTop:2 }}>Entry: {piT.entry}</div>}
+                                </div>
+                                <DotBar score={piT.score} label={piT.rating} />
+                              </div>
+                            )}
                             <div style={{ fontSize:13, color:"#333", lineHeight:1.8, marginBottom:14 }}>
                               {parsed.body.replace(/Technical Rating:.+/, "").replace(/Entry Timing View:.+/, "").trim()}
                             </div>
