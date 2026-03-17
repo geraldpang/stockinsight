@@ -830,14 +830,11 @@ function Detail({ sym, name, onBack }) {
                         return (
                           <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#111", fontWeight:600 }}>
                             {row.eps != null ? "$" + row.eps.toFixed(2) : "-"}
-                            <span style={{ fontSize:9, color: row._yahoo ? "#2a8a2a" : "#ccc", marginLeft:2, verticalAlign:"super" }}>
-                              {row._yahoo ? "Y" : "~"}
-                            </span>
                           </td>
                         );
                       })}
                     </tr>
-                    <tr style={{ borderBottom:"1px solid #f0ede6" }}>
+                    <tr>
                       <td style={{ padding:"7px 10px", color:"#555", whiteSpace:"nowrap" }}>EPS Growth YoY</td>
                       {(function() {
                         var prevEps = epsHistory[0] && epsHistory[0].eps;
@@ -864,65 +861,11 @@ function Detail({ sym, name, onBack }) {
                         );
                       })}
                     </tr>
-                    <tr style={{ borderBottom:"1px solid #f0ede6" }}>
-                      <td style={{ padding:"7px 10px", color:"#555", whiteSpace:"nowrap" }}>Revenue</td>
-                      <td style={{ padding:"7px 10px", textAlign:"right", color:"#1a6a1a", fontWeight:700, borderRight:"2px solid #e0dbd0" }}>
-                        {ov && ov.revenue ? ov.revenue : "-"}
-                      </td>
-                      {epsHistory.map(function(row) {
-                        return (
-                          <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#111", fontWeight:600 }}>
-                            {row.revenue || "-"}
-                            {row._yahoo && row.revenue && row.revenue !== "-" && <span style={{ fontSize:9, color:"#2a8a2a", marginLeft:2, verticalAlign:"super" }}>Y</span>}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                    <tr style={{ borderBottom:"1px solid #f0ede6" }}>
-                      <td style={{ padding:"7px 10px", color:"#555", whiteSpace:"nowrap" }}>Net Income</td>
-                      <td style={{ padding:"7px 10px", textAlign:"right", color:"#1a6a1a", fontWeight:700, borderRight:"2px solid #e0dbd0" }}>
-                        {ov && ov.netIncome ? ov.netIncome : "-"}
-                      </td>
-                      {epsHistory.map(function(row) {
-                        return (
-                          <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#111", fontWeight:600 }}>
-                            {row.netIncome || "-"}
-                            {row._yahoo && row.netIncome && row.netIncome !== "-" && <span style={{ fontSize:9, color:"#2a8a2a", marginLeft:2, verticalAlign:"super" }}>Y</span>}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                    <tr style={{ borderBottom:"1px solid #f0ede6" }}>
-                      <td style={{ padding:"7px 10px", color:"#555", whiteSpace:"nowrap" }}>Free Cash Flow</td>
-                      <td style={{ padding:"7px 10px", textAlign:"right", color:"#1a6a1a", fontWeight:700, borderRight:"2px solid #e0dbd0" }}>
-                        {ov && ov.fcf ? ov.fcf : "-"}
-                      </td>
-                      {epsHistory.map(function(row) {
-                        return (
-                          <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#111", fontWeight:600 }}>
-                            {row.fcf || "-"}
-                            {row._yahoo && row.fcf && row.fcf !== "-" && <span style={{ fontSize:9, color:"#2a8a2a", marginLeft:2, verticalAlign:"super" }}>Y</span>}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                    <tr>
-                      <td style={{ padding:"7px 10px", color:"#555", whiteSpace:"nowrap" }}>Long-term Debt</td>
-                      <td style={{ padding:"7px 10px", textAlign:"right", color:"#1a6a1a", fontWeight:700, borderRight:"2px solid #e0dbd0" }}>-</td>
-                      {epsHistory.map(function(row) {
-                        return (
-                          <td key={row.year} style={{ padding:"7px 10px", textAlign:"right", color:"#111", fontWeight:600 }}>
-                            {row.debt || "-"}
-                            {row._yahoo && row.debt && row.debt !== "-" && <span style={{ fontSize:9, color:"#2a8a2a", marginLeft:2, verticalAlign:"super" }}>Y</span>}
-                          </td>
-                        );
-                      })}
-                    </tr>
                   </tbody>
                 </table>
               </div>
               <div style={{ fontSize:11, color:"#aaa", marginTop:8 }}>
-                * {new Date().getFullYear()} = TTM (Yahoo) | Y = real data (Yahoo) | ~ = AI estimate
+                * {new Date().getFullYear()} = TTM (Yahoo Finance) | Historical EPS: Macrotrends
               </div>
             </>
             ) : (
