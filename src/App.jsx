@@ -691,6 +691,70 @@ function Detail({ sym, name, onBack }) {
             )}
           </div>
 
+          {/* Summary Dashboard - pill row */}
+          {(insightCache["moat"] || insightCache["financial"] || insightCache["technical"] || vals.length > 0) && (function() {
+            function pillColor(text) {
+              if (!text) return { bg:"#f0f0f0", fg:"#888", border:"#ddd" };
+              var v = text.toLowerCase();
+              if (v.includes("wide") || v.includes("strong") || v.includes("strong bullish")) return { bg:"#e6f4e6", fg:"#1a6a1a", border:"#7abd00" };
+              if (v.includes("narrow") || v.includes("moderate") || v.includes("bullish")) return { bg:"#f0f7e6", fg:"#2a7a2a", border:"#9ab800" };
+              if (v.includes("neutral") || v.includes("fairly")) return { bg:"#fdf8e6", fg:"#b88000", border:"#d4a800" };
+              if (v.includes("none") || v.includes("weak") || v.includes("bearish")) return { bg:"#fff0f0", fg:"#c03030", border:"#e08080" };
+              return { bg:"#f5f2ec", fg:"#555", border:"#ccc" };
+            }
+            function getMoatRating() {
+              if (!insightCache["moat"]) return null;
+              var m = insightCache["moat"].match(/Economic Moat Rating:\s*([0-9])\s*\/\s*5/);
+              if (!m) return null;
+              var r = parseInt(m[1], 10);
+              return r >= 4 ? "Wide" : r >= 3 ? "Narrow" : "None";
+            }
+            function getFinancialRating() {
+              if (!insightCache["financial"]) return null;
+              var m = insightCache["financial"].match(/Financial Strength Classification:\s*(.+)/);
+              return m ? m[1].trim().split(" ")[0] : null;
+            }
+            function getTechnicalRating() {
+              if (!insightCache["technical"]) return null;
+              var m = insightCache["technical"].match(/Technical Rating:\s*(.+)/);
+              return m ? m[1].trim() : null;
+            }
+            var moatRating  = getMoatRating();
+            var finRating   = getFinancialRating();
+            var techRating  = getTechnicalRating();
+            var ivValue     = vals.length > 0 ? "$" + oracle : null;
+            var ivColor     = (oracle && price > 0)
+              ? (parseFloat(oracle) > price ? { bg:"#e6f4e6", fg:"#1a6a1a", border:"#7abd00" } : { bg:"#fff0f0", fg:"#c03030", border:"#e08080" })
+              : { bg:"#f5f2ec", fg:"#555", border:"#ccc" };
+            var pills = [
+              { label:"Economic Moat",      value: moatRating,  colors: moatRating  ? pillColor(moatRating)  : null },
+              { label:"Financial Strength", value: finRating,   colors: finRating   ? pillColor(finRating)   : null },
+              { label:"Intrinsic Value",    value: ivValue,     colors: ivValue     ? ivColor                : null },
+              { label:"Technical Rating",   value: techRating,  colors: techRating  ? pillColor(techRating)  : null },
+            ];
+            var ready = pills.some(function(p) { return p.value; });
+            if (!ready) return null;
+            return (
+              <div style={{ marginBottom:20, display:"flex", gap:10, flexWrap:"wrap" }}>
+                {pills.map(function(pill, i) {
+                  if (!pill.value) return (
+                    <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"8px 18px", borderRadius:24, background:"#f5f2ec", border:"1px solid #e0dbd0", opacity:0.5 }}>
+                      <span style={{ fontSize:10, color:"#aaa", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.05em" }}>{pill.label}</span>
+                      <span style={{ fontSize:13, color:"#ccc" }}>...</span>
+                    </div>
+                  );
+                  var c = pill.colors;
+                  return (
+                    <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"8px 18px", borderRadius:24, background:c.bg, border:"1px solid " + c.border }}>
+                      <span style={{ fontSize:10, color:c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.05em", opacity:0.8 }}>{pill.label}</span>
+                      <span style={{ fontSize:14, fontWeight:700, color:c.fg }}>{pill.value}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
           {/* 5-Tab Insight Panel */}
           {(function() {
             var TABS = [
@@ -920,42 +984,55 @@ function Detail({ sym, name, onBack }) {
                         }
                         function scoreColor(s) {
                           if (s >= 4) return "#1a6a1a";
-                          if (s >= 3) return "#2a8a2a";
+                          if (s >= 3) return "#2a7a2a";
                           if (s >= 2) return "#b88000";
                           return "#c03030";
                         }
-                        function scoreBg(s) {
-                          if (s >= 4) return "#e6f4e6";
-                          if (s >= 3) return "#f0f7e6";
-                          if (s >= 2) return "#fdf8e6";
-                          return "#fff0f0";
+                        function scoreLabel(s) {
+                          if (s >= 4) return "Strong";
+                          if (s >= 3) return "Moderate";
+                          if (s >= 2) return "Limited";
+                          return "Weak";
+                        }
+                        function DotBar(props) {
+                          var dots = [];
+                          for (var d = 1; d <= 5; d++) {
+                            dots.push(
+                              <span key={d} style={{
+                                display:"inline-block", width:8, height:8, borderRadius:"50%",
+                                background: d <= props.score ? scoreColor(props.score) : "#ddd",
+                                marginRight:3,
+                              }} />
+                            );
+                          }
+                          return (
+                            <span style={{ display:"inline-flex", alignItems:"center", gap:0 }}>
+                              {dots}
+                              <span style={{ fontSize:10, color:scoreColor(props.score), fontWeight:600, marginLeft:5 }}>{scoreLabel(props.score)}</span>
+                            </span>
+                          );
                         }
                         return (
                           <div>
                             {parsed.sections.map(function(sec, i) {
                               return (
-                                <div key={i} style={{ marginBottom:10, paddingBottom:10, borderBottom: i < parsed.sections.length-1 ? "1px solid #f0ede6" : "none", display:"flex", gap:12, alignItems:"flex-start" }}>
-                                  <div style={{ flexShrink:0, width:36, height:36, borderRadius:8, background:scoreBg(sec.score), display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column" }}>
-                                    <span style={{ fontSize:15, fontWeight:900, color:scoreColor(sec.score), lineHeight:1 }}>{sec.score}</span>
-                                    <span style={{ fontSize:9, color:"#aaa", lineHeight:1 }}>/5</span>
+                                <div key={i} style={{ marginBottom:12, paddingBottom:12, borderBottom: i < parsed.sections.length-1 ? "1px solid #f0ede6" : "none" }}>
+                                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+                                    <div style={{ fontSize:12, fontWeight:700, color:"#111" }}>{sec.label}</div>
+                                    <DotBar score={sec.score} />
                                   </div>
-                                  <div style={{ flex:1 }}>
-                                    <div style={{ fontSize:12, fontWeight:700, color:"#111", marginBottom:2 }}>{sec.label}</div>
-                                    <div style={{ fontSize:12, color:"#666", lineHeight:1.6 }}>{sec.body}</div>
-                                  </div>
+                                  <div style={{ fontSize:12, color:"#666", lineHeight:1.6 }}>{sec.body}</div>
                                 </div>
                               );
                             })}
                             {parsed.rating != null && (
                               <div style={{ marginTop:14, padding:"12px 16px", background:"#f5f2ec", borderRadius:10 }}>
-                                <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom: parsed.explanation ? 8 : 0 }}>
-                                  <div style={{ background: scoreColor(parsed.rating), color:"#fff", fontWeight:900, fontSize:18, width:44, height:44, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                                    {parsed.rating}<span style={{ fontSize:11, fontWeight:400 }}>/5</span>
-                                  </div>
+                                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: parsed.explanation ? 8 : 0 }}>
                                   <div>
-                                    <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em" }}>Economic Moat Rating</div>
-                                    <div style={{ fontSize:13, fontWeight:700, color:scoreColor(parsed.rating) }}>{parsed.classification}</div>
+                                    <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Economic Moat Rating</div>
+                                    <div style={{ fontSize:14, fontWeight:700, color:scoreColor(parsed.rating) }}>{parsed.classification}</div>
                                   </div>
+                                  <DotBar score={parsed.rating} />
                                 </div>
                                 {parsed.explanation && (
                                   <div style={{ fontSize:12, color:"#555", lineHeight:1.7, borderTop:"1px solid #e0dbd0", paddingTop:8 }}>{parsed.explanation}</div>
@@ -969,15 +1046,45 @@ function Detail({ sym, name, onBack }) {
                       {/* Financial Strength */}
                       {insightTab === "financial" && tabContent && (function() {
                         var parsed = parseFinancial(tabContent);
+                        function fsColor(c) {
+                          if (!c) return "#888";
+                          var v = c.toLowerCase();
+                          if (v.includes("strong")) return "#1a6a1a";
+                          if (v.includes("moderate")) return "#b88000";
+                          return "#c03030";
+                        }
+                        function fsScore(c) {
+                          if (!c) return 0;
+                          var v = c.toLowerCase();
+                          if (v.includes("strong")) return 4;
+                          if (v.includes("moderate")) return 3;
+                          return 2;
+                        }
+                        function DotBar(props) {
+                          var dots = [];
+                          for (var d = 1; d <= 5; d++) {
+                            dots.push(
+                              <span key={d} style={{
+                                display:"inline-block", width:8, height:8, borderRadius:"50%",
+                                background: d <= props.score ? fsColor(props.label) : "#ddd",
+                                marginRight:3,
+                              }} />
+                            );
+                          }
+                          return <span style={{ display:"inline-flex", alignItems:"center" }}>{dots}</span>;
+                        }
                         return (
                           <div>
                             <div style={{ fontSize:13, color:"#333", lineHeight:1.8, marginBottom:14 }}>
                               {parsed.body.replace(/Financial Strength Classification:.+/, "").trim()}
                             </div>
                             {parsed.classification && (
-                              <div style={{ padding:"8px 14px", background:"#f5f2ec", borderRadius:8, display:"inline-block" }}>
-                                <span style={{ fontSize:12, color:"#888" }}>Financial Strength: </span>
-                                <span style={{ fontSize:13, fontWeight:700, color:ratingColor(parsed.classification) }}>{parsed.classification}</span>
+                              <div style={{ padding:"12px 16px", background:"#f5f2ec", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                                <div>
+                                  <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Financial Strength</div>
+                                  <div style={{ fontSize:14, fontWeight:700, color:fsColor(parsed.classification) }}>{parsed.classification}</div>
+                                </div>
+                                <DotBar score={fsScore(parsed.classification)} label={parsed.classification} />
                               </div>
                             )}
                           </div>
@@ -987,22 +1094,58 @@ function Detail({ sym, name, onBack }) {
                       {/* Technical Analysis */}
                       {insightTab === "technical" && tabContent && (function() {
                         var parsed = parseTechnical(tabContent);
+                        function techColor(r) {
+                          if (!r) return "#888";
+                          var v = r.toLowerCase();
+                          if (v.includes("strong bullish")) return "#1a6a1a";
+                          if (v.includes("bullish")) return "#2a7a2a";
+                          if (v.includes("neutral")) return "#b88000";
+                          if (v.includes("strong bearish")) return "#8b0000";
+                          if (v.includes("bearish")) return "#c03030";
+                          return "#888";
+                        }
+                        function techScore(r) {
+                          if (!r) return 0;
+                          var v = r.toLowerCase();
+                          if (v.includes("strong bullish")) return 5;
+                          if (v.includes("bullish")) return 4;
+                          if (v.includes("neutral")) return 3;
+                          if (v.includes("bearish") && !v.includes("strong")) return 2;
+                          if (v.includes("strong bearish")) return 1;
+                          return 3;
+                        }
+                        function DotBar(props) {
+                          var dots = [];
+                          for (var d = 1; d <= 5; d++) {
+                            dots.push(
+                              <span key={d} style={{
+                                display:"inline-block", width:8, height:8, borderRadius:"50%",
+                                background: d <= props.score ? techColor(props.label) : "#ddd",
+                                marginRight:3,
+                              }} />
+                            );
+                          }
+                          return <span style={{ display:"inline-flex", alignItems:"center" }}>{dots}</span>;
+                        }
                         return (
                           <div>
                             <div style={{ fontSize:13, color:"#333", lineHeight:1.8, marginBottom:14 }}>
                               {parsed.body.replace(/Technical Rating:.+/, "").replace(/Entry Timing View:.+/, "").trim()}
                             </div>
-                            <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+                            <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
                               {parsed.rating && (
-                                <div style={{ padding:"8px 14px", background:"#f5f2ec", borderRadius:8 }}>
-                                  <span style={{ fontSize:12, color:"#888" }}>Technical Rating: </span>
-                                  <span style={{ fontSize:13, fontWeight:700, color:ratingColor(parsed.rating) }}>{parsed.rating}</span>
+                                <div style={{ flex:1, minWidth:180, padding:"12px 16px", background:"#f5f2ec", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                                  <div>
+                                    <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Technical Rating</div>
+                                    <div style={{ fontSize:13, fontWeight:700, color:techColor(parsed.rating) }}>{parsed.rating}</div>
+                                  </div>
+                                  <DotBar score={techScore(parsed.rating)} label={parsed.rating} />
                                 </div>
                               )}
                               {parsed.entry && (
-                                <div style={{ padding:"8px 14px", background:"#f5f2ec", borderRadius:8 }}>
-                                  <span style={{ fontSize:12, color:"#888" }}>Entry Timing: </span>
-                                  <span style={{ fontSize:13, fontWeight:700, color:ratingColor(parsed.entry) }}>{parsed.entry}</span>
+                                <div style={{ flex:1, minWidth:180, padding:"12px 16px", background:"#f5f2ec", borderRadius:10 }}>
+                                  <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Entry Timing</div>
+                                  <div style={{ fontSize:13, fontWeight:700, color:ratingColor(parsed.entry) }}>{parsed.entry}</div>
                                 </div>
                               )}
                             </div>
