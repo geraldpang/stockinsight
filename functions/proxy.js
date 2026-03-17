@@ -48,6 +48,39 @@ export async function onRequest(context) {
     }
 
 
+    // -------------------------------------------------------------------------
+    // /massive?sym=AAPL -- Massive.com news + ticker ref + dividends + splits
+    // Requires MASSIVE_KEY env var in Cloudflare Pages
+    // -------------------------------------------------------------------------
+    if (url.pathname === "/massive") {
+      var sym        = (url.searchParams.get("sym") || "").toUpperCase().trim();
+      var massiveKey = context.env.MASSIVE_KEY;
+      if (!sym) return new Response(JSON.stringify({ error: "Missing sym" }), { status:400, headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
+      if (!massiveKey) return new Response(JSON.stringify({ error: "MASSIVE_KEY not configured" }), { status:500, headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
+
+      var BASE = "https://api.polygon.io";
+      var HDR  = { "User-Agent": UA };
+
+      var results = await Promise.all([
+        fetch(BASE + "/v2/reference/news?ticker=" + sym + "&limit=10&order=desc&sort=published_utc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/vX/reference/tickers/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v3/reference/dividends?ticker=" + sym + "&limit=10&order=desc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v3/reference/splits?ticker=" + sym + "&order=desc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+      ]);
+
+      var newsData     = results[0];
+      var tickerData   = results[1];
+      var dividendData = results[2];
+      var splitsData   = results[3];
+
+      return new Response(JSON.stringify({
+        news:      newsData     && newsData.results     ? newsData.results      : [],
+        ticker:    tickerData   && tickerData.results   ? tickerData.results    : (tickerData && tickerData.result ? tickerData.result : null),
+        dividends: dividendData && dividendData.results ? dividendData.results  : [],
+        splits:    splitsData   && splitsData.results   ? splitsData.results    : [],
+      }), { headers: {"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
+    }
+
     if (url.pathname === "/anthropic") {
       const anthropicKey = context.env.ANTHROPIC_KEY;
       if (!anthropicKey) {
