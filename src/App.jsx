@@ -219,26 +219,26 @@ function Detail({ sym, name, onBack }) {
         });
     });
 
-    // Fetch historical EPS + financials from Massive.com via /eps proxy
-    // Falls back to Claude Haiku for years Massive does not cover
+    // Fetch historical EPS + financials from Finnhub via /eps proxy
+    // Falls back to Claude Haiku for years Finnhub does not cover
     fetch("/eps?sym=" + sym)
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        var massiveRows = (data && data.data && data.data.length > 0) ? data.data : [];
-        var massiveYears = massiveRows.map(function(r) { return r.year; });
+        var apiRows = (data && data.data && data.data.length > 0) ? data.data : [];
+        var apiYears = apiRows.map(function(r) { return r.year; });
         var currentYear  = new Date().getFullYear();
 
-        // Years not covered by Massive -- ask Haiku
+        // Years not covered by Finnhub -- ask Haiku
         var yearsNeeded = [];
         for (var y = currentYear - 1; y >= currentYear - 10; y--) {
-          if (massiveYears.indexOf(y) === -1) yearsNeeded.push(y);
+          if (apiYears.indexOf(y) === -1) yearsNeeded.push(y);
         }
 
         function mergeAndSet(haikuRows) {
-          var allRows = massiveRows.slice();
+          var allRows = apiRows.slice();
           if (haikuRows) {
             haikuRows.forEach(function(hr) {
-              if (massiveYears.indexOf(hr.year) === -1 && hr.eps != null) {
+              if (apiYears.indexOf(hr.year) === -1 && hr.eps != null) {
                 allRows.push({ year: hr.year, eps: hr.eps, revenue: hr.revenue || "-", netIncome: "-", fcf: "-", debt: "-", _yahoo: false });
               }
             });
