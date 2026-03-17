@@ -219,53 +219,36 @@ function Detail({ sym, name, onBack }) {
         });
     });
 
-    // Fetch historical EPS + financials from Finnhub via /eps proxy
-    // Falls back to Claude Haiku for years Finnhub does not cover
-    fetch("/eps?sym=" + sym)
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        var apiRows = (data && data.data && data.data.length > 0) ? data.data : [];
-        var apiYears = apiRows.map(function(r) { return r.year; });
-        var currentYear  = new Date().getFullYear();
-
-        // Years not covered by Finnhub -- ask Haiku
-        var yearsNeeded = [];
-        for (var y = currentYear - 1; y >= currentYear - 10; y--) {
-          if (apiYears.indexOf(y) === -1) yearsNeeded.push(y);
-        }
-
-        function mergeAndSet(haikuRows) {
-          var allRows = apiRows.slice();
-          if (haikuRows) {
-            haikuRows.forEach(function(hr) {
-              if (apiYears.indexOf(hr.year) === -1 && hr.eps != null) {
-                allRows.push({ year: hr.year, eps: hr.eps, revenue: hr.revenue || "-", netIncome: "-", fcf: "-", debt: "-", _yahoo: false });
-              }
-            });
-          }
-          allRows.sort(function(a, b) { return b.year - a.year; });
-          if (allRows.length > 0) setEpsHistory(allRows.slice(0, 10));
-          else setEpsError(true);
-        }
-
-        if (yearsNeeded.length === 0) { mergeAndSet(null); return; }
-
-        fetch("/anthropic", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "claude-haiku-4-5-20251001",
-            max_tokens: 800,
-            messages: [{ role: "user", content: "Return ONLY a valid JSON array, no markdown. For stock " + sym + ", GAAP diluted EPS and revenue for fiscal years: " + yearsNeeded.join(", ") + ". Each item: {year, eps (GAAP diluted from 10-K, NOT non-GAAP), revenue (e.g. $21B)}. null for eps if unknown." }]
-          })
-        }).then(function(r) { return r.json(); })
-          .then(function(d) {
-            var text = d && d.content && d.content[0] && d.content[0].text;
-            if (!text) { mergeAndSet(null); return; }
-            text = text.replace(/```json|```/g, "").trim();
-            try { mergeAndSet(JSON.parse(text)); } catch(e) { mergeAndSet(null); }
-          }).catch(function() { mergeAndSet(null); });
-      }).catch(function() { setEpsError(true); })
+    // Fetch 10-year historical EPS + Revenue from Claude Haiku
+    // Uses GAAP diluted EPS from 10-K filings
+    (function() {
+      var currentYear = new Date().getFullYear();
+      var years = [];
+      for (var y = currentYear - 1; y >= currentYear - 10; y--) years.push(y);
+      fetch("/anthropic", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: "Return ONLY a valid JSON array with no markdown or explanation. For " + sym + " (" + (NAMES[sym]||sym) + "), provide annual financial data for fiscal years " + years.join(", ") + ". Each object must have: {"year": number, "eps": number (GAAP diluted EPS from 10-K annual report, NOT adjusted/non-GAAP), "revenue": string (e.g. \"$21.5B\"), "netIncome": string (e.g. \"$5.2B\"), "fcf": string (free cash flow, e.g. \"$4.1B\"), "debt": string (long-term debt, e.g. \"$12.3B\")}. Use null for eps if truly unknown. Be accurate - use actual reported GAAP figures." }]
+        })
+      }).then(function(r) { return r.json(); })
+        .then(function(d) {
+          var text = d && d.content && d.content[0] && d.content[0].text;
+          if (!text) { setEpsError(true); return; }
+          text = text.replace(/```json|```/g, "").trim();
+          try {
+            var rows = JSON.parse(text);
+            if (rows && rows.length > 0) {
+              rows.sort(function(a, b) { return b.year - a.year; });
+              setEpsHistory(rows.slice(0, 10));
+            } else {
+              setEpsError(true);
+            }
+          } catch(e) { setEpsError(true); }
+        }).catch(function() { setEpsError(true); });
+    })()
   }, [sym]);
 
   // -- Insight tab fetch -------------------------------------------------------
