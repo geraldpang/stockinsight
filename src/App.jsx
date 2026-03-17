@@ -219,31 +219,53 @@ function Detail({ sym, name, onBack }) {
         });
     });
 
-    // Fetch 10-year annual EPS + Revenue from Anthropic API (Claude)
-    fetch("/anthropic", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 1024,
-        messages: [{
-          role: "user",
-          content: "Return ONLY a valid JSON array, no markdown, no explanation. For stock symbol " + sym + ", provide annual data for the 10 most recent completed fiscal years up to and including " + (new Date().getFullYear() - 1) + ". Each item has three fields: year as a number, eps as a decimal number, revenue as a string like $XB or $XT. Use diluted EPS. Skip years with no data. Most recent year must be " + (new Date().getFullYear() - 1) + "."
-        }]
-      })
-    }).then(function(r) { return r.json(); })
+    // Fetch historical EPS + financials from Massive.com via /eps proxy
+    // Falls back to Claude Haiku for years Massive does not cover
+    fetch("/eps?sym=" + sym)
+      .then(function(r) { return r.json(); })
       .then(function(data) {
-        var text = data && data.content && data.content[0] && data.content[0].text;
-        if (!text) { setEpsError(true); return; }
-        // Strip any accidental markdown fences
-        text = text.split("\x60\x60\x60json").join("").split("\x60\x60\x60").join("").trim();
-        var rows = JSON.parse(text);
-        if (!Array.isArray(rows) || rows.length === 0) { setEpsError(true); return; }
-        rows.sort(function(a, b) { return b.year - a.year; });
-        setEpsHistory(rows);
-      }).catch(function() { setEpsError(true); });
+        var massiveRows = (data && data.data && data.data.length > 0) ? data.data : [];
+        var massiveYears = massiveRows.map(function(r) { return r.year; });
+        var currentYear  = new Date().getFullYear();
 
+        // Years not covered by Massive -- ask Haiku
+        var yearsNeeded = [];
+        for (var y = currentYear - 1; y >= currentYear - 10; y--) {
+          if (massiveYears.indexOf(y) === -1) yearsNeeded.push(y);
+        }
 
+        function mergeAndSet(haikuRows) {
+          var allRows = massiveRows.slice();
+          if (haikuRows) {
+            haikuRows.forEach(function(hr) {
+              if (massiveYears.indexOf(hr.year) === -1 && hr.eps != null) {
+                allRows.push({ year: hr.year, eps: hr.eps, revenue: hr.revenue || "-", netIncome: "-", fcf: "-", debt: "-", _yahoo: false });
+              }
+            });
+          }
+          allRows.sort(function(a, b) { return b.year - a.year; });
+          if (allRows.length > 0) setEpsHistory(allRows.slice(0, 10));
+          else setEpsError(true);
+        }
+
+        if (yearsNeeded.length === 0) { mergeAndSet(null); return; }
+
+        fetch("/anthropic", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 800,
+            messages: [{ role: "user", content: "Return ONLY a valid JSON array, no markdown. For stock " + sym + ", GAAP diluted EPS and revenue for fiscal years: " + yearsNeeded.join(", ") + ". Each item: {year, eps (GAAP diluted from 10-K, NOT non-GAAP), revenue (e.g. $21B)}. null for eps if unknown." }]
+          })
+        }).then(function(r) { return r.json(); })
+          .then(function(d) {
+            var text = d && d.content && d.content[0] && d.content[0].text;
+            if (!text) { mergeAndSet(null); return; }
+            text = text.replace(/```json|```/g, "").trim();
+            try { mergeAndSet(JSON.parse(text)); } catch(e) { mergeAndSet(null); }
+          }).catch(function() { mergeAndSet(null); });
+      }).catch(function() { setEpsError(true); })
   }, [sym]);
 
   // -- Insight tab fetch -------------------------------------------------------
