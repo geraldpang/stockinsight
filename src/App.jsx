@@ -200,11 +200,7 @@ function Detail({ sym, name, onBack }) {
         else cls = "Weak";
       }
       var score2 = cls && cls.toLowerCase().includes("strong") ? 4 : cls && cls.toLowerCase().includes("moderate") ? 3 : 2;
-      var rsn = text.match(/Financial Strength Classification[^:]*:\s*.+[
-
-]+([^
-
-]+)/);
+      var rsn = null; var _clsIdx = text.indexOf("Financial Strength Classification"); if (_clsIdx !== -1) { var _lines = text.substring(_clsIdx).split("\n").filter(function(l){ return l.trim().length > 0; }); rsn = _lines.length > 1 ? [null, _lines[1]] : null; }
       result = {
         classification: cls,
         score: score2,
