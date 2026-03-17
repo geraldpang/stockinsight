@@ -55,11 +55,15 @@ export async function onRequest(context) {
       }
       var isRes  = await fetch("https://api.massive.com/v1/stocks/fundamentals/income-statements?ticker=" + sym + "&timeframe=annual&limit=10&apiKey=" + massiveKey, { headers: { "User-Agent": UA } });
       var isData = await isRes.json();
+      // Return full raw response so we can debug field names + structure
       if (!isData || !isData.results || isData.results.length === 0) {
-        return new Response(JSON.stringify({ error: "No Massive data for " + sym, raw: isData }), {
+        return new Response(JSON.stringify({ error: "No results", status: isRes.status, raw: isData }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       }
+      // Also expose first result keys for field name debugging
+      var firstResult = isData.results[0] || {};
+      var debugKeys = Object.keys(firstResult);
       var cfByYear = {};
       try {
         var cfRes  = await fetch("https://api.massive.com/v1/stocks/fundamentals/cash-flow-statements?ticker=" + sym + "&timeframe=annual&limit=10&apiKey=" + massiveKey, { headers: { "User-Agent": UA } });
@@ -107,7 +111,7 @@ export async function onRequest(context) {
         });
       });
       rows.sort(function(a, b) { return b.year - a.year; });
-      return new Response(JSON.stringify({ data: rows, source: "massive" }), {
+      return new Response(JSON.stringify({ data: rows, source: "massive", debug: { keys: debugKeys, sample: firstResult } }), {
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
     }
