@@ -469,16 +469,7 @@ function Detail({ sym, name, onBack }) {
           <h2 style={{ fontSize:21, fontWeight:900, color:"#111", margin:"0 0 3px" }}>({sym}) {name}</h2>
           <div style={{ fontSize:13, color:"#888", marginBottom:14 }}>{ov ? ov.exchange : "NASDAQ"}</div>
 
-          {/* Badges */}
-          <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
-            <span style={{ background:moatBg, color:moatFg, fontWeight:700, fontSize:12, padding:"4px 12px", borderRadius:6 }}>
-              {moat} Moat
-            </span>
-            <div style={{ display:"flex", border:"1px solid #ccc", borderRadius:6, overflow:"hidden", fontSize:12 }}>
-              <span style={{ background:"#111", color:"#f0ede6", fontWeight:700, padding:"4px 10px" }}>IntrinsicValue(TM)</span>
-              <span style={{ background:"#e8e4dc", color:"#111", fontWeight:700, padding:"4px 10px" }}>{oracle}</span>
-            </div>
-          </div>
+
 
           {/* Price */}
           {price > 0 ? (
@@ -495,6 +486,109 @@ function Detail({ sym, name, onBack }) {
           ) : (
             <div style={{ color:"#aaa", fontSize:14, marginBottom:16 }}>Loading price...</div>
           )}
+
+          {/* Analysis Summary -- 2x2 grid */}
+          {(function() {
+            function pillColor(text) {
+              if (!text) return { bg:"#f5f2ec", fg:"#888", border:"#ddd", dot:"#ccc", dotEmpty:"#e8e4dc" };
+              var v = text.toLowerCase();
+              if (v.includes("wide") || v.includes("strong") || v.includes("strong bullish")) return { bg:"#e6f4e6", fg:"#1a6a1a", border:"#7abd00", dot:"#1a6a1a", dotEmpty:"#c8e8c0" };
+              if (v.includes("narrow") || v.includes("moderate") || v.includes("bullish")) return { bg:"#f0f7e6", fg:"#2a7a2a", border:"#9ab800", dot:"#2a7a2a", dotEmpty:"#c8e8c0" };
+              if (v.includes("neutral") || v.includes("fairly")) return { bg:"#fdf8e6", fg:"#b88000", border:"#d4a800", dot:"#b88000", dotEmpty:"#f5ddb0" };
+              if (v.includes("none") || v.includes("weak") || v.includes("bearish") || v.includes("overvalued")) return { bg:"#fff0f0", fg:"#c03030", border:"#e08080", dot:"#c03030", dotEmpty:"#f5c0c0" };
+              return { bg:"#f5f2ec", fg:"#555", border:"#ccc", dot:"#aaa", dotEmpty:"#e0e0e0" };
+            }
+            function Dots(props) {
+              var dots = [];
+              for (var d = 1; d <= 5; d++) {
+                dots.push(
+                  <span key={d} style={{ display:"inline-block", width:7, height:7, borderRadius:"50%", background: d <= props.score ? props.filled : props.empty, marginRight:2 }} />
+                );
+              }
+              return <span style={{ display:"inline-flex", alignItems:"center" }}>{dots}</span>;
+            }
+            function getMoatRating() {
+              if (!insightCache["moat"]) return null;
+              var m = insightCache["moat"].match(/Economic Moat Rating:\s*([0-9])\s*\/\s*5/);
+              if (!m) return null;
+              var r = parseInt(m[1], 10);
+              return r >= 4 ? "Wide" : r >= 3 ? "Narrow" : "None";
+            }
+            function getMoatScore() {
+              if (!insightCache["moat"]) return 0;
+              var m = insightCache["moat"].match(/Economic Moat Rating:\s*([0-9])\s*\/\s*5/);
+              return m ? parseInt(m[1], 10) : 0;
+            }
+            function getFinancialRating() {
+              if (!insightCache["financial"]) return null;
+              var m = insightCache["financial"].match(/Financial Strength Classification:\s*(.+)/);
+              return m ? m[1].trim().split(/[\s,]/)[0] : null;
+            }
+            function getFinancialScore() {
+              var r = getFinancialRating();
+              if (!r) return 0;
+              var v = r.toLowerCase();
+              if (v.includes("strong")) return 4;
+              if (v.includes("moderate")) return 3;
+              return 2;
+            }
+            function getTechnicalRating() {
+              if (!insightCache["technical"]) return null;
+              var m = insightCache["technical"].match(/Technical Rating:\s*(.+)/);
+              return m ? m[1].trim() : null;
+            }
+            function getTechnicalScore() {
+              var r = getTechnicalRating();
+              if (!r) return 0;
+              var v = r.toLowerCase();
+              if (v.includes("strong bullish")) return 5;
+              if (v.includes("bullish")) return 4;
+              if (v.includes("neutral")) return 3;
+              if (v.includes("bearish") && !v.includes("strong")) return 2;
+              if (v.includes("strong bearish")) return 1;
+              return 3;
+            }
+            var moatRating    = getMoatRating();
+            var moatScore     = getMoatScore();
+            var finRating     = getFinancialRating();
+            var finScore      = getFinancialScore();
+            var techRating    = getTechnicalRating();
+            var techScore     = getTechnicalScore();
+            var ivLabel       = vals.length > 0 ? (parseFloat(oracle) > price ? "Undervalued" : "Overvalued") : null;
+            var ivColors      = ivLabel ? pillColor(ivLabel) : pillColor(null);
+            var moatColors    = moatRating  ? pillColor(moatRating)  : pillColor(null);
+            var finColors     = finRating   ? pillColor(finRating)   : pillColor(null);
+            var techColors    = techRating  ? pillColor(techRating)  : pillColor(null);
+            function Card(props) {
+              var c = props.colors;
+              var loading = !props.value;
+              return (
+                <div style={{ padding:"10px 12px", background: loading ? "#f9f7f4" : c.bg, border:"0.5px solid " + (loading ? "#e0dbd0" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1 }}>
+                  <div style={{ fontSize:10, color: loading ? "#aaa" : c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>{props.label}</div>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                    <div style={{ fontSize:14, fontWeight:700, color: loading ? "#ccc" : c.fg }}>{loading ? "..." : props.value}</div>
+                    {!loading && props.score > 0 && (
+                      <Dots score={props.score} filled={c.dot} empty={c.dotEmpty} />
+                    )}
+                    {!loading && props.sublabel && (
+                      <span style={{ fontSize:10, fontWeight:600, color:c.fg }}>{props.sublabel}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:10, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:600, marginBottom:7 }}>Analysis Summary</div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
+                  <Card label="Economic Moat"    value={moatRating}  score={moatScore}  colors={moatColors} />
+                  <Card label="Financial Strength" value={finRating} score={finScore}   colors={finColors} />
+                  <Card label="Intrinsic Value"  value={vals.length > 0 ? "$" + oracle : null} score={0} sublabel={ivLabel} colors={ivColors} />
+                  <Card label="Technical Rating" value={techRating}  score={techScore}  colors={techColors} />
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Valuation Section */}
           <div style={{ background:"#fff", border:"1px solid #e0dbd0", borderRadius:12, padding:"16px", marginBottom:12 }}>
@@ -690,70 +784,6 @@ function Detail({ sym, name, onBack }) {
               </div>
             )}
           </div>
-
-          {/* Summary Dashboard - pill row */}
-          {(insightCache["moat"] || insightCache["financial"] || insightCache["technical"] || vals.length > 0) && (function() {
-            function pillColor(text) {
-              if (!text) return { bg:"#f0f0f0", fg:"#888", border:"#ddd" };
-              var v = text.toLowerCase();
-              if (v.includes("wide") || v.includes("strong") || v.includes("strong bullish")) return { bg:"#e6f4e6", fg:"#1a6a1a", border:"#7abd00" };
-              if (v.includes("narrow") || v.includes("moderate") || v.includes("bullish")) return { bg:"#f0f7e6", fg:"#2a7a2a", border:"#9ab800" };
-              if (v.includes("neutral") || v.includes("fairly")) return { bg:"#fdf8e6", fg:"#b88000", border:"#d4a800" };
-              if (v.includes("none") || v.includes("weak") || v.includes("bearish")) return { bg:"#fff0f0", fg:"#c03030", border:"#e08080" };
-              return { bg:"#f5f2ec", fg:"#555", border:"#ccc" };
-            }
-            function getMoatRating() {
-              if (!insightCache["moat"]) return null;
-              var m = insightCache["moat"].match(/Economic Moat Rating:\s*([0-9])\s*\/\s*5/);
-              if (!m) return null;
-              var r = parseInt(m[1], 10);
-              return r >= 4 ? "Wide" : r >= 3 ? "Narrow" : "None";
-            }
-            function getFinancialRating() {
-              if (!insightCache["financial"]) return null;
-              var m = insightCache["financial"].match(/Financial Strength Classification:\s*(.+)/);
-              return m ? m[1].trim().split(" ")[0] : null;
-            }
-            function getTechnicalRating() {
-              if (!insightCache["technical"]) return null;
-              var m = insightCache["technical"].match(/Technical Rating:\s*(.+)/);
-              return m ? m[1].trim() : null;
-            }
-            var moatRating  = getMoatRating();
-            var finRating   = getFinancialRating();
-            var techRating  = getTechnicalRating();
-            var ivValue     = vals.length > 0 ? "$" + oracle : null;
-            var ivColor     = (oracle && price > 0)
-              ? (parseFloat(oracle) > price ? { bg:"#e6f4e6", fg:"#1a6a1a", border:"#7abd00" } : { bg:"#fff0f0", fg:"#c03030", border:"#e08080" })
-              : { bg:"#f5f2ec", fg:"#555", border:"#ccc" };
-            var pills = [
-              { label:"Economic Moat",      value: moatRating,  colors: moatRating  ? pillColor(moatRating)  : null },
-              { label:"Financial Strength", value: finRating,   colors: finRating   ? pillColor(finRating)   : null },
-              { label:"Intrinsic Value",    value: ivValue,     colors: ivValue     ? ivColor                : null },
-              { label:"Technical Rating",   value: techRating,  colors: techRating  ? pillColor(techRating)  : null },
-            ];
-            var ready = pills.some(function(p) { return p.value; });
-            if (!ready) return null;
-            return (
-              <div style={{ marginBottom:20, display:"flex", gap:10, flexWrap:"wrap" }}>
-                {pills.map(function(pill, i) {
-                  if (!pill.value) return (
-                    <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"8px 18px", borderRadius:24, background:"#f5f2ec", border:"1px solid #e0dbd0", opacity:0.5 }}>
-                      <span style={{ fontSize:10, color:"#aaa", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.05em" }}>{pill.label}</span>
-                      <span style={{ fontSize:13, color:"#ccc" }}>...</span>
-                    </div>
-                  );
-                  var c = pill.colors;
-                  return (
-                    <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"8px 18px", borderRadius:24, background:c.bg, border:"1px solid " + c.border }}>
-                      <span style={{ fontSize:10, color:c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.05em", opacity:0.8 }}>{pill.label}</span>
-                      <span style={{ fontSize:14, fontWeight:700, color:c.fg }}>{pill.value}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
 
           {/* 5-Tab Insight Panel */}
           {(function() {
