@@ -91,10 +91,16 @@ export async function onRequest(context) {
         return map;
       }
 
-      var epsMap  = buildMap(annual.eps);
+      // Finnhub series.annual field names (from API docs):
+      // epsBasicExclExtraItems or epsInclExtraItems = EPS
+      // revenue = Revenue (in millions)
+      // netIncome = Net Income (in millions)
+      // freeCashFlow = FCF (in millions)
+      // longTermDebt = Long-term debt (in millions)
+      var epsMap  = buildMap(annual.epsInclExtraItems  || annual.epsBasicExclExtraItems || annual.epsDiluted);
       var revMap  = buildMap(annual.revenue);
       var niMap   = buildMap(annual.netIncome);
-      var fcfMap  = buildMap(annual.fcf);
+      var fcfMap  = buildMap(annual.freeCashFlow);
       var debtMap = buildMap(annual.longTermDebt);
 
       var currentYear = new Date().getFullYear();
@@ -109,7 +115,12 @@ export async function onRequest(context) {
         .slice(0, 10);
 
       if (allYears.length === 0) {
-        return new Response(JSON.stringify({ error: "Empty series for " + sym, keys: Object.keys(annual) }), {
+        return new Response(JSON.stringify({
+          error: "Empty series for " + sym,
+          availableKeys: Object.keys(annual),
+          epsMapSize: Object.keys(epsMap).length,
+          revMapSize: Object.keys(revMap).length,
+        }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       }
