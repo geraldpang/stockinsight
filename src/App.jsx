@@ -781,30 +781,7 @@ function Detail({ sym, name, onBack }) {
                     var sigLabel2=vl2+(showRW?" + Reversal Watch":"")+" ("+final2+")";
                     return <Card label="Market Signal" value={sigLabel2} score={0} sublabel={null} colors={pillColor(vl2)} />;
                   })()}
-                  {(function() {
-                    var ind2 = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
-                    var p2   = q ? q.price : 0;
-                    if (!ind2 || !p2) return <Card label="Market Signal" value={null} score={0} colors={pillColor(null)} />;
-                    var hi2 = ov ? ov.hi52 : 0; var lo2 = ov ? ov.lo52 : 0;
-                    var pos2 = (hi2 - lo2) > 0 ? (p2 - lo2) / (hi2 - lo2) : 0.5;
-                    var tSigs = [
-                      ind2.sma50  ? (p2 > ind2.sma50  ? 2 : p2 > ind2.sma50  * 0.97 ? 1 : 0) : 1,
-                      ind2.sma200 ? (p2 > ind2.sma200 ? 2 : p2 > ind2.sma200 * 0.95 ? 1 : 0) : 1,
-                      ind2.sma50 && ind2.sma200 ? (ind2.sma50 > ind2.sma200 * 1.005 ? 2 : ind2.sma50 > ind2.sma200 * 0.995 ? 1 : 0) : 1,
-                      ind2.wsma10 && ind2.wsma40 ? (ind2.wsma10 > ind2.wsma40 * 1.01 ? 2 : ind2.wsma10 > ind2.wsma40 * 0.99 ? 1 : 0) : 1,
-                      pos2 > 0.70 ? 2 : pos2 > 0.35 ? 1 : 0,
-                    ];
-                    var mSigs = [
-                      ind2.rsi14 ? (ind2.rsi14 >= 40 && ind2.rsi14 <= 65 ? 2 : ind2.rsi14 >= 30 && ind2.rsi14 < 75 ? 1 : 0) : 1,
-                      ind2.macd && ind2.macd.histogram != null ? (ind2.macd.histogram > 0.01 ? 2 : ind2.macd.histogram > -0.01 ? 1 : 0) : 1,
-                      ind2.ema20 ? (p2 > ind2.ema20 ? 2 : p2 > ind2.ema20 * 0.98 ? 1 : 0) : 1,
-                    ];
-                    var allSigs = tSigs.concat(mSigs);
-                    var scoreSum = allSigs.reduce(function(s,v){return s+v;},0);
-                    var pct = Math.round((scoreSum / (allSigs.length * 2)) * 100);
-                    var sigLabel = pct >= 70 ? "Strong Bullish" : pct >= 55 ? "Bullish" : pct >= 40 ? "Neutral" : pct >= 25 ? "Bearish" : "Strong Bearish";
-                    return <Card label="Market Signal" value={sigLabel + " (" + pct + ")"} score={0} sublabel={null} colors={pillColor(sigLabel)} />;
-                  })()}
+                  
                 </div>
               </div>
             );
@@ -1012,10 +989,9 @@ function Detail({ sym, name, onBack }) {
               { id:"moat",      label:"Economic MOAT" },
               { id:"intrinsic", label:"Intrinsic Value" },
               { id:"financial", label:"Financial Strength" },
-              { id:"technical", label:"Technical Analysis" },
+              { id:"signal",    label:"Market Signal" },
               { id:"addlinfo",  label:"Additional Information" },
-              { id:"signal",   label:"Market Signal" },
-              { id:"debug",    label:"Debug" },
+              { id:"debug",     label:"Debug" },
             ];
 
             function handleTab(id) {
@@ -1173,7 +1149,7 @@ function Detail({ sym, name, onBack }) {
                   {/* AI-powered tabs */}
                   {insightTab !== "intrinsic" && (
                     <div>
-                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && (
+                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && (
                         <div style={{ textAlign:"center", padding:"40px 0" }}>
                           <div style={{ fontSize:12, color:"#888", marginBottom:14 }}>Generating {insightTab} analysis for {sym}...</div>
                           <div style={{ display:"inline-block", width:26, height:26, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
