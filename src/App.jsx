@@ -706,18 +706,15 @@ function Detail({ sym, name, onBack }) {
             // Read directly from parsedInsights -- single source of truth
             var moatParsed  = parsedInsights["moat"]      || {};
             var finParsed   = parsedInsights["financial"]  || {};
-            var techParsed  = parsedInsights["technical"]  || {};
             var moatRating  = moatParsed.classification || null;
             var moatScore   = moatParsed.score          || 0;
             var finRating   = finParsed.classification  || null;
             var finScore    = finParsed.score           || 0;
-            var techRating  = null;
-            var techScore   = 0;
+
             var ivLabel       = vals.length > 0 ? (parseFloat(oracle) > price ? "Undervalued" : "Overvalued") : null;
             var ivColors      = ivLabel ? pillColor(ivLabel) : pillColor(null);
             var moatColors    = moatRating  ? pillColor(moatRating)  : pillColor(null);
             var finColors     = finRating   ? pillColor(finRating)   : pillColor(null);
-            var techColors    = techRating  ? pillColor(techRating)  : pillColor(null);
             function Card(props) {
               var c = props.colors;
               var loading = !props.value;
