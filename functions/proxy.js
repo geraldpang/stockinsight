@@ -74,11 +74,23 @@ export async function onRequest(context) {
       var dividendData = results[2];
       var splitsData   = results[3];
 
+      // Include raw responses for debugging if data missing
+      var tickerResult = tickerData && tickerData.results ? tickerData.results : null;
+
       return new Response(JSON.stringify({
-        news:      newsData     && newsData.results     ? newsData.results      : [],
-        ticker:    tickerData   && tickerData.results   ? tickerData.results    : null,
-        dividends: dividendData && dividendData.results ? dividendData.results  : [],
-        splits:    splitsData   && splitsData.results   ? splitsData.results    : [],
+        news:      newsData     && newsData.results     ? newsData.results     : [],
+        ticker:    tickerResult,
+        dividends: dividendData && dividendData.results ? dividendData.results : [],
+        splits:    splitsData   && splitsData.results   ? splitsData.results   : [],
+        _debug: {
+          newsStatus:     newsData     ? (newsData.status     || "ok") : "null",
+          tickerStatus:   tickerData   ? (tickerData.status   || "ok") : "null",
+          divStatus:      dividendData ? (dividendData.status || "ok") : "null",
+          splitStatus:    splitsData   ? (splitsData.status   || "ok") : "null",
+          newsError:      newsData     && newsData.error,
+          tickerError:    tickerData   && tickerData.error,
+          newsCount:      newsData     && newsData.results ? newsData.results.length : 0,
+        },
       }), { headers: {"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
     }
 
