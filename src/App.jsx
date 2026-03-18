@@ -744,6 +744,30 @@ function Detail({ sym, name, onBack }) {
                   <Card label="Financial Strength" value={finRating} score={finScore}   colors={finColors} />
                   <Card label="Intrinsic Value"  value={vals.length > 0 ? "$" + oracle : null} score={0} sublabel={ivLabel} colors={ivColors} />
                   <Card label="Technical Rating" value={techRating}  score={techScore}  colors={techColors} />
+                  {(function() {
+                    var ind2 = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
+                    var p2   = q ? q.price : 0;
+                    if (!ind2 || !p2) return <Card label="Market Signal" value={null} score={0} colors={pillColor(null)} />;
+                    var hi2 = ov ? ov.hi52 : 0; var lo2 = ov ? ov.lo52 : 0;
+                    var pos2 = (hi2 - lo2) > 0 ? (p2 - lo2) / (hi2 - lo2) : 0.5;
+                    var tSigs = [
+                      ind2.sma50  ? (p2 > ind2.sma50  ? 2 : p2 > ind2.sma50  * 0.97 ? 1 : 0) : 1,
+                      ind2.sma200 ? (p2 > ind2.sma200 ? 2 : p2 > ind2.sma200 * 0.95 ? 1 : 0) : 1,
+                      ind2.sma50 && ind2.sma200 ? (ind2.sma50 > ind2.sma200 * 1.005 ? 2 : ind2.sma50 > ind2.sma200 * 0.995 ? 1 : 0) : 1,
+                      ind2.wsma10 && ind2.wsma40 ? (ind2.wsma10 > ind2.wsma40 * 1.01 ? 2 : ind2.wsma10 > ind2.wsma40 * 0.99 ? 1 : 0) : 1,
+                      pos2 > 0.70 ? 2 : pos2 > 0.35 ? 1 : 0,
+                    ];
+                    var mSigs = [
+                      ind2.rsi14 ? (ind2.rsi14 >= 40 && ind2.rsi14 <= 65 ? 2 : ind2.rsi14 >= 30 && ind2.rsi14 < 75 ? 1 : 0) : 1,
+                      ind2.macd && ind2.macd.histogram != null ? (ind2.macd.histogram > 0.01 ? 2 : ind2.macd.histogram > -0.01 ? 1 : 0) : 1,
+                      ind2.ema20 ? (p2 > ind2.ema20 ? 2 : p2 > ind2.ema20 * 0.98 ? 1 : 0) : 1,
+                    ];
+                    var allSigs = tSigs.concat(mSigs);
+                    var scoreSum = allSigs.reduce(function(s,v){return s+v;},0);
+                    var pct = Math.round((scoreSum / (allSigs.length * 2)) * 100);
+                    var sigLabel = pct >= 70 ? "Strong Bullish" : pct >= 55 ? "Bullish" : pct >= 40 ? "Neutral" : pct >= 25 ? "Bearish" : "Strong Bearish";
+                    return <Card label="Market Signal" value={sigLabel + " (" + pct + ")"} score={0} sublabel={null} colors={pillColor(sigLabel)} />;
+                  })()}
                 </div>
               </div>
             );
@@ -953,6 +977,7 @@ function Detail({ sym, name, onBack }) {
               { id:"financial", label:"Financial Strength" },
               { id:"technical", label:"Technical Analysis" },
               { id:"addlinfo",  label:"Additional Information" },
+              { id:"signal",   label:"Market Signal" },
               { id:"debug",    label:"Debug" },
             ];
 
@@ -1322,73 +1347,371 @@ function Detail({ sym, name, onBack }) {
                       })()}
 
                       {/* Technical Analysis */}
-                      {insightTab === "technical" && tabContent && (function() {
-                        var parsed = parseTechnical(tabContent);
-                        function techColor(r) {
-                          if (!r) return "#888";
-                          var v = r.toLowerCase();
-                          if (v.includes("strong bullish")) return "#1a6a1a";
-                          if (v.includes("bullish")) return "#2a7a2a";
-                          if (v.includes("neutral")) return "#b88000";
-                          if (v.includes("strong bearish")) return "#8b0000";
-                          if (v.includes("bearish")) return "#c03030";
-                          return "#888";
+                      {insightTab === "technical" && (function() {
+                        var ind  = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
+                        var aggs = massiveInfo && massiveInfo.aggs        ? massiveInfo.aggs        : [];
+                        var price = q ? q.price : 0;
+                        var hi52  = ov ? ov.hi52 : 0;
+                        var lo52  = ov ? ov.lo52 : 0;
+                        var rng52 = hi52 - lo52;
+                        var pos52 = rng52 > 0 ? (price - lo52) / rng52 : 0.5;
+
+                        // ---- reversal detection helpers (need history arrays) ----
+                        var rsiHist  = ind ? (ind.rsiHistory  || []) : [];
+                        var macdHist = ind ? (ind.macdHistory || []) : [];
+
+                        function detectRsiDivergence() {
+                          if (rsiHist.length < 10 || aggs.length < 10) return false;
+                          var rPriceLow = Math.min.apply(null, aggs.slice(0,5).map(function(a){return a.l;}));
+                          var pPriceLow = Math.min.apply(null, aggs.slice(5,10).map(function(a){return a.l;}));
+                          var rRsiLow   = Math.min.apply(null, rsiHist.slice(0,5));
+                          var pRsiLow   = Math.min.apply(null, rsiHist.slice(5,10));
+                          return rPriceLow < pPriceLow && rRsiLow > pRsiLow;
                         }
-                        function techScore(r) {
-                          if (!r) return 0;
-                          var v = r.toLowerCase();
-                          if (v.includes("strong bullish")) return 5;
-                          if (v.includes("bullish")) return 4;
-                          if (v.includes("neutral")) return 3;
-                          if (v.includes("bearish") && !v.includes("strong")) return 2;
-                          if (v.includes("strong bearish")) return 1;
+                        function detectMacdTurning() {
+                          if (macdHist.length < 3) return false;
+                          var h0 = macdHist[0] && macdHist[0].histogram;
+                          var h1 = macdHist[1] && macdHist[1].histogram;
+                          var h2 = macdHist[2] && macdHist[2].histogram;
+                          return h0 != null && h1 != null && h2 != null && h0 < 0 && h0 > h1 && h1 > h2;
+                        }
+                        function detectWeeklyCross() {
+                          if (!ind || !ind.wsma10 || !ind.wsma40) return false;
+                          var gap = Math.abs(ind.wsma10 - ind.wsma40) / ind.wsma40;
+                          return ind.wsma10 < ind.wsma40 && gap < 0.05;
+                        }
+                        function detectRsiBase() {
+                          if (rsiHist.length < 3) return false;
+                          return rsiHist.slice(0,5).every(function(v){ return v != null && v >= 28 && v <= 52; });
+                        }
+                        function detect52wkBase() {
+                          return pos52 < 0.20 && ind && ind.rsi14 != null && ind.rsi14 > 20 && ind.rsi14 < 45;
+                        }
+
+                        var macdTurning  = detectMacdTurning();
+                        var rsiDivergence = detectRsiDivergence();
+                        var weeklyCross  = detectWeeklyCross();
+                        var rsiBase      = detectRsiBase();
+                        var lowBase      = detect52wkBase();
+                        var revSignals   = [
+                          { label:"RSI Divergence",         active:rsiDivergence, note:"Price new low but RSI higher low" },
+                          { label:"MACD Histogram Turning", active:macdTurning,   note:"Histogram negative but rising 3+ sessions" },
+                          { label:"Weekly SMA Cross Ahead", active:weeklyCross,   note:"WSMA10 within 5% of WSMA40" },
+                          { label:"RSI Base Forming",       active:rsiBase,       note:"RSI stabilising in 28-52 range" },
+                          { label:"52-Wk Low Base",         active:lowBase,       note:"Price in bottom 20% of range, RSI steadying" },
+                        ];
+                        var revCount = revSignals.filter(function(r){ return r.active; }).length;
+
+                        // ---- volume ratio from aggs ----
+                        var vol5  = aggs.slice(0,5).reduce(function(s,a){ return s + (a.v||0); }, 0) / Math.max(aggs.slice(0,5).length,1);
+                        var vol20 = aggs.slice(0,20).reduce(function(s,a){ return s + (a.v||0); }, 0) / Math.max(aggs.slice(0,20).length,1);
+                        var volRatio = vol20 > 0 ? vol5 / vol20 : 1;
+
+                        // ---- score each signal (1-5 scale, weekly/monthly relaxed thresholds) ----
+                        function sigScore(key) {
+                          if (!ind || !price) return 3;
+                          var p = price, r = ind.rsi14, h = ind.macd ? ind.macd.histogram : null;
+                          var wsmaGap, s200gap, crossGap, ema20gap, pct;
+                          if (key === "wsma") {
+                            if (!ind.wsma10 || !ind.wsma40) return 3;
+                            wsmaGap = (ind.wsma10 - ind.wsma40) / ind.wsma40 * 100;
+                            return wsmaGap > 5 ? 5 : wsmaGap > 1 ? 4 : wsmaGap > -1 ? 3 : wsmaGap > -5 ? 2 : 1;
+                          }
+                          if (key === "sma200") {
+                            if (!ind.sma200) return 3;
+                            s200gap = (p - ind.sma200) / ind.sma200 * 100;
+                            return s200gap > 10 ? 5 : s200gap > 2 ? 4 : s200gap > -10 ? 3 : s200gap > -20 ? 2 : 1;
+                          }
+                          if (key === "cross") {
+                            if (!ind.sma50 || !ind.sma200) return 3;
+                            crossGap = (ind.sma50 - ind.sma200) / ind.sma200 * 100;
+                            return crossGap > 10 ? 5 : crossGap > 1 ? 4 : crossGap > -1 ? 3 : crossGap > -10 ? 2 : 1;
+                          }
+                          if (key === "pos52") {
+                            return pos52 > 0.80 ? 5 : pos52 > 0.55 ? 4 : pos52 > 0.35 ? 3 : pos52 > 0.15 ? 2 : 1;
+                          }
+                          if (key === "rsi") {
+                            if (r == null) return 3;
+                            return (r >= 50 && r <= 75) ? 5 : (r >= 40 && r < 50) ? 4 : (r >= 30 && r < 40) || r > 75 ? 3 : (r >= 20 && r < 30) ? 2 : 1;
+                          }
+                          if (key === "macd") {
+                            if (h == null) return 3;
+                            if (h > 0.05) return 5;
+                            if (h > 0)    return 4;
+                            if (h > -0.05 || macdTurning) return 3;
+                            if (h > -0.50) return 2;
+                            return 1;
+                          }
+                          if (key === "ema20") {
+                            if (!ind.ema20) return 3;
+                            ema20gap = (p - ind.ema20) / ind.ema20 * 100;
+                            return ema20gap > 5 ? 5 : ema20gap > 1 ? 4 : ema20gap > -5 ? 3 : ema20gap > -15 ? 2 : 1;
+                          }
+                          if (key === "vol") {
+                            return volRatio > 1.4 ? 5 : volRatio > 1.1 ? 4 : volRatio > 0.9 ? 3 : volRatio > 0.7 ? 2 : 1;
+                          }
                           return 3;
                         }
-                        function DotBar(props) {
-                          var dots = [];
-                          for (var d = 1; d <= 5; d++) {
-                            dots.push(
-                              <span key={d} style={{
-                                display:"inline-block", width:8, height:8, borderRadius:"50%",
-                                background: d <= props.score ? techColor(props.label) : "#ddd",
-                                marginRight:3,
-                              }} />
-                            );
-                          }
-                          return <span style={{ display:"inline-flex", alignItems:"center" }}>{dots}</span>;
+
+                        var W = { wsma:25, sma200:15, cross:10, pos52:5, rsi:20, macd:15, ema20:5, vol:5 };
+                        var trendKeys    = ["wsma","sma200","cross","pos52"];
+                        var momentumKeys = ["rsi","macd","ema20","vol"];
+                        var allKeys      = trendKeys.concat(momentumKeys);
+
+                        var scores = {};
+                        allKeys.forEach(function(k){ scores[k] = sigScore(k); });
+
+                        var baseRaw = 0;
+                        allKeys.forEach(function(k){ baseRaw += (scores[k]/5) * W[k]; });
+                        var base   = Math.round(baseRaw);
+                        var bonusPer = 4;
+                        var bonusRaw = revCount * bonusPer;
+                        var bonus    = base < 50 ? Math.min(bonusRaw, 12) : 0;
+                        var finalScore = Math.min(base + bonus, base < 50 ? 49 : 100);
+
+                        var trendRaw = trendKeys.reduce(function(s,k){ return s + scores[k]; }, 0);
+                        var momRaw   = momentumKeys.reduce(function(s,k){ return s + scores[k]; }, 0);
+                        var trendScore = Math.round((trendRaw / (trendKeys.length * 5)) * 100);
+                        var momScore   = Math.round((momRaw   / (momentumKeys.length * 5)) * 100);
+
+                        var showRevWatch = revCount >= 2 && finalScore < 50;
+
+                        function getVerdict(s) {
+                          return s >= 70 ? "Strong Bullish" : s >= 55 ? "Bullish" : s >= 40 ? "Neutral" : s >= 25 ? "Bearish" : "Strong Bearish";
                         }
-                        var piT = parsedInsights["technical"] || {};
+                        var verdict = getVerdict(finalScore);
+
+                        var vColMap = { "Strong Bullish":"#1a6a1a", "Bullish":"#2a7a2a", "Neutral":"#b88000", "Bearish":"#c03030", "Strong Bearish":"#8b0000" };
+                        var vBgMap  = { "Strong Bullish":"#EAF3DE", "Bullish":"#EAF3DE",  "Neutral":"#FAEEDA",  "Bearish":"#FCEBEB",  "Strong Bearish":"#FCEBEB" };
+                        var vDotMap = { "Strong Bullish":5, "Bullish":4, "Neutral":3, "Bearish":2, "Strong Bearish":1 };
+                        var vCol = vColMap[verdict]; var vBg = vBgMap[verdict]; var vDot = vDotMap[verdict];
+
+                        var scoreColMap = { 5:"#1a6a1a", 4:"#2a7a2a", 3:"#b88000", 2:"#c03030", 1:"#8b0000" };
+                        var scoreEmMap  = { 5:"#c8e8c0", 4:"#c8e8c0", 3:"#faeeda", 2:"#f5c0c0", 1:"#f5c0c0" };
+                        var scoreLbMap  = { 5:"Strong Bullish", 4:"Bullish", 3:"Neutral", 2:"Bearish", 1:"Strong Bearish" };
+
+                        function Dots(props) {
+                          var col = scoreColMap[props.score] || "#b88000";
+                          var em  = scoreEmMap[props.score]  || "#faeeda";
+                          var d = [];
+                          for (var i = 1; i <= 5; i++) {
+                            d.push(<span key={i} style={{ display:"inline-block", width:props.sz||8, height:props.sz||8, borderRadius:"50%", background: i <= props.score ? col : em, marginRight:2 }} />);
+                          }
+                          return <span style={{ display:"inline-flex", alignItems:"center" }}>{d}</span>;
+                        }
+
+                        var SIGNALS = [
+                          { key:"wsma",  cat:"Trend",    w:25, label:"Weekly SMA10 vs 40",  val: ind && ind.wsma10 && ind.wsma40 ? "$" + ind.wsma10.toFixed(2) + " vs $" + ind.wsma40.toFixed(2) : "-",        note:"Primary signal" },
+                          { key:"sma200",cat:"Trend",    w:15, label:"Price vs SMA 200",    val: ind && ind.sma200 ? "$" + price.toFixed(2) + " vs $" + ind.sma200.toFixed(2) : "-",                             note:"Long-term trend" },
+                          { key:"cross", cat:"Trend",    w:10, label:"Golden/Death Cross",  val: ind && ind.sma50 && ind.sma200 ? (ind.sma50 > ind.sma200 ? "Golden Cross" : "Death Cross") + " ($" + (ind.sma50||0).toFixed(2) + " vs $" + (ind.sma200||0).toFixed(2) + ")" : "-", note:"Regime" },
+                          { key:"pos52", cat:"Trend",    w:5,  label:"52-Week Position",    val: hi52 > 0 ? (pos52*100).toFixed(0) + "% of range ($" + lo52.toFixed(2) + " - $" + hi52.toFixed(2) + ")" : "-", note:"Relative strength" },
+                          { key:"rsi",   cat:"Momentum", w:20, label:"RSI (14-day)",        val: ind && ind.rsi14 != null ? ind.rsi14.toFixed(1) : "-",                                                           note:"Best momentum" },
+                          { key:"macd",  cat:"Momentum", w:15, label:"MACD Histogram",      val: ind && ind.macd && ind.macd.histogram != null ? ind.macd.histogram.toFixed(4) + (macdTurning ? " (turning)" : "") : "-", note:"Reversal detection" },
+                          { key:"ema20", cat:"Momentum", w:5,  label:"Price vs EMA 20",     val: ind && ind.ema20 ? "$" + price.toFixed(2) + " vs $" + ind.ema20.toFixed(2) : "-",                               note:"Near-term" },
+                          { key:"vol",   cat:"Momentum", w:5,  label:"Volume Ratio 5/20d",  val: aggs.length > 0 ? volRatio.toFixed(2) + "x avg volume" : "-",                                                   note:"New signal" },
+                        ];
+
+                        var trendSigs = SIGNALS.filter(function(s){ return s.cat === "Trend"; });
+                        var momSigs   = SIGNALS.filter(function(s){ return s.cat === "Momentum"; });
+
+                        // ---- if we have no Massive data, show AI-only fallback ----
+                        var hasMassive = ind && price > 0;
+
+                        // ---- AI section (from Haiku) ----
+                        var parsed = parseTechnical(tabContent);
+                        var aiRating = parsed ? parsed.rating : null;
+                        var aiEntry  = parsed ? parsed.entry  : null;
+                        var aiBody   = parsed ? parsed.body   : tabContent;
+                        var aiRatingColors = { "Strong Bullish":["#1a6a1a","#EAF3DE","#7abd00"], "Bullish":["#2a7a2a","#EAF3DE","#9ab800"], "Neutral":["#b88000","#FAEEDA","#d4a800"], "Bearish":["#c03030","#FCEBEB","#e08080"], "Strong Bearish":["#8b0000","#FCEBEB","#c03030"] };
+                        var aiColors = aiRating && aiRatingColors[aiRating] ? aiRatingColors[aiRating] : ["#888","#f5f5f5","#ccc"];
+                        var aiDotScore = aiRating === "Strong Bullish" ? 5 : aiRating === "Bullish" ? 4 : aiRating === "Neutral" ? 3 : aiRating === "Bearish" ? 2 : aiRating === "Strong Bearish" ? 1 : 3;
+
                         return (
                           <div>
-                            {piT.rating && (
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background: piT.score >= 4 ? "#e6f4e6" : piT.score >= 3 ? "#fdf8e6" : "#fff0f0", borderRadius:8, marginBottom:16, border:"0.5px solid " + (piT.score >= 4 ? "#7abd00" : piT.score >= 3 ? "#d4a800" : "#e08080") }}>
+                            {/* AI verdict banner */}
+                            {aiRating && (
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:aiColors[1], borderRadius:8, marginBottom:14, border:"0.5px solid " + aiColors[2] }}>
                                 <div>
-                                  <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Technical Rating</div>
-                                  <div style={{ fontSize:15, fontWeight:700, color:techColor(piT.rating) }}>{piT.rating}</div>
-                                  {piT.entry && <div style={{ fontSize:11, color:"#555", marginTop:2 }}>Entry: {piT.entry}</div>}
+                                  <div style={{ fontSize:10, color:aiColors[0], fontWeight:600, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Technical Rating (AI)</div>
+                                  <div style={{ fontSize:15, fontWeight:700, color:aiColors[0] }}>{aiRating}</div>
+                                  {aiEntry && <div style={{ fontSize:11, color:"#555", marginTop:2 }}>Entry: {aiEntry}</div>}
                                 </div>
-                                <DotBar score={piT.score} label={piT.rating} />
+                                <Dots score={aiDotScore} sz={8} />
                               </div>
                             )}
-                            <div style={{ fontSize:13, color:"#333", lineHeight:1.8, marginBottom:14 }}>
-                              {parsed.body.replace(/Technical Rating:.+/, "").replace(/Entry Timing View:.+/, "").trim()}
-                            </div>
-                            <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-                              {parsed.rating && (
-                                <div style={{ flex:1, minWidth:180, padding:"12px 16px", background:"#f5f2ec", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                                  <div>
-                                    <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Technical Rating</div>
-                                    <div style={{ fontSize:13, fontWeight:700, color:techColor(parsed.rating) }}>{parsed.rating}</div>
+
+                            {/* AI narrative */}
+                            {aiBody && (
+                              <div style={{ fontSize:13, color:"#333", lineHeight:1.85, marginBottom:16 }}>
+                                {aiBody.split("Technical Rating:")[0].split("Entry Timing:")[0].trim()}
+                              </div>
+                            )}
+
+                            {/* Market Signal block */}
+                            {hasMassive ? (
+                              <div style={{ border:"0.5px solid #e0dbd0", borderRadius:10, overflow:"hidden", marginBottom:4 }}>
+                                <div style={{ padding:"7px 14px", background:"#1a1a14", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                                  <span style={{ fontSize:11, fontWeight:700, color:"#c8f000", textTransform:"uppercase", letterSpacing:"0.07em" }}>Market Signal</span>
+                                  <span style={{ fontSize:10, color:"#7abd00" }}>Weekly/monthly horizon / Massive.com</span>
+                                </div>
+                                <div style={{ padding:"14px 16px", background:"#fff" }}>
+
+                                  {/* Overall score row */}
+                                  <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", background:vBg, borderRadius:9, border:"0.5px solid " + vCol, marginBottom:14 }}>
+                                    <div style={{ width:56, height:56, borderRadius:9, background:vCol, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", flexShrink:0 }}>
+                                      <span style={{ fontSize:21, fontWeight:900, color:"#fff", lineHeight:1 }}>{finalScore}</span>
+                                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.65)" }}>/100</span>
+                                    </div>
+                                    <div style={{ flex:1 }}>
+                                      <div style={{ fontSize:10, color:vCol, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:2 }}>Overall Signal</div>
+                                      <div style={{ fontSize:17, fontWeight:900, color:vCol, marginBottom:4 }}>{verdict}</div>
+                                      {showRevWatch && (
+                                        <div style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10, fontWeight:700, color:"#633806", background:"#FAEEDA", padding:"2px 8px", borderRadius:10, border:"0.5px solid #EF9F27" }}>
+                                          <span style={{ width:6, height:6, borderRadius:"50%", background:"#BA7517", display:"inline-block" }} />
+                                          Reversal Watch &mdash; {revCount} signals
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div style={{ display:"flex", gap:7, flexShrink:0 }}>
+                                      <div style={{ textAlign:"center", padding:"5px 10px", background:"rgba(255,255,255,0.45)", borderRadius:7 }}>
+                                        <div style={{ fontSize:9, color:vCol }}>Trend</div>
+                                        <div style={{ fontSize:15, fontWeight:700, color:vCol }}>{trendScore}</div>
+                                      </div>
+                                      <div style={{ textAlign:"center", padding:"5px 10px", background:"rgba(255,255,255,0.45)", borderRadius:7 }}>
+                                        <div style={{ fontSize:9, color:vCol }}>Momentum</div>
+                                        <div style={{ fontSize:15, fontWeight:700, color:vCol }}>{momScore}</div>
+                                      </div>
+                                    </div>
+                                    <Dots score={vDot} sz={9} />
                                   </div>
-                                  <DotBar score={techScore(parsed.rating)} label={parsed.rating} />
+
+                                  {/* Trend signals */}
+                                  <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:8 }}>
+                                    Trend &amp; Price Action <span style={{ fontWeight:400, color:"#bbb" }}>55%</span>
+                                  </div>
+                                  {trendSigs.map(function(sig) {
+                                    var sc = scores[sig.key];
+                                    var col = scoreColMap[sc]; var lbl = scoreLbMap[sc];
+                                    var pts = Math.round((sc/5)*sig.w);
+                                    return (
+                                      <div key={sig.key} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 0", borderBottom:"0.5px solid #f5f2ec" }}>
+                                        <div style={{ flex:1, minWidth:0 }}>
+                                          <div style={{ fontSize:11, fontWeight:700, color:"#111", marginBottom:1 }}>{sig.label}</div>
+                                          <div style={{ fontSize:10, color:"#999" }}>{sig.val}</div>
+                                        </div>
+                                        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:2, flexShrink:0 }}>
+                                          <Dots score={sc} sz={7} />
+                                          <span style={{ fontSize:9, fontWeight:600, color:col }}>{lbl}</span>
+                                          <span style={{ fontSize:9, color:"#bbb" }}>{pts}/{sig.w}pts</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+
+                                  {/* Momentum signals */}
+                                  <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:8, marginTop:14, paddingTop:12, borderTop:"0.5px solid #f0ede6" }}>
+                                    Momentum <span style={{ fontWeight:400, color:"#bbb" }}>45%</span>
+                                  </div>
+                                  {momSigs.map(function(sig) {
+                                    var sc = scores[sig.key];
+                                    var col = scoreColMap[sc]; var lbl = scoreLbMap[sc];
+                                    var pts = Math.round((sc/5)*sig.w);
+                                    var isNew = sig.key === "vol";
+                                    return (
+                                      <div key={sig.key} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 0", borderBottom:"0.5px solid #f5f2ec" }}>
+                                        <div style={{ flex:1, minWidth:0 }}>
+                                          <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:1 }}>
+                                            <span style={{ fontSize:11, fontWeight:700, color:"#111" }}>{sig.label}</span>
+                                            {isNew && <span style={{ fontSize:9, fontWeight:600, color:"#0C447C", background:"#E6F1FB", padding:"1px 5px", borderRadius:5 }}>new</span>}
+                                          </div>
+                                          <div style={{ fontSize:10, color:"#999" }}>{sig.val}</div>
+                                        </div>
+                                        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:2, flexShrink:0 }}>
+                                          <Dots score={sc} sz={7} />
+                                          <span style={{ fontSize:9, fontWeight:600, color:col }}>{lbl}</span>
+                                          <span style={{ fontSize:9, color:"#bbb" }}>{pts}/{sig.w}pts</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+
+                                  {/* Reversal Detection */}
+                                  <div style={{ marginTop:14, paddingTop:12, borderTop:"0.5px solid #f0ede6" }}>
+                                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:9 }}>
+                                      <div style={{ fontSize:10, fontWeight:700, color:"#854F0B", textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Detection</div>
+                                      {revCount > 0
+                                        ? <div style={{ fontSize:10, color:"#633806", background:"#FAEEDA", padding:"2px 9px", borderRadius:8, border:"0.5px solid #EF9F27", fontWeight:600 }}>{revCount} active &mdash; total bonus <span style={{ color:"#1a6a1a" }}>+{bonus}pts</span></div>
+                                        : <div style={{ fontSize:10, color:"#bbb" }}>0 active &mdash; 0 pts</div>
+                                      }
+                                    </div>
+
+                                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:10 }}>
+                                      {revSignals.map(function(rv, i) {
+                                        var pts = rv.active ? bonusPer : 0;
+                                        return (
+                                          <div key={i} style={{ display:"flex", alignItems:"center", gap:7, padding:"7px 9px", background: rv.active ? "#FAEEDA" : "#fafaf8", borderRadius:7, border:"0.5px solid " + (rv.active ? "#EF9F27" : "#e8e4dc") }}>
+                                            <div style={{ width:17, height:17, borderRadius:"50%", background: rv.active ? "#BA7517" : "#d0ccc5", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                                              <span style={{ fontSize:9, fontWeight:700, color:"#fff" }}>{rv.active ? "!" : "-"}</span>
+                                            </div>
+                                            <div style={{ flex:1, minWidth:0 }}>
+                                              <div style={{ fontSize:10, fontWeight: rv.active ? 700 : 400, color: rv.active ? "#412402" : "#aaa" }}>{rv.label}</div>
+                                              <div style={{ fontSize:9, color: rv.active ? "#633806" : "#bbb" }}>{rv.note}</div>
+                                            </div>
+                                            <div style={{ flexShrink:0 }}>
+                                              {rv.active
+                                                ? <span style={{ fontSize:10, fontWeight:700, color:"#27500A", background:"#EAF3DE", padding:"2px 7px", borderRadius:6, border:"0.5px solid #7abd00" }}>+{pts}pts</span>
+                                                : <span style={{ fontSize:10, color:"#ccc" }}>0pts</span>
+                                              }
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+
+                                    {/* Calculation strip */}
+                                    <div style={{ padding:"9px 12px", background:"#f9f7f4", borderRadius:8, border:"0.5px solid #e8e4dc" }}>
+                                      <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                                        <div style={{ padding:"3px 9px", background:vBg, borderRadius:5, border:"0.5px solid " + vCol, fontSize:11, fontWeight:600, color:vCol }}>Base {base}</div>
+                                        <span style={{ fontSize:11, color:"#bbb" }}>+</span>
+                                        <div style={{ padding:"3px 9px", background: bonus > 0 ? "#EAF3DE" : "#f5f5f5", borderRadius:5, border:"0.5px solid " + (bonus > 0 ? "#7abd00" : "#ddd"), fontSize:11, fontWeight:600, color: bonus > 0 ? "#27500A" : "#bbb" }}>Bonus +{bonus}</div>
+                                        <span style={{ fontSize:11, color:"#bbb" }}>=</span>
+                                        <div style={{ padding:"3px 10px", background:vCol, borderRadius:5, fontSize:12, fontWeight:700, color:"#fff" }}>{finalScore}/100 {verdict}</div>
+                                        {base >= 50 && bonus === 0 && <span style={{ fontSize:10, color:"#aaa" }}>(bonus only when base &lt; 50)</span>}
+                                      </div>
+                                    </div>
+                                  </div>
+
                                 </div>
-                              )}
-                              {parsed.entry && (
-                                <div style={{ flex:1, minWidth:180, padding:"12px 16px", background:"#f5f2ec", borderRadius:10 }}>
-                                  <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Entry Timing</div>
-                                  <div style={{ fontSize:13, fontWeight:700, color:ratingColor(parsed.entry) }}>{parsed.entry}</div>
-                                </div>
-                              )}
+                              </div>
+                            ) : (
+                              <div style={{ padding:"12px 14px", background:"#fafaf8", borderRadius:8, border:"0.5px solid #e8e4dc", marginBottom:4, fontSize:12, color:"#aaa" }}>
+                                Market Signal unavailable &mdash; requires Massive.com data.
+                              </div>
+                            )}
+
+                            {/* AI badges */}
+                            {(aiRating || aiEntry) && (
+                              <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+                                {aiRating && (
+                                  <div style={{ flex:1, minWidth:160, padding:"10px 14px", background: vBg.replace ? aiColors[1] : "#f5f5f5", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                                    <div>
+                                      <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>AI Technical Rating</div>
+                                      <div style={{ fontSize:13, fontWeight:700, color:aiColors[0] }}>{aiRating}</div>
+                                    </div>
+                                    <Dots score={aiDotScore} sz={7} />
+                                  </div>
+                                )}
+                                {aiEntry && (
+                                  <div style={{ flex:1, minWidth:160, padding:"10px 14px", background:"#f9f7f4", borderRadius:10 }}>
+                                    <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Entry Timing</div>
+                                    <div style={{ fontSize:13, fontWeight:700, color:"#555" }}>{aiEntry}</div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <div style={{ marginTop:10, fontSize:11, color:"#bbb" }}>
+                              Market Signal uses Massive.com real-time data. AI analysis by Claude Haiku. Not financial advice.
                             </div>
                           </div>
                         );
@@ -1990,6 +2313,302 @@ function Detail({ sym, name, onBack }) {
                   })()}
 
                 </div>
+                  {/* Market Signal Tab */}
+                  {insightTab === "signal" && (function() {
+                    var ind   = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
+                    var price = q ? q.price : 0;
+                    var hi52  = ov ? ov.hi52 : 0;
+                    var lo52  = ov ? ov.lo52 : 0;
+                    var rng52 = hi52 - lo52;
+                    var pos52 = rng52 > 0 ? (price - lo52) / rng52 : 0.5;
+
+                    if (!ind || !price) {
+                      return (
+                        <div style={{ textAlign:"center", padding:"40px 0", color:"#aaa" }}>
+                          {addlLoading ? "Loading market signal data..." : "Market signal data unavailable. Massive.com data required."}
+                        </div>
+                      );
+                    }
+
+                    // ---- dot renderer ----
+                    function Dots(props) {
+                      var colors = {
+                        5: { filled:"#1a6a1a", empty:"#c8e8c0" },
+                        4: { filled:"#2a7a2a", empty:"#c8e8c0" },
+                        3: { filled:"#b88000", empty:"#faeeda" },
+                        2: { filled:"#c03030", empty:"#f5c0c0" },
+                        1: { filled:"#8b0000", empty:"#f5c0c0" },
+                      };
+                      var c = colors[props.score] || colors[3];
+                      var d = [];
+                      for (var i = 1; i <= 5; i++) {
+                        d.push(<span key={i} style={{ display:"inline-block", width:props.size||8, height:props.size||8, borderRadius:"50%", background: i <= props.score ? c.filled : c.empty, marginRight:2 }} />);
+                      }
+                      return <span style={{ display:"inline-flex", alignItems:"center" }}>{d}</span>;
+                    }
+
+                    var scoreLabels = { 5:"Strong Bullish", 4:"Bullish", 3:"Neutral", 2:"Bearish", 1:"Strong Bearish" };
+                    var scoreColors = { 5:"#1a6a1a", 4:"#2a7a2a", 3:"#b88000", 2:"#c03030", 1:"#8b0000" };
+                    var scoreBgs    = { 5:"#e6f4e6", 4:"#f0f7e6", 3:"#fdf8e6", 2:"#fff0f0", 1:"#fff0f0" };
+
+                    // ---- reversal detection helpers ----
+                    var rsiHist  = ind.rsiHistory  || [];
+                    var macdHist = ind.macdHistory || [];
+                    var aggs     = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
+
+                    // 1. RSI Divergence: price made new low but RSI made higher low
+                    function detectRsiDivergence() {
+                      if (rsiHist.length < 5 || aggs.length < 10) return false;
+                      var recentPriceLow  = Math.min.apply(null, aggs.slice(0,5).map(function(a){return a.l;}));
+                      var prevPriceLow    = Math.min.apply(null, aggs.slice(5,10).map(function(a){return a.l;}));
+                      var recentRsiLow    = Math.min.apply(null, rsiHist.slice(0,5));
+                      var prevRsiLow      = Math.min.apply(null, rsiHist.slice(5,10));
+                      return recentPriceLow < prevPriceLow && recentRsiLow > prevRsiLow;
+                    }
+
+                    // 2. MACD Histogram Turning: histogram negative but rising for 3+ days
+                    function detectMacdTurning() {
+                      if (macdHist.length < 3) return false;
+                      var h0 = macdHist[0] && macdHist[0].histogram;
+                      var h1 = macdHist[1] && macdHist[1].histogram;
+                      var h2 = macdHist[2] && macdHist[2].histogram;
+                      return h0 != null && h1 != null && h2 != null && h0 < 0 && h0 > h1 && h1 > h2;
+                    }
+
+                    // 3. Weekly SMA10/40 approaching cross (within 2%)
+                    function detectWeeklyCrossApproach() {
+                      if (!ind.wsma10 || !ind.wsma40) return false;
+                      var gap = Math.abs(ind.wsma10 - ind.wsma40) / ind.wsma40;
+                      return gap < 0.02 || (ind.wsma10 < ind.wsma40 && gap < 0.05);
+                    }
+
+                    // 4. RSI Base Formation: RSI in 30-50 range (stabilising)
+                    function detectRsiBase() {
+                      if (rsiHist.length < 3) return false;
+                      var recent = rsiHist.slice(0,5);
+                      var allInBase = recent.every(function(v){ return v != null && v >= 28 && v <= 52; });
+                      return allInBase && ind.rsi14 != null && ind.rsi14 < 52;
+                    }
+
+                    // 5. 52-Week Low Base: price in bottom 20% AND RSI stabilising
+                    function detect52wkBase() {
+                      if (!ind.rsi14) return false;
+                      return pos52 < 0.20 && ind.rsi14 > 20 && ind.rsi14 < 45;
+                    }
+
+                    var rsiDivergence  = detectRsiDivergence();
+                    var macdTurning    = detectMacdTurning();
+                    var weeklyCross    = detectWeeklyCrossApproach();
+                    var rsiBase        = detectRsiBase();
+                    var lowBase        = detect52wkBase();
+                    var reversalCount  = [rsiDivergence, macdTurning, weeklyCross, rsiBase, lowBase].filter(Boolean).length;
+
+                    // ---- score each of the 8 original indicators (1-5 scale) ----
+                    function scoreSignal(name) {
+                      var p = price, s;
+                      if (name === "sma50") {
+                        if (!ind.sma50) return 3;
+                        var pct = (p - ind.sma50) / ind.sma50 * 100;
+                        return pct > 5 ? 5 : pct > 1 ? 4 : pct > -5 ? 3 : pct > -15 ? 2 : 1;
+                      }
+                      if (name === "sma200") {
+                        if (!ind.sma200) return 3;
+                        var pct = (p - ind.sma200) / ind.sma200 * 100;
+                        return pct > 10 ? 5 : pct > 2 ? 4 : pct > -10 ? 3 : pct > -20 ? 2 : 1;
+                      }
+                      if (name === "cross") {
+                        if (!ind.sma50 || !ind.sma200) return 3;
+                        var gap = (ind.sma50 - ind.sma200) / ind.sma200 * 100;
+                        return gap > 10 ? 5 : gap > 1 ? 4 : gap > -1 ? 3 : gap > -10 ? 2 : 1;
+                      }
+                      if (name === "wsma") {
+                        if (!ind.wsma10 || !ind.wsma40) return 3;
+                        var gap = (ind.wsma10 - ind.wsma40) / ind.wsma40 * 100;
+                        return gap > 5 ? 5 : gap > 1 ? 4 : gap > -1 ? 3 : gap > -5 ? 2 : 1;
+                      }
+                      if (name === "52wk") {
+                        return pos52 > 0.80 ? 5 : pos52 > 0.55 ? 4 : pos52 > 0.35 ? 3 : pos52 > 0.15 ? 2 : 1;
+                      }
+                      if (name === "rsi") {
+                        if (!ind.rsi14) return 3;
+                        var r = ind.rsi14;
+                        return (r >= 55 && r <= 70) ? 5 : (r >= 45 && r < 55) ? 4 : (r >= 30 && r < 45) || r > 70 ? 3 : (r >= 20 && r < 30) ? 2 : 1;
+                      }
+                      if (name === "macd") {
+                        if (!ind.macd || ind.macd.histogram == null) return 3;
+                        var h = ind.macd.histogram;
+                        if (h > 0.05) return 5;
+                        if (h > 0)    return 4;
+                        if (macdTurning) return 3;
+                        if (h > -0.05) return 3;
+                        return h > -0.10 ? 2 : 1;
+                      }
+                      if (name === "ema20") {
+                        if (!ind.ema20) return 3;
+                        var pct = (p - ind.ema20) / ind.ema20 * 100;
+                        return pct > 5 ? 5 : pct > 1 ? 4 : pct > -5 ? 3 : pct > -15 ? 2 : 1;
+                      }
+                      return 3;
+                    }
+
+                    var signals = [
+                      { id:"sma50",  cat:"Trend",    label:"Price vs SMA 50",          value: ind.sma50  ? "$"+ind.sma50.toFixed(2)  : "-" },
+                      { id:"sma200", cat:"Trend",    label:"Price vs SMA 200",          value: ind.sma200 ? "$"+ind.sma200.toFixed(2) : "-" },
+                      { id:"cross",  cat:"Trend",    label:"Golden / Death Cross",      value: ind.sma50 && ind.sma200 ? (ind.sma50 > ind.sma200 ? "Golden" : "Death") : "-" },
+                      { id:"wsma",   cat:"Trend",    label:"Weekly Trend (SMA10/40)",   value: ind.wsma10 && ind.wsma40 ? (ind.wsma10 > ind.wsma40 ? "Uptrend" : "Downtrend") : "-" },
+                      { id:"52wk",   cat:"Trend",    label:"52-Week Position",          value: (pos52*100).toFixed(0)+"% of range" },
+                      { id:"rsi",    cat:"Momentum", label:"RSI (14-day)",              value: ind.rsi14 ? ind.rsi14.toFixed(1) : "-" },
+                      { id:"macd",   cat:"Momentum", label:"MACD Histogram",            value: ind.macd && ind.macd.histogram != null ? ind.macd.histogram.toFixed(3) : "-" },
+                      { id:"ema20",  cat:"Momentum", label:"Price vs EMA 20",           value: ind.ema20 ? "$"+ind.ema20.toFixed(2) : "-" },
+                    ].map(function(s) { return Object.assign({}, s, { score: scoreSignal(s.id) }); });
+
+                    var reversalSignals = [
+                      { label:"RSI Divergence",         active: rsiDivergence, desc:"Price new low but RSI making higher low -- momentum weakening" },
+                      { label:"MACD Histogram Turning", active: macdTurning,   desc:"Histogram rising from deeply negative -- early reversal sign" },
+                      { label:"Weekly SMA Cross Ahead", active: weeklyCross,   desc:"WSMA10 approaching WSMA40 -- trend change imminent" },
+                      { label:"RSI Base Forming",       active: rsiBase,       desc:"RSI stabilising in 30-50 range for multiple sessions" },
+                      { label:"52-Week Low Base",       active: lowBase,       desc:"Price in bottom 20% of range with RSI stabilising" },
+                    ];
+
+                    // ---- compute weighted score ----
+                    var trendSigs    = signals.filter(function(s){ return s.cat === "Trend"; });
+                    var momSigs      = signals.filter(function(s){ return s.cat === "Momentum"; });
+                    var trendRaw     = trendSigs.reduce(function(sum,s){ return sum + s.score; }, 0);
+                    var momRaw       = momSigs.reduce(function(sum,s){ return sum + s.score; }, 0);
+                    var trendScore   = Math.round(trendRaw / (trendSigs.length * 5) * 100);
+                    var momScore     = Math.round(momRaw   / (momSigs.length   * 5) * 100);
+                    var finalScore   = Math.round((trendRaw + momRaw) / ((trendSigs.length + momSigs.length) * 5) * 100);
+
+                    // reversal bonus: each active signal adds 3 points if overall < 50
+                    var adjustedScore = finalScore < 50 && reversalCount > 0
+                      ? Math.min(finalScore + reversalCount * 3, 49)
+                      : finalScore;
+
+                    function getVerdict(s) {
+                      return s >= 70 ? "Strong Bullish" : s >= 55 ? "Bullish" : s >= 40 ? "Neutral" : s >= 25 ? "Bearish" : "Strong Bearish";
+                    }
+                    var verdict = getVerdict(adjustedScore);
+                    var vCol    = scoreColors[verdict === "Strong Bullish" ? 5 : verdict === "Bullish" ? 4 : verdict === "Neutral" ? 3 : verdict === "Bearish" ? 2 : 1];
+                    var vBg     = scoreBgs[verdict === "Strong Bullish" ? 5 : verdict === "Bullish" ? 4 : verdict === "Neutral" ? 3 : verdict === "Bearish" ? 2 : 1];
+
+                    // reversal watch label
+                    var showReversalWatch = reversalCount >= 2 && adjustedScore < 50;
+
+                    return (
+                      <div>
+                        {/* Overall verdict */}
+                        <div style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 16px", background:vBg, borderRadius:10, border:"1px solid " + vCol, marginBottom:18 }}>
+                          <div style={{ width:60, height:60, borderRadius:10, background:vCol, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", flexShrink:0 }}>
+                            <span style={{ fontSize:22, fontWeight:900, color:"#fff", lineHeight:1 }}>{adjustedScore}</span>
+                            <span style={{ fontSize:9, color:"rgba(255,255,255,0.6)", lineHeight:1 }}>/100</span>
+                          </div>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontSize:10, color:vCol, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:2 }}>Market Signal -- {sym}</div>
+                            <div style={{ fontSize:20, fontWeight:900, color:vCol }}>{verdict}</div>
+                            {showReversalWatch && (
+                              <div style={{ display:"inline-block", marginTop:4, fontSize:11, fontWeight:700, color:"#b88000", background:"#fdf8e6", padding:"2px 10px", borderRadius:10, border:"1px solid #d4a800" }}>
+                                Reversal Watch -- {reversalCount} signal{reversalCount > 1 ? "s" : ""} forming
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ display:"flex", gap:8 }}>
+                            <div style={{ textAlign:"center", padding:"6px 10px", background:"rgba(255,255,255,0.5)", borderRadius:8 }}>
+                              <div style={{ fontSize:9, color:"#888" }}>Trend</div>
+                              <div style={{ fontSize:16, fontWeight:700, color:vCol }}>{trendScore}</div>
+                            </div>
+                            <div style={{ textAlign:"center", padding:"6px 10px", background:"rgba(255,255,255,0.5)", borderRadius:8 }}>
+                              <div style={{ fontSize:9, color:"#888" }}>Momentum</div>
+                              <div style={{ fontSize:16, fontWeight:700, color:vCol }}>{momScore}</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Trend signals */}
+                        <div style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Trend &amp; Price Action</div>
+                        {trendSigs.map(function(s, i) {
+                          var col = scoreColors[s.score]; var lbl = scoreLabels[s.score];
+                          var isLast = i === trendSigs.length - 1;
+                          return (
+                            <div key={s.id} style={{ marginBottom:10, paddingBottom:10, borderBottom: isLast ? "none" : "1px solid #f0ede6" }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:3 }}>
+                                <div style={{ fontSize:12, fontWeight:700, color:"#111" }}>{s.label}</div>
+                                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                                  <Dots score={s.score} size={8} />
+                                  <span style={{ fontSize:10, fontWeight:600, color:col }}>{lbl}</span>
+                                </div>
+                              </div>
+                              <div style={{ fontSize:11, color:"#888" }}>Value: <span style={{ color:"#555", fontWeight:600 }}>{s.value}</span></div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Momentum signals */}
+                        <div style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10, marginTop:16, paddingTop:14, borderTop:"1px solid #f0ede6" }}>Momentum</div>
+                        {momSigs.map(function(s, i) {
+                          var col = scoreColors[s.score]; var lbl = scoreLabels[s.score];
+                          var isLast = i === momSigs.length - 1;
+                          return (
+                            <div key={s.id} style={{ marginBottom:10, paddingBottom:10, borderBottom: isLast ? "none" : "1px solid #f0ede6" }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:3 }}>
+                                <div style={{ fontSize:12, fontWeight:700, color:"#111" }}>{s.label}</div>
+                                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                                  <Dots score={s.score} size={8} />
+                                  <span style={{ fontSize:10, fontWeight:600, color:col }}>{lbl}</span>
+                                </div>
+                              </div>
+                              <div style={{ fontSize:11, color:"#888" }}>Value: <span style={{ color:"#555", fontWeight:600 }}>{s.value}</span></div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Reversal Detection */}
+                        <div style={{ marginTop:16, paddingTop:14, borderTop:"1px solid #f0ede6" }}>
+                          <div style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>
+                            Reversal Detection
+                            {reversalCount > 0 && <span style={{ marginLeft:8, fontSize:10, fontWeight:600, color:"#b88000", background:"#fdf8e6", padding:"1px 8px", borderRadius:10, border:"0.5px solid #d4a800" }}>{reversalCount} active</span>}
+                          </div>
+                          {reversalSignals.map(function(r, i) {
+                            return (
+                              <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, marginBottom:8, padding:"8px 10px", background: r.active ? "#fdf8e6" : "var(--color-background-secondary)", borderRadius:7, border:"0.5px solid " + (r.active ? "#d4a800" : "var(--color-border-tertiary)") }}>
+                                <div style={{ width:20, height:20, borderRadius:"50%", background: r.active ? "#b88000" : "#e0dbd0", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                                  <span style={{ fontSize:10, fontWeight:700, color:"#fff" }}>{r.active ? "!" : "-"}</span>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize:12, fontWeight:700, color: r.active ? "#b88000" : "#aaa" }}>{r.label}</div>
+                                  <div style={{ fontSize:11, color: r.active ? "#555" : "#bbb" }}>{r.desc}</div>
+                                </div>
+                                <div style={{ marginLeft:"auto", flexShrink:0 }}>
+                                  <span style={{ fontSize:10, fontWeight:600, color: r.active ? "#b88000" : "#ccc", background: r.active ? "#faeeda" : "#f5f2ec", padding:"2px 8px", borderRadius:8 }}>{r.active ? "Active" : "Not yet"}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Overall rating card */}
+                        <div style={{ marginTop:14, padding:"12px 16px", background: vBg, borderRadius:10, border:"0.5px solid " + vCol }}>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                            <div>
+                              <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Overall Market Signal</div>
+                              <div style={{ fontSize:14, fontWeight:700, color:vCol }}>{verdict}{showReversalWatch ? " + Reversal Watch" : ""}</div>
+                            </div>
+                            <Dots score={adjustedScore >= 70 ? 5 : adjustedScore >= 55 ? 4 : adjustedScore >= 40 ? 3 : adjustedScore >= 25 ? 2 : 1} size={10} />
+                          </div>
+                          <div style={{ fontSize:11, color:"#555", lineHeight:1.7 }}>
+                            {trendSigs.filter(function(s){return s.score>=4;}).length} of {trendSigs.length} trend signals bullish.{" "}
+                            {momSigs.filter(function(s){return s.score>=4;}).length} of {momSigs.length} momentum signals bullish.{" "}
+                            {reversalCount > 0 ? reversalCount + " reversal signal(s) active." : "No reversal signals detected."}{" "}
+                            Horizon: weekly/monthly swing.
+                          </div>
+                        </div>
+
+                        <div style={{ marginTop:10, fontSize:11, color:"#bbb" }}>
+                          Powered by Massive.com real-time data. For informational purposes only -- not financial advice.
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Debug Tab */}
                   {insightTab === "debug" && (function() {
                     var envChecks = [
