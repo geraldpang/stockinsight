@@ -50,7 +50,7 @@ async function getOverview(sym) {
   if (ovCache[sym]) return ovCache[sym];
   var d   = await yfetch(
     "https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym +
-    "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile,earningsTrend,recommendationTrend,upgradeDowngradeHistory,balanceSheetHistory,earningsHistory,calendarEvents"
+    "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile,earningsTrend,recommendationTrend,upgradeDowngradeHistory,balanceSheetHistory,earningsHistory,calendarEvents,majorHoldersBreakdown,institutionOwnership,insiderTransactions,secFilings"
   );
   var res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
   if (!res) return null;
@@ -179,6 +179,63 @@ async function getOverview(sym) {
   var earnings = ce.earnings || {};
   var earningsDate = earnings.earningsDate && earnings.earningsDate[0] ? earnings.earningsDate[0].fmt : null;
   out.nextEarnings = earningsDate;
+
+  // ---- Analyst targets & short interest from defaultKeyStatistics ----
+  out.targetHigh   = (ks.targetHighPrice  && ks.targetHighPrice.raw)  || 0;
+  out.targetLow    = (ks.targetLowPrice   && ks.targetLowPrice.raw)   || 0;
+  out.targetMean   = (ks.targetMeanPrice  && ks.targetMeanPrice.raw)  || 0;
+  out.targetMedian = (ks.targetMedianPrice && ks.targetMedianPrice.raw) || 0;
+  out.numAnalysts  = (ks.numberOfAnalystOpinions && ks.numberOfAnalystOpinions.raw) || 0;
+  out.recKey       = (ks.recommendationKey) || "";
+  out.shortRatio   = (ks.shortRatio        && ks.shortRatio.raw)       || 0;
+  out.shortPct     = (ks.shortPercentOfFloat && ks.shortPercentOfFloat.raw) || 0;
+  out.payoutRatio  = (ks.payoutRatio       && ks.payoutRatio.raw)      || 0;
+  out.bookValuePS  = (ks.bookValue         && ks.bookValue.raw)        || 0;
+  out.lastFYEnd    = (ks.lastFiscalYearEnd && ks.lastFiscalYearEnd.fmt) || "";
+  out.nextFYEnd    = (ks.nextFiscalYearEnd && ks.nextFiscalYearEnd.fmt) || "";
+  out.mostRecentQ  = (ks.mostRecentQuarter && ks.mostRecentQuarter.fmt) || "";
+
+  // ---- Major holders ----
+  var mh = res.majorHoldersBreakdown || {};
+  out.insiderPct       = (mh.insidersPercentHeld     && mh.insidersPercentHeld.raw)     || 0;
+  out.institutionPct   = (mh.institutionsPercentHeld && mh.institutionsPercentHeld.raw) || 0;
+  out.floatPct         = (mh.institutionsFloatPercentHeld && mh.institutionsFloatPercentHeld.raw) || 0;
+
+  // ---- Top institutional holders ----
+  var io = res.institutionOwnership || {};
+  out.topHolders = ((io.ownershipList) || []).slice(0, 5).map(function(h) {
+    return {
+      name:  h.organization || "",
+      pct:   h.pctHeld      ? (h.pctHeld.raw * 100).toFixed(2) + "%" : "-",
+      shares: h.position    ? h.position.raw.toLocaleString() : "-",
+      value:  h.value       ? "$" + (h.value.raw / 1e9).toFixed(2) + "B" : "-",
+      date:   h.reportDate  ? h.reportDate.fmt : "",
+    };
+  });
+
+  // ---- Insider transactions (last 5) ----
+  var it = res.insiderTransactions || {};
+  out.insiderTx = ((it.transactions) || []).slice(0, 5).map(function(t) {
+    return {
+      name:   t.filerName     || "",
+      title:  t.filerRelation || "",
+      action: t.transactionText || "",
+      shares: t.shares        ? t.shares.raw : null,
+      value:  t.value         ? t.value.raw  : null,
+      date:   t.startDate     ? t.startDate.fmt : "",
+    };
+  });
+
+  // ---- SEC Filings (last 5) ----
+  var sf = res.secFilings || {};
+  out.secFilings = ((sf.filings) || []).slice(0, 5).map(function(f) {
+    return {
+      date:  f.date  || "",
+      type:  f.type  || "",
+      title: f.title || "",
+      url:   f.edgarUrl || "",
+    };
+  });
 
   ovCache[sym] = out;
   return out;
@@ -1409,25 +1466,119 @@ function Detail({ sym, name, onBack }) {
                           </table>
                         ) : <div style={{ color:"#aaa" }}>No recent analyst actions.</div>}
 
-                        <SectionTitle>Balance Sheet Snapshot</SectionTitle>
-                        {ov && ov.totalAssets ? (
-                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                        <SectionTitle>Analyst Price Targets</SectionTitle>
+                        {ov && ov.targetMean > 0 ? (
+                          <div>
+                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:7, marginBottom:8 }}>
+                              {[
+                                ["Mean Target",   "$" + ov.targetMean.toFixed(2),   ov.targetMean   > (q ? q.price : 0) ? "#1a6a1a" : "#c03030"],
+                                ["High Target",   "$" + ov.targetHigh.toFixed(2),   "#1a6a1a"],
+                                ["Low Target",    "$" + ov.targetLow.toFixed(2),    "#c03030"],
+                                ["Median Target", "$" + ov.targetMedian.toFixed(2), "#b88000"],
+                              ].map(function(row, i) {
+                                return (
+                                  <div key={i} style={{ background:"#f9f7f4", borderRadius:8, padding:"8px 10px", textAlign:"center" }}>
+                                    <div style={{ fontSize:10, color:"#999", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
+                                    <div style={{ fontSize:15, fontWeight:700, color:row[2] }}>{row[1]}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <div style={{ fontSize:11, color:"#aaa" }}>
+                              {ov.numAnalysts > 0 ? ov.numAnalysts + " analysts" : ""}{ov.recKey ? " | Consensus: " + ov.recKey.toUpperCase() : ""}
+                            </div>
+                          </div>
+                        ) : <div style={{ color:"#aaa" }}>Analyst targets unavailable.</div>}
+
+                        <SectionTitle>Short Interest & Ownership</SectionTitle>
+                        {ov ? (
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:7, marginBottom:8 }}>
                             {[
-                              ["Total Assets",    fmtB(ov.totalAssets)],
-                              ["Cash & Equiv.",   fmtB(ov.cash)],
-                              ["Long-term Debt",  fmtB(ov.totalDebt)],
-                              ["Book Value (Equity)", fmtB(ov.bookValue)],
+                              ["Short Ratio",       ov.shortRatio   > 0 ? ov.shortRatio.toFixed(2) + " days" : "-"],
+                              ["Short % of Float",  ov.shortPct     > 0 ? (ov.shortPct * 100).toFixed(2) + "%" : "-"],
+                              ["Insider Owned",     ov.insiderPct   > 0 ? (ov.insiderPct * 100).toFixed(2) + "%" : "-"],
+                              ["Institution Owned", ov.institutionPct > 0 ? (ov.institutionPct * 100).toFixed(2) + "%" : "-"],
+                              ["Payout Ratio",      ov.payoutRatio  > 0 ? (ov.payoutRatio * 100).toFixed(2) + "%" : "-"],
+                              ["Book Value / Share", ov.bookValuePS  > 0 ? "$" + ov.bookValuePS.toFixed(2) : "-"],
                             ].map(function(row, i) {
                               return (
-                                <div key={i} style={{ background:"#f9f7f4", borderRadius:8, padding:"8px 12px" }}>
+                                <div key={i} style={{ background:"#f9f7f4", borderRadius:8, padding:"8px 10px" }}>
                                   <div style={{ fontSize:10, color:"#999", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
-                                  <div style={{ fontSize:15, fontWeight:700, color:"#111" }}>{row[1]}</div>
+                                  <div style={{ fontSize:13, fontWeight:700, color:"#111" }}>{row[1]}</div>
                                 </div>
                               );
                             })}
                           </div>
-                        ) : <div style={{ color:"#aaa" }}>Balance sheet data unavailable.</div>}
-                        {ov && ov.bsDate && <div style={{ fontSize:11, color:"#aaa", marginTop:6 }}>As of {ov.bsDate}</div>}
+                        ) : <div style={{ color:"#aaa" }}>Ownership data unavailable.</div>}
+
+                        <SectionTitle>Top Institutional Holders</SectionTitle>
+                        {ov && ov.topHolders && ov.topHolders.length > 0 ? (
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                            <thead>
+                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
+                                {["Institution","% Held","Shares","Value","Date"].map(function(h) {
+                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600 }}>{h}</td>;
+                                })}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {ov.topHolders.map(function(h, i) {
+                                return (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                    <td style={{ padding:"5px 8px", fontWeight:600 }}>{h.name}</td>
+                                    <td style={{ padding:"5px 8px", color:"#1a6a1a", fontWeight:600 }}>{h.pct}</td>
+                                    <td style={{ padding:"5px 8px", color:"#888" }}>{h.shares}</td>
+                                    <td style={{ padding:"5px 8px", color:"#555" }}>{h.value}</td>
+                                    <td style={{ padding:"5px 8px", color:"#aaa" }}>{h.date}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        ) : <div style={{ color:"#aaa" }}>Institutional holder data unavailable.</div>}
+
+                        <SectionTitle>Insider Transactions</SectionTitle>
+                        {ov && ov.insiderTx && ov.insiderTx.length > 0 ? (
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                            <thead>
+                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
+                                {["Date","Name","Title","Transaction","Shares","Value"].map(function(h) {
+                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600 }}>{h}</td>;
+                                })}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {ov.insiderTx.map(function(t, i) {
+                                var isBuy = t.action && t.action.toLowerCase().includes("buy");
+                                return (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                    <td style={{ padding:"5px 8px", color:"#888" }}>{t.date}</td>
+                                    <td style={{ padding:"5px 8px", fontWeight:600 }}>{t.name}</td>
+                                    <td style={{ padding:"5px 8px", color:"#888", fontSize:11 }}>{t.title}</td>
+                                    <td style={{ padding:"5px 8px", color: isBuy ? "#1a6a1a" : "#c03030", fontWeight:600 }}>{t.action}</td>
+                                    <td style={{ padding:"5px 8px", textAlign:"right" }}>{t.shares ? t.shares.toLocaleString() : "-"}</td>
+                                    <td style={{ padding:"5px 8px", textAlign:"right" }}>{t.value ? "$" + (t.value/1e6).toFixed(1) + "M" : "-"}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        ) : <div style={{ color:"#aaa" }}>Insider transaction data unavailable.</div>}
+
+                        <SectionTitle>Recent SEC Filings</SectionTitle>
+                        {ov && ov.secFilings && ov.secFilings.length > 0 ? (
+                          <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                            {ov.secFilings.map(function(f, i) {
+                              return (
+                                <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 10px", background:"#f9f7f4", borderRadius:6 }}>
+                                  <span style={{ background:"#111", color:"#c8f000", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:4, flexShrink:0 }}>{f.type}</span>
+                                  <span style={{ fontSize:12, color:"#555", flex:1 }}>{f.date}</span>
+                                  {f.url ? <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:"#0044cc" }}>View Filing</a> : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : <div style={{ color:"#aaa" }}>SEC filing data unavailable.</div>}
 
                         <SectionTitle>Earnings Track Record (Last 4 Quarters)</SectionTitle>
                         {ov && ov.earningsQ && ov.earningsQ.length > 0 ? (
@@ -1565,10 +1716,12 @@ function Detail({ sym, name, onBack }) {
                             <div>
                               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7, marginBottom:8 }}>
                                 {[
-                                  ["SMA 50-day",  ind.sma50  != null ? "$" + ind.sma50.toFixed(2)  + vsPrice(ind.sma50)  : "-"],
-                                  ["SMA 200-day", ind.sma200 != null ? "$" + ind.sma200.toFixed(2) + vsPrice(ind.sma200) : "-"],
-                                  ["EMA 20-day",  ind.ema20  != null ? "$" + ind.ema20.toFixed(2)  + vsPrice(ind.ema20)  : "-"],
-                                  ["RSI (14)",    ind.rsi14  != null ? ind.rsi14.toFixed(2) + (ind.rsi14 > 70 ? " -- Overbought" : ind.rsi14 < 30 ? " -- Oversold" : " -- Neutral") : "-"],
+                                  ["SMA 50-day",    ind.sma50   != null ? "$" + ind.sma50.toFixed(2)   + vsPrice(ind.sma50)   : "-"],
+                                  ["SMA 200-day",   ind.sma200  != null ? "$" + ind.sma200.toFixed(2)  + vsPrice(ind.sma200)  : "-"],
+                                  ["EMA 20-day",    ind.ema20   != null ? "$" + ind.ema20.toFixed(2)   + vsPrice(ind.ema20)   : "-"],
+                                  ["Weekly SMA 10", ind.wsma10  != null ? "$" + ind.wsma10.toFixed(2)  + vsPrice(ind.wsma10)  : "-"],
+                                  ["Weekly SMA 40", ind.wsma40  != null ? "$" + ind.wsma40.toFixed(2)  + vsPrice(ind.wsma40)  : "-"],
+                                  ["RSI (14)",      ind.rsi14   != null ? ind.rsi14.toFixed(2) + (ind.rsi14 > 70 ? " -- Overbought" : ind.rsi14 < 30 ? " -- Oversold" : " -- Neutral") : "-"],
                                 ].map(function(row, i) {
                                   var isRsi = row[0].includes("RSI");
                                   var rsiColor = isRsi && ind.rsi14 != null ? (ind.rsi14 > 70 ? "#c03030" : ind.rsi14 < 30 ? "#1a6a1a" : "#b88000") : "#111";
@@ -1732,6 +1885,88 @@ function Detail({ sym, name, onBack }) {
                             </tbody>
                           </table>
                         ) : addlLoading ? null : <div style={{ color:"#aaa" }}>No dividend history found.</div>}
+
+                        <SectionTitle massive={true}>10-K Risk Factors (Latest Filing)</SectionTitle>
+                        {addlLoading ? (
+                          <div style={{ color:"#aaa", fontSize:12 }}>Loading...</div>
+                        ) : massiveInfo && massiveInfo.tenK && massiveInfo.tenK.riskFactors ? (
+                          <div>
+                            {massiveInfo.tenK.filingDate && <div style={{ fontSize:11, color:"#aaa", marginBottom:8 }}>Filing date: {massiveInfo.tenK.filingDate}</div>}
+                            <div style={{ fontSize:12, color:"#333", lineHeight:1.8, maxHeight:400, overflowY:"auto", padding:"10px 12px", background:"#f9f7f4", borderRadius:8, whiteSpace:"pre-wrap" }}>
+                              {massiveInfo.tenK.riskFactors.slice(0, 3000)}{massiveInfo.tenK.riskFactors.length > 3000 ? "..." : ""}
+                            </div>
+                          </div>
+                        ) : <div style={{ color:"#aaa" }}>Risk factors unavailable. Requires Massive.com Stocks Starter plan.</div>}
+
+                        <SectionTitle massive={true}>10-K Buffett Analysis (AI Summary)</SectionTitle>
+                        {addlLoading ? (
+                          <div style={{ color:"#aaa", fontSize:12 }}>Loading...</div>
+                        ) : massiveInfo && massiveInfo.tenK && (massiveInfo.tenK.business || massiveInfo.tenK.riskFactors) ? (function() {
+                          var [buffettSummary, setBuffettSummary] = [null, null];
+                          // Use insightCache for buffett summary
+                          var cacheKey = "buffett_" + sym;
+                          var cached = insightCache[cacheKey];
+                          if (!cached) {
+                            return (
+                              <div>
+                                <div style={{ fontSize:12, color:"#555", marginBottom:10 }}>Analyse this 10-K filing from a Warren Buffett perspective -- looking for durable competitive advantages, predictable earnings, strong management, and fair value.</div>
+                                <button onClick={function() {
+                                  setInsightCache(function(prev) {
+                                    var next = Object.assign({}, prev);
+                                    next[cacheKey] = "loading";
+                                    return next;
+                                  });
+                                  var bizText   = (massiveInfo.tenK.business    || "").slice(0, 2000);
+                                  var riskText  = (massiveInfo.tenK.riskFactors || "").slice(0, 1500);
+                                  fetch("/anthropic", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      model: "claude-haiku-4-5-20251001",
+                                      max_tokens: 900,
+                                      messages: [{ role: "user", content: "You are Warren Buffett analysing a 10-K annual report. For stock " + sym + ", based on the following 10-K excerpts, provide a Buffett-style investment analysis covering: 1. Business Quality (is the business simple and understandable?) 2. Competitive Moat (durable advantages?) 3. Management Quality (evidence from the filing) 4. Financial Strength (any red flags?) 5. Key Risks (from risk factors) 6. Buffett Verdict: Would Buffett buy, hold, or avoid this stock and why? Be concise and direct.
+
+BUSINESS SECTION:
+" + bizText + "
+
+RISK FACTORS:
+" + riskText }]
+                                    })
+                                  }).then(function(r) { return r.json(); })
+                                    .then(function(d) {
+                                      var text = d && d.content && d.content[0] && d.content[0].text;
+                                      setInsightCache(function(prev) {
+                                        var next = Object.assign({}, prev);
+                                        next[cacheKey] = text || "Analysis unavailable.";
+                                        return next;
+                                      });
+                                    }).catch(function() {
+                                      setInsightCache(function(prev) {
+                                        var next = Object.assign({}, prev);
+                                        next[cacheKey] = "Analysis failed. Please try again.";
+                                        return next;
+                                      });
+                                    });
+                                }} style={{ padding:"8px 18px", background:"#111", color:"#c8f000", border:"none", borderRadius:6, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
+                                  Generate Buffett Analysis
+                                </button>
+                              </div>
+                            );
+                          }
+                          if (cached === "loading") {
+                            return (
+                              <div style={{ textAlign:"center", padding:"20px 0" }}>
+                                <div style={{ fontSize:12, color:"#888", marginBottom:10 }}>Generating Buffett-style analysis...</div>
+                                <div style={{ display:"inline-block", width:22, height:22, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
+                              </div>
+                            );
+                          }
+                          return (
+                            <div style={{ fontSize:13, color:"#333", lineHeight:1.85, padding:"12px 14px", background:"#f9f7f4", borderRadius:8, borderLeft:"3px solid #c8f000" }}>
+                              {cached}
+                            </div>
+                          );
+                        })() : <div style={{ color:"#aaa" }}>10-K data required. Available with Massive.com Stocks Starter plan.</div>}
 
                         <SectionTitle massive={true}>Stock Splits</SectionTitle>
                         {massiveInfo && massiveInfo.splits && massiveInfo.splits.length > 0 ? (
