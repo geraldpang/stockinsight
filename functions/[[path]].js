@@ -96,6 +96,10 @@ export async function onRequest(context) {
         fetch(BASE + "/v1/indicators/rsi/" + sym + "?timespan=day&adjusted=true&window=14&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v1/indicators/macd/" + sym + "?timespan=day&adjusted=true&short_window=12&long_window=26&signal_window=9&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v2/last/trade/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=week&adjusted=true&window=10&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=week&adjusted=true&window=40&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/stocks/filings/10-K/vX/sections?ticker=" + sym + "&section=business&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/stocks/filings/10-K/vX/sections?ticker=" + sym + "&section=risk_factors&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
       ]);
 
       var newsData     = results[0];
@@ -108,8 +112,12 @@ export async function onRequest(context) {
       var sma200Data   = results[7];
       var ema20Data    = results[8];
       var rsiData      = results[9];
-      var macdData     = results[10];
-      var lastTradeData= results[11];
+      var macdData      = results[10];
+      var lastTradeData = results[11];
+      var wsma10Data    = results[12];
+      var wsma40Data    = results[13];
+      var tenKBizData   = results[14];
+      var tenKRiskData  = results[15];
 
       function indVal(d) {
         return d && d.results && d.results.values && d.results.values[0] ? d.results.values[0].value : null;
@@ -139,11 +147,18 @@ export async function onRequest(context) {
           change:    snap.todaysChangePerc != null ? snap.todaysChangePerc : null,
         } : null,
         indicators: {
-          sma50:  indVal(sma50Data),
-          sma200: indVal(sma200Data),
-          ema20:  indVal(ema20Data),
-          rsi14:  indVal(rsiData),
-          macd:   macdVals(macdData),
+          sma50:   indVal(sma50Data),
+          sma200:  indVal(sma200Data),
+          ema20:   indVal(ema20Data),
+          rsi14:   indVal(rsiData),
+          macd:    macdVals(macdData),
+          wsma10:  indVal(wsma10Data),
+          wsma40:  indVal(wsma40Data),
+        },
+        tenK: {
+          business:    tenKBizData  && tenKBizData.results  && tenKBizData.results[0]  ? tenKBizData.results[0].text   : null,
+          riskFactors: tenKRiskData && tenKRiskData.results && tenKRiskData.results[0] ? tenKRiskData.results[0].text  : null,
+          filingDate:  tenKBizData  && tenKBizData.results  && tenKBizData.results[0]  ? tenKBizData.results[0].filing_date : null,
         },
         lastTrade: lastTradeData && lastTradeData.results ? {
           price:  lastTradeData.results.p,
