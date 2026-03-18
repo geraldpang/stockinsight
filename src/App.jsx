@@ -359,7 +359,7 @@ function Detail({ sym, name, onBack }) {
     });
 
     // Auto-generate all 4 AI insight tabs in parallel
-    var aiTabs = ["moat", "financial", "technical"];
+    var aiTabs = ["moat", "financial"];
     aiTabs.forEach(function(tabId) {
       var prompts = {
         moat: "You are a professional equity research analyst. Analyze the economic moat of " + sym + " (" + (NAMES[sym]||sym) + ") using only well-known business fundamentals and observable financial indicators. Do not fabricate statistics or unsupported claims. Most companies do not have strong moats - scores of 4 or 5 should be rare.\n\nReturn results in EXACTLY this format:\n\nNetwork Effects: X/5\nAssessment Criteria: The product or platform becomes more valuable as more users join.\nResult: One sentence explaining the score.\n\nSwitching Costs: X/5\nAssessment Criteria: Customers face difficulty, cost, or disruption when changing to competitors.\nResult: One sentence explaining the score.\n\nCost Advantage: X/5\nAssessment Criteria: The company can operate at lower cost or higher efficiency than competitors.\nResult: One sentence explaining the score.\n\nIntangible Assets: X/5\nAssessment Criteria: Brand, patents, intellectual property, regulatory licenses, or proprietary technology.\nResult: One sentence explaining the score.\n\nEfficient Scale: X/5\nAssessment Criteria: The market only supports a few profitable players due to high barriers to entry.\nResult: One sentence explaining the score.\n\nEcosystem Lock-in: X/5\nAssessment Criteria: Customers rely on multiple integrated products or services within the company ecosystem.\nResult: One sentence explaining the score.\n\nEconomic Moat Rating: X / 5\n\nExplanation (maximum 100 words): Summarize the main competitive advantages. Focus only on the most important moat drivers. Only assign 4-5 if advantages are clear, durable, and supported by financial performance.",
@@ -711,8 +711,8 @@ function Detail({ sym, name, onBack }) {
             var moatScore   = moatParsed.score          || 0;
             var finRating   = finParsed.classification  || null;
             var finScore    = finParsed.score           || 0;
-            var techRating  = techParsed.rating         || null;
-            var techScore   = techParsed.score          || 0;
+            var techRating  = null;
+            var techScore   = 0;
             var ivLabel       = vals.length > 0 ? (parseFloat(oracle) > price ? "Undervalued" : "Overvalued") : null;
             var ivColors      = ivLabel ? pillColor(ivLabel) : pillColor(null);
             var moatColors    = moatRating  ? pillColor(moatRating)  : pillColor(null);
@@ -743,7 +743,47 @@ function Detail({ sym, name, onBack }) {
                   <Card label="Economic Moat"    value={moatRating}  score={moatScore}  colors={moatColors} />
                   <Card label="Financial Strength" value={finRating} score={finScore}   colors={finColors} />
                   <Card label="Intrinsic Value"  value={vals.length > 0 ? "$" + oracle : null} score={0} sublabel={ivLabel} colors={ivColors} />
-                  <Card label="Technical Rating" value={techRating}  score={techScore}  colors={techColors} />
+                  {(function() {
+                    var ind2 = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
+                    var agg2 = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
+                    var p2   = q ? q.price : 0;
+                    var hi2  = ov ? ov.hi52 : 0; var lo2 = ov ? ov.lo52 : 0;
+                    var pos2 = (hi2 - lo2) > 0 ? (p2 - lo2) / (hi2 - lo2) : 0.5;
+                    var vol5b  = agg2.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(agg2.slice(0,5).length,1);
+                    var vol20b = agg2.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(agg2.slice(0,20).length,1);
+                    var vr2 = vol20b > 0 ? vol5b/vol20b : 1;
+                    if (!ind2 || !p2) return <Card label="Market Signal" value={null} score={0} colors={pillColor(null)} />;
+                    function sc2(key) {
+                      var wsmaG = ind2.wsma10 && ind2.wsma40 ? (ind2.wsma10-ind2.wsma40)/ind2.wsma40*100 : 0;
+                      var s200g = ind2.sma200 ? (p2-ind2.sma200)/ind2.sma200*100 : 0;
+                      var crsG  = ind2.sma50 && ind2.sma200 ? (ind2.sma50-ind2.sma200)/ind2.sma200*100 : 0;
+                      var ema2g = ind2.ema20 ? (p2-ind2.ema20)/ind2.ema20*100 : 0;
+                      var r2 = ind2.rsi14; var h2 = ind2.macd ? ind2.macd.histogram : null;
+                      if (key==="wsma")   return !ind2.wsma10||!ind2.wsma40?3:wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
+                      if (key==="sma200") return !ind2.sma200?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
+                      if (key==="cross")  return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
+                      if (key==="pos52")  return pos2>0.80?5:pos2>0.55?4:pos2>0.35?3:pos2>0.15?2:1;
+                      if (key==="rsi")    return !r2?3:(r2>=50&&r2<=75)?5:(r2>=40&&r2<50)?4:(r2>=30&&r2<40||r2>75)?3:(r2>=20&&r2<30)?2:1;
+                      if (key==="macd")   return !h2?3:h2>0.05?5:h2>0?4:h2>-0.05?3:h2>-0.5?2:1;
+                      if (key==="ema20")  return !ind2.ema20?3:ema2g>5?5:ema2g>1?4:ema2g>-5?3:ema2g>-15?2:1;
+                      if (key==="vol")    return vr2>1.4?5:vr2>1.1?4:vr2>0.9?3:vr2>0.7?2:1;
+                      return 3;
+                    }
+                    var W2={wsma:25,sma200:15,cross:10,pos52:5,rsi:20,macd:15,ema20:5,vol:5};
+                    var keys2=["wsma","sma200","cross","pos52","rsi","macd","ema20","vol"];
+                    var base2=0; keys2.forEach(function(k){base2+=(sc2(k)/5)*W2[k];});
+                    base2=Math.round(base2);
+                    var macdH2=ind2&&ind2.macdHistory||[]; var mT2=macdH2.length>=3&&macdH2[0]&&macdH2[1]&&macdH2[2]&&macdH2[0].histogram<0&&macdH2[0].histogram>macdH2[1].histogram&&macdH2[1].histogram>macdH2[2].histogram;
+                    var rsiH2=ind2&&ind2.rsiHistory||[]; var rsiB2=rsiH2.length>=3&&rsiH2.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;});
+                    var lb2=pos2<0.20&&ind2.rsi14!=null&&ind2.rsi14>20&&ind2.rsi14<45;
+                    var rev2=[mT2,rsiB2,lb2].filter(Boolean).length;
+                    var bonus2=base2<50?Math.min(rev2*4,12):0;
+                    var final2=Math.min(base2+bonus2,base2<50?49:100);
+                    var vl2=final2>=70?"Strong Bullish":final2>=55?"Bullish":final2>=40?"Neutral":final2>=25?"Bearish":"Strong Bearish";
+                    var showRW=rev2>=2&&final2<50;
+                    var sigLabel2=vl2+(showRW?" + Reversal Watch":"")+" ("+final2+")";
+                    return <Card label="Market Signal" value={sigLabel2} score={0} sublabel={null} colors={pillColor(vl2)} />;
+                  })()}
                   {(function() {
                     var ind2 = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
                     var p2   = q ? q.price : 0;
