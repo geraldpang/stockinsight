@@ -1520,6 +1520,145 @@ function Detail({ sym, name, onBack }) {
                         ) : <div style={{ color:"#aaa" }}>Financial data loading...</div>}
 
                         {/* MASSIVE SECTION */}
+                        <SectionTitle massive={true}>Market Snapshot</SectionTitle>
+                        {addlLoading ? (
+                          <div style={{ color:"#aaa", fontSize:12 }}>Loading...</div>
+                        ) : massiveInfo && massiveInfo.snapshot ? (function() {
+                          var s = massiveInfo.snapshot;
+                          var up = s.change >= 0;
+                          return (
+                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:7, marginBottom:4 }}>
+                              {[
+                                ["Open",       s.open      != null ? "$" + s.open.toFixed(2)      : "-"],
+                                ["High",       s.high      != null ? "$" + s.high.toFixed(2)      : "-"],
+                                ["Low",        s.low       != null ? "$" + s.low.toFixed(2)       : "-"],
+                                ["Close",      s.close     != null ? "$" + s.close.toFixed(2)     : "-"],
+                                ["VWAP",       s.vwap      != null ? "$" + s.vwap.toFixed(2)      : "-"],
+                                ["Volume",     s.volume    != null ? s.volume.toLocaleString()     : "-"],
+                                ["Prev Close", s.prevClose != null ? "$" + s.prevClose.toFixed(2) : "-"],
+                                ["Change %",   s.change    != null ? (up ? "+" : "") + s.change.toFixed(2) + "%" : "-"],
+                              ].map(function(row, i) {
+                                var isChange = row[0] === "Change %";
+                                return (
+                                  <div key={i} style={{ background:"#f0f3ff", borderRadius:8, padding:"8px 10px" }}>
+                                    <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
+                                    <div style={{ fontSize:13, fontWeight:700, color: isChange ? (up ? "#1a6a1a" : "#c03030") : "#111" }}>{row[1]}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })() : <div style={{ color:"#aaa" }}>Snapshot unavailable.</div>}
+
+                        <SectionTitle massive={true}>Technical Indicators</SectionTitle>
+                        {addlLoading ? (
+                          <div style={{ color:"#aaa", fontSize:12 }}>Loading...</div>
+                        ) : massiveInfo && massiveInfo.indicators ? (function() {
+                          var ind = massiveInfo.indicators;
+                          var price = q ? q.price : 0;
+                          function vsPrice(v) {
+                            if (!v || !price) return "";
+                            return price > v ? " (price above)" : " (price below)";
+                          }
+                          var macd = ind.macd;
+                          return (
+                            <div>
+                              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7, marginBottom:8 }}>
+                                {[
+                                  ["SMA 50-day",  ind.sma50  != null ? "$" + ind.sma50.toFixed(2)  + vsPrice(ind.sma50)  : "-"],
+                                  ["SMA 200-day", ind.sma200 != null ? "$" + ind.sma200.toFixed(2) + vsPrice(ind.sma200) : "-"],
+                                  ["EMA 20-day",  ind.ema20  != null ? "$" + ind.ema20.toFixed(2)  + vsPrice(ind.ema20)  : "-"],
+                                  ["RSI (14)",    ind.rsi14  != null ? ind.rsi14.toFixed(2) + (ind.rsi14 > 70 ? " -- Overbought" : ind.rsi14 < 30 ? " -- Oversold" : " -- Neutral") : "-"],
+                                ].map(function(row, i) {
+                                  var isRsi = row[0].includes("RSI");
+                                  var rsiColor = isRsi && ind.rsi14 != null ? (ind.rsi14 > 70 ? "#c03030" : ind.rsi14 < 30 ? "#1a6a1a" : "#b88000") : "#111";
+                                  return (
+                                    <div key={i} style={{ background:"#f0f3ff", borderRadius:8, padding:"8px 10px" }}>
+                                      <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
+                                      <div style={{ fontSize:12, fontWeight:700, color: isRsi ? rsiColor : "#111" }}>{row[1]}</div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              {macd && (
+                                <div style={{ background:"#f0f3ff", borderRadius:8, padding:"10px 12px" }}>
+                                  <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:6 }}>MACD (12/26/9)</div>
+                                  <div style={{ display:"flex", gap:16 }}>
+                                    {[
+                                      ["MACD Line",  macd.macd      != null ? macd.macd.toFixed(4)      : "-"],
+                                      ["Signal",     macd.signal    != null ? macd.signal.toFixed(4)    : "-"],
+                                      ["Histogram",  macd.histogram != null ? macd.histogram.toFixed(4) : "-"],
+                                    ].map(function(r, i) {
+                                      var isHist = r[0] === "Histogram";
+                                      var histColor = isHist && macd.histogram != null ? (macd.histogram > 0 ? "#1a6a1a" : "#c03030") : "#111";
+                                      return (
+                                        <div key={i}>
+                                          <div style={{ fontSize:10, color:"#888" }}>{r[0]}</div>
+                                          <div style={{ fontSize:13, fontWeight:700, color: isHist ? histColor : "#111" }}>{r[1]}</div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })() : <div style={{ color:"#aaa" }}>Technical indicators unavailable.</div>}
+
+                        <SectionTitle massive={true}>Last Trade</SectionTitle>
+                        {massiveInfo && massiveInfo.lastTrade ? (function() {
+                          var lt = massiveInfo.lastTrade;
+                          var tradeTime = lt.time ? new Date(lt.time).toLocaleTimeString() : "-";
+                          return (
+                            <div style={{ display:"flex", gap:10 }}>
+                              {[
+                                ["Price",  lt.price != null ? "$" + lt.price.toFixed(2) : "-"],
+                                ["Size",   lt.size  != null ? lt.size.toLocaleString() + " shares" : "-"],
+                                ["Time",   tradeTime],
+                              ].map(function(row, i) {
+                                return (
+                                  <div key={i} style={{ flex:1, background:"#f0f3ff", borderRadius:8, padding:"8px 10px" }}>
+                                    <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
+                                    <div style={{ fontSize:13, fontWeight:700, color:"#111" }}>{row[1]}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })() : addlLoading ? null : <div style={{ color:"#aaa" }}>Last trade unavailable.</div>}
+
+                        <SectionTitle massive={true}>Price History (Last 30 Days)</SectionTitle>
+                        {massiveInfo && massiveInfo.aggs && massiveInfo.aggs.length > 0 ? (
+                          <div style={{ overflowX:"auto" }}>
+                            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                              <thead>
+                                <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
+                                  {["Date","Open","High","Low","Close","Volume","VWAP"].map(function(h) {
+                                    return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600, textAlign: h==="Date" ? "left" : "right" }}>{h}</td>;
+                                  })}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {massiveInfo.aggs.map(function(bar, i) {
+                                  var date = new Date(bar.t).toISOString().slice(0,10);
+                                  var up   = bar.c >= bar.o;
+                                  return (
+                                    <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                      <td style={{ padding:"4px 8px", fontWeight:600 }}>{date}</td>
+                                      <td style={{ padding:"4px 8px", textAlign:"right", color:"#888" }}>${bar.o.toFixed(2)}</td>
+                                      <td style={{ padding:"4px 8px", textAlign:"right", color:"#1a6a1a" }}>${bar.h.toFixed(2)}</td>
+                                      <td style={{ padding:"4px 8px", textAlign:"right", color:"#c03030" }}>${bar.l.toFixed(2)}</td>
+                                      <td style={{ padding:"4px 8px", textAlign:"right", fontWeight:700, color: up ? "#1a6a1a" : "#c03030" }}>${bar.c.toFixed(2)}</td>
+                                      <td style={{ padding:"4px 8px", textAlign:"right", color:"#888" }}>{(bar.v / 1e6).toFixed(1)}M</td>
+                                      <td style={{ padding:"4px 8px", textAlign:"right", color:"#555" }}>{bar.vw ? "$" + bar.vw.toFixed(2) : "-"}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : addlLoading ? <div style={{ color:"#aaa", fontSize:12 }}>Loading price history...</div> : <div style={{ color:"#aaa" }}>Price history unavailable.</div>}
+
                         <SectionTitle massive={true}>Company News</SectionTitle>
                         {addlLoading ? (
                           <div style={{ color:"#aaa", fontSize:12 }}>Loading Massive.com data...</div>
