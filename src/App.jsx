@@ -370,9 +370,13 @@ function Detail({ sym, name, onBack }) {
     fetch("/massive?sym=" + sym)
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        debugEntries.push({ time: new Date().toISOString(), label: "Massive response received", data: data });
-        if (data && !data.error) setMassiveInfo(data);
-        else debugEntries.push({ time: new Date().toISOString(), label: "Massive error", data: data });
+        debugEntries.push({ time: new Date().toISOString(), label: "Massive response received", data: { newsCount: data && data.news ? data.news.length : 0, tickerName: data && data.ticker ? data.ticker.name : null, debug: data && data._debug } });
+        // Set massiveInfo if we got any useful data back
+        if (data && (data.news || data.ticker || data.dividends)) {
+          setMassiveInfo(data);
+        } else {
+          debugEntries.push({ time: new Date().toISOString(), label: "Massive data empty or error", data: data });
+        }
         setDebugLog(function(prev) { return prev.concat(debugEntries); });
         setAddlLoading(false);
       }).catch(function(e) {
