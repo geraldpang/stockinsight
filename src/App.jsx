@@ -1434,6 +1434,69 @@ function Detail({ sym, name, onBack }) {
                           </table>
                         ) : <div style={{ color:"#aaa" }}>Earnings history unavailable.</div>}
 
+                        <SectionTitle>Key Financial Metrics</SectionTitle>
+                        {ov ? (
+                          <div>
+                            {[
+                              { group: "Valuation", rows: [
+                                ["P/E Ratio (TTM)",          ov.pe        > 0  ? ov.pe.toFixed(2)        : "-"],
+                                ["Forward P/E",              ov.fpe       > 0  ? ov.fpe.toFixed(2)       : "-"],
+                                ["PEG Ratio",                ov.peg       > 0  ? ov.peg.toFixed(2)       : "-"],
+                                ["Price / Sales (TTM)",      ov.ps        > 0  ? ov.ps.toFixed(2)        : "-"],
+                                ["Price / Book",             ov.pb        > 0  ? ov.pb.toFixed(2)        : "-"],
+                                ["EV / EBITDA",              ov.evEbitda  > 0  ? ov.evEbitda.toFixed(2)  : "-"],
+                                ["Price / FCF",              ov.pFcf      > 0  ? ov.pFcf.toFixed(2)      : "-"],
+                                ["Dividend Yield",           ov.divY      > 0  ? ov.divY.toFixed(2) + "%" : "-"],
+                              ]},
+                              { group: "Profitability", rows: [
+                                ["Gross Margin",             ov.grossMargin  ? ov.grossMargin.toFixed(2)  + "%" : "-"],
+                                ["Operating Margin",         ov.opMargin     ? ov.opMargin.toFixed(2)     + "%" : "-"],
+                                ["Net Profit Margin",        ov.netMargin    ? ov.netMargin.toFixed(2)    + "%" : "-"],
+                                ["Return on Equity (ROE)",   ov.roe          ? ov.roe.toFixed(2)          + "%" : "-"],
+                                ["Return on Assets (ROA)",   ov.roic         ? ov.roic.toFixed(2)         + "%" : "-"],
+                              ]},
+                              { group: "Growth", rows: [
+                                ["EPS Growth (TTM)",         ov.epsG      ? ov.epsG.toFixed(2)      + "%" : "-"],
+                                ["Revenue Growth YoY",       ov.revGrowth ? ov.revGrowth.toFixed(2) + "%" : "-"],
+                                ["LT EPS Growth (5yr Est.)", ov.ltG       ? ov.ltG.toFixed(2)       + "%" : "-"],
+                              ]},
+                              { group: "Financial Health", rows: [
+                                ["Current Ratio",            ov.currentRatio > 0 ? ov.currentRatio.toFixed(2) : "-"],
+                                ["Quick Ratio",              ov.quickRatio   > 0 ? ov.quickRatio.toFixed(2)   : "-"],
+                                ["Debt / Equity",            ov.de           > 0 ? ov.de.toFixed(2)           : "-"],
+                                ["Free Cash Flow",           ov.fcf          || "-"],
+                                ["Net Income (TTM)",         ov.netIncome    || "-"],
+                                ["Revenue (TTM)",            ov.revenue      || "-"],
+                              ]},
+                              { group: "Market Data", rows: [
+                                ["Market Cap",               ov.marketCap || "-"],
+                                ["Beta",                     ov.beta > 0 ? ov.beta.toFixed(2) : "-"],
+                                ["52-Week High",             ov.hi52 > 0 ? "$" + ov.hi52.toFixed(2) : "-"],
+                                ["52-Week Low",              ov.lo52 > 0 ? "$" + ov.lo52.toFixed(2) : "-"],
+                                ["Shares Outstanding",       ov.sharesOut > 0 ? (ov.sharesOut / 1e9).toFixed(3) + "B" : "-"],
+                              ]},
+                            ].map(function(section, si) {
+                              return (
+                                <div key={si} style={{ marginBottom:16 }}>
+                                  <div style={{ fontSize:10, fontWeight:700, color:"#c8f000", background:"#1a1a14", padding:"3px 8px", borderRadius:4, display:"inline-block", marginBottom:8, letterSpacing:"0.06em" }}>{section.group}</div>
+                                  <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                                    <tbody>
+                                      {section.rows.map(function(row, ri) {
+                                        return (
+                                          <tr key={ri} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                            <td style={{ padding:"5px 8px", fontSize:12, color:"#888", width:"55%" }}>{row[0]}</td>
+                                            <td style={{ padding:"5px 8px", fontSize:13, fontWeight:600, color:"#111", textAlign:"right" }}>{row[1]}</td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : <div style={{ color:"#aaa" }}>Financial data loading...</div>}
+
                         {/* MASSIVE SECTION */}
                         <SectionTitle massive={true}>Company News</SectionTitle>
                         {addlLoading ? (
