@@ -75,7 +75,7 @@ export async function onRequest(context) {
 
       return new Response(JSON.stringify({
         news:      newsData     && newsData.results     ? newsData.results      : [],
-        ticker:    tickerData   && tickerData.results   ? tickerData.results    : (tickerData && tickerData.result ? tickerData.result : null),
+        ticker:    tickerData   && tickerData.results   ? tickerData.results    : null,
         dividends: dividendData && dividendData.results ? dividendData.results  : [],
         splits:    splitsData   && splitsData.results   ? splitsData.results    : [],
       }), { headers: {"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
