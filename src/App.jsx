@@ -1924,13 +1924,7 @@ function Detail({ sym, name, onBack }) {
                                     body: JSON.stringify({
                                       model: "claude-haiku-4-5-20251001",
                                       max_tokens: 900,
-                                      messages: [{ role: "user", content: "You are Warren Buffett analysing a 10-K annual report. For stock " + sym + ", based on the following 10-K excerpts, provide a Buffett-style investment analysis covering: 1. Business Quality (is the business simple and understandable?) 2. Competitive Moat (durable advantages?) 3. Management Quality (evidence from the filing) 4. Financial Strength (any red flags?) 5. Key Risks (from risk factors) 6. Buffett Verdict: Would Buffett buy, hold, or avoid this stock and why? Be concise and direct.
-
-BUSINESS SECTION:
-" + bizText + "
-
-RISK FACTORS:
-" + riskText }]
+                                      messages: [{ role: "user", content: "You are Warren Buffett analysing a 10-K. For " + sym + ", analyse: 1. Business Quality 2. Competitive Moat 3. Management Quality 4. Financial Strength 5. Key Risks 6. Buffett Verdict (buy/hold/avoid and why). Be concise.\n\nBUSINESS SECTION:\n" + bizText + "\n\nRISK FACTORS:\n" + riskText }]
                                     })
                                   }).then(function(r) { return r.json(); })
                                     .then(function(d) {
