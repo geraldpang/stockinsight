@@ -220,6 +220,7 @@ function Detail({ sym, name, onBack }) {
   const [addlInfo,      setAddlInfo]      = useState(null);
   const [addlLoading,   setAddlLoading]   = useState(false);
   const [massiveInfo,   setMassiveInfo]   = useState(null);
+  const [debugLog,      setDebugLog]      = useState([]);
 
   function parseAndStoreInsight(tabId, text) {
     if (!text) return;
@@ -280,7 +281,7 @@ function Detail({ sym, name, onBack }) {
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
 
     getQuote(sym).then(function(res) {
       if (res) { setQ(res); setMsg(""); }
@@ -290,8 +291,15 @@ function Detail({ sym, name, onBack }) {
     });
 
     getOverview(sym).then(function(res) {
-      if (res) setOv(res);
-    }).catch(function() {});
+      if (res) {
+        setOv(res);
+        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary OK", data: { modules: "summaryDetail,financialData,assetProfile,earningsTrend,recommendationTrend,upgradeDowngradeHistory,balanceSheetHistory,earningsHistory,calendarEvents", recBuy: res.recBuy, recHold: res.recHold, recSell: res.recSell, earningsQ: (res.earningsQ || []).length, nextEarnings: res.nextEarnings } }]); });
+      } else {
+        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary returned null" }]); });
+      }
+    }).catch(function(e) {
+      setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary error", data: { error: String(e) } }]); });
+    });
 
     // Auto-generate all 4 AI insight tabs in parallel
     var aiTabs = ["moat", "financial", "technical"];
@@ -357,12 +365,21 @@ function Detail({ sym, name, onBack }) {
 
     // Fetch Massive.com data (news + ticker reference + dividends + splits)
     setAddlLoading(true);
+    var debugEntries = [];
+    debugEntries.push({ time: new Date().toISOString(), label: "Fetching /massive?sym=" + sym });
     fetch("/massive?sym=" + sym)
       .then(function(r) { return r.json(); })
       .then(function(data) {
+        debugEntries.push({ time: new Date().toISOString(), label: "Massive response received", data: data });
         if (data && !data.error) setMassiveInfo(data);
+        else debugEntries.push({ time: new Date().toISOString(), label: "Massive error", data: data });
+        setDebugLog(function(prev) { return prev.concat(debugEntries); });
         setAddlLoading(false);
-      }).catch(function() { setAddlLoading(false); });
+      }).catch(function(e) {
+        debugEntries.push({ time: new Date().toISOString(), label: "Massive fetch failed", data: { error: e.message } });
+        setDebugLog(function(prev) { return prev.concat(debugEntries); });
+        setAddlLoading(false);
+      });
 
   }, [sym]);
 
@@ -875,6 +892,7 @@ function Detail({ sym, name, onBack }) {
               { id:"financial", label:"Financial Strength" },
               { id:"technical", label:"Technical Analysis" },
               { id:"addlinfo",  label:"Additional Information" },
+              { id:"debug",    label:"Debug" },
             ];
 
             function handleTab(id) {
@@ -1600,6 +1618,114 @@ function Detail({ sym, name, onBack }) {
                   })()}
 
                 </div>
+                  {/* Debug Tab */}
+                  {insightTab === "debug" && (function() {
+                    var envChecks = [
+                      { key: "ANTHROPIC_KEY", note: "Required for AI tabs (Moat, Financial, Technical)" },
+                      { key: "MASSIVE_KEY",   note: "Required for Company News, Reference, Dividends, Splits" },
+                      { key: "FINNHUB_KEY",   note: "Optional - not currently used" },
+                      { key: "FMP_KEY",       note: "Optional - Financial Modeling Prep" },
+                      { key: "AV_KEY",        note: "Optional - Alpha Vantage" },
+                    ];
+                    return (
+                      <div style={{ fontSize:12 }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:"#111", marginBottom:12 }}>Debug Panel -- {sym}</div>
+
+                        {/* API Endpoint Status */}
+                        <div style={{ fontWeight:700, color:"#555", fontSize:11, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>Quick Links -- test in browser</div>
+                        <div style={{ display:"flex", flexDirection:"column", gap:5, marginBottom:16 }}>
+                          {[
+                            { label: "Yahoo Quote",       url: "/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + sym + "?interval=1d&range=1d") },
+                            { label: "Yahoo quoteSummary",url: "/proxy?url=" + encodeURIComponent("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym + "?modules=summaryDetail,financialData") },
+                            { label: "Massive /massive",  url: "/massive?sym=" + sym },
+                            { label: "Anthropic /anthropic (POST)", url: null },
+                          ].map(function(item, i) {
+                            return (
+                              <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", background:"#f5f2ec", borderRadius:6 }}>
+                                <span style={{ fontSize:11, fontWeight:600, color:"#555", width:180, flexShrink:0 }}>{item.label}</span>
+                                {item.url ? (
+                                  <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:"#0044cc", wordBreak:"break-all" }}>{item.url}</a>
+                                ) : (
+                                  <span style={{ fontSize:11, color:"#aaa" }}>POST only -- use browser DevTools</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Cloudflare Env Vars */}
+                        <div style={{ fontWeight:700, color:"#555", fontSize:11, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>Cloudflare Environment Variables</div>
+                        <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:16 }}>
+                          <thead>
+                            <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
+                              {["Variable","Purpose","Check"].map(function(h) { return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600, fontSize:11 }}>{h}</td>; })}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {envChecks.map(function(e, i) {
+                              return (
+                                <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                  <td style={{ padding:"5px 8px", fontWeight:700, fontFamily:"monospace", color:"#111" }}>{e.key}</td>
+                                  <td style={{ padding:"5px 8px", color:"#888" }}>{e.note}</td>
+                                  <td style={{ padding:"5px 8px" }}>
+                                    <a href={"https://stock.colaboree.com/massive?sym=" + sym} target="_blank" rel="noopener noreferrer" style={{ fontSize:10, color:"#0044cc" }}>
+                                      {e.key === "MASSIVE_KEY" ? "Test ->" : ""}
+                                    </a>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+
+                        {/* State Snapshot */}
+                        <div style={{ fontWeight:700, color:"#555", fontSize:11, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>Current State</div>
+                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:16 }}>
+                          {[
+                            ["Quote loaded",      q ? "YES" : "NO",       q ? "#1a6a1a" : "#c03030"],
+                            ["Overview loaded",   ov ? "YES" : "NO",      ov ? "#1a6a1a" : "#c03030"],
+                            ["EPS History",       epsHistory ? epsHistory.length + " rows" : "null", epsHistory ? "#1a6a1a" : "#c03030"],
+                            ["Massive data",      massiveInfo ? "YES (news:" + (massiveInfo.news ? massiveInfo.news.length : 0) + ")" : "null", massiveInfo ? "#1a6a1a" : "#c03030"],
+                            ["Moat insight",      insightCache["moat"]     ? "YES" : "pending", insightCache["moat"]     ? "#1a6a1a" : "#888"],
+                            ["Financial insight", insightCache["financial"] ? "YES" : "pending", insightCache["financial"] ? "#1a6a1a" : "#888"],
+                            ["Technical insight", insightCache["technical"] ? "YES" : "pending", insightCache["technical"] ? "#1a6a1a" : "#888"],
+                            ["Addl loading",      addlLoading ? "YES" : "NO", addlLoading ? "#b88000" : "#1a6a1a"],
+                          ].map(function(row, i) {
+                            return (
+                              <div key={i} style={{ padding:"6px 10px", background:"#f9f7f4", borderRadius:6, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                                <span style={{ color:"#888", fontSize:11 }}>{row[0]}</span>
+                                <span style={{ fontWeight:700, fontSize:12, color:row[2] }}>{row[1]}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Event Log */}
+                        <div style={{ fontWeight:700, color:"#555", fontSize:11, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>Event Log</div>
+                        {debugLog.length === 0 ? (
+                          <div style={{ color:"#aaa", fontSize:12 }}>No events logged yet. Switch to another tab and come back.</div>
+                        ) : (
+                          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                            {debugLog.map(function(entry, i) {
+                              return (
+                                <div key={i} style={{ background:"#1a1a14", borderRadius:6, padding:"8px 12px" }}>
+                                  <div style={{ fontSize:10, color:"#7abd00", marginBottom:4 }}>{entry.time} -- {entry.label}</div>
+                                  {entry.data && (
+                                    <pre style={{ fontSize:10, color:"#c8f000", margin:0, whiteSpace:"pre-wrap", wordBreak:"break-all", maxHeight:200, overflowY:"auto" }}>{JSON.stringify(entry.data, null, 2)}</pre>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <div style={{ marginTop:14, padding:"8px 12px", background:"#fff8e6", borderRadius:6, fontSize:11, color:"#854F0B" }}>
+                          Remove or hide this tab before going to production.
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                 <div style={{ padding:"6px 16px", background:"#faf8f4", borderTop:"1px solid #f0ede6", fontSize:10, color:"#ccc" }}>
                   AI analysis by Claude (Anthropic). For informational purposes only. Not financial advice.
                 </div>
