@@ -38,6 +38,19 @@ export async function onRequest(context) {
 
   try {
 
+    // Only handle specific API routes -- pass everything else to the React app
+    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps"];
+    var isApiRoute  = false;
+    for (var ri = 0; ri < knownRoutes.length; ri++) {
+      if (url.pathname === knownRoutes[ri] || url.pathname.startsWith(knownRoutes[ri] + "?")) {
+        isApiRoute = true;
+        break;
+      }
+    }
+    if (!isApiRoute) {
+      return context.next();
+    }
+
     if (context.request.method === "OPTIONS") {
       return new Response(null, {
         headers: {
