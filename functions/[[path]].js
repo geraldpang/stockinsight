@@ -62,34 +62,91 @@ export async function onRequest(context) {
       var BASE = "https://api.polygon.io";
       var HDR  = { "User-Agent": UA };
 
+      // Date helpers
+      var today     = new Date();
+      var toDate    = today.toISOString().slice(0,10);
+      var fromDate  = new Date(today.getTime() - 730 * 86400000).toISOString().slice(0,10);
+      var from1yr   = new Date(today.getTime() - 365 * 86400000).toISOString().slice(0,10);
+
       var results = await Promise.all([
+        // Existing
         fetch(BASE + "/v2/reference/news?ticker=" + sym + "&limit=10&order=desc&sort=published_utc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/vX/reference/tickers/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v3/reference/dividends?ticker=" + sym + "&limit=10&order=desc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v3/reference/splits?ticker=" + sym + "&order=desc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        // New endpoints
+        fetch(BASE + "/v2/aggs/ticker/" + sym + "/range/1/day/" + from1yr + "/" + toDate + "?adjusted=true&sort=desc&limit=365&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v2/snapshot/locale/us/markets/stocks/tickers/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=day&adjusted=true&window=50&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=day&adjusted=true&window=200&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/ema/" + sym + "?timespan=day&adjusted=true&window=20&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/rsi/" + sym + "?timespan=day&adjusted=true&window=14&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/macd/" + sym + "?timespan=day&adjusted=true&short_window=12&long_window=26&signal_window=9&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v2/last/trade/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
       ]);
 
       var newsData     = results[0];
       var tickerData   = results[1];
       var dividendData = results[2];
       var splitsData   = results[3];
+      var aggsData     = results[4];
+      var snapData     = results[5];
+      var sma50Data    = results[6];
+      var sma200Data   = results[7];
+      var ema20Data    = results[8];
+      var rsiData      = results[9];
+      var macdData     = results[10];
+      var lastTradeData= results[11];
 
-      // Include raw responses for debugging if data missing
-      var tickerResult = tickerData && tickerData.results ? tickerData.results : null;
+      function indVal(d) {
+        return d && d.results && d.results.values && d.results.values[0] ? d.results.values[0].value : null;
+      }
+      function macdVals(d) {
+        if (!d || !d.results || !d.results.values || !d.results.values[0]) return null;
+        var v = d.results.values[0];
+        return { macd: v.value, signal: v.signal, histogram: v.histogram };
+      }
+
+      var snap = snapData && snapData.ticker ? snapData.ticker : null;
 
       return new Response(JSON.stringify({
         news:      newsData     && newsData.results     ? newsData.results     : [],
-        ticker:    tickerResult,
+        ticker:    tickerData   && tickerData.results   ? tickerData.results   : null,
         dividends: dividendData && dividendData.results ? dividendData.results : [],
         splits:    splitsData   && splitsData.results   ? splitsData.results   : [],
+        aggs:      aggsData     && aggsData.results     ? aggsData.results.slice(0, 30) : [],
+        snapshot: snap ? {
+          open:      snap.day  ? snap.day.o  : null,
+          high:      snap.day  ? snap.day.h  : null,
+          low:       snap.day  ? snap.day.l  : null,
+          close:     snap.day  ? snap.day.c  : null,
+          volume:    snap.day  ? snap.day.v  : null,
+          vwap:      snap.day  ? snap.day.vw : null,
+          prevClose: snap.prevDay ? snap.prevDay.c : null,
+          change:    snap.todaysChangePerc != null ? snap.todaysChangePerc : null,
+        } : null,
+        indicators: {
+          sma50:  indVal(sma50Data),
+          sma200: indVal(sma200Data),
+          ema20:  indVal(ema20Data),
+          rsi14:  indVal(rsiData),
+          macd:   macdVals(macdData),
+        },
+        lastTrade: lastTradeData && lastTradeData.results ? {
+          price:  lastTradeData.results.p,
+          size:   lastTradeData.results.s,
+          time:   lastTradeData.results.t,
+        } : null,
         _debug: {
-          newsStatus:     newsData     ? (newsData.status     || "ok") : "null",
-          tickerStatus:   tickerData   ? (tickerData.status   || "ok") : "null",
-          divStatus:      dividendData ? (dividendData.status || "ok") : "null",
-          splitStatus:    splitsData   ? (splitsData.status   || "ok") : "null",
-          newsError:      newsData     && newsData.error,
-          tickerError:    tickerData   && tickerData.error,
-          newsCount:      newsData     && newsData.results ? newsData.results.length : 0,
+          newsCount:    newsData     && newsData.results     ? newsData.results.length    : 0,
+          aggsCount:    aggsData     && aggsData.results     ? aggsData.results.length    : 0,
+          snapshotOk:   snap != null,
+          sma50:        indVal(sma50Data),
+          rsi14:        indVal(rsiData),
+          newsStatus:   newsData  ? (newsData.status  || "ok") : "null",
+          snapStatus:   snapData  ? (snapData.status  || "ok") : "null",
+          aggsStatus:   aggsData  ? (aggsData.status  || "ok") : "null",
+          indStatus:    rsiData   ? (rsiData.status   || "ok") : "null",
         },
       }), { headers: {"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
     }
