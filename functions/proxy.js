@@ -3,8 +3,9 @@ export async function onRequest(context) {
   const target = url.searchParams.get("url");
   const UA     = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-  async function getYahooCrumb() {
-    const homeRes = await fetch("https://finance.yahoo.com/quote/AAPL/", {
+  async function getYahooCrumb(sym) {
+    var quoteUrl = sym ? "https://finance.yahoo.com/quote/" + sym + "/" : "https://finance.yahoo.com/";
+    const homeRes = await fetch(quoteUrl, {
       headers: {
         "User-Agent":      UA,
         "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -134,7 +135,8 @@ export async function onRequest(context) {
     }
 
     if (target.includes("quoteSummary") || target.includes("fundamentals-timeseries")) {
-      const { crumb, cookies } = await getYahooCrumb();
+      var symForCrumb = target ? (target.match(/[?&/]([A-Z]{1,5})[?&/]/) || [])[1] || null : null;
+      const { crumb, cookies } = await getYahooCrumb(symForCrumb);
       if (!crumb || crumb.includes("{")) {
         return new Response(JSON.stringify({ error: "Could not obtain Yahoo crumb" }), {
           status: 502,
