@@ -819,12 +819,15 @@ function Detail({ sym, name, onBack }) {
 
                   {(function() {
                     var aiP = null; try { aiP = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null; } catch(e) { aiP = null; }
-                    if (!aiP || !aiP.verdict) return <Card label="AI Insight" value={insightLoading?"Generating...":null} score={0} colors={pillColor(null)} />;
+                    if (!aiP || !aiP.verdict) return <Card label="AI Insight" value={insightLoading?"Generating...":"-"} score={0} colors={pillColor(null)} />;
                     var vl = aiP.verdict;
-                    var vColAI = vl==="Strong Buy"?"#1a6a1a":vl==="Buy"?"#2a7a2a":vl==="Hold"?"#b88000":vl==="Avoid"?"#c03030":"#8b0000";
-                    var vBgAI  = vl==="Strong Buy"||vl==="Buy"?"#EAF3DE":vl==="Hold"?"#FAEEDA":"#FCEBEB";
-                    var vBdAI  = vl==="Strong Buy"||vl==="Buy"?"#7abd00":vl==="Hold"?"#d4a800":"#e08080";
-                    return <Card label="AI Insight" value={vl} score={0} sublabel={aiP.confidence?"Conf: "+aiP.confidence:null} colors={pillColor(vl)} />;
+                    var aiDots = aiP.dots || 3;
+                    var aiC = vl==="Strong Buy"  ? {bg:"#EAF3DE",border:"#7abd00", text:"#1a6a1a",dot:"#1a6a1a",dotE:"#c8e8c0"}
+                            : vl==="Buy"         ? {bg:"#EAF3DE",border:"#97C459", text:"#2a7a2a",dot:"#2a7a2a",dotE:"#c8e8c0"}
+                            : vl==="Hold"        ? {bg:"#FAEEDA",border:"#d4a800", text:"#b88000",dot:"#b88000",dotE:"#faeeda"}
+                            : vl==="Avoid"       ? {bg:"#FCEBEB",border:"#e08080", text:"#c03030",dot:"#c03030",dotE:"#f5c0c0"}
+                            :                      {bg:"#FCEBEB",border:"#c03030", text:"#8b0000",dot:"#8b0000",dotE:"#f5c0c0"};
+                    return <Card label="AI Insight" value={vl} score={aiDots} sublabel={aiP.confidence?"Conf: "+aiP.confidence:null} colors={aiC} />;
                   })()}                  
                 </div>
 
@@ -891,13 +894,13 @@ function Detail({ sym, name, onBack }) {
                       <div style={{ marginTop:8, padding:"9px 12px", background:bg3, borderRadius:8, border:"0.5px solid "+border3 }}>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                            {pulse3 && <span style={{ width:7, height:7, borderRadius:"50%", background:pulse3, display:"inline-block", flexShrink:0 }} />}
+                            {pulse3 && <span style={{ width:7, height:7, borderRadius:"50%", background:pulse3, flexShrink:0, display:"inline-block" }} />}
                             <span style={{ fontSize:10, fontWeight:600, color:label3Col, textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Detector</span>
                           </div>
                           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                             {verdict3
-                              ? <span style={{ fontSize:11, fontWeight:700, color:label3Col, background:border3+"33", padding:"2px 9px", borderRadius:20, border:"0.5px solid "+border3 }}>{verdict3}</span>
-                              : <span style={{ fontSize:11, color:label3Col, opacity:0.6 }}>No signals active</span>
+                              ? <span style={{ fontSize:11, fontWeight:700, color:label3Col, background:dotFilled3+"33", padding:"2px 9px", borderRadius:20, border:"0.5px solid "+border3 }}>{verdict3}</span>
+                              : <span style={{ fontSize:11, color:label3Col, opacity:0.5 }}>No signals</span>
                             }
                             <span style={{ display:"inline-flex", gap:3 }}>
                               {revArr3.map(function(active, i) {
@@ -906,7 +909,7 @@ function Detail({ sym, name, onBack }) {
                             </span>
                           </div>
                         </div>
-                        {sub3 && <div style={{ marginTop:6, paddingTop:6, borderTop:"0.5px solid "+border3+"66", fontSize:11, color:label3Col, lineHeight:1.6 }}>{sub3}</div>}
+                        {sub3 && <div style={{ marginTop:6, paddingTop:6, borderTop:"0.5px solid "+border3+"44", fontSize:11, color:label3Col, lineHeight:1.6 }}>{sub3}</div>}
                       </div>
                     );
                   })()}
@@ -1230,7 +1233,7 @@ function Detail({ sym, name, onBack }) {
                 </div>
 
                 {/* Tab content */}
-                <div style={{ padding:"20px 22px", background:"#fff", minHeight:200 }}>
+                <div style={{ padding:"20px 22px", background:"#fff" }}>
 
                   {/* Intrinsic Value tab - show existing valuation chart */}
                   {insightTab === "intrinsic" && (
