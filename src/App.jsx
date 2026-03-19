@@ -725,10 +725,10 @@ function Detail({ sym, name, onBack }) {
               var v = (text+"").toLowerCase().replace(/[^a-z ]/g,"").trim();
               if (v.includes("strong buy"))                                                        return { bg:"#EAF3DE", fg:"#1a6a1a", border:"#7abd00", dot:"#1a6a1a", dotEmpty:"#c8e8c0" };
               if (v.includes("strong avoid"))                                                      return { bg:"#FCEBEB", fg:"#8b0000", border:"#c03030", dot:"#8b0000", dotEmpty:"#f5c0c0" };
-              if (v === "buy" || v.startsWith("buy") || v.includes("wide") || v.includes("strong bullish"))               return { bg:"#EAF3DE", fg:"#2a7a2a", border:"#97C459", dot:"#2a7a2a", dotEmpty:"#c8e8c0" };
+              if (v === "buy" || v.startsWith("buy") || v === "strong" || v.startsWith("strong") || v.includes("wide") || v.includes("strong bullish"))               return { bg:"#EAF3DE", fg:"#2a7a2a", border:"#97C459", dot:"#2a7a2a", dotEmpty:"#c8e8c0" };
               if (v.includes("avoid"))                                                             return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#c03030", dotEmpty:"#f5c0c0" };
               if (v.includes("narrow") || v.includes("moderate") || v.includes("bullish"))        return { bg:"#f0f7e6", fg:"#2a7a2a", border:"#9ab800", dot:"#2a7a2a", dotEmpty:"#c8e8c0" };
-              if (v.includes("neutral") || v.includes("fairly") || v === "hold")                  return { bg:"#FAEEDA", fg:"#b88000", border:"#d4a800", dot:"#b88000", dotEmpty:"#f5ddb0" };
+              if (v.includes("neutral") || v.includes("fairly") || v === "hold" || v.startsWith("hold"))                  return { bg:"#FAEEDA", fg:"#b88000", border:"#d4a800", dot:"#b88000", dotEmpty:"#f5ddb0" };
               if (v.includes("none") || v.includes("weak") || v.includes("bearish") || v.includes("overvalued")) return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#c03030", dotEmpty:"#f5c0c0" };
               return { bg:"#f5f2ec", fg:"#555", border:"#ccc", dot:"#aaa", dotEmpty:"#e0e0e0" };
             }
@@ -896,11 +896,13 @@ function Detail({ sym, name, onBack }) {
                     }
 
                     return (
-                      <div style={{ marginTop:8, padding:"9px 12px", background:bg3, borderRadius:8, border:"0.5px solid "+border3 }}>
+                      <div style={{ marginTop:12 }}>
+                      <div style={{ fontSize:9, fontWeight:600, color:"var(--color-text-tertiary)", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5 }}>Reversal Indicator</div>
+                      <div style={{ padding:"9px 12px", background:bg3, borderRadius:8, border:"0.5px solid "+border3 }}>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                             {pulse3 && <span style={{ width:7, height:7, borderRadius:"50%", background:pulse3, flexShrink:0, display:"inline-block" }} />}
-                            <span style={{ fontSize:10, fontWeight:600, color:label3Col, textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Detector</span>
+                            <span style={{ fontSize:10, fontWeight:600, color:label3Col, textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Indicator</span>
                           </div>
                           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                             {verdict3
@@ -916,6 +918,7 @@ function Detail({ sym, name, onBack }) {
                         </div>
                         {sub3 && <div style={{ marginTop:6, paddingTop:6, borderTop:"0.5px solid "+border3+"44", fontSize:11, color:label3Col, lineHeight:1.6 }}>{sub3}</div>}
                       </div>
+                    </div>
                     );
                   })()}
               </div>
