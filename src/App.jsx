@@ -779,6 +779,7 @@ function Detail({ sym, name, onBack }) {
                 <div style={{ fontSize:10, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:600, marginBottom:7 }}>Analysis Summary</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
                   <Card label="Economic Moat"    value={moatRating}  score={moatScore}  colors={moatColors} />
+                  {(function(){ window.__moatDots=moatScore; window.__finDots=finScore; return null; })()}
                   <Card label="Financial Strength" value={finRating} score={finScore}   colors={finColors} />
                   {(function(){
                     var ivVal = vals.length > 0 ? "$" + oracle : null;
@@ -836,6 +837,9 @@ function Detail({ sym, name, onBack }) {
                     var showRW=rev2>=2&&final2<50;
                     var sigLabel2=vl2+(showRW?" + Reversal Watch":"")+" ("+final2+")";
                     var msDots=final2>=70?5:final2>=55?4:final2>=40?3:final2>=25?2:1;
+                    // Store for star rating access
+                    if (typeof window.__msDots === "undefined" || window.__msDots !== msDots) window.__msDots = msDots;
+                    if (typeof window.__msScore === "undefined" || window.__msScore !== final2) window.__msScore = final2;
                     return <Card label="Market Signal" value={sigLabel2} score={msDots} sublabel={null} colors={pillColor(vl2)} />;
                   })()}
 
@@ -982,8 +986,8 @@ function Detail({ sym, name, onBack }) {
             // Gather scores from all available sources -- recompute locally
             var mP2    = parsedInsights["moat"]      || {};
             var fP2    = parsedInsights["financial"]  || {};
-            var ms2    = mP2.score  || 0;  // 1-5 from MOAT analysis
-            var fs2    = fP2.score  || 0;  // 1-5 from Financial analysis
+            var ms2    = (typeof window.__moatDots !== 'undefined') ? window.__moatDots : (mP2.score||0);
+            var fs2    = (typeof window.__finDots  !== 'undefined') ? window.__finDots  : (fP2.score||0);
 
             // IV dots: Undervalued=5, Overvalued=2, null=0
             var price2x2 = q ? q.price : 0;
@@ -1021,7 +1025,7 @@ function Detail({ sym, name, onBack }) {
             if (sma50x&&sma200x) { msProxy += sma50x>sma200x?1:0; msCount++; }
             if (rsi2x!=null) { msProxy += rsi2x>=50&&rsi2x<=75?1:rsi2x>=40?0.5:0; msCount++; }
             var msScore2 = msCount>0 ? Math.round((msProxy/msCount)*4)+1 : 3;
-            var msD2 = Math.max(1,Math.min(5,msScore2));
+            var msD2 = (typeof window.__msDots !== "undefined") ? window.__msDots : Math.max(1,Math.min(5,msScore2));
 
             // AI Insight dots
             var aiP2  = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null;
