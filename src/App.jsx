@@ -926,6 +926,127 @@ function Detail({ sym, name, onBack }) {
             );
           })()}
 
+          {/* Overall Investment Rating */}
+          {(function() {
+            // Gather scores from all available sources
+            var mP2   = parsedInsights["moat"]      || {};
+            var fP2   = parsedInsights["financial"]  || {};
+            var ms2   = moatScore  || 0;  // 1-5 from MOAT analysis
+            var fs2   = finScore   || 0;  // 1-5 from Financial analysis
+
+            // IV dots: Undervalued=5, Overvalued=2, null=0
+            var ivD2  = ivLabel==="Undervalued"?5:ivLabel==="Overvalued"?2:0;
+
+            // Market Signal dots: read from insightCache via signal score
+            // We need to recompute from ind2 -- use ov and massiveInfo
+            var ind2x = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
+            var aggs2x = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
+            var price2x = q ? q.price : 0;
+            var vol5x  = aggs2x.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs2x.slice(0,5).length,1);
+            var vol20x = aggs2x.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs2x.slice(0,20).length,1);
+            var hi52x  = (ov||{}).hi52||0; var lo52x = (ov||{}).lo52||0;
+            var pos52x = (hi52x-lo52x)>0?(price2x-lo52x)/(hi52x-lo52x):0.5;
+            // Simple market signal proxy from available indicators
+            var rsi2x  = ind2x ? ind2x.rsi14 : null;
+            var sma50x = ind2x ? ind2x.sma50 : null;
+            var sma200x= ind2x ? ind2x.sma200: null;
+            var msProxy = 0; var msCount = 0;
+            if (sma50x&&sma200x&&price2x) { msProxy += price2x>sma200x?1:0; msCount++; }
+            if (sma50x&&sma200x) { msProxy += sma50x>sma200x?1:0; msCount++; }
+            if (rsi2x!=null) { msProxy += rsi2x>=50&&rsi2x<=75?1:rsi2x>=40?0.5:0; msCount++; }
+            var msScore2 = msCount>0 ? Math.round((msProxy/msCount)*4)+1 : 3;
+            var msD2 = Math.max(1,Math.min(5,msScore2));
+
+            // AI Insight dots
+            var aiP2  = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null;
+            var aiD2  = aiP2 ? (aiP2.dots||3) : 0;
+
+            // Reversal bonus dots
+            var ind3x = ind2x;
+            var rsiH3x = ind3x?(ind3x.rsiHistory||[]):[];
+            var macdH3x= ind3x?(ind3x.macdHistory||[]):[];
+            var ov3x   = ov||{};
+            var hi3x   = ov3x.hi52||0; var lo3x=ov3x.lo52||0;
+            var pos3x  = (hi3x>0&&hi3x-lo3x>0)?(price2x-lo3x)/(hi3x-lo3x):0.5;
+            var macdTx = (function(){
+              if(macdH3x.length<3) return false;
+              var h0=macdH3x[0]&&macdH3x[0].histogram,h1=macdH3x[1]&&macdH3x[1].histogram,h2=macdH3x[2]&&macdH3x[2].histogram;
+              return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2;
+            })();
+            var wCross = ind3x&&ind3x.wsma10&&ind3x.wsma40?(ind3x.wsma10<ind3x.wsma40&&Math.abs(ind3x.wsma10-ind3x.wsma40)/ind3x.wsma40<0.05):false;
+            var rBase  = rsiH3x.length>=3?rsiH3x.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;}):false;
+            var lBase  = pos3x<0.20&&ind3x&&ind3x.rsi14!=null&&ind3x.rsi14>20&&ind3x.rsi14<45;
+            var revC2  = [macdTx,wCross,rBase,lBase].filter(Boolean).length;
+            var revD2  = revC2>=4?5:revC2>=2?3:0;
+
+            //  Star calculation 
+            // Core inputs (each contributes up to 1 star): moat, financial, IV, marketSignal, AI
+            // Reversal is bonus (up to 1 star)
+            function toStar(dots) {
+              if (dots>=4) return 1;
+              if (dots===3) return 0.5;
+              return 0;
+            }
+            var coreInputs = [ms2, fs2, ivD2, msD2, aiD2].filter(function(d){return d>0;});
+            var coreStars  = coreInputs.length>0
+              ? coreInputs.reduce(function(s,d){return s+toStar(d);},0) / coreInputs.length * 5
+              : 0;
+            var bonusStar  = toStar(revD2);
+            var rawStars   = Math.min(5, coreStars + bonusStar * 0.5);
+            // Round to nearest 0.5
+            var starRating = Math.round(rawStars * 2) / 2;
+
+            // Render star display
+            function StarDisplay(props) {
+              var stars = [];
+              for (var i=1; i<=5; i++) {
+                var diff = props.rating - (i-1);
+                var fill = diff>=1?"full":diff>=0.5?"half":"empty";
+                stars.push(
+                  <span key={i} style={{fontSize:22,lineHeight:1,color:fill==="empty"?"#ddd":"#f5a623",display:"inline-block",marginRight:1}}>
+                    {fill==="full"?"\u2605":fill==="half"?"\u2BE8":"\u2606"}
+                  </span>
+                );
+              }
+              return <span>{stars}</span>;
+            }
+
+            var ratingLabel = starRating>=4.5?"Exceptional":starRating>=4?"Strong Buy":starRating>=3.5?"Buy":starRating>=3?"Hold":starRating>=2?"Caution":"Avoid";
+            var ratingCol   = starRating>=4?"#1a6a1a":starRating>=3?"#b88000":"#c03030";
+            var ratingBg    = starRating>=4?"#EAF3DE":starRating>=3?"#FAEEDA":"#FCEBEB";
+            var ratingBd    = starRating>=4?"#7abd00":starRating>=3?"#d4a800":"#e08080";
+
+            return (
+              <div style={{ marginTop:14, padding:"12px 14px", background:ratingBg, borderRadius:10, border:"0.5px solid "+ratingBd }}>
+                <div style={{ fontSize:9, fontWeight:700, color:ratingCol, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Overall Investment Rating</div>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                  <div>
+                    <StarDisplay rating={starRating} />
+                    <div style={{ fontSize:11, color:ratingCol, marginTop:3, fontWeight:600 }}>{ratingLabel} &nbsp;&nbsp; {starRating.toFixed(1)} / 5.0</div>
+                  </div>
+                  <div style={{ textAlign:"right" }}>
+                    <div style={{ display:"grid", gridTemplateColumns:"auto auto", gap:"2px 10px", fontSize:10, color:ratingCol }}>
+                      {[
+                        ["Moat",       ms2],
+                        ["Financial",  fs2],
+                        ["Value",      ivD2],
+                        ["Signal",     msD2],
+                        ["AI Insight", aiD2],
+                        ["Reversal",   revD2, true],
+                      ].filter(function(r){return r[1]>0;}).map(function(r,i){
+                        return [
+                          <span key={"l"+i} style={{opacity:0.8}}>{r[0]}{r[2]?" *":""}</span>,
+                          <span key={"v"+i} style={{fontWeight:700}}>{r[1]>=4?"".slice(0,r[1]):r[1]>=3?"":""}</span>
+                        ];
+                      })}
+                    </div>
+                    {revD2>0&&<div style={{fontSize:9,color:ratingCol,opacity:0.7,marginTop:3}}>* reversal bonus</div>}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Valuation Section */}
           <div style={{ background:"#fff", border:"1px solid #e0dbd0", borderRadius:12, padding:"16px", marginBottom:12 }}>
             <div style={{ fontSize:12, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Valuation</div>
@@ -3386,9 +3507,6 @@ export default function App() {
           })}
         </div>
 
-        <div style={{ marginTop:18, fontSize:12, color:"#6a6460" }}>Live data via Yahoo Finance</div>
-      </div>
-
-    </div>
+            </div>
   );
 }
