@@ -888,14 +888,17 @@ function Detail({ sym, name, onBack }) {
                     }
 
                     return (
-                      <div style={{ background:bg3, borderRadius:8, padding:"10px 14px", border:"0.5px solid "+border3, marginTop:8 }}>
+                      <div style={{ marginTop:8, padding:"9px 12px", background:bg3, borderRadius:8, border:"0.5px solid "+border3 }}>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                             {pulse3 && <span style={{ width:7, height:7, borderRadius:"50%", background:pulse3, display:"inline-block", flexShrink:0 }} />}
-                            <span style={{ fontSize:10, fontWeight:700, color:label3Col, textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Detector</span>
+                            <span style={{ fontSize:10, fontWeight:600, color:label3Col, textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Detector</span>
                           </div>
-                          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                            {verdict3 && <span style={{ fontSize:11, fontWeight:700, color:label3Col }}>{verdict3}</span>}
+                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                            {verdict3
+                              ? <span style={{ fontSize:11, fontWeight:700, color:label3Col, background:border3+"33", padding:"2px 9px", borderRadius:20, border:"0.5px solid "+border3 }}>{verdict3}</span>
+                              : <span style={{ fontSize:11, color:label3Col, opacity:0.6 }}>No signals active</span>
+                            }
                             <span style={{ display:"inline-flex", gap:3 }}>
                               {revArr3.map(function(active, i) {
                                 return <span key={i} style={{ width:8, height:8, borderRadius:"50%", background:active?dotFilled3:dotEmpty3, display:"inline-block" }} />;
@@ -903,7 +906,7 @@ function Detail({ sym, name, onBack }) {
                             </span>
                           </div>
                         </div>
-                        {sub3 && <div style={{ marginTop:7, paddingTop:7, borderTop:"0.5px solid "+border3, fontSize:11, color:label3Col, lineHeight:1.65 }}>{sub3}</div>}
+                        {sub3 && <div style={{ marginTop:6, paddingTop:6, borderTop:"0.5px solid "+border3+"66", fontSize:11, color:label3Col, lineHeight:1.6 }}>{sub3}</div>}
                       </div>
                     );
                   })()}
