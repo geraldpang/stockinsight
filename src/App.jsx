@@ -278,16 +278,17 @@ function parseAiInsight(text) {
     return 3;
   }
   function m(re) { var r = text.match(re); return r ? r[1].trim() : null; }
-  var verdict = m(/Overall Verdict:\s*(.+)/);
+  function clean(s){ return s ? s.replace(/\*\*/g,"").replace(/\*/g,"").trim() : s; }
+  var verdict = clean(m(/Overall Verdict:\s*(.+)/));
   return {
     body:        text,
     verdict:     verdict,
     dots:        vd(verdict),
-    confidence:  m(/Confidence:\s*(.+)/),
-    horizon:     m(/Horizon:\s*(.+)/),
-    risk:        m(/Key Risk:\s*(.+)/),
-    opportunity: m(/Key Opportunity:\s*(.+)/),
-    summary:     m(/AI Insight Summary[^:]*:\s*([\s\S]+)/),
+    confidence:  clean(m(/Confidence:\s*(.+)/)),
+    horizon:     clean(m(/Horizon:\s*(.+)/)),
+    risk:        clean(m(/Key Risk:\s*(.+)/)),
+    opportunity: clean(m(/Key Opportunity:\s*(.+)/)),
+    summary:     clean(m(/AI Insight Summary[^:]*:\s*([\s\S]+)/)),
     fundScore:   m(/Fundamental:\s*([\d.]+)\/5/) ? parseFloat(m(/Fundamental:\s*([\d.]+)\/5/)) : null,
     techScore:   m(/Technical:\s*([\d.]+)\/5/)   ? parseFloat(m(/Technical:\s*([\d.]+)\/5/))   : null,
     sentScore:   m(/Sentiment:\s*([\d.]+)\/5/)   ? parseFloat(m(/Sentiment:\s*([\d.]+)\/5/))   : null,
