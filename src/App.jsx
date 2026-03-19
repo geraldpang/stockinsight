@@ -928,14 +928,29 @@ function Detail({ sym, name, onBack }) {
 
           {/* Overall Investment Rating */}
           {(function() {
-            // Gather scores from all available sources
-            var mP2   = parsedInsights["moat"]      || {};
-            var fP2   = parsedInsights["financial"]  || {};
-            var ms2   = moatScore  || 0;  // 1-5 from MOAT analysis
-            var fs2   = finScore   || 0;  // 1-5 from Financial analysis
+            // Gather scores from all available sources -- recompute locally
+            var mP2    = parsedInsights["moat"]      || {};
+            var fP2    = parsedInsights["financial"]  || {};
+            var ms2    = mP2.score  || 0;  // 1-5 from MOAT analysis
+            var fs2    = fP2.score  || 0;  // 1-5 from Financial analysis
 
             // IV dots: Undervalued=5, Overvalued=2, null=0
-            var ivD2  = ivLabel==="Undervalued"?5:ivLabel==="Overvalued"?2:0;
+            var price2x2 = q ? q.price : 0;
+            var oracle2  = (function() {
+              var ov2x = ov || {};
+              var vals2x = [];
+              var eps0x = ov2x.epsForward || ov2x.epsTTM || 0;
+              if (eps0x > 0) {
+                var g = Math.min(ov2x.ltGrowth || 0.08, 0.25);
+                var d = 0.09;
+                var total = 0; var fcf = eps0x;
+                for (var y = 1; y <= 10; y++) { fcf *= (1+g); total += fcf/Math.pow(1+d,y); }
+                total += fcf*12/Math.pow(1+d,10);
+                vals2x.push(Math.round(total*10)/10);
+              }
+              return vals2x.length > 0 ? vals2x[0] : 0;
+            })();
+            var ivD2 = oracle2 > 0 ? (oracle2 > price2x2 ? 5 : 2) : 0;
 
             // Market Signal dots: read from insightCache via signal score
             // We need to recompute from ind2 -- use ov and massiveInfo
