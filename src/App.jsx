@@ -776,6 +776,31 @@ function Detail({ sym, name, onBack }) {
             }
             return (
               <div style={{ marginBottom:16 }}>
+                {(function() {
+                  var sr = window.__starRating  || 0;
+                  var sl = window.__ratingLabel || "";
+                  var sc = window.__ratingCol   || "#888";
+                  if (!sr) return null;
+                  var starSpans = [];
+                  for (var i=1;i<=5;i++){
+                    var diff=sr-(i-1);
+                    var col=diff>=0.5?"#f5a623":"#d8d3ca";
+                    var op=diff>=0.5&&diff<1?0.5:1;
+                    starSpans.push(<span key={i} style={{fontSize:20,color:col,opacity:op,lineHeight:1,display:"inline-block"}}>{diff>=0.5?"":""}</span>);
+                  }
+                  return (
+                    <div>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                        <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Overall Investment Rating</span>
+                        <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                          <span style={{ display:"inline-flex" }}>{starSpans}</span>
+                          <span style={{ fontSize:12, fontWeight:500, color:sc }}>{sl}&nbsp;&nbsp;{sr.toFixed(1)}&nbsp;/&nbsp;5.0</span>
+                        </div>
+                      </div>
+                      <div style={{ height:"0.5px", background:"var(--color-border-tertiary)", marginBottom:8 }} />
+                    </div>
+                  );
+                })()}
                 <div style={{ fontSize:10, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:600, marginBottom:7 }}>Analysis Summary</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
                   <Card label="Economic Moat"    value={moatRating}  score={moatScore}  colors={moatColors} />
@@ -1088,35 +1113,11 @@ function Detail({ sym, name, onBack }) {
             var ratingBg    = starRating>=4?"#EAF3DE":starRating>=3?"#FAEEDA":"#FCEBEB";
             var ratingBd    = starRating>=4?"#7abd00":starRating>=3?"#d4a800":"#e08080";
 
-            return (
-              <div style={{ marginTop:14, padding:"12px 14px", background:ratingBg, borderRadius:10, border:"0.5px solid "+ratingBd }}>
-                <div style={{ fontSize:9, fontWeight:700, color:ratingCol, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Overall Investment Rating</div>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                  <div>
-                    <StarDisplay rating={starRating} />
-                    <div style={{ fontSize:11, color:ratingCol, marginTop:3, fontWeight:600 }}>{ratingLabel} &nbsp;&nbsp; {starRating.toFixed(1)} / 5.0</div>
-                  </div>
-                  <div style={{ textAlign:"right" }}>
-                    <div style={{ display:"grid", gridTemplateColumns:"auto auto", gap:"2px 10px", fontSize:10, color:ratingCol }}>
-                      {[
-                        ["Moat",       ms2],
-                        ["Financial",  fs2],
-                        ["Value",      ivD2],
-                        ["Signal",     msD2],
-                        ["AI Insight", aiD2],
-                        ["Reversal",   revD2, true],
-                      ].filter(function(r){return r[1]>0;}).map(function(r,i){
-                        return [
-                          <span key={"l"+i} style={{opacity:0.8}}>{r[0]}{r[2]?" *":""}</span>,
-                          <span key={"v"+i} style={{fontWeight:700}}>{r[1]>=4?"High":r[1]>=3?"Mid":"Low"}</span>
-                        ];
-                      })}
-                    </div>
-                    {revD2>0&&<div style={{fontSize:9,color:ratingCol,opacity:0.7,marginTop:3}}>* reversal bonus</div>}
-                  </div>
-                </div>
-              </div>
-            );
+            // Store rating for display above Analysis Summary
+            window.__starRating  = starRating;
+            window.__ratingLabel = ratingLabel;
+            window.__ratingCol   = ratingCol;
+            return null;
           })()}
 
           {/* Valuation Section */}
