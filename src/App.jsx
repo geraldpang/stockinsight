@@ -780,7 +780,7 @@ function Detail({ sym, name, onBack }) {
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
                   <Card label="Economic Moat"    value={moatRating}  score={moatScore}  colors={moatColors} />
                   <Card label="Financial Strength" value={finRating} score={finScore}   colors={finColors} />
-                  (function(){
+                  {(function(){
                     var ivVal = vals.length > 0 ? "$" + oracle : null;
                     var ivScore = ivLabel==="Undervalued"?5:ivLabel==="Overvalued"?2:0;
                     var c = ivVal ? ivColors : pillColor(null);
@@ -795,7 +795,7 @@ function Detail({ sym, name, onBack }) {
                         {!loading && ivLabel && <div style={{ fontSize:10, color:c.fg, marginTop:3, opacity:0.85 }}>{ivLabel}</div>}
                       </div>
                     );
-                  })()
+                  })()}
                   {(function() {
                     var ind2 = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
                     var agg2 = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
