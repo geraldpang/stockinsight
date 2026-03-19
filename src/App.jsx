@@ -266,6 +266,17 @@ function VBar({ label, value, maxV, color, bold }) {
 // -- Detail page --------------------------------------------------------------
 function Detail({ sym, name, onBack }) {
   const [__err, set__err] = useState(null);
+
+  // Catch render errors via window.onerror
+  useEffect(function() {
+    var prev = window.onerror;
+    window.onerror = function(msg, src, line, col, err) {
+      set__err(err || new Error(msg + " (line " + line + ")"));
+      return true;
+    };
+    return function() { window.onerror = prev; };
+  }, []);
+
   const [q,        setQ]        = useState(null);
   const [ov,       setOv]       = useState(null);
   const [epsHistory, setEpsHistory] = useState(null);
@@ -3185,7 +3196,6 @@ function Detail({ sym, name, onBack }) {
       </div>
     </div>
   );
-  } catch(e) { if (!__err) set__err(e); return null; }
 }
 
 // -- Landing page -------------------------------------------------------------
@@ -3242,7 +3252,6 @@ export default function App() {
       </div>
     </div>
   );
-  try {
   return (
     <div style={{ minHeight:"100vh", background:BG, fontFamily:FONT, position:"relative", overflow:"hidden" }}>
 
