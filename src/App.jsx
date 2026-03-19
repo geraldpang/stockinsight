@@ -778,7 +778,7 @@ function Detail({ sym, name, onBack }) {
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
                   <Card label="Economic Moat"    value={moatRating}  score={moatScore}  colors={moatColors} />
                   <Card label="Financial Strength" value={finRating} score={finScore}   colors={finColors} />
-                  <Card label="Intrinsic Value"  value={vals.length > 0 ? "$" + oracle : null} score={0} sublabel={ivLabel} colors={ivColors} />
+                  <Card label="Intrinsic Value"  value={vals.length > 0 ? "$" + oracle : null} score={ivLabel==="Undervalued"?5:ivLabel==="Overvalued"?2:0} sublabel={ivLabel} colors={ivColors} />
                   {(function() {
                     var ind2 = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
                     var agg2 = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
@@ -818,7 +818,8 @@ function Detail({ sym, name, onBack }) {
                     var vl2=final2>=70?"Strong Bullish":final2>=55?"Bullish":final2>=40?"Neutral":final2>=25?"Bearish":"Strong Bearish";
                     var showRW=rev2>=2&&final2<50;
                     var sigLabel2=vl2+(showRW?" + Reversal Watch":"")+" ("+final2+")";
-                    return <Card label="Market Signal" value={sigLabel2} score={0} sublabel={null} colors={pillColor(vl2)} />;
+                    var msDots=final2>=70?5:final2>=55?4:final2>=40?3:final2>=25?2:1;
+                    return <Card label="Market Signal" value={sigLabel2} score={msDots} sublabel={null} colors={pillColor(vl2)} />;
                   })()}
 
                   {(function() {
@@ -898,28 +899,27 @@ function Detail({ sym, name, onBack }) {
 
                     return (
                       <div style={{ marginTop:12 }}>
-                      <div style={{ fontSize:9, fontWeight:600, color:"var(--color-text-tertiary)", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5 }}>Reversal Indicator</div>
-                      <div style={{ padding:"9px 12px", background:bg3, borderRadius:8, border:"0.5px solid "+border3 }}>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                            {pulse3 && <span style={{ width:7, height:7, borderRadius:"50%", background:pulse3, flexShrink:0, display:"inline-block" }} />}
-                            <span style={{ fontSize:10, fontWeight:600, color:label3Col, textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Indicator</span>
+                        <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Reversal Indicator</div>
+                        <div style={{ padding:"9px 12px", background:bg3, borderRadius:8, border:"0.5px solid "+border3 }}>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                              {pulse3 && <span style={{ width:7, height:7, borderRadius:"50%", background:pulse3, flexShrink:0, display:"inline-block" }} />}
+                              <span style={{ fontSize:10, fontWeight:600, color:label3Col, textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Indicator</span>
+                            </div>
+                            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                              <span style={{ fontSize:11, fontWeight:700, color:label3Col, background:isNone?"rgba(0,0,0,0.06)":dotFilled3+"33", padding:"2px 10px", borderRadius:20, border:"0.5px solid "+(isNone?"var(--color-border-tertiary)":border3) }}>
+                                {verdict3 || "No signals"}
+                              </span>
+                              <span style={{ display:"inline-flex", gap:3 }}>
+                                {revArr3.map(function(active, i) {
+                                  return <span key={i} style={{ width:8, height:8, borderRadius:"50%", background:active?dotFilled3:dotEmpty3, display:"inline-block" }} />;
+                                })}
+                              </span>
+                            </div>
                           </div>
-                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                            {verdict3
-                              ? <span style={{ fontSize:11, fontWeight:700, color:label3Col, background:dotFilled3+"33", padding:"2px 9px", borderRadius:20, border:"0.5px solid "+border3 }}>{verdict3}</span>
-                              : <span style={{ fontSize:11, color:label3Col, opacity:0.5 }}>No signals</span>
-                            }
-                            <span style={{ display:"inline-flex", gap:3 }}>
-                              {revArr3.map(function(active, i) {
-                                return <span key={i} style={{ width:8, height:8, borderRadius:"50%", background:active?dotFilled3:dotEmpty3, display:"inline-block" }} />;
-                              })}
-                            </span>
-                          </div>
+                          {sub3 && <div style={{ marginTop:6, paddingTop:6, borderTop:"0.5px solid "+border3+"44", fontSize:11, color:label3Col, lineHeight:1.6 }}>{sub3}</div>}
                         </div>
-                        {sub3 && <div style={{ marginTop:6, paddingTop:6, borderTop:"0.5px solid "+border3+"44", fontSize:11, color:label3Col, lineHeight:1.6 }}>{sub3}</div>}
                       </div>
-                    </div>
                     );
                   })()}
               </div>
