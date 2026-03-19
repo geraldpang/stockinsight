@@ -722,10 +722,10 @@ function Detail({ sym, name, onBack }) {
           {(function() {
             function pillColor(text) {
               if (!text) return { bg:"#f5f2ec", fg:"#888", border:"#ddd", dot:"#ccc", dotEmpty:"#e8e4dc" };
-              var v = text.toLowerCase();
+              var v = (text+"").toLowerCase().replace(/[^a-z ]/g,"").trim();
               if (v.includes("strong buy"))                                                        return { bg:"#EAF3DE", fg:"#1a6a1a", border:"#7abd00", dot:"#1a6a1a", dotEmpty:"#c8e8c0" };
               if (v.includes("strong avoid"))                                                      return { bg:"#FCEBEB", fg:"#8b0000", border:"#c03030", dot:"#8b0000", dotEmpty:"#f5c0c0" };
-              if (v === "buy" || v.includes("wide") || v.includes("strong bullish"))               return { bg:"#EAF3DE", fg:"#2a7a2a", border:"#97C459", dot:"#2a7a2a", dotEmpty:"#c8e8c0" };
+              if (v === "buy" || v.startsWith("buy") || v.includes("wide") || v.includes("strong bullish"))               return { bg:"#EAF3DE", fg:"#2a7a2a", border:"#97C459", dot:"#2a7a2a", dotEmpty:"#c8e8c0" };
               if (v.includes("avoid"))                                                             return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#c03030", dotEmpty:"#f5c0c0" };
               if (v.includes("narrow") || v.includes("moderate") || v.includes("bullish"))        return { bg:"#f0f7e6", fg:"#2a7a2a", border:"#9ab800", dot:"#2a7a2a", dotEmpty:"#c8e8c0" };
               if (v.includes("neutral") || v.includes("fairly") || v === "hold")                  return { bg:"#FAEEDA", fg:"#b88000", border:"#d4a800", dot:"#b88000", dotEmpty:"#f5ddb0" };
@@ -825,11 +825,13 @@ function Detail({ sym, name, onBack }) {
                     if (!aiP || !aiP.verdict) return <Card label="AI Insight" value={insightLoading?"Generating...":"-"} score={0} colors={pillColor(null)} />;
                     var vl = aiP.verdict;
                     var aiDots = aiP.dots || 3;
-                    var aiC = vl==="Strong Buy"  ? {bg:"#EAF3DE",border:"#7abd00", text:"#1a6a1a",dot:"#1a6a1a",dotE:"#c8e8c0"}
-                            : vl==="Buy"         ? {bg:"#EAF3DE",border:"#97C459", text:"#2a7a2a",dot:"#2a7a2a",dotE:"#c8e8c0"}
-                            : vl==="Hold"        ? {bg:"#FAEEDA",border:"#d4a800", text:"#b88000",dot:"#b88000",dotE:"#faeeda"}
-                            : vl==="Avoid"       ? {bg:"#FCEBEB",border:"#e08080", text:"#c03030",dot:"#c03030",dotE:"#f5c0c0"}
-                            :                      {bg:"#FCEBEB",border:"#c03030", text:"#8b0000",dot:"#8b0000",dotE:"#f5c0c0"};
+                    var vlc = vl ? vl.toLowerCase().replace(/[^a-z ]/g,"").trim() : "";
+                    var aiC = vlc==="strong buy"  ? {bg:"#EAF3DE",border:"#7abd00",fg:"#1a6a1a",dot:"#1a6a1a",dotEmpty:"#c8e8c0"}
+                            : vlc==="buy"         ? {bg:"#EAF3DE",border:"#97C459",fg:"#2a7a2a",dot:"#2a7a2a",dotEmpty:"#c8e8c0"}
+                            : vlc==="hold"        ? {bg:"#FAEEDA",border:"#d4a800",fg:"#b88000",dot:"#b88000",dotEmpty:"#faeeda"}
+                            : vlc==="avoid"       ? {bg:"#FCEBEB",border:"#e08080",fg:"#c03030",dot:"#c03030",dotEmpty:"#f5c0c0"}
+                            : vlc==="strong avoid" ? {bg:"#FCEBEB",border:"#c03030",fg:"#8b0000",dot:"#8b0000",dotEmpty:"#f5c0c0"}
+                            :                       {bg:"#f5f2ec",border:"#ddd",   fg:"#888",   dot:"#ccc",   dotEmpty:"#e8e4dc"};
                     return <Card label="AI Insight" value={vl} score={aiDots} sublabel={aiP.confidence?"Conf: "+aiP.confidence:null} colors={aiC} />;
                   })()}                  
                 </div>
@@ -3265,16 +3267,6 @@ export default function App() {
 
   const QUICK = ["AAPL","NVDA","TSLA","MSFT","GOOGL","AMZN"];
 
-  if (__err) return (
-    <div style={{minHeight:"100vh",background:"#0e0e0c",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:"#1a1a14",border:"1px solid #c8f000",borderRadius:12,padding:24,maxWidth:"90%",fontFamily:"monospace"}}>
-        <div style={{color:"#c8f000",fontWeight:700,fontSize:14,marginBottom:12}}>Runtime Error</div>
-        <div style={{color:"#ff6b6b",fontSize:12,marginBottom:8}}>{__err.message||__err.toString()}</div>
-        <pre style={{color:"#aaa",fontSize:10,whiteSpace:"pre-wrap",lineHeight:1.5,overflow:"auto",maxHeight:400}}>{__err.stack}</pre>
-        <button onClick={()=>set__err(null)} style={{marginTop:12,padding:"6px 16px",background:"#c8f000",color:"#111",border:"none",borderRadius:6,cursor:"pointer",fontWeight:700}}>Dismiss</button>
-      </div>
-    </div>
-  );
   return (
     <div style={{ minHeight:"100vh", background:BG, fontFamily:FONT, position:"relative", overflow:"hidden" }}>
 
