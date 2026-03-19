@@ -877,9 +877,9 @@ function Detail({ sym, name, onBack }) {
 
                     var bg3, border3, label3Col, pulse3, verdict3, dotFilled3, dotEmpty3, sub3;
                     if (isNone) {
-                      bg3="var(--color-background-secondary)"; border3="var(--color-border-tertiary)";
-                      label3Col="var(--color-text-tertiary)"; pulse3=null; verdict3=null;
-                      dotFilled3="#D3D1C7"; dotEmpty3="rgba(211,209,199,0.3)"; sub3=null;
+                      bg3="#f5f4f0"; border3="#d8d5ce";
+                      label3Col="#999"; pulse3=null; verdict3=null;
+                      dotFilled3="#C8C5BE"; dotEmpty3="rgba(200,197,190,0.3)"; sub3=null;
                     } else if (isEarly) {
                       bg3="#fdf5e6"; border3="#FAC775";
                       label3Col="#854F0B"; pulse3="#EF9F27"; verdict3="Early Signal";
@@ -907,7 +907,7 @@ function Detail({ sym, name, onBack }) {
                               <span style={{ fontSize:10, fontWeight:600, color:label3Col, textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Indicator</span>
                             </div>
                             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                              <span style={{ fontSize:11, fontWeight:700, color:label3Col, background:isNone?"rgba(0,0,0,0.06)":dotFilled3+"33", padding:"2px 10px", borderRadius:20, border:"0.5px solid "+(isNone?"var(--color-border-tertiary)":border3) }}>
+                              <span style={{ fontSize:11, fontWeight:600, color:label3Col, background:isNone?"#e8e6e0":dotFilled3+"33", padding:"2px 10px", borderRadius:20, border:"0.5px solid "+(isNone?"#c8c5be":border3) }}>
                                 {verdict3 || "No signals"}
                               </span>
                               <span style={{ display:"inline-flex", gap:3 }}>
