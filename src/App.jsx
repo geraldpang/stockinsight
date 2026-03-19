@@ -760,13 +760,15 @@ function Detail({ sym, name, onBack }) {
               return (
                 <div style={{ padding:"10px 12px", background: loading ? "#f9f7f4" : c.bg, border:"0.5px solid " + (loading ? "#e0dbd0" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1 }}>
                   <div style={{ fontSize:10, color: loading ? "#aaa" : c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>{props.label}</div>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                    <div style={{ fontSize:14, fontWeight:700, color: loading ? "#ccc" : c.fg }}>{loading ? "..." : props.value}</div>
+                  <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
+                    <div>
+                      <div style={{ fontSize:14, fontWeight:700, color: loading ? "#ccc" : c.fg }}>{loading ? "..." : props.value}</div>
+                      {!loading && props.sublabel && (
+                        <div style={{ fontSize:10, fontWeight:600, color:c.fg, marginTop:2, opacity:0.85 }}>{props.sublabel}</div>
+                      )}
+                    </div>
                     {!loading && props.score > 0 && (
                       <Dots score={props.score} filled={c.dot} empty={c.dotEmpty} />
-                    )}
-                    {!loading && props.sublabel && (
-                      <span style={{ fontSize:10, fontWeight:600, color:c.fg }}>{props.sublabel}</span>
                     )}
                   </div>
                 </div>
