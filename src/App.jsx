@@ -791,7 +791,7 @@ function Detail({ sym, name, onBack }) {
                   return (
                     <div>
                       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-                        <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Overall Investment Rating</span>
+                        <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Analysis Rating</span>
                         <div style={{ display:"flex", alignItems:"center", gap:7 }}>
                           <span style={{ display:"inline-flex" }}>{starSpans}</span>
                           <span style={{ fontSize:12, fontWeight:500, color:sc }}>{sl}&nbsp;&nbsp;{sr.toFixed(1)}&nbsp;/&nbsp;5.0</span>
@@ -895,6 +895,7 @@ function Detail({ sym, name, onBack }) {
                   })()}                  
                 </div>
 
+                  <div style={{ height:"0.5px", background:"var(--color-border-tertiary)", margin:"12px 0" }} />
                   {/* Reversal Detector */}
                   {(function() {
                     var ind3      = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
@@ -1006,7 +1007,7 @@ function Detail({ sym, name, onBack }) {
             );
           })()}
 
-          {/* Overall Investment Rating */}
+          {/* Analysis Rating */}
           {(function() {
             // Gather scores from all available sources -- recompute locally
             var mP2    = parsedInsights["moat"]      || {};
@@ -1120,6 +1121,7 @@ function Detail({ sym, name, onBack }) {
             return null;
           })()}
 
+          <div style={{ height:"0.5px", background:"var(--color-border-tertiary)", margin:"12px 0" }} />
           {/* Valuation Section */}
           <div style={{ background:"#fff", border:"1px solid #e0dbd0", borderRadius:12, padding:"16px", marginBottom:12 }}>
             <div style={{ fontSize:12, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Valuation</div>
