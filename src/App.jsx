@@ -813,7 +813,7 @@ function Detail({ sym, name, onBack }) {
                         <span style={{ fontSize:12, fontWeight:500, color:_col }}>{_lbl}&nbsp;&nbsp;{_star.toFixed(1)}&nbsp;/&nbsp;5.0</span>
                       </div>
                     </div>
-                    <div style={{ height:"0.5px", background:"var(--color-border-tertiary)", marginBottom:8 }} />
+                    <div style={{ height:"0.5px", background:"var(--color-border-tertiary)", margin:"8px 0 10px" }} />
                   </div>
                 )}
                 <div style={{ fontSize:10, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:600, marginBottom:7 }}>Analysis Summary</div>
@@ -909,8 +909,7 @@ function Detail({ sym, name, onBack }) {
                     })();
                   })()}                  
                 </div>
-
-                  <div style={{ height:"0.5px", background:"var(--color-border-tertiary)", margin:"12px 0" }} />
+                <div style={{ height:"0.5px", background:"var(--color-border-tertiary)", margin:"12px 0" }} />
                   {/* Reversal Detector */}
                   {(function() {
                     var ind3      = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
