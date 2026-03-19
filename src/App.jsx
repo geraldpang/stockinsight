@@ -1048,17 +1048,19 @@ function Detail({ sym, name, onBack }) {
             //  Star calculation 
             // Core inputs (each contributes up to 1 star): moat, financial, IV, marketSignal, AI
             // Reversal is bonus (up to 1 star)
+            // Core: each signal = 1 star (4-5 dots), 0.5 star (3 dots), 0 (1-2 dots)
             function toStar(dots) {
               if (dots>=4) return 1;
               if (dots===3) return 0.5;
               return 0;
             }
+            // Sum stars directly  max 5 core signals = max 5 stars
             var coreInputs = [ms2, fs2, ivD2, msD2, aiD2].filter(function(d){return d>0;});
-            var coreStars  = coreInputs.length>0
-              ? coreInputs.reduce(function(s,d){return s+toStar(d);},0) / coreInputs.length * 5
-              : 0;
-            var bonusStar  = toStar(revD2);
-            var rawStars   = Math.min(5, coreStars + bonusStar * 0.5);
+            var coreStars  = coreInputs.reduce(function(s,d){return s+toStar(d);}, 0);
+
+            // Reversal bonus: 1-2 signals = +0.5, 3-5 signals = +1.0
+            var bonusStar  = revC2>=3 ? 1 : revC2>=1 ? 0.5 : 0;
+            var rawStars   = Math.min(5, coreStars + bonusStar);
             // Round to nearest 0.5
             var starRating = Math.round(rawStars * 2) / 2;
 
