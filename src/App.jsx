@@ -786,7 +786,7 @@ function Detail({ sym, name, onBack }) {
                   })()}
 
                   {(function() {
-                    var aiP = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null;
+                    var aiP = null; try { aiP = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null; } catch(e) { aiP = null; }
                     if (!aiP || !aiP.verdict) return <Card label="AI Insight" value={insightLoading?"Generating...":null} score={0} colors={pillColor(null)} />;
                     var vl = aiP.verdict;
                     var vColAI = vl==="Strong Buy"?"#1a6a1a":vl==="Buy"?"#2a7a2a":vl==="Hold"?"#b88000":vl==="Avoid"?"#c03030":"#8b0000";
@@ -809,7 +809,7 @@ function Detail({ sym, name, onBack }) {
 
                     // Reversal signal detection
                     var rsiDiv3 = (function() {
-                      if (rsiH3.length < 10 || aggs3.length < 10) return false;
+                      if (!ind3 || rsiH3.length < 10 || aggs3.length < 10) return false;
                       var rPL = Math.min.apply(null, aggs3.slice(0,5).map(function(a){return a.l||0;}));
                       var pPL = Math.min.apply(null, aggs3.slice(5,10).map(function(a){return a.l||0;}));
                       var rRL = Math.min.apply(null, rsiH3.slice(0,5));
@@ -1897,7 +1897,7 @@ function Detail({ sym, name, onBack }) {
                     var iSells = insiderTx.filter(function(t){ return t.action && !t.action.toLowerCase().includes("buy"); }).length;
                     var insiderDir = iBuys > iSells ? "Net Buying" : iBuys < iSells ? "Net Selling" : "Neutral";
                     var insiderDots = iBuys > iSells ? 5 : iBuys === iSells ? 3 : 2;
-                    var insiderVal = insiderTx.reduce(function(s,t){ return s + (t.value||0); }, 0);
+                    var insiderVal = insiderTx.reduce(function(s,t){ var v = t.value; return s + (typeof v === "number" ? v : 0); }, 0);
 
                     // Earnings streak
                     var earningsQ = ov2.earningsQ || [];
@@ -2043,7 +2043,7 @@ function Detail({ sym, name, onBack }) {
                                 var pct  = eq.actual && eq.estimate && eq.estimate !== 0 ? ((eq.actual-eq.estimate)/Math.abs(eq.estimate)*100).toFixed(1) : null;
                                 return (
                                   <div key={i} style={{background:beat?"#EAF3DE":"#FCEBEB",borderRadius:6,padding:"7px 8px",textAlign:"center",border:"0.5px solid "+(beat?"#7abd00":"#e08080")}}>
-                                    <div style={{fontSize:9,color:"#aaa",marginBottom:2}}>{eq.period||("Q"+(i+1))}</div>
+                                    <div style={{fontSize:9,color:"#aaa",marginBottom:2}}>{eq.date||("Q"+(i+1))}</div>
                                     <div style={{fontSize:12,fontWeight:700,color:beat?"#1a6a1a":"#c03030"}}>{eq.actual!=null?"$"+eq.actual.toFixed(2):"-"}</div>
                                     <div style={{fontSize:9,color:"#aaa"}}>est {eq.estimate!=null?"$"+eq.estimate.toFixed(2):"-"}</div>
                                     {pct && <div style={{fontSize:11,fontWeight:700,color:beat?"#1a6a1a":"#c03030",marginTop:2}}>{beat?"+":""}{pct}%</div>}
@@ -2216,7 +2216,7 @@ function Detail({ sym, name, onBack }) {
                                 var dc={5:{c:"#1a6a1a",e:"#c8e8c0",l:"Strong"},4:{c:"#2a7a2a",e:"#c8e8c0",l:"Bullish"},3:{c:"#b88000",e:"#faeeda",l:"Neutral"},2:{c:"#c03030",e:"#f5c0c0",l:"Bearish"},1:{c:"#8b0000",e:"#f5c0c0",l:"Weak"}};
                                 var sc=Math.max(1,Math.min(5,Math.round(dim.score)));
                                 return (
-                                  <div key={i} style={{background:vBg(dc[sc]?dc[sc].l:parsed.verdict),borderRadius:8,padding:"9px 12px",textAlign:"center",border:"0.5px solid "+vBd(dc[sc]?dc[sc].l:parsed.verdict)}}>
+                                  <div key={i} style={{background:sc>=4?"#EAF3DE":sc===3?"#FAEEDA":"#FCEBEB",borderRadius:8,padding:"9px 12px",textAlign:"center",border:"0.5px solid "+(sc>=4?"#7abd00":sc===3?"#d4a800":"#e08080")}}>
                                     <div style={{fontSize:10,color:dc[sc]?dc[sc].c:"#b88000",opacity:0.8,marginBottom:3}}>{dim.label}</div>
                                     <div style={{fontSize:13,fontWeight:700,color:dc[sc]?dc[sc].c:"#b88000",marginBottom:5}}>{dc[sc]?dc[sc].l:"Neutral"}</div>
                                     <DI score={sc} sz={7} />
