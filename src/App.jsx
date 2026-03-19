@@ -265,6 +265,7 @@ function VBar({ label, value, maxV, color, bold }) {
 
 // -- Detail page --------------------------------------------------------------
 function Detail({ sym, name, onBack }) {
+  const [__err, set__err] = useState(null);
   const [q,        setQ]        = useState(null);
   const [ov,       setOv]       = useState(null);
   const [epsHistory, setEpsHistory] = useState(null);
@@ -803,7 +804,7 @@ function Detail({ sym, name, onBack }) {
                     var price3    = q ? q.price : 0;
                     var ov3       = ov || {};
                     var hi3       = ov3.hi52 || 0; var lo3 = ov3.lo52 || 0;
-                    var pos3      = (hi3-lo3) > 0 ? (price3-lo3)/(hi3-lo3) : 0.5;
+                    var pos3      = (hi3>0&&hi3-lo3) > 0 ? (price3-lo3)/(hi3-lo3) : 0.5;
                     var rsiH3     = ind3 ? (ind3.rsiHistory  || []) : [];
                     var macdH3    = ind3 ? (ind3.macdHistory || []) : [];
 
@@ -2118,9 +2119,9 @@ function Detail({ sym, name, onBack }) {
                             )}
                             {ind2.sma50&&price2>0&&<span><strong style={{fontWeight:700}}>SMA50:</strong> ${(ind2.sma50).toFixed(2)} ({price2>ind2.sma50?"above":"below"}) &nbsp;</span>}
                             {ind2.sma200&&price2>0&&<span><strong style={{fontWeight:700}}>SMA200:</strong> ${(ind2.sma200).toFixed(2)} ({price2>ind2.sma200?"above":"below"}) &nbsp;</span>}
-                            {ind2.rsi14!=null&&<span><strong style={{fontWeight:700}}>RSI:</strong> {ind2.rsi14.toFixed(1)} &nbsp;</span>}
-                            {ind2.macd&&ind2.macd.histogram!=null&&<span><strong style={{fontWeight:700}}>MACD Hist:</strong> {ind2.macd.histogram.toFixed(4)} &nbsp;</span>}
-                            {bbMid>0&&<span><strong style={{fontWeight:700}}>BB:</strong> ${bbLower.toFixed(2)} / ${bbMid.toFixed(2)} / ${bbUpper.toFixed(2)} &nbsp;</span>}
+                            {ind2.rsi14!=null&&<span><strong style={{fontWeight:700}}>RSI:</strong> {ind2.rsi14!=null?ind2.rsi14.toFixed(1):"-"} &nbsp;</span>}
+                            {ind2.macd&&ind2.macd.histogram!=null&&<span><strong style={{fontWeight:700}}>MACD Hist:</strong> {ind2.macd&&ind2.macd.histogram!=null?ind2.macd.histogram.toFixed(4):"-"} &nbsp;</span>}
+                            {bbMid>0&&<span><strong style={{fontWeight:700}}>BB:</strong> {bbMid>0?"$"+bbLower.toFixed(2)+" / $"+bbMid.toFixed(2)+" / $"+bbUpper.toFixed(2):"-"} &nbsp;</span>}
                             {fib382>0&&<span><strong style={{fontWeight:700}}>Fib:</strong> 38.2%=${fib382} / 50%=${fib500} / 61.8%=${fib618}</span>}
                           </div>
                         ) : <div style={{color:"#aaa",fontSize:12}}>Technical data will appear after AI Insight generates.</div>}
@@ -3184,6 +3185,7 @@ function Detail({ sym, name, onBack }) {
       </div>
     </div>
   );
+  } catch(e) { if (!__err) set__err(e); return null; }
 }
 
 // -- Landing page -------------------------------------------------------------
@@ -3230,6 +3232,17 @@ export default function App() {
 
   const QUICK = ["AAPL","NVDA","TSLA","MSFT","GOOGL","AMZN"];
 
+  if (__err) return (
+    <div style={{minHeight:"100vh",background:"#0e0e0c",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#1a1a14",border:"1px solid #c8f000",borderRadius:12,padding:24,maxWidth:"90%",fontFamily:"monospace"}}>
+        <div style={{color:"#c8f000",fontWeight:700,fontSize:14,marginBottom:12}}>Runtime Error</div>
+        <div style={{color:"#ff6b6b",fontSize:12,marginBottom:8}}>{__err.message||__err.toString()}</div>
+        <pre style={{color:"#aaa",fontSize:10,whiteSpace:"pre-wrap",lineHeight:1.5,overflow:"auto",maxHeight:400}}>{__err.stack}</pre>
+        <button onClick={()=>set__err(null)} style={{marginTop:12,padding:"6px 16px",background:"#c8f000",color:"#111",border:"none",borderRadius:6,cursor:"pointer",fontWeight:700}}>Dismiss</button>
+      </div>
+    </div>
+  );
+  try {
   return (
     <div style={{ minHeight:"100vh", background:BG, fontFamily:FONT, position:"relative", overflow:"hidden" }}>
 
