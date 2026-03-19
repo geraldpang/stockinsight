@@ -264,18 +264,38 @@ function VBar({ label, value, maxV, color, bold }) {
 }
 
 // -- Detail page --------------------------------------------------------------
+
+// Parse AI Insight structured response
+function parseAiInsight(text) {
+  if (!text) return null;
+  function vd(v) {
+    if (!v) return 3;
+    var vl = v.toLowerCase();
+    if (vl.indexOf("strong buy")  >= 0) return 5;
+    if (vl.indexOf("buy")         >= 0) return 4;
+    if (vl.indexOf("strong avoid")>= 0) return 1;
+    if (vl.indexOf("avoid")       >= 0) return 2;
+    return 3;
+  }
+  function m(re) { var r = text.match(re); return r ? r[1].trim() : null; }
+  var verdict = m(/Overall Verdict:\s*(.+)/);
+  return {
+    body:        text,
+    verdict:     verdict,
+    dots:        vd(verdict),
+    confidence:  m(/Confidence:\s*(.+)/),
+    horizon:     m(/Horizon:\s*(.+)/),
+    risk:        m(/Key Risk:\s*(.+)/),
+    opportunity: m(/Key Opportunity:\s*(.+)/),
+    summary:     m(/AI Insight Summary[^:]*:\s*([\s\S]+)/),
+    fundScore:   m(/Fundamental:\s*([\d.]+)\/5/) ? parseFloat(m(/Fundamental:\s*([\d.]+)\/5/)) : null,
+    techScore:   m(/Technical:\s*([\d.]+)\/5/)   ? parseFloat(m(/Technical:\s*([\d.]+)\/5/))   : null,
+    sentScore:   m(/Sentiment:\s*([\d.]+)\/5/)   ? parseFloat(m(/Sentiment:\s*([\d.]+)\/5/))   : null,
+  };
+}
+
 function Detail({ sym, name, onBack }) {
   const [__err, set__err] = useState(null);
-
-  // Catch render errors via window.onerror
-  useEffect(function() {
-    var prev = window.onerror;
-    window.onerror = function(msg, src, line, col, err) {
-      set__err(err || new Error(msg + " (line " + line + ")"));
-      return true;
-    };
-    return function() { window.onerror = prev; };
-  }, []);
 
   const [q,        setQ]        = useState(null);
   const [ov,       setOv]       = useState(null);
@@ -1146,33 +1166,7 @@ function Detail({ sym, name, onBack }) {
             }
 
             // Parse technical into structured sections
-            function parseAiInsight(text) {
-              if (!text) return null;
-              function vd(v) {
-                if (!v) return 3;
-                var vl = v.toLowerCase();
-                if (vl.indexOf("strong buy") >= 0)   return 5;
-                if (vl.indexOf("buy") >= 0)           return 4;
-                if (vl.indexOf("strong avoid") >= 0)  return 1;
-                if (vl.indexOf("avoid") >= 0)         return 2;
-                return 3;
-              }
-              function m(re) { var r = text.match(re); return r ? r[1].trim() : null; }
-              var verdict = m(/Overall Verdict:\s*(.+)/);
-              return {
-                body:        text,
-                verdict:     verdict,
-                dots:        vd(verdict),
-                confidence:  m(/Confidence:\s*(.+)/),
-                horizon:     m(/Horizon:\s*(.+)/),
-                risk:        m(/Key Risk:\s*(.+)/),
-                opportunity: m(/Key Opportunity:\s*(.+)/),
-                summary:     m(/AI Insight Summary[^:]*:\s*([\s\S]+)/),
-                fundScore:   m(/Fundamental:\s*([\d.]+)\/5/) ? parseFloat(m(/Fundamental:\s*([\d.]+)\/5/)) : null,
-                techScore:   m(/Technical:\s*([\d.]+)\/5/)   ? parseFloat(m(/Technical:\s*([\d.]+)\/5/))   : null,
-                sentScore:   m(/Sentiment:\s*([\d.]+)\/5/)   ? parseFloat(m(/Sentiment:\s*([\d.]+)\/5/))   : null,
-              };
-            }
+
             function parseTechnical(text) {
               if (!text) return null;
               var ratingMatch = text.match(/Technical Rating[^:]*:\s*(.+)/);
