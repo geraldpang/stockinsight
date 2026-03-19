@@ -282,7 +282,9 @@ function Detail({ sym, name, onBack }) {
   function parseAndStoreInsight(tabId, text) {
     if (!text) return;
     var result = {};
-    if (tabId === "moat") {
+    if (tabId === "aiinsight") {
+      result = parseAiInsight(text) || {};
+    } else if (tabId === "moat") {
       var m = text.match(/Economic Moat Rating[^0-9]*([0-9])/);
       var score = m ? parseInt(m[1], 10) : 0;
       if (!score) {
@@ -359,12 +361,13 @@ function Detail({ sym, name, onBack }) {
     });
 
     // Auto-generate all 4 AI insight tabs in parallel
-    var aiTabs = ["moat", "financial"];
+    var aiTabs = ["moat", "financial", "aiinsight"];
     aiTabs.forEach(function(tabId) {
       var prompts = {
         moat: "You are a professional equity research analyst. Analyze the economic moat of " + sym + " (" + (NAMES[sym]||sym) + ") using only well-known business fundamentals and observable financial indicators. Do not fabricate statistics or unsupported claims. Most companies do not have strong moats - scores of 4 or 5 should be rare.\n\nReturn results in EXACTLY this format:\n\nNetwork Effects: X/5\nAssessment Criteria: The product or platform becomes more valuable as more users join.\nResult: One sentence explaining the score.\n\nSwitching Costs: X/5\nAssessment Criteria: Customers face difficulty, cost, or disruption when changing to competitors.\nResult: One sentence explaining the score.\n\nCost Advantage: X/5\nAssessment Criteria: The company can operate at lower cost or higher efficiency than competitors.\nResult: One sentence explaining the score.\n\nIntangible Assets: X/5\nAssessment Criteria: Brand, patents, intellectual property, regulatory licenses, or proprietary technology.\nResult: One sentence explaining the score.\n\nEfficient Scale: X/5\nAssessment Criteria: The market only supports a few profitable players due to high barriers to entry.\nResult: One sentence explaining the score.\n\nEcosystem Lock-in: X/5\nAssessment Criteria: Customers rely on multiple integrated products or services within the company ecosystem.\nResult: One sentence explaining the score.\n\nEconomic Moat Rating: X / 5\n\nExplanation (maximum 100 words): Summarize the main competitive advantages. Focus only on the most important moat drivers. Only assign 4-5 if advantages are clear, durable, and supported by financial performance.",
         financial: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), assess Financial Strength across these 7 dimensions in concise paragraphs: 1. Revenue Growth Trend 2. Gross Margin Stability 3. Operating Margin Trend 4. Free Cash Flow Consistency 5. Debt Level 6. Share Dilution or Buyback Discipline 7. Earnings Predictability. End with: Financial Strength Classification: Strong / Moderate / Weak and one sentence of reasoning.",
-        technical: "You are a professional technical analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), provide a technical analysis covering: Trend (50-day MA, 200-day MA, direction), Momentum (RSI condition, MACD condition), Support and Resistance zones, Volume analysis (confirms move? accumulation or distribution?), Chart Patterns (breakout / consolidation / reversal / double bottom / head and shoulders / flag/pennant / no clear pattern). End with: Technical Rating: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish and Entry Timing View: Good Entry / Wait for Pullback / Breakout Watch / Avoid for Now. Be specific with price levels where possible."
+        technical: "You are a professional technical analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), provide a technical analysis covering: Trend (50-day MA, 200-day MA, direction), Momentum (RSI condition, MACD condition), Support and Resistance zones, Volume analysis (confirms move? accumulation or distribution?), Chart Patterns (breakout / consolidation / reversal / double bottom / head and shoulders / flag/pennant / no clear pattern). End with: Technical Rating: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish and Entry Timing View: Good Entry / Wait for Pullback / Breakout Watch / Avoid for Now. Be specific with price levels where possible.",
+        aiinsight: "You are a senior investment analyst. For " + sym + " (" + (NAMES[sym]||sym) + "), provide an AI Insight in EXACTLY this format:\\n\\nFundamental: X/5\\nResult: One sentence.\\n\\nTechnical: X/5\\nResult: One sentence.\\n\\nSentiment: X/5\\nResult: One sentence.\\n\\nOverall Verdict: Buy / Hold / Avoid / Strong Buy / Strong Avoid\\nConfidence: Low / Medium / High\\nHorizon: Short-term (1-3m) / Medium-term (3-12m) / Long-term (12m+)\\n\\nKey Risk: One sentence on the most important downside risk.\\nKey Opportunity: One sentence on the most important upside catalyst.\\n\\nAI Insight Summary (max 80 words): Concise investment conclusion."
       };
       fetch("/anthropic", {
         method: "POST",
@@ -781,8 +784,97 @@ function Detail({ sym, name, onBack }) {
                     var sigLabel2=vl2+(showRW?" + Reversal Watch":"")+" ("+final2+")";
                     return <Card label="Market Signal" value={sigLabel2} score={0} sublabel={null} colors={pillColor(vl2)} />;
                   })()}
-                  
+
+                  {(function() {
+                    var aiP = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null;
+                    if (!aiP || !aiP.verdict) return <Card label="AI Insight" value={insightLoading?"Generating...":null} score={0} colors={pillColor(null)} />;
+                    var vl = aiP.verdict;
+                    var vColAI = vl==="Strong Buy"?"#1a6a1a":vl==="Buy"?"#2a7a2a":vl==="Hold"?"#b88000":vl==="Avoid"?"#c03030":"#8b0000";
+                    var vBgAI  = vl==="Strong Buy"||vl==="Buy"?"#EAF3DE":vl==="Hold"?"#FAEEDA":"#FCEBEB";
+                    var vBdAI  = vl==="Strong Buy"||vl==="Buy"?"#7abd00":vl==="Hold"?"#d4a800":"#e08080";
+                    return <Card label="AI Insight" value={vl} score={0} sublabel={aiP.confidence?"Conf: "+aiP.confidence:null} colors={pillColor(vl)} />;
+                  })()}                  
                 </div>
+
+                  {/* Reversal Detector */}
+                  {(function() {
+                    var ind3      = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
+                    var aggs3     = massiveInfo && massiveInfo.aggs        ? massiveInfo.aggs        : [];
+                    var price3    = q ? q.price : 0;
+                    var ov3       = ov || {};
+                    var hi3       = ov3.hi52 || 0; var lo3 = ov3.lo52 || 0;
+                    var pos3      = (hi3-lo3) > 0 ? (price3-lo3)/(hi3-lo3) : 0.5;
+                    var rsiH3     = ind3 ? (ind3.rsiHistory  || []) : [];
+                    var macdH3    = ind3 ? (ind3.macdHistory || []) : [];
+
+                    // Reversal signal detection
+                    var rsiDiv3 = (function() {
+                      if (rsiH3.length < 10 || aggs3.length < 10) return false;
+                      var rPL = Math.min.apply(null, aggs3.slice(0,5).map(function(a){return a.l||0;}));
+                      var pPL = Math.min.apply(null, aggs3.slice(5,10).map(function(a){return a.l||0;}));
+                      var rRL = Math.min.apply(null, rsiH3.slice(0,5));
+                      var pRL = Math.min.apply(null, rsiH3.slice(5,10));
+                      return rPL < pPL && rRL > pRL;
+                    })();
+                    var macdTurn3 = (function() {
+                      if (macdH3.length < 3) return false;
+                      var h0=macdH3[0]&&macdH3[0].histogram, h1=macdH3[1]&&macdH3[1].histogram, h2=macdH3[2]&&macdH3[2].histogram;
+                      return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2;
+                    })();
+                    var weeklyCross3 = ind3&&ind3.wsma10&&ind3.wsma40 ? (ind3.wsma10<ind3.wsma40&&Math.abs(ind3.wsma10-ind3.wsma40)/ind3.wsma40<0.05) : false;
+                    var rsiBase3     = rsiH3.length>=3 ? rsiH3.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;}) : false;
+                    var lowBase3     = pos3<0.20&&ind3&&ind3.rsi14!=null&&ind3.rsi14>20&&ind3.rsi14<45;
+
+                    var revArr3   = [rsiDiv3, macdTurn3, weeklyCross3, rsiBase3, lowBase3];
+                    var revCount3 = revArr3.filter(Boolean).length;
+
+                    var isNone   = revCount3 === 0;
+                    var isEarly  = revCount3 === 1;
+                    var isWatch  = revCount3 >= 2 && revCount3 <= 3;
+                    var isStrong = revCount3 >= 4;
+
+                    var bg3, border3, label3Col, pulse3, verdict3, dotFilled3, dotEmpty3, sub3;
+                    if (isNone) {
+                      bg3="var(--color-background-secondary)"; border3="var(--color-border-tertiary)";
+                      label3Col="var(--color-text-tertiary)"; pulse3=null; verdict3=null;
+                      dotFilled3="#D3D1C7"; dotEmpty3="rgba(211,209,199,0.3)"; sub3=null;
+                    } else if (isEarly) {
+                      bg3="#fdf5e6"; border3="#FAC775";
+                      label3Col="#854F0B"; pulse3="#EF9F27"; verdict3="Early Signal";
+                      dotFilled3="#EF9F27"; dotEmpty3="rgba(239,159,39,0.2)";
+                      sub3="1 reversal indicator active. Monitor closely.";
+                    } else if (isWatch) {
+                      bg3="#EAF3DE"; border3="#7abd00";
+                      label3Col="#173404"; pulse3="#2a7a2a"; verdict3="Reversal Watch";
+                      dotFilled3="#2a7a2a"; dotEmpty3="rgba(42,122,42,0.2)";
+                      sub3="Potential trend reversal forming. See Market Signal tab.";
+                    } else {
+                      bg3="#EAF3DE"; border3="#1a6a1a";
+                      label3Col="#173404"; pulse3="#1a6a1a"; verdict3="Strong Reversal";
+                      dotFilled3="#1a6a1a"; dotEmpty3="rgba(26,106,26,0.2)";
+                      sub3="Strong reversal signals active. See Market Signal tab.";
+                    }
+
+                    return (
+                      <div style={{ background:bg3, borderRadius:8, padding:"10px 14px", border:"0.5px solid "+border3, marginTop:8 }}>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                            {pulse3 && <span style={{ width:7, height:7, borderRadius:"50%", background:pulse3, display:"inline-block", flexShrink:0 }} />}
+                            <span style={{ fontSize:10, fontWeight:700, color:label3Col, textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Detector</span>
+                          </div>
+                          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                            {verdict3 && <span style={{ fontSize:11, fontWeight:700, color:label3Col }}>{verdict3}</span>}
+                            <span style={{ display:"inline-flex", gap:3 }}>
+                              {revArr3.map(function(active, i) {
+                                return <span key={i} style={{ width:8, height:8, borderRadius:"50%", background:active?dotFilled3:dotEmpty3, display:"inline-block" }} />;
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                        {sub3 && <div style={{ marginTop:7, paddingTop:7, borderTop:"0.5px solid "+border3, fontSize:11, color:label3Col, lineHeight:1.65 }}>{sub3}</div>}
+                      </div>
+                    );
+                  })()}
               </div>
             );
           })()}
@@ -990,6 +1082,7 @@ function Detail({ sym, name, onBack }) {
               { id:"intrinsic", label:"Intrinsic Value" },
               { id:"financial", label:"Financial Strength" },
               { id:"signal",    label:"Market Signal" },
+              { id:"aiinsight", label:"AI Insight" },
               { id:"addlinfo",  label:"Additional Information" },
               { id:"debug",     label:"Debug" },
             ];
@@ -1041,6 +1134,33 @@ function Detail({ sym, name, onBack }) {
             }
 
             // Parse technical into structured sections
+            function parseAiInsight(text) {
+              if (!text) return null;
+              function vd(v) {
+                if (!v) return 3;
+                var vl = v.toLowerCase();
+                if (vl.indexOf("strong buy") >= 0)   return 5;
+                if (vl.indexOf("buy") >= 0)           return 4;
+                if (vl.indexOf("strong avoid") >= 0)  return 1;
+                if (vl.indexOf("avoid") >= 0)         return 2;
+                return 3;
+              }
+              function m(re) { var r = text.match(re); return r ? r[1].trim() : null; }
+              var verdict = m(/Overall Verdict:\s*(.+)/);
+              return {
+                body:        text,
+                verdict:     verdict,
+                dots:        vd(verdict),
+                confidence:  m(/Confidence:\s*(.+)/),
+                horizon:     m(/Horizon:\s*(.+)/),
+                risk:        m(/Key Risk:\s*(.+)/),
+                opportunity: m(/Key Opportunity:\s*(.+)/),
+                summary:     m(/AI Insight Summary[^:]*:\s*([\s\S]+)/),
+                fundScore:   m(/Fundamental:\s*([\d.]+)\/5/) ? parseFloat(m(/Fundamental:\s*([\d.]+)\/5/)) : null,
+                techScore:   m(/Technical:\s*([\d.]+)\/5/)   ? parseFloat(m(/Technical:\s*([\d.]+)\/5/))   : null,
+                sentScore:   m(/Sentiment:\s*([\d.]+)\/5/)   ? parseFloat(m(/Sentiment:\s*([\d.]+)\/5/))   : null,
+              };
+            }
             function parseTechnical(text) {
               if (!text) return null;
               var ratingMatch = text.match(/Technical Rating[^:]*:\s*(.+)/);
@@ -1149,7 +1269,7 @@ function Detail({ sym, name, onBack }) {
                   {/* AI-powered tabs */}
                   {insightTab !== "intrinsic" && (
                     <div>
-                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && (
+                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && insightTab !== "aiinsight" && (
                         <div style={{ textAlign:"center", padding:"40px 0" }}>
                           <div style={{ fontSize:12, color:"#888", marginBottom:14 }}>Generating {insightTab} analysis for {sym}...</div>
                           <div style={{ display:"inline-block", width:26, height:26, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
@@ -1733,6 +1853,406 @@ function Detail({ sym, name, onBack }) {
 
                     </div>
                   )}
+
+                  {/* AI Insight Tab */}
+                  {insightTab === "aiinsight" && (function() {
+                    var parsed    = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null;
+                    var ov2       = ov || {};
+                    var massInf   = massiveInfo || {};
+                    var ind2      = massInf.indicators || {};
+                    var price2    = q ? q.price : 0;
+                    var aggs2     = massInf.aggs || [];
+                    var news2     = massInf.news || [];
+
+                    // ---- dot renderer ----
+                    function DI(props) {
+                      var map = {5:{c:"#1a6a1a",e:"#c8e8c0"},4:{c:"#2a7a2a",e:"#c8e8c0"},3:{c:"#b88000",e:"#faeeda"},2:{c:"#c03030",e:"#f5c0c0"},1:{c:"#8b0000",e:"#f5c0c0"}};
+                      var s = Math.max(1,Math.min(5,Math.round(props.score||3)));
+                      var cc = map[s]; var d = [];
+                      for (var i=1;i<=5;i++) d.push(<span key={i} style={{display:"inline-block",width:props.sz||8,height:props.sz||8,borderRadius:"50%",background:i<=s?cc.c:cc.e,marginRight:2}}/>);
+                      return <span style={{display:"inline-flex",alignItems:"center"}}>{d}</span>;
+                    }
+
+                    // ---- verdict colour helpers ----
+                    var vColMap = {"Strong Buy":"#1a6a1a","Buy":"#2a7a2a","Hold":"#b88000","Avoid":"#c03030","Strong Avoid":"#8b0000"};
+                    var vBgMap  = {"Strong Buy":"#EAF3DE","Buy":"#EAF3DE","Hold":"#FAEEDA","Avoid":"#FCEBEB","Strong Avoid":"#FCEBEB"};
+                    var vBdMap  = {"Strong Buy":"#7abd00","Buy":"#97C459","Hold":"#d4a800","Avoid":"#e08080","Strong Avoid":"#c03030"};
+                    function vCol(v){ return vColMap[v]||"#b88000"; }
+                    function vBg(v) { return vBgMap[v] ||"#FAEEDA"; }
+                    function vBd(v) { return vBdMap[v] ||"#d4a800"; }
+
+                    // ---- free data signals ----
+                    // Analyst momentum from upgradeDowngradeHistory
+                    var upgHist = ov2.upgradeDowngradeHistory || [];
+                    var recent90 = upgHist.filter(function(h){ return h.epochGradeDate && (Date.now()/1000 - h.epochGradeDate) < 90*86400; });
+                    var upgrades   = recent90.filter(function(h){ return h.action && h.action.toLowerCase().includes("upgr"); }).length;
+                    var downgrades = recent90.filter(function(h){ return h.action && h.action.toLowerCase().includes("downgr"); }).length;
+                    var analystNet = upgrades - downgrades;
+                    var analystDir = analystNet > 0 ? "Upgrading" : analystNet < 0 ? "Downgrading" : "Neutral";
+                    var analystDots = analystNet > 2 ? 5 : analystNet > 0 ? 4 : analystNet === 0 ? 3 : analystNet > -3 ? 2 : 1;
+
+                    // Insider net direction
+                    var insiderTx = ov2.insiderTx || [];
+                    var iBuys  = insiderTx.filter(function(t){ return t.action && t.action.toLowerCase().includes("buy"); }).length;
+                    var iSells = insiderTx.filter(function(t){ return t.action && !t.action.toLowerCase().includes("buy"); }).length;
+                    var insiderDir = iBuys > iSells ? "Net Buying" : iBuys < iSells ? "Net Selling" : "Neutral";
+                    var insiderDots = iBuys > iSells ? 5 : iBuys === iSells ? 3 : 2;
+                    var insiderVal = insiderTx.reduce(function(s,t){ return s + (t.value||0); }, 0);
+
+                    // Earnings streak
+                    var earningsQ = ov2.earningsQ || [];
+                    var streak = 0;
+                    for (var ei=0; ei<earningsQ.length; ei++) {
+                      if (earningsQ[ei].actual != null && earningsQ[ei].estimate != null && earningsQ[ei].actual > earningsQ[ei].estimate) streak++;
+                      else break;
+                    }
+
+                    // Short squeeze score (0-100)
+                    var shortPct   = ov2.shortPct   || 0;
+                    var shortRatio = ov2.shortRatio  || 0;
+                    var sqScore    = Math.min(100, Math.round((shortPct * 100 * 0.5) + (shortRatio * 5)));
+
+                    // Institutional trend
+                    var instPct = ov2.institutionPct ? (ov2.institutionPct * 100).toFixed(1) : null;
+
+                    // News sentiment count
+                    var newsPos = 0, newsNeg = 0, newsNeu = 0;
+                    news2.slice(0,10).forEach(function(n) {
+                      var ins = n.insights || [];
+                      ins.forEach(function(i) {
+                        if (i.sentiment === "positive") newsPos++;
+                        else if (i.sentiment === "negative") newsNeg++;
+                        else newsNeu++;
+                      });
+                    });
+                    var totalSent = newsPos + newsNeg + newsNeu;
+                    var newsDir = totalSent > 0 ? (newsPos/totalSent > 0.6 ? "Bullish" : newsNeg/totalSent > 0.5 ? "Bearish" : "Neutral") : "Neutral";
+                    var newsDots = newsDir === "Bullish" ? 4 : newsDir === "Bearish" ? 2 : 3;
+
+                    // Volume ratio
+                    var vol5  = aggs2.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs2.slice(0,5).length,1);
+                    var vol20 = aggs2.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs2.slice(0,20).length,1);
+                    var volRatio2 = vol20 > 0 ? vol5/vol20 : 1;
+
+                    // Bollinger Bands from aggs
+                    var bbPeriod = 20;
+                    var bbData = aggs2.slice(0,bbPeriod).map(function(a){return a.c||0;}).reverse();
+                    var bbMid = bbData.length >= bbPeriod ? bbData.reduce(function(s,v){return s+v;},0)/bbPeriod : 0;
+                    var bbStd = bbData.length >= bbPeriod ? Math.sqrt(bbData.reduce(function(s,v){return s+Math.pow(v-bbMid,2);},0)/bbPeriod) : 0;
+                    var bbUpper = bbMid + 2*bbStd;
+                    var bbLower = bbMid - 2*bbStd;
+
+                    // Fibonacci from 52wk
+                    var hi52 = ov2.hi52 || 0; var lo52 = ov2.lo52 || 0;
+                    var fibRange = hi52 - lo52;
+                    var fib382 = fibRange > 0 ? Math.round(hi52 - fibRange*0.382) : 0;
+                    var fib500 = fibRange > 0 ? Math.round(hi52 - fibRange*0.500) : 0;
+                    var fib618 = fibRange > 0 ? Math.round(hi52 - fibRange*0.618) : 0;
+
+                    return (
+                      <div>
+                        {/* == D: DATA SIGNALS == */}
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{width:20,height:20,borderRadius:"50%",background:"#1a6a1a",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>D</span>
+                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>Data Signals</span>
+                            <span style={{fontSize:9,fontWeight:600,color:"#1a6a1a",background:"#EAF3DE",padding:"1px 7px",borderRadius:7,border:"0.5px solid #7abd0040"}}>Free -- no AI cost</span>
+                          </div>
+                          <span style={{fontSize:10,color:"#bbb"}}>$0.00000/visit</span>
+                        </div>
+
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:8}}>
+                          {[
+                            { label:"Analyst Momentum", val:analystDir, sub:upgrades+" upgrades, "+downgrades+" downgrades (90d)", dots:analystDots, col:analystDots>=4?"#1a6a1a":analystDots===3?"#b88000":"#c03030", bg:analystDots>=4?"#EAF3DE":analystDots===3?"#FAEEDA":"#FCEBEB" },
+                            { label:"Insider Activity",  val:insiderDir, sub:iBuys+" buys, "+iSells+" sells last 90d"+(insiderVal!==0?" | $"+(Math.abs(insiderVal)/1e6).toFixed(1)+"M":""), dots:insiderDots, col:insiderDots>=4?"#1a6a1a":insiderDots===3?"#b88000":"#c03030", bg:insiderDots>=4?"#EAF3DE":insiderDots===3?"#FAEEDA":"#FCEBEB" },
+                            { label:"Earnings Streak",   val:streak+" Consecutive Beats", sub:earningsQ.slice(0,streak).map(function(e,i){return "Q"+(i+1);}).join(", "), dots:streak>=5?5:streak>=3?4:streak>=2?3:streak>=1?2:1, col:streak>=3?"#1a6a1a":streak>=1?"#b88000":"#c03030", bg:streak>=3?"#EAF3DE":streak>=1?"#FAEEDA":"#FCEBEB" },
+                            { label:"Short Squeeze Score", val:(sqScore<30?"Low":"sqScore<60?"Medium":"High")+" -- "+sqScore+"/100", sub:"Float "+(shortPct*100).toFixed(1)+"% -- Ratio "+shortRatio.toFixed(1)+" days", dots:sqScore<30?3:sqScore<60?2:1, col:sqScore<30?"#b88000":"#c03030", bg:sqScore<30?"#FAEEDA":"#FCEBEB" },
+                            { label:"News Sentiment",     val:newsDir, sub:newsPos+" positive, "+newsNeu+" neutral, "+newsNeg+" negative", dots:newsDots, col:newsDots>=4?"#1a6a1a":newsDots===3?"#b88000":"#c03030", bg:newsDots>=4?"#EAF3DE":newsDots===3?"#FAEEDA":"#FCEBEB" },
+                            { label:"Institutional Trend", val:instPct?""+instPct+"% held":"No data", sub:"Volume ratio "+volRatio2.toFixed(2)+"x 20-day avg", dots:3, col:"#b88000", bg:"#FAEEDA" },
+                          ].map(function(card,i){
+                            return (
+                              <div key={i} style={{background:"var(--color-background-secondary)",borderRadius:8,padding:"9px 11px"}}>
+                                <div style={{fontSize:9,color:"#999",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>{card.label}</div>
+                                <div style={{fontSize:12,fontWeight:700,color:card.col,marginBottom:3}}>{card.val}</div>
+                                <div style={{fontSize:10,color:"#aaa",marginBottom:4}}>{card.sub}</div>
+                                <DI score={card.dots} sz={7} />
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Analyst consensus */}
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:10}}>
+                          {[
+                            { label:"Analyst Consensus", val:ov2.recKey?ov2.recKey.toUpperCase():"N/A", sub:(ov2.numAnalysts||0)+" analysts -- Target $"+(ov2.targetMean?ov2.targetMean.toFixed(2):"N/A"), dotScore: ov2.recKey&&ov2.recKey.toLowerCase().includes("buy")?4:ov2.recKey&&ov2.recKey.toLowerCase().includes("sell")?2:3 },
+                            { label:"Short Interest",    val:(shortPct*100).toFixed(1)+"% float", sub:"Ratio "+shortRatio.toFixed(1)+" days to cover", dotScore:shortPct>0.15?1:shortPct>0.08?2:3 },
+                            { label:"Dividend / Buyback", val:ov2.divYield&&ov2.divYield>0?((ov2.divYield*100).toFixed(2)+"% yield"):"No Dividend", sub:ov2.payoutRatio&&ov2.payoutRatio>0?"Payout "+(ov2.payoutRatio*100).toFixed(0)+"%":"Capital return via buybacks", dotScore:3 },
+                          ].map(function(card,i){
+                            return (
+                              <div key={i} style={{background:"#EAF3DE",borderRadius:8,padding:"9px 11px",border:"0.5px solid #7abd00"}}>
+                                <div style={{fontSize:9,color:"#27500A",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>{card.label}</div>
+                                <div style={{fontSize:12,fontWeight:700,color:"#1a6a1a",marginBottom:3}}>{card.val}</div>
+                                <div style={{fontSize:10,color:"#3B6D11",marginBottom:4}}>{card.sub}</div>
+                                <DI score={card.dotScore} sz={7} />
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Sector relative performance */}
+                        <div style={{marginBottom:10,padding:"9px 12px",background:"var(--color-background-secondary)",borderRadius:8,fontSize:11,color:"#555"}}>
+                          <div style={{fontSize:9,color:"#999",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Technical indicators</div>
+                          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                            {[
+                              {label:"Bollinger Upper", val:bbUpper>0?"$"+bbUpper.toFixed(2):"-"},
+                              {label:"Bollinger Mid",   val:bbMid>0?"$"+bbMid.toFixed(2):"-"},
+                              {label:"Bollinger Lower", val:bbLower>0?"$"+bbLower.toFixed(2):"-"},
+                              {label:"Fib 38.2%",       val:fib382>0?"$"+fib382:"-"},
+                              {label:"Fib 50.0%",       val:fib500>0?"$"+fib500:"-"},
+                              {label:"Fib 61.8%",       val:fib618>0?"$"+fib618:"-"},
+                              {label:"Vol Ratio 5/20d", val:volRatio2.toFixed(2)+"x"},
+                              {label:"52-wk range",     val:hi52>0?"$"+lo52.toFixed(2)+" - $"+hi52.toFixed(2):"-"},
+                            ].map(function(item,i){
+                              return (
+                                <div key={i} style={{background:"var(--color-background-primary)",borderRadius:6,padding:"6px 8px"}}>
+                                  <div style={{fontSize:9,color:"#aaa",marginBottom:2}}>{item.label}</div>
+                                  <div style={{fontSize:11,fontWeight:700,color:"#111"}}>{item.val}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
+
+                        {/* == 2: EARNINGS QUALITY == */}
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{width:20,height:20,borderRadius:"50%",background:"#3B6D11",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>2</span>
+                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>Earnings Quality</span>
+                            <span style={{fontSize:9,fontWeight:600,color:"#3B6D11",background:"#EAF3DE",padding:"1px 7px",borderRadius:7}}>Auto-generated</span>
+                          </div>
+                          <span style={{fontSize:10,color:"#bbb"}}>$0.00300/visit</span>
+                        </div>
+
+                        {insightCache["aiinsight"] && parsed ? (
+                          <div>
+                            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:8}}>
+                              {(earningsQ||[]).slice(0,4).map(function(eq,i){
+                                var beat = eq.actual != null && eq.estimate != null && eq.actual > eq.estimate;
+                                var pct  = eq.actual && eq.estimate && eq.estimate !== 0 ? ((eq.actual-eq.estimate)/Math.abs(eq.estimate)*100).toFixed(1) : null;
+                                return (
+                                  <div key={i} style={{background:beat?"#EAF3DE":"#FCEBEB",borderRadius:6,padding:"7px 8px",textAlign:"center",border:"0.5px solid "+(beat?"#7abd00":"#e08080")}}>
+                                    <div style={{fontSize:9,color:"#aaa",marginBottom:2}}>{eq.period||("Q"+(i+1))}</div>
+                                    <div style={{fontSize:12,fontWeight:700,color:beat?"#1a6a1a":"#c03030"}}>{eq.actual!=null?"$"+eq.actual.toFixed(2):"-"}</div>
+                                    <div style={{fontSize:9,color:"#aaa"}}>est {eq.estimate!=null?"$"+eq.estimate.toFixed(2):"-"}</div>
+                                    {pct && <div style={{fontSize:11,fontWeight:700,color:beat?"#1a6a1a":"#c03030",marginTop:2}}>{beat?"+":""}{pct}%</div>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : null}
+
+                        <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
+
+                        {/* == 3: MARKET SENTIMENT == */}
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{width:20,height:20,borderRadius:"50%",background:"#185FA5",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>3</span>
+                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>Market Sentiment</span>
+                            <span style={{fontSize:9,fontWeight:600,color:"#185FA5",background:"#E6F1FB",padding:"1px 7px",borderRadius:7}}>Auto-generated</span>
+                          </div>
+                          <span style={{fontSize:10,color:"#bbb"}}>$0.00300/visit</span>
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:8}}>
+                          {[
+                            {label:"News Sentiment",    val:newsDir,   sub:newsPos+" pos / "+newsNeu+" neu / "+newsNeg+" neg", dots:newsDots,    col:newsDots>=4?"#1a6a1a":"#b88000", bg:newsDots>=4?"#EAF3DE":"#FAEEDA", bd:newsDots>=4?"#7abd00":"#d4a800"},
+                            {label:"Analyst Consensus", val:ov2.recKey?ov2.recKey.toUpperCase():"N/A", sub:(ov2.numAnalysts||0)+" analysts -- Target $"+(ov2.targetMean?ov2.targetMean.toFixed(2):"N/A"), dots:ov2.recKey&&ov2.recKey.toLowerCase().includes("buy")?4:3, col:"#1a6a1a",bg:"#EAF3DE",bd:"#7abd00"},
+                            {label:"Short Interest",    val:(shortPct*100).toFixed(1)+"% float", sub:"Ratio "+shortRatio.toFixed(1)+" days", dots:shortPct>0.10?2:3, col:shortPct>0.10?"#c03030":"#b88000", bg:shortPct>0.10?"#FCEBEB":"#FAEEDA", bd:shortPct>0.10?"#e08080":"#d4a800"},
+                          ].map(function(card,i){
+                            return (
+                              <div key={i} style={{background:card.bg,borderRadius:8,padding:"9px 11px",border:"0.5px solid "+card.bd}}>
+                                <div style={{fontSize:9,color:card.col,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>{card.label}</div>
+                                <div style={{fontSize:12,fontWeight:700,color:card.col,marginBottom:2}}>{card.val}</div>
+                                <div style={{fontSize:10,color:card.col,opacity:0.8,marginBottom:4}}>{card.sub}</div>
+                                <DI score={card.dots} sz={7} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {/* Recent news headlines */}
+                        {news2.slice(0,4).map(function(n,i){
+                          var sentArr = n.insights||[];
+                          var sent    = sentArr.length>0 ? sentArr[0].sentiment : "neutral";
+                          var sentCol = sent==="positive"?"#1a6a1a":sent==="negative"?"#c03030":"#b88000";
+                          var sentBg  = sent==="positive"?"#EAF3DE":sent==="negative"?"#FCEBEB":"#FAEEDA";
+                          return (
+                            <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:"var(--color-background-secondary)",borderRadius:6,marginBottom:4}}>
+                              <span style={{fontSize:10,fontWeight:600,color:sentCol,background:sentBg,padding:"1px 6px",borderRadius:5,flexShrink:0,textTransform:"capitalize"}}>{sent}</span>
+                              <div style={{flex:1,fontSize:11,color:"#333",lineHeight:1.4}}>{n.title||n.headline}</div>
+                              <span style={{fontSize:10,color:"#bbb",flexShrink:0}}>{n.published_utc ? new Date(n.published_utc).toLocaleDateString() : ""}</span>
+                            </div>
+                          );
+                        })}
+
+                        <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
+
+                        {/* == 4: ANALYSIS TECHNICAL NOTE == */}
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{width:20,height:20,borderRadius:"50%",background:"#0C447C",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>4</span>
+                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>Analysis Technical Note</span>
+                            <span style={{fontSize:9,fontWeight:600,color:"#0C447C",background:"#E6F1FB",padding:"1px 7px",borderRadius:7}}>Auto-generated</span>
+                          </div>
+                          <span style={{fontSize:10,color:"#bbb"}}>$0.00600/visit</span>
+                        </div>
+                        {insightCache["aiinsight"] && parsed ? (
+                          <div style={{fontSize:12,color:"#333",lineHeight:1.85,padding:"10px 12px",background:"var(--color-background-secondary)",borderRadius:8}}>
+                            {parsed.techScore != null && (
+                              <div style={{marginBottom:8}}>
+                                <strong style={{fontWeight:700}}>Technical Rating: </strong>
+                                <DI score={Math.round(parsed.techScore)} sz={8} />
+                                <span style={{fontSize:11,color:"#555",marginLeft:6}}>{parsed.techScore}/5</span>
+                              </div>
+                            )}
+                            {ind2.sma50&&price2>0&&<span><strong style={{fontWeight:700}}>SMA50:</strong> ${(ind2.sma50).toFixed(2)} ({price2>ind2.sma50?"above":"below"}) &nbsp;</span>}
+                            {ind2.sma200&&price2>0&&<span><strong style={{fontWeight:700}}>SMA200:</strong> ${(ind2.sma200).toFixed(2)} ({price2>ind2.sma200?"above":"below"}) &nbsp;</span>}
+                            {ind2.rsi14!=null&&<span><strong style={{fontWeight:700}}>RSI:</strong> {ind2.rsi14.toFixed(1)} &nbsp;</span>}
+                            {ind2.macd&&ind2.macd.histogram!=null&&<span><strong style={{fontWeight:700}}>MACD Hist:</strong> {ind2.macd.histogram.toFixed(4)} &nbsp;</span>}
+                            {bbMid>0&&<span><strong style={{fontWeight:700}}>BB:</strong> ${bbLower.toFixed(2)} / ${bbMid.toFixed(2)} / ${bbUpper.toFixed(2)} &nbsp;</span>}
+                            {fib382>0&&<span><strong style={{fontWeight:700}}>Fib:</strong> 38.2%=${fib382} / 50%=${fib500} / 61.8%=${fib618}</span>}
+                          </div>
+                        ) : <div style={{color:"#aaa",fontSize:12}}>Technical data will appear after AI Insight generates.</div>}
+
+                        <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
+
+                        {/* == 1: 10-K ON-DEMAND == */}
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{width:20,height:20,borderRadius:"50%",background:"#854F0B",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>1</span>
+                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>10-K Analysis + Risk Assessment</span>
+                            <span style={{fontSize:9,fontWeight:600,color:"#633806",background:"#FAEEDA",padding:"1px 7px",borderRadius:7,border:"0.5px solid #EF9F2740"}}>On-demand</span>
+                          </div>
+                          <span style={{fontSize:10,color:"#bbb"}}>$0.02380 when clicked</span>
+                        </div>
+                        {massiveInfo && massiveInfo.tenK && (massiveInfo.tenK.business || massiveInfo.tenK.riskFactors) ? (function() {
+                          var cacheKey = "tenk_full_" + sym;
+                          var cached   = insightCache[cacheKey];
+                          if (!cached) {
+                            return (
+                              <div style={{padding:"14px 16px",background:"var(--color-background-secondary)",borderRadius:8,border:"0.5px solid var(--color-border-tertiary)",textAlign:"center"}}>
+                                <div style={{fontSize:11,color:"#555",marginBottom:10,lineHeight:1.6}}>Reads 10-K Business section + Risk Factors. Business quality, moat evidence, management signals, top 5 risks rated Low/Medium/High, Buffett-style verdict.</div>
+                                <button onClick={function() {
+                                  setInsightCache(function(prev){ var n=Object.assign({},prev); n[cacheKey]="loading"; return n; });
+                                  var bizText  = (massiveInfo.tenK.business||"").slice(0,2000);
+                                  var riskText = (massiveInfo.tenK.riskFactors||"").slice(0,1500);
+                                  fetch("/anthropic",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:1100,messages:[{role:"user",content:"You are a senior investment analyst. For "+sym+", analyse this 10-K filing covering TWO areas:\n\nPART A - 10-K ANALYSIS: Business quality, competitive moat evidence, management quality signals, financial health indicators, Buffett verdict (buy/hold/avoid).\n\nPART B - RISK ASSESSMENT: List top 3-5 risks. For each: name, category (Regulatory/Competitive/Macro/Execution/Financial), severity (Low/Medium/High), one-sentence explanation.\n\nBUSINESS:\n"+bizText+"\n\nRISK FACTORS:\n"+riskText}]})})
+                                    .then(function(r){return r.json();})
+                                    .then(function(d){
+                                      var text=d&&d.content&&d.content[0]&&d.content[0].text;
+                                      setInsightCache(function(prev){var n=Object.assign({},prev);n[cacheKey]=text||"Analysis unavailable.";return n;});
+                                    }).catch(function(){
+                                      setInsightCache(function(prev){var n=Object.assign({},prev);n[cacheKey]="Analysis failed.";return n;});
+                                    });
+                                }} style={{padding:"8px 20px",background:"#111",color:"#c8f000",border:"none",borderRadius:6,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:FONT}}>
+                                  Generate 10-K Analysis + Risk Assessment
+                                </button>
+                                <div style={{fontSize:10,color:"#bbb",marginTop:6}}>Requires 10-K data from Massive.com</div>
+                              </div>
+                            );
+                          }
+                          if (cached === "loading") return (
+                            <div style={{textAlign:"center",padding:"20px 0"}}>
+                              <div style={{fontSize:12,color:"#888",marginBottom:10}}>Generating 10-K analysis...</div>
+                              <div style={{display:"inline-block",width:22,height:22,border:"3px solid #e0dbd0",borderTop:"3px solid "+LIME,borderRadius:"50%",animation:"spin 0.8s linear infinite"}} />
+                            </div>
+                          );
+                          return (
+                            <div style={{fontSize:12,color:"#333",lineHeight:1.85,padding:"12px 14px",background:"#FAEEDA",borderRadius:8,borderLeft:"3px solid #EF9F27"}}>
+                              {cached}
+                            </div>
+                          );
+                        })() : <div style={{color:"#aaa",fontSize:12,padding:"10px 14px",background:"var(--color-background-secondary)",borderRadius:8}}>10-K data unavailable. Requires Massive.com Starter plan.</div>}
+
+                        <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
+
+                        {/* == AI: AI INSIGHT == */}
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{width:20,height:20,borderRadius:"50%",background:"#1a1a14",border:"1px solid #c8f000",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#c8f000",flexShrink:0}}>AI</span>
+                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>AI Insight</span>
+                            <span style={{fontSize:9,fontWeight:600,color:"#27500A",background:"#EAF3DE",padding:"1px 7px",borderRadius:7}}>Auto-generated</span>
+                          </div>
+                          <span style={{fontSize:10,color:"#bbb"}}>$0.00200/visit</span>
+                        </div>
+
+                        {insightCache["aiinsight"] && parsed ? (
+                          <div>
+                            {/* Overall verdict card */}
+                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:vBg(parsed.verdict),borderRadius:10,border:"0.5px solid "+vBd(parsed.verdict),marginBottom:10}}>
+                              <div>
+                                <div style={{fontSize:10,color:vCol(parsed.verdict),fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:3}}>AI Insight -- {sym}</div>
+                                <div style={{fontSize:20,fontWeight:900,color:vCol(parsed.verdict)}}>{parsed.verdict||"Hold"}</div>
+                                <div style={{fontSize:11,color:vCol(parsed.verdict),opacity:0.8,marginTop:2}}>
+                                  {parsed.confidence&&"Confidence: "+parsed.confidence}
+                                  {parsed.confidence&&parsed.horizon&&" / "}
+                                  {parsed.horizon&&"Horizon: "+parsed.horizon}
+                                </div>
+                              </div>
+                              <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5}}>
+                                <DI score={parsed.dots} sz={11} />
+                                <div style={{fontSize:10,color:vCol(parsed.verdict),opacity:0.7}}>{parsed.dots} of 5</div>
+                              </div>
+                            </div>
+
+                            {/* 3 sub-dimension scores */}
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:10}}>
+                              {[
+                                {label:"Fundamental", score:parsed.fundScore||3},
+                                {label:"Technical",   score:parsed.techScore||3},
+                                {label:"Sentiment",   score:parsed.sentScore||3},
+                              ].map(function(dim,i){
+                                var dc={5:{c:"#1a6a1a",e:"#c8e8c0",l:"Strong"},4:{c:"#2a7a2a",e:"#c8e8c0",l:"Bullish"},3:{c:"#b88000",e:"#faeeda",l:"Neutral"},2:{c:"#c03030",e:"#f5c0c0",l:"Bearish"},1:{c:"#8b0000",e:"#f5c0c0",l:"Weak"}};
+                                var sc=Math.max(1,Math.min(5,Math.round(dim.score)));
+                                return (
+                                  <div key={i} style={{background:vBg(dc[sc]?dc[sc].l:parsed.verdict),borderRadius:8,padding:"9px 12px",textAlign:"center",border:"0.5px solid "+vBd(dc[sc]?dc[sc].l:parsed.verdict)}}>
+                                    <div style={{fontSize:10,color:dc[sc]?dc[sc].c:"#b88000",opacity:0.8,marginBottom:3}}>{dim.label}</div>
+                                    <div style={{fontSize:13,fontWeight:700,color:dc[sc]?dc[sc].c:"#b88000",marginBottom:5}}>{dc[sc]?dc[sc].l:"Neutral"}</div>
+                                    <DI score={sc} sz={7} />
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Risk / Opportunity */}
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
+                              <div style={{padding:"10px 12px",background:"#FCEBEB",borderRadius:8,border:"0.5px solid #e08080"}}>
+                                <div style={{fontSize:9,color:"#c03030",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Key Risk</div>
+                                <div style={{fontSize:11,color:"#791F1F",lineHeight:1.65}}>{parsed.risk||"See full analysis above."}</div>
+                              </div>
+                              <div style={{padding:"10px 12px",background:"#EAF3DE",borderRadius:8,border:"0.5px solid #7abd00"}}>
+                                <div style={{fontSize:9,color:"#1a6a1a",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Key Opportunity</div>
+                                <div style={{fontSize:11,color:"#173404",lineHeight:1.65}}>{parsed.opportunity||"See full analysis above."}</div>
+                              </div>
+                            </div>
+
+                            {/* Summary narrative */}
+                            <div style={{padding:"12px 14px",background:"#1a1a14",borderRadius:8,borderLeft:"3px solid #c8f000"}}>
+                              <div style={{fontSize:9,color:"#c8f000",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>AI Insight Summary</div>
+                              <div style={{fontSize:12,color:"#aac4e8",lineHeight:1.85}}>{parsed.summary||insightCache["aiinsight"]}</div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{color:"#aaa",fontSize:12,textAlign:"center",padding:"20px 0"}}>AI Insight is generating...</div>
+                        )}
+
+                        <div style={{marginTop:10,fontSize:11,color:"#bbb"}}>
+                          AI analysis by Claude Haiku. Data from Yahoo Finance + Massive.com. Not financial advice.
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Additional Information Tab */}
                   {insightTab === "addlinfo" && (function() {
