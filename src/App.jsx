@@ -774,33 +774,48 @@ function Detail({ sym, name, onBack }) {
                 </div>
               );
             }
+            //  Star rating computed inline (before JSX return) 
+            var _aiP2 = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null;
+            var _aiD2 = _aiP2 ? (_aiP2.dots||0) : 0;
+            var _msD2 = (typeof window.__msDots!=="undefined") ? window.__msDots : 0;
+            var _ivD2 = ivLabel==="Undervalued"?5:ivLabel==="Overvalued"?2:0;
+            var _ind2 = massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
+            var _mcdH = _ind2?(_ind2.macdHistory||[]):[];
+            var _rsiH = _ind2?(_ind2.rsiHistory||[]):[];
+            var _mcdT = (function(){if(_mcdH.length<3)return false;var h0=_mcdH[0]&&_mcdH[0].histogram,h1=_mcdH[1]&&_mcdH[1].histogram,h2=_mcdH[2]&&_mcdH[2].histogram;return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2;})();
+            var _wCrs = _ind2&&_ind2.wsma10&&_ind2.wsma40?(_ind2.wsma10<_ind2.wsma40&&Math.abs(_ind2.wsma10-_ind2.wsma40)/_ind2.wsma40<0.05):false;
+            var _rBas = _rsiH.length>=3?_rsiH.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;}):false;
+            var _lBas = (ov||{}).lo52>0&&price>0&&_ind2&&_ind2.rsi14!=null?((price-(ov||{}).lo52)/Math.max(((ov||{}).hi52-(ov||{}).lo52),1)<0.20&&_ind2.rsi14>20&&_ind2.rsi14<45):false;
+            var _revC = [_mcdT,_wCrs,_rBas,_lBas].filter(Boolean).length;
+            function _toStar(d){return d>=4?1:d===3?0.5:0;}
+            var _core = [moatScore,finScore,_ivD2,_msD2,_aiD2].filter(function(d){return d>0;}).reduce(function(s,d){return s+_toStar(d);},0);
+            var _bonus= _revC>=3?1:_revC>=1?0.5:0;
+            var _star = Math.round(Math.min(5,_core+_bonus)*2)/2;
+            var _lbl  = _star>=4.5?"Exceptional":_star>=4?"Strong Buy":_star>=3.5?"Buy":_star>=3?"Hold":_star>=2?"Caution":"Avoid";
+            var _col  = _star>=4?"#1a6a1a":_star>=3?"#b88000":"#c03030";
+            function _StarRow(rating){
+              var spans=[];
+              for(var i=1;i<=5;i++){
+                var d=rating-(i-1);
+                spans.push(<span key={i} style={{fontSize:20,color:d>=0.5?"#f5a623":"#d8d3ca",opacity:d>=0.5&&d<1?0.5:1,lineHeight:1,display:"inline-block"}}>{d>=0.5?"":""}</span>);
+              }
+              return spans;
+            }
+
             return (
               <div style={{ marginBottom:16 }}>
-                {(function() {
-                  var sr = window.__starRating  || 0;
-                  var sl = window.__ratingLabel || "";
-                  var sc = window.__ratingCol   || "#888";
-                  if (!sr) return null;
-                  var starSpans = [];
-                  for (var i=1;i<=5;i++){
-                    var diff=sr-(i-1);
-                    var col=diff>=0.5?"#f5a623":"#d8d3ca";
-                    var op=diff>=0.5&&diff<1?0.5:1;
-                    starSpans.push(<span key={i} style={{fontSize:20,color:col,opacity:op,lineHeight:1,display:"inline-block"}}>{diff>=0.5?"":""}</span>);
-                  }
-                  return (
-                    <div>
-                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-                        <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Analysis Rating</span>
-                        <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                          <span style={{ display:"inline-flex" }}>{starSpans}</span>
-                          <span style={{ fontSize:12, fontWeight:500, color:sc }}>{sl}&nbsp;&nbsp;{sr.toFixed(1)}&nbsp;/&nbsp;5.0</span>
-                        </div>
+                {_star>0&&(
+                  <div>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                      <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Analysis Rating</span>
+                      <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                        <span style={{ display:"inline-flex" }}>{_StarRow(_star)}</span>
+                        <span style={{ fontSize:12, fontWeight:500, color:_col }}>{_lbl}&nbsp;&nbsp;{_star.toFixed(1)}&nbsp;/&nbsp;5.0</span>
                       </div>
-                      <div style={{ height:"0.5px", background:"var(--color-border-tertiary)", marginBottom:8 }} />
                     </div>
-                  );
-                })()}
+                    <div style={{ height:"0.5px", background:"var(--color-border-tertiary)", marginBottom:8 }} />
+                  </div>
+                )}
                 <div style={{ fontSize:10, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:600, marginBottom:7 }}>Analysis Summary</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
                   <Card label="Economic Moat"    value={moatRating}  score={moatScore}  colors={moatColors} />
