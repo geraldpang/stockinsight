@@ -797,7 +797,7 @@ function Detail({ sym, name, onBack }) {
               var spans=[];
               for(var i=1;i<=5;i++){
                 var d=rating-(i-1);
-                spans.push(<span key={i} style={{fontSize:20,color:d>=0.5?"#f5a623":"#d8d3ca",opacity:d>=0.5&&d<1?0.5:1,lineHeight:1,display:"inline-block"}}>{d>=0.5?"":""}</span>);
+                spans.push(<span key={i} style={{fontSize:20,color:d>=0.5?"#f5a623":"#d8d3ca",opacity:d>=0.5&&d<1?0.5:1,lineHeight:1,display:"inline-block"}}>{d>=0.5?String.fromCharCode(9733):String.fromCharCode(9734)}</span>);
               }
               return spans;
             }
@@ -1117,7 +1117,7 @@ function Detail({ sym, name, onBack }) {
                 var fill = diff>=1?"full":diff>=0.5?"half":"empty";
                 stars.push(
                   <span key={i} style={{fontSize:22,lineHeight:1,color:fill==="empty"?"#ddd":"#f5a623",display:"inline-block",marginRight:1,opacity:fill==="half"?0.5:1}}>
-                    {fill==="empty"?"\u2606":"\u2605"}
+                    {fill==="empty"?String.fromCharCode(9734):String.fromCharCode(9733)}
                   </span>
                 );
               }
