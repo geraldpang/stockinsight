@@ -780,7 +780,22 @@ function Detail({ sym, name, onBack }) {
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
                   <Card label="Economic Moat"    value={moatRating}  score={moatScore}  colors={moatColors} />
                   <Card label="Financial Strength" value={finRating} score={finScore}   colors={finColors} />
-                  <Card label="Intrinsic Value"  value={vals.length > 0 ? "$" + oracle : null} score={ivLabel==="Undervalued"?5:ivLabel==="Overvalued"?2:0} sublabel={ivLabel} colors={ivColors} />
+                  (function(){
+                    var ivVal = vals.length > 0 ? "$" + oracle : null;
+                    var ivScore = ivLabel==="Undervalued"?5:ivLabel==="Overvalued"?2:0;
+                    var c = ivVal ? ivColors : pillColor(null);
+                    var loading = !ivVal;
+                    return (
+                      <div style={{ padding:"10px 12px", background:loading?"#f9f7f4":c.bg, border:"0.5px solid "+(loading?"#e0dbd0":c.border), borderRadius:8, opacity:loading?0.6:1 }}>
+                        <div style={{ fontSize:10, color:loading?"#aaa":c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>Intrinsic Value</div>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                          <div style={{ fontSize:14, fontWeight:700, color:loading?"#ccc":c.fg }}>{loading?"...":ivVal}</div>
+                          {!loading && <Dots score={ivScore} filled={c.dot} empty={c.dotEmpty} />}
+                        </div>
+                        {!loading && ivLabel && <div style={{ fontSize:10, color:c.fg, marginTop:3, opacity:0.85 }}>{ivLabel}</div>}
+                      </div>
+                    );
+                  })()
                   {(function() {
                     var ind2 = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
                     var agg2 = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
@@ -836,7 +851,18 @@ function Detail({ sym, name, onBack }) {
                             : vlc==="avoid"       ? {bg:"#FCEBEB",border:"#e08080",fg:"#c03030",dot:"#c03030",dotEmpty:"#f5c0c0"}
                             : vlc==="strong avoid" ? {bg:"#FCEBEB",border:"#c03030",fg:"#8b0000",dot:"#8b0000",dotEmpty:"#f5c0c0"}
                             :                       {bg:"#f5f2ec",border:"#ddd",   fg:"#888",   dot:"#ccc",   dotEmpty:"#e8e4dc"};
-                    return <Card label="AI Insight" value={vl} score={aiDots} sublabel={aiP.confidence?"Conf: "+aiP.confidence:null} colors={aiC} />;
+                    return (function(){
+                      return (
+                        <div style={{ padding:"10px 12px", background:aiC.bg, border:"0.5px solid "+aiC.border, borderRadius:8 }}>
+                          <div style={{ fontSize:10, color:aiC.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>AI Insight</div>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                            <div style={{ fontSize:14, fontWeight:700, color:aiC.fg }}>{vl}</div>
+                            <Dots score={aiDots} filled={aiC.dot} empty={aiC.dotEmpty} />
+                          </div>
+                          {aiP.confidence && <div style={{ fontSize:10, color:aiC.fg, marginTop:3, opacity:0.85 }}>Conf: {aiP.confidence}</div>}
+                        </div>
+                      );
+                    })();
                   })()}                  
                 </div>
 
@@ -886,18 +912,22 @@ function Detail({ sym, name, onBack }) {
                       bg3="#fdf5e6"; border3="#FAC775";
                       label3Col="#854F0B"; pulse3="#EF9F27"; verdict3="Early Signal";
                       dotFilled3="#EF9F27"; dotEmpty3="rgba(239,159,39,0.2)";
-                      sub3="1 reversal indicator active. Monitor closely.";
+                      sub3=null;
                     } else if (isWatch) {
                       bg3="#EAF3DE"; border3="#7abd00";
                       label3Col="#173404"; pulse3="#2a7a2a"; verdict3="Reversal Watch";
                       dotFilled3="#2a7a2a"; dotEmpty3="rgba(42,122,42,0.2)";
-                      sub3="Potential trend reversal forming. See Market Signal tab.";
+                      sub3=null;
                     } else {
                       bg3="#EAF3DE"; border3="#1a6a1a";
                       label3Col="#173404"; pulse3="#1a6a1a"; verdict3="Strong Reversal";
                       dotFilled3="#1a6a1a"; dotEmpty3="rgba(26,106,26,0.2)";
-                      sub3="Strong reversal signals active. See Market Signal tab.";
+                      sub3=null;
                     }
+
+                    var sigNames3 = ["RSI Divergence","MACD Turning","Weekly SMA Cross","RSI Base","52-Wk Low Base"];
+                    var activeNames3 = sigNames3.filter(function(_,i){ return revArr3[i]; });
+                    if (!isNone) sub3 = activeNames3.join(" | ");
 
                     return (
                       <div style={{ marginTop:12 }}>
@@ -908,18 +938,37 @@ function Detail({ sym, name, onBack }) {
                               {pulse3 && <span style={{ width:7, height:7, borderRadius:"50%", background:pulse3, flexShrink:0, display:"inline-block" }} />}
                               <span style={{ fontSize:10, fontWeight:600, color:label3Col, textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Indicator</span>
                             </div>
-                            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                              <span style={{ display:"inline-flex", gap:3 }}>
+                                {[1,2,3,4,5].map(function(i) {
+                                  return <span key={i} style={{ width:8, height:8, borderRadius:"50%", background:i<=revCount3?dotFilled3:dotEmpty3, display:"inline-block" }} />;
+                                })}
+                              </span>
                               <span style={{ fontSize:11, fontWeight:600, color:label3Col, background:isNone?"#e8e6e0":dotFilled3+"33", padding:"2px 10px", borderRadius:20, border:"0.5px solid "+(isNone?"#c8c5be":border3) }}>
                                 {verdict3 || "No signals"}
                               </span>
-                              <span style={{ display:"inline-flex", gap:3 }}>
-                                {revArr3.map(function(active, i) {
-                                  return <span key={i} style={{ width:8, height:8, borderRadius:"50%", background:active?dotFilled3:dotEmpty3, display:"inline-block" }} />;
-                                })}
-                              </span>
                             </div>
                           </div>
-                          {sub3 && <div style={{ marginTop:6, paddingTop:6, borderTop:"0.5px solid "+border3+"44", fontSize:11, color:label3Col, lineHeight:1.6 }}>{sub3}</div>}
+                          {!isNone && (
+                            <div style={{ marginTop:6, paddingTop:6, borderTop:"0.5px solid "+border3+"44", display:"flex", flexWrap:"wrap", gap:4 }}>
+                              {sigNames3.map(function(name, i) {
+                                var active = revArr3[i];
+                                return (
+                                  <span key={i} style={{
+                                    fontSize:10, fontWeight:500,
+                                    color:active?label3Col:"#bbb",
+                                    background:active?dotFilled3+"22":"transparent",
+                                    border:"0.5px solid "+(active?dotFilled3+"88":"#e0dbd0"),
+                                    padding:"2px 7px", borderRadius:10,
+                                    textDecoration:active?"none":"none",
+                                    opacity:active?1:0.5,
+                                  }}>
+                                    {active && <span style={{marginRight:3}}>&#10003;</span>}{name}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
