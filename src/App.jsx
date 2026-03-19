@@ -1003,8 +1003,8 @@ function Detail({ sym, name, onBack }) {
                 var diff = props.rating - (i-1);
                 var fill = diff>=1?"full":diff>=0.5?"half":"empty";
                 stars.push(
-                  <span key={i} style={{fontSize:22,lineHeight:1,color:fill==="empty"?"#ddd":"#f5a623",display:"inline-block",marginRight:1}}>
-                    {fill==="full"?"\u2605":fill==="half"?"\u2BE8":"\u2606"}
+                  <span key={i} style={{fontSize:22,lineHeight:1,color:fill==="empty"?"#ddd":"#f5a623",display:"inline-block",marginRight:1,opacity:fill==="half"?0.5:1}}>
+                    {fill==="empty"?"\u2606":"\u2605"}
                   </span>
                 );
               }
@@ -1036,7 +1036,7 @@ function Detail({ sym, name, onBack }) {
                       ].filter(function(r){return r[1]>0;}).map(function(r,i){
                         return [
                           <span key={"l"+i} style={{opacity:0.8}}>{r[0]}{r[2]?" *":""}</span>,
-                          <span key={"v"+i} style={{fontWeight:700}}>{r[1]>=4?"".slice(0,r[1]):r[1]>=3?"":""}</span>
+                          <span key={"v"+i} style={{fontWeight:700}}>{r[1]>=4?"High":r[1]>=3?"Mid":"Low"}</span>
                         ];
                       })}
                     </div>
@@ -3506,7 +3506,7 @@ export default function App() {
             );
           })}
         </div>
-
-            </div>
+      </div>
+    </div>
   );
 }
