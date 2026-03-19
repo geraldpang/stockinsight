@@ -909,7 +909,6 @@ function Detail({ sym, name, onBack }) {
                     })();
                   })()}                  
                 </div>
-                <div style={{ borderTop:"1px solid #e8e4dc", margin:"12px 0" }}></div>
                   {/* Reversal Detector */}
                   {(function() {
                     var ind3      = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
