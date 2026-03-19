@@ -723,10 +723,13 @@ function Detail({ sym, name, onBack }) {
             function pillColor(text) {
               if (!text) return { bg:"#f5f2ec", fg:"#888", border:"#ddd", dot:"#ccc", dotEmpty:"#e8e4dc" };
               var v = text.toLowerCase();
-              if (v.includes("wide") || v.includes("strong") || v.includes("strong bullish")) return { bg:"#e6f4e6", fg:"#1a6a1a", border:"#7abd00", dot:"#1a6a1a", dotEmpty:"#c8e8c0" };
-              if (v.includes("narrow") || v.includes("moderate") || v.includes("bullish")) return { bg:"#f0f7e6", fg:"#2a7a2a", border:"#9ab800", dot:"#2a7a2a", dotEmpty:"#c8e8c0" };
-              if (v.includes("neutral") || v.includes("fairly")) return { bg:"#fdf8e6", fg:"#b88000", border:"#d4a800", dot:"#b88000", dotEmpty:"#f5ddb0" };
-              if (v.includes("none") || v.includes("weak") || v.includes("bearish") || v.includes("overvalued")) return { bg:"#fff0f0", fg:"#c03030", border:"#e08080", dot:"#c03030", dotEmpty:"#f5c0c0" };
+              if (v.includes("strong buy"))                                                        return { bg:"#EAF3DE", fg:"#1a6a1a", border:"#7abd00", dot:"#1a6a1a", dotEmpty:"#c8e8c0" };
+              if (v.includes("strong avoid"))                                                      return { bg:"#FCEBEB", fg:"#8b0000", border:"#c03030", dot:"#8b0000", dotEmpty:"#f5c0c0" };
+              if (v === "buy" || v.includes("wide") || v.includes("strong bullish"))               return { bg:"#EAF3DE", fg:"#2a7a2a", border:"#97C459", dot:"#2a7a2a", dotEmpty:"#c8e8c0" };
+              if (v.includes("avoid"))                                                             return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#c03030", dotEmpty:"#f5c0c0" };
+              if (v.includes("narrow") || v.includes("moderate") || v.includes("bullish"))        return { bg:"#f0f7e6", fg:"#2a7a2a", border:"#9ab800", dot:"#2a7a2a", dotEmpty:"#c8e8c0" };
+              if (v.includes("neutral") || v.includes("fairly") || v === "hold")                  return { bg:"#FAEEDA", fg:"#b88000", border:"#d4a800", dot:"#b88000", dotEmpty:"#f5ddb0" };
+              if (v.includes("none") || v.includes("weak") || v.includes("bearish") || v.includes("overvalued")) return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#c03030", dotEmpty:"#f5c0c0" };
               return { bg:"#f5f2ec", fg:"#555", border:"#ccc", dot:"#aaa", dotEmpty:"#e0e0e0" };
             }
             function Dots(props) {
@@ -1879,19 +1882,39 @@ function Detail({ sym, name, onBack }) {
                     // ---- dot renderer ----
                     function DI(props) {
                       var map = {5:{c:"#1a6a1a",e:"#c8e8c0"},4:{c:"#2a7a2a",e:"#c8e8c0"},3:{c:"#b88000",e:"#faeeda"},2:{c:"#c03030",e:"#f5c0c0"},1:{c:"#8b0000",e:"#f5c0c0"}};
-                      var s = Math.max(1,Math.min(5,Math.round(props.score||3)));
+                      var s = Math.max(1,Math.min(5,Math.round(parseFloat(props.score)||3)));
                       var cc = map[s]; var d = [];
                       for (var i=1;i<=5;i++) d.push(<span key={i} style={{display:"inline-block",width:props.sz||8,height:props.sz||8,borderRadius:"50%",background:i<=s?cc.c:cc.e,marginRight:2}}/>);
                       return <span style={{display:"inline-flex",alignItems:"center"}}>{d}</span>;
                     }
 
                     // ---- verdict colour helpers ----
-                    var vColMap = {"Strong Buy":"#1a6a1a","Buy":"#2a7a2a","Hold":"#b88000","Avoid":"#c03030","Strong Avoid":"#8b0000"};
-                    var vBgMap  = {"Strong Buy":"#EAF3DE","Buy":"#EAF3DE","Hold":"#FAEEDA","Avoid":"#FCEBEB","Strong Avoid":"#FCEBEB"};
-                    var vBdMap  = {"Strong Buy":"#7abd00","Buy":"#97C459","Hold":"#d4a800","Avoid":"#e08080","Strong Avoid":"#c03030"};
-                    function vCol(v){ return vColMap[v]||"#b88000"; }
-                    function vBg(v) { return vBgMap[v] ||"#FAEEDA"; }
-                    function vBd(v) { return vBdMap[v] ||"#d4a800"; }
+                    function vCol(v){
+                      if (!v) return "#b88000";
+                      var vl=(v+"").trim().toLowerCase();
+                      if(vl==="strong buy")   return "#1a6a1a";
+                      if(vl==="buy")          return "#2a7a2a";
+                      if(vl==="hold")         return "#b88000";
+                      if(vl==="avoid")        return "#c03030";
+                      if(vl==="strong avoid") return "#8b0000";
+                      return "#b88000";
+                    }
+                    function vBg(v){
+                      if (!v) return "#FAEEDA";
+                      var vl=(v+"").trim().toLowerCase();
+                      if(vl==="strong buy"||vl==="buy") return "#EAF3DE";
+                      if(vl==="hold")                   return "#FAEEDA";
+                      return "#FCEBEB";
+                    }
+                    function vBd(v){
+                      if (!v) return "#d4a800";
+                      var vl=(v+"").trim().toLowerCase();
+                      if(vl==="strong buy") return "#7abd00";
+                      if(vl==="buy")        return "#97C459";
+                      if(vl==="hold")       return "#d4a800";
+                      if(vl==="avoid")      return "#e08080";
+                      return "#c03030";
+                    }
 
                     // ---- free data signals ----
                     // Analyst momentum from upgradeDowngradeHistory
