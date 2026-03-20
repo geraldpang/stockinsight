@@ -3401,6 +3401,7 @@ function Detail({ sym, name, onBack }) {
             <span style={{ fontSize:10, fontWeight:600, color:"#c8f000", textTransform:"uppercase", letterSpacing:"0.06em" }}>General information only -- not financial advice</span>
           </div>
           <span id="disc-tap" style={{ fontSize:10, color:"#555" }}>tap to read</span>
+        </div>
       </div>
     </div>
   );
