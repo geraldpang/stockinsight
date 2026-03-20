@@ -3346,9 +3346,52 @@ function Detail({ sym, name, onBack }) {
         background:"rgba(250,248,244,0.97)",
         borderTop:"1px solid #e8e4dc",
       }}>
+        {/* Expandable full disclaimer -- slides up above the bar */}
+        <div id="disc-full" style={{
+          display:"none",
+          maxHeight:"50vh",
+          overflowY:"auto",
+          padding:"14px 20px",
+          borderBottom:"0.5px solid #e8e4dc",
+          background:"#faf8f4",
+        }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+            <span style={{ fontSize:11, fontWeight:600, color:"#185FA5", textTransform:"uppercase", letterSpacing:"0.06em" }}>Disclaimer</span>
+            <button
+              onClick={function(){ var d=document.getElementById("disc-full"); if(d) d.style.display="none"; var t=document.getElementById("disc-tap"); if(t) t.innerText="tap to read"; }}
+              style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#aaa", lineHeight:1, padding:"0 2px" }}>
+              &times;
+            </button>
+          </div>
+          <div style={{ fontSize:11, color:"#888", lineHeight:1.75, marginBottom:8 }}>
+            <strong style={{ fontWeight:600, color:"#555" }}>About this website. </strong>
+            Colaboree StockInsight is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs only -- no profit is derived.
+          </div>
+          <div style={{ fontSize:11, color:"#888", lineHeight:1.75, marginBottom:8 }}>
+            <strong style={{ fontWeight:600, color:"#555" }}>General information only. </strong>
+            All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice.
+          </div>
+          <div style={{ fontSize:11, color:"#888", lineHeight:1.75, marginBottom:8 }}>
+            <strong style={{ fontWeight:600, color:"#555" }}>Your personal situation. </strong>
+            This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results.
+          </div>
+          <div style={{ fontSize:11, color:"#888", lineHeight:1.75 }}>
+            <strong style={{ fontWeight:600, color:"#555" }}>Data accuracy. </strong>
+            Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). &copy; Colaboree StockInsight 2026.
+          </div>
+        </div>
+        {/* Slim always-visible bar */}
         <div
           style={{ padding:"7px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}
-          onClick={function(){ var d=document.getElementById("disc-full"); if(d) d.style.display=d.style.display==="none"?"block":"none"; }}
+          onClick={function(){
+            var d=document.getElementById("disc-full");
+            var t=document.getElementById("disc-tap");
+            if(d){
+              var open=d.style.display!=="none";
+              d.style.display=open?"none":"block";
+              if(t) t.innerText=open?"tap to read":"tap to close";
+            }
+          }}
         >
           <div style={{ display:"flex", alignItems:"center", gap:7 }}>
             <div style={{ width:14, height:14, borderRadius:"50%", background:"#E6F1FB", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
@@ -3359,25 +3402,7 @@ function Detail({ sym, name, onBack }) {
             </div>
             <span style={{ fontSize:10, fontWeight:600, color:"#185FA5", textTransform:"uppercase", letterSpacing:"0.06em" }}>General information only -- not financial advice</span>
           </div>
-          <span style={{ fontSize:10, color:"#aaa" }}>tap to expand</span>
-        </div>
-        <div id="disc-full" style={{ display:"none", padding:"0 20px 14px", borderTop:"0.5px solid #f0ede6" }}>
-          <div style={{ fontSize:11, color:"#888", lineHeight:1.75, marginBottom:7 }}>
-            <strong style={{ fontWeight:600, color:"#555" }}>About this website. </strong>
-            Colaboree StockInsight is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs only -- no profit is derived.
-          </div>
-          <div style={{ fontSize:11, color:"#888", lineHeight:1.75, marginBottom:7 }}>
-            <strong style={{ fontWeight:600, color:"#555" }}>General information only. </strong>
-            All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice.
-          </div>
-          <div style={{ fontSize:11, color:"#888", lineHeight:1.75, marginBottom:7 }}>
-            <strong style={{ fontWeight:600, color:"#555" }}>Your personal situation. </strong>
-            This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results.
-          </div>
-          <div style={{ fontSize:11, color:"#888", lineHeight:1.75 }}>
-            <strong style={{ fontWeight:600, color:"#555" }}>Data accuracy. </strong>
-            Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). &copy; Colaboree StockInsight 2026.
-          </div>
+          <span id="disc-tap" style={{ fontSize:10, color:"#aaa" }}>tap to read</span>
         </div>
       </div>
     </div>
