@@ -665,18 +665,18 @@ function Detail({ sym, name, onBack }) {
     <div style={{ minHeight:"100vh", background:"#f5f2ec", fontFamily:FONT }}>
 
       {/* Nav */}
-      <div style={{ background:"#fff", borderBottom:"1px solid #e0dbd0", padding:"8px 20px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      <div style={{ background:"#c8f000", padding:"8px 20px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <button onClick={onBack} style={{ border:"1px solid #ccc", borderRadius:6, padding:"5px 12px", background:"#f5f2ec", cursor:"pointer", fontSize:12, fontFamily:FONT }}>
+          <button onClick={onBack} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"5px 12px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
             Back
           </button>
-          <span style={{ fontWeight:800, fontSize:15 }}>
-            Colabo<span style={{ color:"#ff5c3a" }}>ree</span>{" "}
-            <span style={{ color:"#7abd00" }}>StockInsight</span>
+          <span style={{ fontWeight:800, fontSize:15, color:"#1a1a14" }}>
+            Colabo<span style={{ color:"#F05A1A" }}>ree</span>{" "}
+            <span style={{ color:"#1a1a14" }}>StockInsight</span>
           </span>
-          <span style={{ color:"#aaa", fontSize:12 }}>/ {sym}</span>
+          <span style={{ color:"rgba(0,0,0,0.4)", fontSize:12 }}>/ {sym}</span>
         </div>
-        <span style={{ fontSize:10, background:"#111", color:LIME, padding:"3px 12px", borderRadius:20, fontWeight:700, letterSpacing:"0.06em" }}>
+        <span style={{ fontSize:10, background:"rgba(0,0,0,0.12)", color:"#1a1a14", padding:"3px 12px", borderRadius:20, fontWeight:700, letterSpacing:"0.06em" }}>
           LIVE . YAHOO FINANCE
         </span>
       </div>
@@ -696,10 +696,10 @@ function Detail({ sym, name, onBack }) {
       <div style={{ display:"grid", gridTemplateColumns:"400px 1fr" }}>
 
         {/* LEFT PANEL */}
-        <div style={{ padding:"24px 20px", borderRight:"1px solid #e0dbd0", background:"#faf8f4" }}>
+        <div style={{ padding:"24px 20px", borderRight:"1px solid #111", background:"#1c1c1e" }}>
 
-          <h2 style={{ fontSize:21, fontWeight:900, color:"#111", margin:"0 0 3px" }}>({sym}) {name}</h2>
-          <div style={{ fontSize:13, color:"#888", marginBottom:14 }}>{ov ? ov.exchange : "NASDAQ"}</div>
+          <h2 style={{ fontSize:21, fontWeight:900, color:"#f0ede6", margin:"0 0 3px" }}>({sym}) {name}</h2>
+          <div style={{ fontSize:13, color:"#555", marginBottom:14 }}>{ov ? ov.exchange : "NASDAQ"}</div>
 
 
 
@@ -707,13 +707,13 @@ function Detail({ sym, name, onBack }) {
           {price > 0 ? (
             <div style={{ marginBottom:16 }}>
               <div>
-                <span style={{ fontSize:38, fontWeight:900, color:"#111", letterSpacing:"-1px" }}>
+                <span style={{ fontSize:38, fontWeight:900, color:"#f0ede6", letterSpacing:"-1px" }}>
                   {price.toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 })}
                 </span>
-                <span style={{ fontSize:13, color:"#999", marginLeft:8 }}>USD</span>
+                <span style={{ fontSize:13, color:"#555", marginLeft:8 }}>USD</span>
                 <span style={{ fontSize:14, fontWeight:700, marginLeft:10, color:up?"#2a8a2a":"#c03030" }}>{chg}</span>
               </div>
-              <div style={{ fontSize:12, color:"#aaa" }}>Next Earnings Date: <span style={{ color:"#555" }}>{ov && ov.nextEarnings ? ov.nextEarnings : "-"}</span></div>
+              <div style={{ fontSize:12, color:"#555" }}>Next Earnings Date: <span style={{ color:"#888" }}>{ov && ov.nextEarnings ? ov.nextEarnings : "-"}</span></div>
             </div>
           ) : (
             <div style={{ color:"#aaa", fontSize:14, marginBottom:16 }}>Loading price...</div>
@@ -754,15 +754,23 @@ function Detail({ sym, name, onBack }) {
             var ivColors      = ivLabel ? pillColor(ivLabel) : pillColor(null);
             var moatColors    = moatRating  ? pillColor(moatRating)  : pillColor(null);
             var finColors     = finRating   ? pillColor(finRating)   : pillColor(null);
+            function darkify(c) {
+              // Map light pill colours to dark sidebar equivalents
+              var bg = c.bg;
+              if (bg === "#EAF3DE" || bg === "#f0f7e6") return Object.assign({}, c, { bg:"#1e2a1e", border:"#2a4020" });
+              if (bg === "#FAEEDA") return Object.assign({}, c, { bg:"#2a2010", border:"#3a3010" });
+              if (bg === "#FCEBEB") return Object.assign({}, c, { bg:"#2a1e1e", border:"#4a2020" });
+              return Object.assign({}, c, { bg:"#252525", border:"#333" });
+            }
             function Card(props) {
-              var c = props.colors;
+              var c = darkify(props.colors);
               var loading = !props.value;
               return (
-                <div style={{ padding:"10px 12px", background: loading ? "#f9f7f4" : c.bg, border:"0.5px solid " + (loading ? "#e0dbd0" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1 }}>
+                <div style={{ padding:"10px 12px", background: loading ? "#252525" : c.bg, border:"0.5px solid " + (loading ? "#333" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1 }}>
                   <div style={{ fontSize:10, color: loading ? "#aaa" : c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>{props.label}</div>
                   <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
                     <div>
-                      <div style={{ fontSize:14, fontWeight:700, color: loading ? "#ccc" : c.fg }}>{loading ? "..." : props.value}</div>
+                      <div style={{ fontSize:14, fontWeight:700, color: loading ? "#555" : c.fg }}>{loading ? "..." : props.value}</div>
                       {!loading && props.sublabel && (
                         <div style={{ fontSize:10, fontWeight:600, color:c.fg, marginTop:2, opacity:0.85 }}>{props.sublabel}</div>
                       )}
@@ -807,7 +815,7 @@ function Detail({ sym, name, onBack }) {
                 {_star>0&&(
                   <div>
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-                      <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Analysis Rating</span>
+                      <span style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em" }}>Analysis Rating</span>
                       <div style={{ display:"flex", alignItems:"center", gap:7 }}>
                         <span style={{ display:"inline-flex" }}>{_StarRow(_star)}</span>
                         <span style={{ fontSize:12, fontWeight:500, color:_col }}>{_lbl}&nbsp;&nbsp;{_star.toFixed(1)}&nbsp;/&nbsp;5.0</span>
@@ -815,8 +823,8 @@ function Detail({ sym, name, onBack }) {
                     </div>
                   </div>
                 )}
-                <div style={{ borderTop:"1px solid #e8e4dc", margin:"10px 0 16px" }}></div>
-                <div style={{ fontSize:10, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:600, marginBottom:7 }}>Analysis Summary</div>
+                <div style={{ borderTop:"1px solid #2c2c2e", margin:"10px 0 16px" }}></div>
+                <div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:600, marginBottom:7 }}>Analysis Summary</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
                   <Card label="Economic Moat"    value={moatRating}  score={moatScore}  colors={moatColors} />
                   {(function(){ window.__moatDots=moatScore; window.__finDots=finScore; return null; })()}
@@ -827,7 +835,7 @@ function Detail({ sym, name, onBack }) {
                     var c = ivVal ? ivColors : pillColor(null);
                     var loading = !ivVal;
                     return (
-                      <div style={{ padding:"10px 12px", background:loading?"#f9f7f4":c.bg, border:"0.5px solid "+(loading?"#e0dbd0":c.border), borderRadius:8, opacity:loading?0.6:1 }}>
+                      <div style={{ padding:"10px 12px", background:loading?"#252525":darkify(c).bg, border:"0.5px solid "+(loading?"#333":darkify(c).border), borderRadius:8, opacity:loading?0.6:1 }}>
                         <div style={{ fontSize:10, color:loading?"#aaa":c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>Intrinsic Value</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                           <div style={{ fontSize:14, fontWeight:700, color:loading?"#ccc":c.fg }}>{loading?"...":ivVal}</div>
@@ -974,7 +982,7 @@ function Detail({ sym, name, onBack }) {
 
                     return (
                       <div style={{ marginTop:12 }}>
-                        <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginTop:16, marginBottom:6 }}>Reversal Indicator</div>
+                        <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em", marginTop:16, marginBottom:6 }}>Reversal Indicator</div>
                         <div style={{ padding:"9px 12px", background:bg3, borderRadius:8, border:"0.5px solid "+border3 }}>
                           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                             <div style={{ display:"flex", alignItems:"center", gap:6 }}>
@@ -1134,20 +1142,20 @@ function Detail({ sym, name, onBack }) {
             return null;
           })()}
 
-          <div style={{ borderTop:"1px solid #e8e4dc", margin:"12px 0" }}></div>
+          <div style={{ borderTop:"1px solid #2c2c2e", margin:"12px 0" }}></div>
           {/* Valuation Section */}
-          <div style={{ background:"#fff", border:"1px solid #e0dbd0", borderRadius:12, padding:"16px", marginBottom:12 }}>
-            <div style={{ fontSize:12, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Valuation</div>
+          <div style={{ background:"#252525", border:"1px solid #2c2c2e", borderRadius:12, padding:"16px", marginBottom:12 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Valuation</div>
             {valRows.length > 0 ? (
               <table style={{ width:"100%", borderCollapse:"collapse" }}>
                 <tbody>
                   {valRows.map(function(row, i) {
                     return (
-                      <tr key={i} style={{ borderBottom:i < valRows.length-1 ? "1px solid #f0ede6" : "none" }}>
+                      <tr key={i} style={{ borderBottom:i < valRows.length-1 ? "1px solid #2c2c2e" : "none" }}>
                         <td style={{ padding:"6px 0", fontSize:11, color:"#888", width:"34%", lineHeight:1.4 }}>{row[0]}</td>
-                        <td style={{ padding:"6px 8px", fontSize:13, fontWeight:700, color:"#111", width:"16%" }}>{row[1]}</td>
-                        <td style={{ padding:"6px 0", fontSize:11, color:"#888", width:"34%", lineHeight:1.4 }}>{row[2]}</td>
-                        <td style={{ padding:"6px 0", fontSize:13, fontWeight:700, color:"#111", width:"16%", textAlign:"right" }}>{row[3]}</td>
+                        <td style={{ padding:"6px 8px", fontSize:13, fontWeight:700, color:"#ddd", width:"16%" }}>{row[1]}</td>
+                        <td style={{ padding:"6px 0", fontSize:11, color:"#555", width:"34%", lineHeight:1.4 }}>{row[2]}</td>
+                        <td style={{ padding:"6px 0", fontSize:13, fontWeight:700, color:"#ddd", width:"16%", textAlign:"right" }}>{row[3]}</td>
                       </tr>
                     );
                   })}
@@ -1161,18 +1169,18 @@ function Detail({ sym, name, onBack }) {
           </div>
 
           {/* Financial Health Section */}
-          <div style={{ background:"#fff", border:"1px solid #e0dbd0", borderRadius:12, padding:"16px", marginBottom:12 }}>
-            <div style={{ fontSize:12, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Financial Health</div>
+          <div style={{ background:"#252525", border:"1px solid #2c2c2e", borderRadius:12, padding:"16px", marginBottom:12 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Financial Health</div>
             {healthRows.length > 0 ? (
               <table style={{ width:"100%", borderCollapse:"collapse" }}>
                 <tbody>
                   {healthRows.map(function(row, i) {
                     return (
-                      <tr key={i} style={{ borderBottom:i < healthRows.length-1 ? "1px solid #f0ede6" : "none" }}>
+                      <tr key={i} style={{ borderBottom:i < healthRows.length-1 ? "1px solid #2c2c2e" : "none" }}>
                         <td style={{ padding:"6px 0", fontSize:11, color:"#888", width:"34%", lineHeight:1.4 }}>{row[0]}</td>
-                        <td style={{ padding:"6px 8px", fontSize:13, fontWeight:700, color:"#111", width:"16%" }}>{row[1]}</td>
-                        <td style={{ padding:"6px 0", fontSize:11, color:"#888", width:"34%", lineHeight:1.4 }}>{row[2]}</td>
-                        <td style={{ padding:"6px 0", fontSize:13, fontWeight:700, color:"#111", width:"16%", textAlign:"right" }}>{row[3]}</td>
+                        <td style={{ padding:"6px 8px", fontSize:13, fontWeight:700, color:"#ddd", width:"16%" }}>{row[1]}</td>
+                        <td style={{ padding:"6px 0", fontSize:11, color:"#555", width:"34%", lineHeight:1.4 }}>{row[2]}</td>
+                        <td style={{ padding:"6px 0", fontSize:13, fontWeight:700, color:"#ddd", width:"16%", textAlign:"right" }}>{row[3]}</td>
                       </tr>
                     );
                   })}
@@ -1186,18 +1194,18 @@ function Detail({ sym, name, onBack }) {
           </div>
 
           {/* Growth & Profile Section */}
-          <div style={{ background:"#fff", border:"1px solid #e0dbd0", borderRadius:12, padding:"16px" }}>
-            <div style={{ fontSize:12, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Growth & Profile</div>
+          <div style={{ background:"#252525", border:"1px solid #2c2c2e", borderRadius:12, padding:"16px" }}>
+            <div style={{ fontSize:12, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Growth & Profile</div>
             {growthRows.length > 0 ? (
               <table style={{ width:"100%", borderCollapse:"collapse" }}>
                 <tbody>
                   {growthRows.map(function(row, i) {
                     return (
-                      <tr key={i} style={{ borderBottom:i < growthRows.length-1 ? "1px solid #f0ede6" : "none" }}>
+                      <tr key={i} style={{ borderBottom:i < growthRows.length-1 ? "1px solid #2c2c2e" : "none" }}>
                         <td style={{ padding:"6px 0", fontSize:11, color:"#888", width:"34%", lineHeight:1.4 }}>{row[0]}</td>
-                        <td style={{ padding:"6px 8px", fontSize:13, fontWeight:700, color:"#111", width:"16%" }}>{row[1]}</td>
-                        <td style={{ padding:"6px 0", fontSize:11, color:"#888", width:"34%", lineHeight:1.4 }}>{row[2]}</td>
-                        <td style={{ padding:"6px 0", fontSize:13, fontWeight:700, color:"#111", width:"16%", textAlign:"right" }}>{row[3]}</td>
+                        <td style={{ padding:"6px 8px", fontSize:13, fontWeight:700, color:"#ddd", width:"16%" }}>{row[1]}</td>
+                        <td style={{ padding:"6px 0", fontSize:11, color:"#555", width:"34%", lineHeight:1.4 }}>{row[2]}</td>
+                        <td style={{ padding:"6px 0", fontSize:13, fontWeight:700, color:"#ddd", width:"16%", textAlign:"right" }}>{row[3]}</td>
                       </tr>
                     );
                   })}
