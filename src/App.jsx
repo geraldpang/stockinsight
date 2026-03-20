@@ -3392,16 +3392,15 @@ function Detail({ sym, name, onBack }) {
           }}
         >
           <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-            <div style={{ width:14, height:14, borderRadius:"50%", background:"#E6F1FB", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+            <div style={{ width:14, height:14, borderRadius:"50%", background:"#222", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
               <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
-                <circle cx="6" cy="6" r="5" stroke="#F05A1A" strokeWidth="1.2"/>
-                <path d="M6 5v4M6 3.5v.5" stroke="#F05A1A" strokeWidth="1.2" strokeLinecap="round"/>
+                <circle cx="6" cy="6" r="5" stroke="#c8f000" strokeWidth="1.2"/>
+                <path d="M6 5v4M6 3.5v.5" stroke="#c8f000" strokeWidth="1.2" strokeLinecap="round"/>
               </svg>
             </div>
-            <span style={{ fontSize:10, fontWeight:600, color:"#F05A1A", textTransform:"uppercase", letterSpacing:"0.06em" }}>General information only -- not financial advice</span>
+            <span style={{ fontSize:10, fontWeight:600, color:"#c8f000", textTransform:"uppercase", letterSpacing:"0.06em" }}>General information only -- not financial advice</span>
           </div>
-          <span id="disc-tap" style={{ fontSize:10, color:"#aaa" }}>tap to read</span>
-        </div>
+          <span id="disc-tap" style={{ fontSize:10, color:"#555" }}>tap to read</span>
       </div>
     </div>
   );
