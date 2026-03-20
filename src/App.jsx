@@ -755,18 +755,17 @@ function Detail({ sym, name, onBack }) {
             var moatColors    = moatRating  ? pillColor(moatRating)  : pillColor(null);
             var finColors     = finRating   ? pillColor(finRating)   : pillColor(null);
             function darkify(c) {
-              // Map light pill colours to dark sidebar equivalents
               var bg = c.bg;
-              if (bg === "#EAF3DE" || bg === "#f0f7e6") return Object.assign({}, c, { bg:"#1e2a1e", border:"#2a4020" });
-              if (bg === "#FAEEDA") return Object.assign({}, c, { bg:"#2a2010", border:"#3a3010" });
-              if (bg === "#FCEBEB") return Object.assign({}, c, { bg:"#2a1e1e", border:"#4a2020" });
-              return Object.assign({}, c, { bg:"#252525", border:"#333" });
+              if (bg === "#EAF3DE" || bg === "#f0f7e6") return Object.assign({}, c, { bg:"#1e2a1e", border:"#2a5020", fg:c.fg||"#7abd00" });
+              if (bg === "#FAEEDA") return Object.assign({}, c, { bg:"#2a2010", border:"#4a3810", fg:c.fg||"#EF9F27" });
+              if (bg === "#FCEBEB") return Object.assign({}, c, { bg:"#2a1e1e", border:"#4a2020", fg:c.fg||"#e05050" });
+              return Object.assign({}, c, { bg:"#222", border:"#333", fg:c.fg||"#555" });
             }
             function Card(props) {
               var c = darkify(props.colors);
               var loading = !props.value;
               return (
-                <div style={{ padding:"10px 12px", background: loading ? "#252525" : c.bg, border:"0.5px solid " + (loading ? "#333" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1 }}>
+                <div style={{ padding:"10px 12px", background: loading ? "#222" : c.bg, border:"0.5px solid " + (loading ? "#333" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1 }}>
                   <div style={{ fontSize:10, color: loading ? "#aaa" : c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>{props.label}</div>
                   <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
                     <div>
@@ -897,12 +896,12 @@ function Detail({ sym, name, onBack }) {
                     var vl = aiP.verdict;
                     var aiDots = aiP.dots || 3;
                     var vlc = vl ? vl.toLowerCase().replace(/[^a-z ]/g,"").trim() : "";
-                    var aiC = vlc==="strong buy"  ? {bg:"#1e2a1e",border:"#2a4020",fg:"#7abd00",dot:"#1a6a1a",dotEmpty:"#2a4020"}
-                            : vlc==="buy"         ? {bg:"#1e2a1e",border:"#2a4020",fg:"#7abd00",dot:"#2a7a2a",dotEmpty:"#2a4020"}
-                            : vlc==="hold"        ? {bg:"#2a2010",border:"#3a3010",fg:"#EF9F27",dot:"#b88000",dotEmpty:"#3a3010"}
-                            : vlc==="avoid"       ? {bg:"#2a1e1e",border:"#4a2020",fg:"#e05050",dot:"#c03030",dotEmpty:"#4a2020"}
-                            : vlc==="strong avoid" ? {bg:"#2a1e1e",border:"#4a2020",fg:"#e05050",dot:"#8b0000",dotEmpty:"#4a2020"}
-                            :                       {bg:"#252525",border:"#333",   fg:"#666",   dot:"#444",   dotEmpty:"#333"};
+                    var aiC = vlc==="strong buy"  ? {bg:"#1e2a1e",border:"#2a5020",fg:"#7abd00",dot:"#7abd00",dotEmpty:"#2a5020"}
+                            : vlc==="buy"         ? {bg:"#1e2a1e",border:"#2a5020",fg:"#7abd00",dot:"#7abd00",dotEmpty:"#2a5020"}
+                            : vlc==="hold"        ? {bg:"#2a2010",border:"#4a3810",fg:"#EF9F27",dot:"#EF9F27",dotEmpty:"#4a3810"}
+                            : vlc==="avoid"       ? {bg:"#2a1e1e",border:"#4a2020",fg:"#e05050",dot:"#e05050",dotEmpty:"#4a2020"}
+                            : vlc==="strong avoid" ? {bg:"#2a1e1e",border:"#4a2020",fg:"#e05050",dot:"#e05050",dotEmpty:"#4a2020"}
+                            :                       {bg:"#222",   border:"#333",   fg:"#555",   dot:"#444",   dotEmpty:"#333"};
                     return (function(){
                       return (
                         <div style={{ padding:"10px 12px", background:aiC.bg, border:"0.5px solid "+aiC.border, borderRadius:8 }}>
@@ -956,23 +955,23 @@ function Detail({ sym, name, onBack }) {
 
                     var bg3, border3, label3Col, pulse3, verdict3, dotFilled3, dotEmpty3, sub3;
                     if (isNone) {
-                      bg3="#222"; border3="#333";
+                      bg3="#222";    border3="#333";
                       label3Col="#555"; pulse3=null; verdict3=null;
-                      dotFilled3="#444"; dotEmpty3="rgba(80,80,80,0.3)"; sub3=null;
+                      dotFilled3="#444"; dotEmpty3="#2a2a2a"; sub3=null;
                     } else if (isEarly) {
-                      bg3="#2a2010"; border3="#FAC775";
+                      bg3="#2a2010"; border3="#4a3810";
                       label3Col="#EF9F27"; pulse3="#EF9F27"; verdict3="Early Signal";
-                      dotFilled3="#EF9F27"; dotEmpty3="rgba(239,159,39,0.2)";
+                      dotFilled3="#EF9F27"; dotEmpty3="#4a3810";
                       sub3=null;
                     } else if (isWatch) {
-                      bg3="#1e2a1e"; border3="#7abd00";
+                      bg3="#1e2a1e"; border3="#2a5020";
                       label3Col="#7abd00"; pulse3="#7abd00"; verdict3="Reversal Watch";
-                      dotFilled3="#7abd00"; dotEmpty3="rgba(42,122,42,0.2)";
+                      dotFilled3="#7abd00"; dotEmpty3="#2a5020";
                       sub3=null;
                     } else {
-                      bg3="#1e2a1e"; border3="#1a6a1a";
-                      label3Col="#7abd00"; pulse3="#1a6a1a"; verdict3="Strong Reversal";
-                      dotFilled3="#1a6a1a"; dotEmpty3="rgba(26,106,26,0.2)";
+                      bg3="#1e2a1e"; border3="#2a5020";
+                      label3Col="#7abd00"; pulse3="#7abd00"; verdict3="Strong Reversal";
+                      dotFilled3="#7abd00"; dotEmpty3="#2a5020";
                       sub3=null;
                     }
 
@@ -995,7 +994,7 @@ function Detail({ sym, name, onBack }) {
                                   return <span key={i} style={{ width:8, height:8, borderRadius:"50%", background:i<=revCount3?dotFilled3:dotEmpty3, display:"inline-block" }} />;
                                 })}
                               </span>
-                              <span style={{ fontSize:11, fontWeight:600, color:label3Col, background:isNone?"#333":dotFilled3+"33", padding:"2px 10px", borderRadius:20, border:"0.5px solid "+(isNone?"#444":border3) }}>
+                              <span style={{ fontSize:11, fontWeight:600, color:label3Col, background:isNone?"#1c1c1c":dotFilled3+"22", padding:"2px 10px", borderRadius:20, border:"0.5px solid "+border3 }}>
                                 {verdict3 || "No signals"}
                               </span>
                             </div>
@@ -1007,7 +1006,7 @@ function Detail({ sym, name, onBack }) {
                                 return (
                                   <span key={i} style={{
                                     fontSize:10, fontWeight:500,
-                                    color:active?label3Col:"#444",
+                                    color:active?label3Col:"#444", fontWeight:active?500:400,
                                     background:active?dotFilled3+"22":"transparent",
                                     border:"0.5px solid "+(active?dotFilled3+"88":"#333"),
                                     padding:"2px 7px", borderRadius:10,
