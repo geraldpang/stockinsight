@@ -298,6 +298,8 @@ function parseAiInsight(text) {
 function Detail({ sym, name, onBack }) {
   const [__err, set__err] = useState(null);
 
+  const [navInput,  setNavInput]  = useState("");
+  const [navFocus,  setNavFocus]  = useState(false);
   const [q,        setQ]        = useState(null);
   const [ov,       setOv]       = useState(null);
   const [epsHistory, setEpsHistory] = useState(null);
@@ -665,8 +667,9 @@ function Detail({ sym, name, onBack }) {
     <div style={{ minHeight:"100vh", background:"#f5f2ec", fontFamily:FONT }}>
 
       {/* Nav */}
-      <div style={{ background:"#c8f000", padding:"8px 20px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+      <div style={{ background:"#c8f000", padding:"8px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+        {/* Left: back + logo */}
+        <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
           <button onClick={onBack} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"5px 12px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
             Back
           </button>
@@ -676,7 +679,58 @@ function Detail({ sym, name, onBack }) {
           </span>
           <span style={{ color:"rgba(0,0,0,0.4)", fontSize:12 }}>/ {sym}</span>
         </div>
-        <span style={{ fontSize:10, background:"rgba(0,0,0,0.12)", color:"#1a1a14", padding:"3px 12px", borderRadius:20, fontWeight:700, letterSpacing:"0.06em" }}>
+        {/* Centre: search bar */}
+        {(function() {
+          var allStocks2 = Object.keys(NAMES).map(function(k){ return {symbol:k, name:NAMES[k]}; });
+          var navSugg = (navInput.length > 0 && navFocus)
+            ? allStocks2.filter(function(s){ return s.symbol.toLowerCase().startsWith(navInput.toLowerCase()) || s.name.toLowerCase().includes(navInput.toLowerCase()); }).slice(0,6)
+            : [];
+          function navGo(s) {
+            var ticker = (s || navInput).toUpperCase().trim();
+            if (!ticker) return;
+            setNavInput("");
+            setNavFocus(false);
+            window.location.hash = ticker;
+          }
+          return (
+            <div style={{ position:"relative", flex:1, maxWidth:400 }}>
+              <div style={{ display:"flex", alignItems:"center", background:"rgba(0,0,0,0.10)", border:"1px solid rgba(0,0,0,0.15)", borderRadius:24, padding:"0 12px", height:34 }}>
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{flexShrink:0,marginRight:7}}>
+                  <circle cx="6.5" cy="6.5" r="5" stroke="rgba(0,0,0,0.4)" strokeWidth="1.5"/>
+                  <path d="M10.5 10.5L14 14" stroke="rgba(0,0,0,0.4)" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                <input
+                  value={navInput}
+                  onChange={function(e){ setNavInput(e.target.value); }}
+                  onFocus={function(){ setNavFocus(true); }}
+                  onBlur={function(){ setTimeout(function(){ setNavFocus(false); }, 180); }}
+                  onKeyDown={function(e){ if(e.key==="Enter") navGo(); }}
+                  placeholder="Search company or ticker..."
+                  style={{ flex:1, border:"none", outline:"none", background:"transparent", fontSize:13, color:"#1a1a14", fontFamily:FONT }}
+                />
+                {navInput && <span onClick={function(){ setNavInput(""); }} style={{ cursor:"pointer", color:"rgba(0,0,0,0.3)", fontSize:16, lineHeight:1, padding:"0 2px" }}>&times;</span>}
+              </div>
+              {navSugg.length > 0 && (
+                <div style={{ position:"absolute", top:"calc(100% + 6px)", left:0, right:0, background:"#1c1c1e", border:"0.5px solid #333", borderRadius:10, zIndex:200, overflow:"hidden" }}>
+                  {navSugg.map(function(s) {
+                    return (
+                      <div key={s.symbol}
+                        onMouseDown={function(e){ e.preventDefault(); navGo(s.symbol); }}
+                        style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", cursor:"pointer", borderBottom:"0.5px solid #222" }}
+                        onMouseEnter={function(e){ e.currentTarget.style.background="#252525"; }}
+                        onMouseLeave={function(e){ e.currentTarget.style.background="transparent"; }}>
+                        <span style={{ fontSize:11, fontWeight:700, color:"#1a1a14", background:"#c8f000", padding:"2px 7px", borderRadius:4, minWidth:44, textAlign:"center" }}>{s.symbol}</span>
+                        <span style={{ fontSize:12, color:"#aaa" }}>{s.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+        {/* Right: live badge */}
+        <span style={{ fontSize:10, background:"rgba(0,0,0,0.12)", color:"#1a1a14", padding:"3px 12px", borderRadius:20, fontWeight:700, letterSpacing:"0.06em", flexShrink:0 }}>
           LIVE . YAHOO FINANCE
         </span>
       </div>
@@ -3374,10 +3428,7 @@ function Detail({ sym, name, onBack }) {
             </button>
           </div>
           <div style={{ fontSize:11, color:"#aaa", lineHeight:1.8 }}>
-            Colaboree StockInsight is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice.
-          </div>
-          <div style={{ fontSize:11, color:"#aaa", lineHeight:1.8, marginTop:8 }}>
-            This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). &copy; Colaboree StockInsight 2026.
+            Colaboree StockInsight is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). &copy; Colaboree StockInsight 2026.
           </div>
         </div>
         {/* Slim always-visible bar */}
