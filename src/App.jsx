@@ -3354,14 +3354,17 @@ function Detail({ sym, name, onBack }) {
         borderTop:"1px solid #333",
       }}>
         {/* Expandable full disclaimer -- slides up above the bar */}
-        <div id="disc-full" style={{
-          display:"block",
-          maxHeight:"50vh",
-          overflowY:"auto",
-          padding:"14px 20px",
-          borderBottom:"0.5px solid #333",
-          background:"#111",
-        }}>
+        <div id="disc-full"
+          onClick={function(){ var d=document.getElementById("disc-full"); if(d) d.style.display="none"; var t=document.getElementById("disc-tap"); if(t) t.innerText="tap to read"; }}
+          style={{
+            display:"block",
+            maxHeight:"50vh",
+            overflowY:"auto",
+            padding:"14px 20px",
+            borderBottom:"0.5px solid #333",
+            background:"#111",
+            cursor:"pointer",
+          }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
             <span style={{ fontSize:11, fontWeight:600, color:"#F05A1A", textTransform:"uppercase", letterSpacing:"0.06em" }}>Disclaimer</span>
             <button
