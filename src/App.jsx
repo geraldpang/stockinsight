@@ -897,12 +897,12 @@ function Detail({ sym, name, onBack }) {
                     var vl = aiP.verdict;
                     var aiDots = aiP.dots || 3;
                     var vlc = vl ? vl.toLowerCase().replace(/[^a-z ]/g,"").trim() : "";
-                    var aiC = vlc==="strong buy"  ? {bg:"#EAF3DE",border:"#7abd00",fg:"#1a6a1a",dot:"#1a6a1a",dotEmpty:"#c8e8c0"}
-                            : vlc==="buy"         ? {bg:"#EAF3DE",border:"#97C459",fg:"#2a7a2a",dot:"#2a7a2a",dotEmpty:"#c8e8c0"}
-                            : vlc==="hold"        ? {bg:"#FAEEDA",border:"#d4a800",fg:"#b88000",dot:"#b88000",dotEmpty:"#faeeda"}
-                            : vlc==="avoid"       ? {bg:"#FCEBEB",border:"#e08080",fg:"#c03030",dot:"#c03030",dotEmpty:"#f5c0c0"}
-                            : vlc==="strong avoid" ? {bg:"#FCEBEB",border:"#c03030",fg:"#8b0000",dot:"#8b0000",dotEmpty:"#f5c0c0"}
-                            :                       {bg:"#f5f2ec",border:"#ddd",   fg:"#888",   dot:"#ccc",   dotEmpty:"#e8e4dc"};
+                    var aiC = vlc==="strong buy"  ? {bg:"#1e2a1e",border:"#2a4020",fg:"#7abd00",dot:"#1a6a1a",dotEmpty:"#2a4020"}
+                            : vlc==="buy"         ? {bg:"#1e2a1e",border:"#2a4020",fg:"#7abd00",dot:"#2a7a2a",dotEmpty:"#2a4020"}
+                            : vlc==="hold"        ? {bg:"#2a2010",border:"#3a3010",fg:"#EF9F27",dot:"#b88000",dotEmpty:"#3a3010"}
+                            : vlc==="avoid"       ? {bg:"#2a1e1e",border:"#4a2020",fg:"#e05050",dot:"#c03030",dotEmpty:"#4a2020"}
+                            : vlc==="strong avoid" ? {bg:"#2a1e1e",border:"#4a2020",fg:"#e05050",dot:"#8b0000",dotEmpty:"#4a2020"}
+                            :                       {bg:"#252525",border:"#333",   fg:"#666",   dot:"#444",   dotEmpty:"#333"};
                     return (function(){
                       return (
                         <div style={{ padding:"10px 12px", background:aiC.bg, border:"0.5px solid "+aiC.border, borderRadius:8 }}>
@@ -956,22 +956,22 @@ function Detail({ sym, name, onBack }) {
 
                     var bg3, border3, label3Col, pulse3, verdict3, dotFilled3, dotEmpty3, sub3;
                     if (isNone) {
-                      bg3="#f5f4f0"; border3="#d8d5ce";
-                      label3Col="#999"; pulse3=null; verdict3=null;
-                      dotFilled3="#C8C5BE"; dotEmpty3="rgba(200,197,190,0.3)"; sub3=null;
+                      bg3="#222"; border3="#333";
+                      label3Col="#555"; pulse3=null; verdict3=null;
+                      dotFilled3="#444"; dotEmpty3="rgba(80,80,80,0.3)"; sub3=null;
                     } else if (isEarly) {
-                      bg3="#fdf5e6"; border3="#FAC775";
-                      label3Col="#854F0B"; pulse3="#EF9F27"; verdict3="Early Signal";
+                      bg3="#2a2010"; border3="#FAC775";
+                      label3Col="#EF9F27"; pulse3="#EF9F27"; verdict3="Early Signal";
                       dotFilled3="#EF9F27"; dotEmpty3="rgba(239,159,39,0.2)";
                       sub3=null;
                     } else if (isWatch) {
-                      bg3="#EAF3DE"; border3="#7abd00";
-                      label3Col="#173404"; pulse3="#2a7a2a"; verdict3="Reversal Watch";
-                      dotFilled3="#2a7a2a"; dotEmpty3="rgba(42,122,42,0.2)";
+                      bg3="#1e2a1e"; border3="#7abd00";
+                      label3Col="#7abd00"; pulse3="#7abd00"; verdict3="Reversal Watch";
+                      dotFilled3="#7abd00"; dotEmpty3="rgba(42,122,42,0.2)";
                       sub3=null;
                     } else {
-                      bg3="#EAF3DE"; border3="#1a6a1a";
-                      label3Col="#173404"; pulse3="#1a6a1a"; verdict3="Strong Reversal";
+                      bg3="#1e2a1e"; border3="#1a6a1a";
+                      label3Col="#7abd00"; pulse3="#1a6a1a"; verdict3="Strong Reversal";
                       dotFilled3="#1a6a1a"; dotEmpty3="rgba(26,106,26,0.2)";
                       sub3=null;
                     }
@@ -995,7 +995,7 @@ function Detail({ sym, name, onBack }) {
                                   return <span key={i} style={{ width:8, height:8, borderRadius:"50%", background:i<=revCount3?dotFilled3:dotEmpty3, display:"inline-block" }} />;
                                 })}
                               </span>
-                              <span style={{ fontSize:11, fontWeight:600, color:label3Col, background:isNone?"#e8e6e0":dotFilled3+"33", padding:"2px 10px", borderRadius:20, border:"0.5px solid "+(isNone?"#c8c5be":border3) }}>
+                              <span style={{ fontSize:11, fontWeight:600, color:label3Col, background:isNone?"#333":dotFilled3+"33", padding:"2px 10px", borderRadius:20, border:"0.5px solid "+(isNone?"#444":border3) }}>
                                 {verdict3 || "No signals"}
                               </span>
                             </div>
@@ -1007,9 +1007,9 @@ function Detail({ sym, name, onBack }) {
                                 return (
                                   <span key={i} style={{
                                     fontSize:10, fontWeight:500,
-                                    color:active?label3Col:"#bbb",
+                                    color:active?label3Col:"#444",
                                     background:active?dotFilled3+"22":"transparent",
-                                    border:"0.5px solid "+(active?dotFilled3+"88":"#e0dbd0"),
+                                    border:"0.5px solid "+(active?dotFilled3+"88":"#333"),
                                     padding:"2px 7px", borderRadius:10,
                                     textDecoration:active?"none":"none",
                                     opacity:active?1:0.5,
