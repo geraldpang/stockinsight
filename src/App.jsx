@@ -14,6 +14,7 @@ const NAMES = {
   UNH:"UnitedHealth Group",  MRK:"Merck and Co.",          UBER:"Uber Technologies",
   SPOT:"Spotify Technology", NKE:"NIKE Inc.",              AVGO:"Broadcom Inc.",
   QCOM:"Qualcomm",           TXN:"Texas Instruments",      MU:"Micron Technology",
+  BRKB:"Berkshire Hathaway B",
 };
 
 const qCache  = {};
@@ -28,7 +29,8 @@ async function yfetch(url) {
 
 async function getQuote(sym) {
   if (qCache[sym]) return qCache[sym];
-  var d    = await yfetch("https://query1.finance.yahoo.com/v8/finance/chart/" + sym + "?interval=1d&range=1d");
+  var ySym = sym === "BRKB" ? "BRK-B" : sym;
+  var d    = await yfetch("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=1d");
   var meta = d && d.chart && d.chart.result && d.chart.result[0] && d.chart.result[0].meta;
   if (!meta) return null;
   var price  = meta.regularMarketPrice || 0;
@@ -48,8 +50,9 @@ async function getQuote(sym) {
 
 async function getOverview(sym) {
   if (ovCache[sym]) return ovCache[sym];
+  var ySym = sym === "BRKB" ? "BRK-B" : sym;
   var d   = await yfetch(
-    "https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym +
+    "https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + ySym +
     "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile,earningsTrend,recommendationTrend,upgradeDowngradeHistory,balanceSheetHistory,earningsHistory,calendarEvents,majorHoldersBreakdown,institutionOwnership,insiderTransactions,secFilings"
   );
   var res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
@@ -462,7 +465,7 @@ function Detail({ sym, name, onBack }) {
     setAddlLoading(true);
     var debugEntries = [];
     debugEntries.push({ time: new Date().toISOString(), label: "Fetching /massive?sym=" + sym });
-    fetch("/massive?sym=" + sym)
+    fetch("/massive?sym=" + (sym === "BRKB" ? "BRK-B" : sym))
       .then(function(r) { return r.json(); })
       .then(function(data) {
         debugEntries.push({ time: new Date().toISOString(), label: "Massive response received", data: { newsCount: data && data.news ? data.news.length : 0, tickerName: data && data.ticker ? data.ticker.name : null, debug: data && data._debug } });
@@ -3567,7 +3570,7 @@ export default function App() {
       }).slice(0, 6)
     : [];
 
-  const QUICK = ["AAPL","NVDA","TSLA","MSFT","GOOGL","AMZN"];
+  const QUICK = ["AAPL","NVDA","TSLA","MSFT","GOOGL","BRKB"];
 
   return (
     <div style={{ minHeight:"100vh", background:BG, fontFamily:FONT, position:"relative", overflow:"hidden" }}>
