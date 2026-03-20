@@ -17,6 +17,10 @@ const NAMES = {
   BRKB:"Berkshire Hathaway B",
 };
 
+// -- Freemium tier ------------------------------------------------------------
+var FREE_TICKERS   = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
+var CACHE_VERSION  = "v1";  // bump to force cache regeneration for all free tickers
+
 const qCache  = {};
 const ovCache = {};
 
@@ -3528,6 +3532,84 @@ function Detail({ sym, name, onBack }) {
   );
 }
 
+// -- Paywall card -------------------------------------------------------------
+function PaywallCard({ sym, name, onBack }) {
+  var ORANGE = "#F05A1A";
+  return (
+    <div style={{ minHeight:"100vh", background:"#0e0e0c", fontFamily:FONT, display:"flex", flexDirection:"column" }}>
+      {/* Nav */}
+      <nav style={{ height:52, padding:"0 24px", display:"flex", alignItems:"center", gap:12, background:"#c8f000" }}>
+        <button
+          onClick={onBack}
+          style={{ background:"none", border:"none", cursor:"pointer", color:"#0e0e0c", fontWeight:800, fontSize:13, fontFamily:FONT, display:"flex", alignItems:"center", gap:6, padding:0 }}>
+          {"< Back"}
+        </button>
+        <span style={{ fontWeight:800, fontSize:15, color:"#0e0e0c" }}>Colabo</span>
+        <span style={{ fontWeight:800, fontSize:15, color:"#e0350a", marginLeft:-6 }}>ree</span>
+        <span style={{ fontWeight:700, fontSize:15, color:"#0e0e0c", marginLeft:2 }}>StockInsight</span>
+      </nav>
+
+      {/* Card */}
+      <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
+        <div style={{ maxWidth:480, width:"100%", background:"#1c1c1e", border:"1px solid #2c2c26", borderRadius:20, padding:"48px 40px", textAlign:"center" }}>
+
+          {/* Lock icon */}
+          <div style={{ width:64, height:64, borderRadius:"50%", background:"#2a2010", border:"2px solid #4a3810", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 24px" }}>
+            <span style={{ fontSize:28 }}>{String.fromCharCode(0x1F512)}</span>
+          </div>
+
+          {/* Ticker badge */}
+          <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"#2a2010", border:"1px solid #4a3810", borderRadius:8, padding:"6px 16px", marginBottom:20 }}>
+            <span style={{ fontWeight:900, fontSize:14, color:"#EF9F27" }}>{sym}</span>
+            <span style={{ fontSize:13, color:"#a09a8a" }}>{name}</span>
+          </div>
+
+          <div style={{ fontSize:22, fontWeight:800, color:"#f0ede6", marginBottom:12, lineHeight:1.3 }}>
+            Members Only
+          </div>
+          <div style={{ fontSize:14, color:"#a09a8a", lineHeight:1.7, marginBottom:32 }}>
+            {"Full AI insights for " + sym + " are available to members."}
+            <br />
+            {"10 stocks are available free " + String.fromCharCode(0x2014) + " including NVDA, AAPL, TSLA, MSFT and more."}
+          </div>
+
+          {/* Free tickers preview */}
+          <div style={{ marginBottom:32 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:"#6a6460", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:10 }}>Free tickers</div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
+              {FREE_TICKERS.map(function(t) {
+                return (
+                  <span key={t} style={{ padding:"4px 12px", borderRadius:20, background:"#1e2a1e", border:"1px solid #2a5020", fontSize:12, fontWeight:700, color:"#7abd00" }}>{t}</span>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* CTA buttons */}
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            <button
+              onClick={function() {
+                var email = window.prompt("Enter your email to register interest:");
+                if (email && email.indexOf("@") > 0) {
+                  window.alert("Thanks! We" + String.fromCharCode(0x2019) + "ll be in touch at " + email + " when membership opens.");
+                }
+              }}
+              style={{ width:"100%", padding:"14px", borderRadius:50, border:"none", background:ORANGE, color:"#fff", fontWeight:800, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
+              Register Interest
+            </button>
+            <button
+              onClick={onBack}
+              style={{ width:"100%", padding:"14px", borderRadius:50, border:"1px solid #2c2c26", background:"transparent", color:"#a09a8a", fontWeight:700, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
+              {"Back to free stocks"}
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // -- Landing page -------------------------------------------------------------
 export default function App() {
   const [input,   setInput]   = useState("");
@@ -3553,11 +3635,23 @@ export default function App() {
   }
 
   if (hashSym) {
+    var _onBack = function() { window.location.hash = ""; };
+    // Known ticker but NOT in free tier -> show paywall
+    if (NAMES[hashSym] && FREE_TICKERS.indexOf(hashSym) === -1) {
+      return (
+        <PaywallCard
+          sym={hashSym}
+          name={NAMES[hashSym]}
+          onBack={_onBack}
+        />
+      );
+    }
+    // Free ticker (or unknown ticker typed directly) -> show detail
     return (
       <Detail
         sym={hashSym}
         name={NAMES[hashSym] || hashSym}
-        onBack={function() { window.location.hash = ""; }}
+        onBack={_onBack}
       />
     );
   }
