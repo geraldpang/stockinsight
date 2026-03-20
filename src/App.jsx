@@ -722,7 +722,7 @@ function Detail({ sym, name, onBack }) {
 
             {/* DESKTOP */}
             {/* Nav mirrors the 400px / 1fr body grid so search aligns with the right panel */}
-            <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"380px 1fr", alignItems:"center", gap:0 }}>
+            <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"400px 1fr", alignItems:"center", gap:0 }}>
               {/* Left cell - matches left sidebar width (400px - 20px nav padding) */}
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                 <button onClick={onBack} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"5px 12px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
