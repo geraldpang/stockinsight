@@ -1358,7 +1358,7 @@ function Detail({ sym, name, onBack }) {
             </div>
             <iframe
               key={sym}
-              src={"https://s.tradingview.com/widgetembed/?frameElementId=tv_chart&symbol=" + sym + "&interval=D&theme=light&style=1&timezone=Etc%2FUTC&withdateranges=1&hide_side_toolbar=0&allow_symbol_change=0&save_image=0"}
+              src={"https://s.tradingview.com/widgetembed/?frameElementId=tv_chart&symbol=" + (sym==="BRKB"?"BRK.B":sym) + "&interval=D&theme=light&style=1&timezone=Etc%2FUTC&withdateranges=1&hide_side_toolbar=0&allow_symbol_change=0&save_image=0"}
               style={{ width:"100%", height:300, border:"none", display:"block" }}
               title="TradingView Chart"
             />
