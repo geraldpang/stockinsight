@@ -776,16 +776,21 @@ function Detail({ sym, name, onBack }) {
           {/* Analysis Summary -- 2x2 grid */}
           {(function() {
             function pillColor(text) {
-              if (!text) return { bg:"#f5f2ec", fg:"#888", border:"#ddd", dot:"#ccc", dotEmpty:"#e8e4dc" };
+              if (!text) return { bg:"#f5f2ec", fg:"#888", border:"#ddd", dot:"#7abd00", dotEmpty:"#2a5020" };
               var v = (text+"").toLowerCase().replace(/[^a-z ]/g,"").trim();
-              if (v.includes("strong buy"))                                                        return { bg:"#EAF3DE", fg:"#1a6a1a", border:"#7abd00", dot:"#1a6a1a", dotEmpty:"#c8e8c0" };
-              if (v.includes("strong avoid"))                                                      return { bg:"#FCEBEB", fg:"#8b0000", border:"#c03030", dot:"#8b0000", dotEmpty:"#f5c0c0" };
-              if (v === "buy" || v.startsWith("buy") || v === "strong" || v.startsWith("strong") || v.includes("wide") || v.includes("strong bullish"))               return { bg:"#EAF3DE", fg:"#2a7a2a", border:"#97C459", dot:"#2a7a2a", dotEmpty:"#c8e8c0" };
-              if (v.includes("avoid"))                                                             return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#c03030", dotEmpty:"#f5c0c0" };
-              if (v.includes("narrow") || v.includes("moderate") || v.includes("bullish"))        return { bg:"#f0f7e6", fg:"#2a7a2a", border:"#9ab800", dot:"#2a7a2a", dotEmpty:"#c8e8c0" };
-              if (v.includes("neutral") || v.includes("fairly") || v === "hold" || v.startsWith("hold"))                  return { bg:"#FAEEDA", fg:"#b88000", border:"#d4a800", dot:"#b88000", dotEmpty:"#f5ddb0" };
-              if (v.includes("none") || v.includes("weak") || v.includes("bearish") || v.includes("overvalued")) return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#c03030", dotEmpty:"#f5c0c0" };
-              return { bg:"#f5f2ec", fg:"#555", border:"#ccc", dot:"#aaa", dotEmpty:"#e0e0e0" };
+              if (v.includes("strong buy") || v === "buy" || v.startsWith("buy") || v.includes("wide") || v.includes("strong bullish") || v === "strong" || v.startsWith("strong"))
+                return { bg:"#EAF3DE", fg:"#2a7a2a", border:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" };
+              if (v.includes("strong avoid"))
+                return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#e05050", dotEmpty:"#4a2020" };
+              if (v.includes("avoid"))
+                return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#e05050", dotEmpty:"#4a2020" };
+              if (v.includes("narrow") || v.includes("moderate") || v.includes("bullish"))
+                return { bg:"#f0f7e6", fg:"#2a7a2a", border:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" };
+              if (v.includes("neutral") || v.includes("fairly") || v === "hold" || v.startsWith("hold"))
+                return { bg:"#FAEEDA", fg:"#b88000", border:"#d4a800", dot:"#EF9F27", dotEmpty:"#4a3810" };
+              if (v.includes("none") || v.includes("weak") || v.includes("bearish") || v.includes("overvalued"))
+                return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#e05050", dotEmpty:"#4a2020" };
+              return { bg:"#f5f2ec", fg:"#555", border:"#ccc", dot:"#7abd00", dotEmpty:"#2a5020" };
             }
             function Dots(props) {
               var dots = [];
@@ -810,10 +815,10 @@ function Detail({ sym, name, onBack }) {
             var finColors     = finRating   ? pillColor(finRating)   : pillColor(null);
             function darkify(c) {
               var bg = c.bg;
-              if (bg === "#EAF3DE" || bg === "#f0f7e6") return Object.assign({}, c, { bg:"#1e2a1e", border:"#2a5020", fg:c.fg||"#7abd00" });
-              if (bg === "#FAEEDA") return Object.assign({}, c, { bg:"#2a2010", border:"#4a3810", fg:c.fg||"#EF9F27" });
-              if (bg === "#FCEBEB") return Object.assign({}, c, { bg:"#2a1e1e", border:"#4a2020", fg:c.fg||"#e05050" });
-              return Object.assign({}, c, { bg:"#222", border:"#333", fg:c.fg||"#555" });
+              if (bg === "#EAF3DE" || bg === "#f0f7e6") return Object.assign({}, c, { bg:"#1e2a1e", border:"#2a5020", fg:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" });
+              if (bg === "#FAEEDA") return Object.assign({}, c, { bg:"#2a2010", border:"#4a3810", fg:"#EF9F27", dot:"#EF9F27", dotEmpty:"#4a3810" });
+              if (bg === "#FCEBEB") return Object.assign({}, c, { bg:"#2a1e1e", border:"#4a2020", fg:"#e05050", dot:"#e05050", dotEmpty:"#4a2020" });
+              return Object.assign({}, c, { bg:"#222", border:"#333", fg:"#555", dot:"#444", dotEmpty:"#333" });
             }
             function Card(props) {
               var c = darkify(props.colors);
@@ -950,12 +955,13 @@ function Detail({ sym, name, onBack }) {
                     var vl = aiP.verdict;
                     var aiDots = aiP.dots || 3;
                     var vlc = vl ? vl.toLowerCase().replace(/[^a-z ]/g,"").trim() : "";
-                    var aiC = vlc==="strong buy"  ? {bg:"#1e2a1e",border:"#2a5020",fg:"#7abd00",dot:"#7abd00",dotEmpty:"#2a5020"}
-                            : vlc==="buy"         ? {bg:"#1e2a1e",border:"#2a5020",fg:"#7abd00",dot:"#7abd00",dotEmpty:"#2a5020"}
-                            : vlc==="hold"        ? {bg:"#2a2010",border:"#4a3810",fg:"#EF9F27",dot:"#EF9F27",dotEmpty:"#4a3810"}
-                            : vlc==="avoid"       ? {bg:"#2a1e1e",border:"#4a2020",fg:"#e05050",dot:"#e05050",dotEmpty:"#4a2020"}
-                            : vlc==="strong avoid" ? {bg:"#2a1e1e",border:"#4a2020",fg:"#e05050",dot:"#e05050",dotEmpty:"#4a2020"}
-                            :                       {bg:"#222",   border:"#333",   fg:"#555",   dot:"#444",   dotEmpty:"#333"};
+                    var aiC = (vlc==="strong buy"||vlc==="buy")
+                            ? {bg:"#1e2a1e",border:"#2a5020",fg:"#7abd00",dot:"#7abd00",dotEmpty:"#2a5020"}
+                            : vlc==="hold"
+                            ? {bg:"#2a2010",border:"#4a3810",fg:"#EF9F27",dot:"#EF9F27",dotEmpty:"#4a3810"}
+                            : (vlc==="avoid"||vlc==="strong avoid")
+                            ? {bg:"#2a1e1e",border:"#4a2020",fg:"#e05050",dot:"#e05050",dotEmpty:"#4a2020"}
+                            : {bg:"#222",   border:"#333",   fg:"#555",   dot:"#444",   dotEmpty:"#333"};
                     return (function(){
                       return (
                         <div style={{ padding:"10px 12px", background:aiC.bg, border:"0.5px solid "+aiC.border, borderRadius:8 }}>
