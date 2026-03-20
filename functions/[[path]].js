@@ -68,6 +68,7 @@ export async function onRequest(context) {
     // -------------------------------------------------------------------------
     if (url.pathname === "/massive") {
       var sym        = (url.searchParams.get("sym") || "").toUpperCase().trim();
+      if (sym === "BRKB") sym = "BRK-B";
       var massiveKey = context.env.MASSIVE_KEY;
       if (!sym) return new Response(JSON.stringify({ error: "Missing sym" }), { status:400, headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
       if (!massiveKey) return new Response(JSON.stringify({ error: "MASSIVE_KEY not configured" }), { status:500, headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
@@ -93,8 +94,8 @@ export async function onRequest(context) {
         fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=day&adjusted=true&window=50&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=day&adjusted=true&window=200&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v1/indicators/ema/" + sym + "?timespan=day&adjusted=true&window=20&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/v1/indicators/rsi/" + sym + "?timespan=day&adjusted=true&window=14&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/v1/indicators/macd/" + sym + "?timespan=day&adjusted=true&short_window=12&long_window=26&signal_window=9&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/rsi/" + sym + "?timespan=day&adjusted=true&window=14&series_type=close&order=desc&limit=10&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/macd/" + sym + "?timespan=day&adjusted=true&short_window=12&long_window=26&signal_window=9&series_type=close&order=desc&limit=10&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v2/last/trade/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=week&adjusted=true&window=10&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=week&adjusted=true&window=40&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
@@ -122,10 +123,18 @@ export async function onRequest(context) {
       function indVal(d) {
         return d && d.results && d.results.values && d.results.values[0] ? d.results.values[0].value : null;
       }
+      function indHistory(d) {
+        if (!d || !d.results || !d.results.values) return [];
+        return d.results.values.map(function(v) { return v.value != null ? v.value : null; });
+      }
       function macdVals(d) {
         if (!d || !d.results || !d.results.values || !d.results.values[0]) return null;
         var v = d.results.values[0];
         return { macd: v.value, signal: v.signal, histogram: v.histogram };
+      }
+      function macdHistory(d) {
+        if (!d || !d.results || !d.results.values) return [];
+        return d.results.values.map(function(v) { return { macd: v.value, signal: v.signal, histogram: v.histogram }; });
       }
 
       var snap = snapData && snapData.ticker ? snapData.ticker : null;
@@ -147,13 +156,15 @@ export async function onRequest(context) {
           change:    snap.todaysChangePerc != null ? snap.todaysChangePerc : null,
         } : null,
         indicators: {
-          sma50:   indVal(sma50Data),
-          sma200:  indVal(sma200Data),
-          ema20:   indVal(ema20Data),
-          rsi14:   indVal(rsiData),
-          macd:    macdVals(macdData),
-          wsma10:  indVal(wsma10Data),
-          wsma40:  indVal(wsma40Data),
+          sma50:       indVal(sma50Data),
+          sma200:      indVal(sma200Data),
+          ema20:       indVal(ema20Data),
+          rsi14:       indVal(rsiData),
+          rsiHistory:  indHistory(rsiData),
+          macd:        macdVals(macdData),
+          macdHistory: macdHistory(macdData),
+          wsma10:      indVal(wsma10Data),
+          wsma40:      indVal(wsma40Data),
         },
         tenK: {
           business:    tenKBizData  && tenKBizData.results  && tenKBizData.results[0]  ? tenKBizData.results[0].text   : null,
