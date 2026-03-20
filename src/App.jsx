@@ -680,7 +680,7 @@ function Detail({ sym, name, onBack }) {
           window.location.hash = ticker;
         }
         var SearchPill = (
-          <div style={{ position:"relative", width:280, flexShrink:0, marginLeft:"auto" }}>
+          <div style={{ position:"relative", width:280, flexShrink:0 }}>
             <div style={{ display:"flex", alignItems:"center", background:"#fff", borderRadius:22, padding:"5px 12px", gap:8, border: navFocus ? "2px solid #1a1a14" : "2px solid transparent" }}>
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
                 <circle cx="6.5" cy="6.5" r="5" stroke="#bbb" strokeWidth="1.5"/>
@@ -721,8 +721,10 @@ function Detail({ sym, name, onBack }) {
             <style>{"              .nav-desktop { display:flex; }              .nav-mobile  { display:none; }              @media (max-width:600px) {                .nav-desktop { display:none; }                .nav-mobile  { display:block; }              }            "}</style>
 
             {/* DESKTOP */}
-            <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", alignItems:"center", justifyContent:"space-between", gap:16 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+            {/* Nav mirrors the 400px / 1fr body grid so search aligns with the right panel */}
+            <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"380px 1fr", alignItems:"center", gap:0 }}>
+              {/* Left cell - matches left sidebar width (400px - 20px nav padding) */}
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                 <button onClick={onBack} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"5px 12px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
                   Back
                 </button>
@@ -732,7 +734,10 @@ function Detail({ sym, name, onBack }) {
                 </span>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
-              {SearchPill}
+              {/* Right cell - search pill aligned to start of right panel */}
+              <div style={{ display:"flex", alignItems:"center" }}>
+                {SearchPill}
+              </div>
             </div>
 
             {/* MOBILE */}
