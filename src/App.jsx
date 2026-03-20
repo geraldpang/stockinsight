@@ -680,7 +680,7 @@ function Detail({ sym, name, onBack }) {
           window.location.hash = ticker;
         }
         var SearchPill = (
-          <div style={{ position:"relative", width:280, flexShrink:0 }}>
+          <div style={{ position:"relative", width:280, flexShrink:0, marginLeft:"auto" }}>
             <div style={{ display:"flex", alignItems:"center", background:"#fff", borderRadius:22, padding:"5px 12px", gap:8, border: navFocus ? "2px solid #1a1a14" : "2px solid transparent" }}>
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
                 <circle cx="6.5" cy="6.5" r="5" stroke="#bbb" strokeWidth="1.5"/>
@@ -733,9 +733,6 @@ function Detail({ sym, name, onBack }) {
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
               {SearchPill}
-              <span style={{ fontSize:10, background:"rgba(0,0,0,0.12)", color:"#1a1a14", padding:"3px 12px", borderRadius:20, fontWeight:700, letterSpacing:"0.06em", flexShrink:0, whiteSpace:"nowrap" }}>
-                LIVE . YAHOO FINANCE
-              </span>
             </div>
 
             {/* MOBILE */}
@@ -750,9 +747,7 @@ function Detail({ sym, name, onBack }) {
                   </span>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
-                <span style={{ fontSize:9, background:"rgba(0,0,0,0.12)", color:"#1a1a14", padding:"2px 8px", borderRadius:12, fontWeight:700, letterSpacing:"0.05em" }}>
-                  LIVE
-                </span>
+
               </div>
               {/* Full-width white search on row 2 */}
               <div style={{ position:"relative" }}>
