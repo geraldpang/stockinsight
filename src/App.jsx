@@ -3637,7 +3637,7 @@ export default function App() {
   if (hashSym) {
     var _onBack = function() { window.location.hash = ""; };
     // Known ticker but NOT in free tier -> show paywall
-    if (NAMES[hashSym] && FREE_TICKERS.indexOf(hashSym) === -1) {
+    if (FREE_TICKERS.indexOf(hashSym) === -1) {
       return (
         <PaywallCard
           sym={hashSym}
