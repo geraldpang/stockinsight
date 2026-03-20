@@ -3664,7 +3664,6 @@ export default function App() {
       }).slice(0, 6)
     : [];
 
-  const QUICK = ["AAPL","NVDA","TSLA","MSFT","GOOGL","BRKB"];
 
   return (
     <div style={{ minHeight:"100vh", background:BG, fontFamily:FONT, position:"relative", overflow:"hidden" }}>
@@ -3765,20 +3764,43 @@ export default function App() {
           )}
         </div>
 
-        {/* Quick-pick chips */}
-        <div style={{ display:"flex", gap:8, marginTop:14, flexWrap:"wrap", justifyContent:"center" }}>
-          {QUICK.map(function(t) {
-            return (
-              <button key={t}
-                onMouseDown={function(e) { e.preventDefault(); setInput(t); }}
-                onClick={function() { setInput(t); }}
-                style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a", cursor:"pointer", fontFamily:FONT }}
-                onMouseEnter={function(e) { e.currentTarget.style.background=BG; e.currentTarget.style.color=LIME; e.currentTarget.style.borderColor=LIME; }}
-                onMouseLeave={function(e) { e.currentTarget.style.background="#1a1a16"; e.currentTarget.style.color="#a09a8a"; e.currentTarget.style.borderColor="#2c2c26"; }}>
-                {t}
-              </button>
-            );
-          })}
+        {/* Free tickers section */}
+        <div style={{ marginTop:32, width:"100%", maxWidth:580, textAlign:"center" }}>
+
+          {/* Header row */}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, marginBottom:16 }}>
+            <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
+            <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+              <span style={{ width:6, height:6, borderRadius:"50%", background:LIME, display:"inline-block" }}></span>
+              <span style={{ fontSize:11, fontWeight:700, color:LIME, letterSpacing:"0.12em", textTransform:"uppercase" }}>10 Free Stocks</span>
+            </div>
+            <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
+          </div>
+
+          {/* Ticker chips */}
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16 }}>
+            {FREE_TICKERS.map(function(t) {
+              return (
+                <button key={t}
+                  onClick={function() { go(t); }}
+                  style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a", cursor:"pointer", fontFamily:FONT }}
+                  onMouseEnter={function(e) { e.currentTarget.style.background=BG; e.currentTarget.style.color=LIME; e.currentTarget.style.borderColor=LIME; }}
+                  onMouseLeave={function(e) { e.currentTarget.style.background="#1a1a16"; e.currentTarget.style.color="#a09a8a"; e.currentTarget.style.borderColor="#2c2c26"; }}>
+                  {t}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Members note */}
+          <div style={{ fontSize:12, color:"#4a4a44" }}>
+            {"More stocks available with membership " + String.fromCharCode(0x2014) + " "}
+            <span style={{ color:"#6a6460", textDecoration:"underline", cursor:"pointer" }}
+              onClick={function() { go("INTC"); }}>
+              {"see what" + String.fromCharCode(0x2019) + "s coming"}
+            </span>
+          </div>
+
         </div>
       </div>
     </div>
