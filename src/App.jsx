@@ -813,9 +813,9 @@ function Detail({ sym, name, onBack }) {
                         <span style={{ fontSize:12, fontWeight:500, color:_col }}>{_lbl}&nbsp;&nbsp;{_star.toFixed(1)}&nbsp;/&nbsp;5.0</span>
                       </div>
                     </div>
-                    <div style={{ borderTop:"1px solid #e8e4dc", margin:"8px 0 10px" }}></div>
                   </div>
                 )}
+                <div style={{ borderTop:"1px solid #e8e4dc", margin:"10px 0 16px" }}></div>
                 <div style={{ fontSize:10, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:600, marginBottom:7 }}>Analysis Summary</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
                   <Card label="Economic Moat"    value={moatRating}  score={moatScore}  colors={moatColors} />
@@ -974,7 +974,7 @@ function Detail({ sym, name, onBack }) {
 
                     return (
                       <div style={{ marginTop:12 }}>
-                        <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Reversal Indicator</div>
+                        <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginTop:16, marginBottom:6 }}>Reversal Indicator</div>
                         <div style={{ padding:"9px 12px", background:bg3, borderRadius:8, border:"0.5px solid "+border3 }}>
                           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                             <div style={{ display:"flex", alignItems:"center", gap:6 }}>
@@ -3423,8 +3423,35 @@ function Detail({ sym, name, onBack }) {
                     );
                   })()}
 
-                <div style={{ padding:"6px 16px", background:"#faf8f4", borderTop:"1px solid #f0ede6", fontSize:10, color:"#ccc" }}>
-                  AI analysis by Claude (Anthropic). For informational purposes only. Not financial advice.
+                <div style={{ background:"#faf8f4", borderTop:"1px solid #f0ede6", padding:"14px 16px" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                    <div style={{ width:16, height:16, borderRadius:"50%", background:"#E6F1FB", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                        <circle cx="6" cy="6" r="5" stroke="#185FA5" strokeWidth="1"/>
+                        <path d="M6 5v4M6 3.5v.5" stroke="#185FA5" strokeWidth="1" strokeLinecap="round"/>
+                      </svg>
+                    </div>
+                    <span style={{ fontSize:10, fontWeight:600, color:"#185FA5", textTransform:"uppercase", letterSpacing:"0.06em" }}>General information only  --  not financial advice</span>
+                  </div>
+                  <div style={{ fontSize:11, color:"#888", lineHeight:1.75, marginBottom:8 }}>
+                    <strong style={{ fontWeight:600, color:"#555" }}>About this website. </strong>
+                    Colaboree StockInsight is a private, community-focused website created for friends and family who want to learn about investing and understand financial markets. It is not a commercial financial services business. Any fees collected are used solely to fund the operating costs of this website  --  including data services, AI processing, and hosting  --  and no profit is derived.
+                  </div>
+                  <div style={{ fontSize:11, color:"#888", lineHeight:1.75, marginBottom:8 }}>
+                    <strong style={{ fontWeight:600, color:"#555" }}>General information only. </strong>
+                    The information and analysis provided  --  including stock ratings, AI-generated insights, market signals, reversal indicators, and investment ratings  --  are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any other form of professional advice.
+                  </div>
+                  <div style={{ fontSize:11, color:"#888", lineHeight:1.75, marginBottom:8 }}>
+                    <strong style={{ fontWeight:600, color:"#555" }}>Your personal situation. </strong>
+                    This website does not take into account your personal financial situation, objectives, or needs. Before making any investment decision, seek independent advice from a licensed financial adviser. Past performance and AI-generated analysis are not reliable indicators of future results.
+                  </div>
+                  <div style={{ fontSize:11, color:"#888", lineHeight:1.75, marginBottom:10 }}>
+                    <strong style={{ fontWeight:600, color:"#555" }}>Data accuracy. </strong>
+                    Data is sourced from third-party providers including Yahoo Finance and Massive.com and may be delayed, incomplete, or inaccurate. Use of this website is at your own risk.
+                  </div>
+                  <div style={{ borderTop:"0.5px solid #e8e4dc", paddingTop:8, fontSize:10, color:"#bbb" }}>
+                    Colaboree StockInsight does not provide personal financial advice. This is a private, cost-recovery community tool for educational purposes only. AI analysis by Claude (Anthropic). &copy; Colaboree StockInsight 2026.
+                  </div>
                 </div>
               </div>
             );
