@@ -729,36 +729,57 @@ function Detail({ sym, name, onBack }) {
 
             {/* DESKTOP */}
             {/* Nav mirrors the 400px / 1fr body grid so search aligns with the right panel */}
-            <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"400px 1fr", alignItems:"center", gap:0 }}>
-              {/* Left cell - matches left sidebar width (400px - 20px nav padding) */}
-              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <button onClick={onBack} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"5px 12px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
-                  Back
-                </button>
-                <span style={{ fontWeight:800, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap" }}>nervousgeek</span>
-                <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
+            <div className="nav-desktop" style={{ background:"#c8f000", display:"flex", alignItems:"center", height:52 }}>
+              {/* Logo + nervousgeek.com */}
+              <div style={{ display:"flex", alignItems:"center", gap:9, padding:"0 20px", flexShrink:0 }}>
+                <svg width="22" height="22" viewBox="0 0 110 110">
+                  <path d="M55 10 L96 33 L96 77 L55 100 L14 77 L14 33 Z" fill="none" stroke="#0e0e0c" strokeWidth="3"/>
+                  <circle cx="36" cy="52" r="18" fill="#c8f000" stroke="#0e0e0c" strokeWidth="3"/>
+                  <circle cx="74" cy="52" r="18" fill="#c8f000" stroke="#0e0e0c" strokeWidth="3"/>
+                  <circle cx="36" cy="52" r="6" fill="#0e0e0c"/>
+                  <circle cx="74" cy="52" r="6" fill="#0e0e0c"/>
+                  <line x1="48" y1="76" x2="62" y2="76" stroke="#0e0e0c" strokeWidth="3" strokeLinecap="round"/>
+                </svg>
+                <span style={{ fontSize:16, fontWeight:900, color:"#0e0e0c", letterSpacing:"-0.3px" }}>nervousgeek.com</span>
               </div>
-              {/* Right cell - search pill aligned to start of right panel */}
-              <div style={{ display:"flex", alignItems:"center" }}>
+              {/* Spacer */}
+              <div style={{ flex:1 }}></div>
+              {/* Ticker + search + back */}
+              <div style={{ display:"flex", alignItems:"center", gap:10, padding:"0 0 0 16px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:0, flexShrink:0 }}>
+                  <span style={{ fontSize:13, fontWeight:900, color:"#0e0e0c" }}>{sym}</span>
+                  <span style={{ fontSize:12, color:"rgba(0,0,0,0.4)", margin:"0 5px" }}>/</span>
+                  <span style={{ fontSize:12, color:"rgba(0,0,0,0.6)", fontWeight:600 }}>{name}</span>
+                </div>
                 {SearchPill}
+                <button onClick={onBack} style={{ height:52, padding:"0 18px", border:"none", borderLeft:"1px solid rgba(0,0,0,0.12)", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:700, whiteSpace:"nowrap", flexShrink:0 }}>
+                  {"<"} Back
+                </button>
               </div>
             </div>
 
             {/* MOBILE */}
-            <div className="nav-mobile" style={{ background:"#c8f000", padding:"8px 14px 7px" }}>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:7 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <button onClick={onBack} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"4px 10px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:11, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
-                    Back
-                  </button>
-                  <span style={{ fontWeight:800, fontSize:14, color:"#1a1a14" }}>
-                    nervousgeek
-                  </span>
-                  <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
+            <div className="nav-mobile" style={{ background:"#c8f000", padding:"0" }}>
+              <div style={{ display:"flex", alignItems:"center", height:46 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:7, padding:"0 14px", flexShrink:0 }}>
+                  <svg width="18" height="18" viewBox="0 0 110 110">
+                    <path d="M55 10 L96 33 L96 77 L55 100 L14 77 L14 33 Z" fill="none" stroke="#0e0e0c" strokeWidth="3"/>
+                    <circle cx="36" cy="52" r="18" fill="#c8f000" stroke="#0e0e0c" strokeWidth="3"/>
+                    <circle cx="74" cy="52" r="18" fill="#c8f000" stroke="#0e0e0c" strokeWidth="3"/>
+                    <circle cx="36" cy="52" r="6" fill="#0e0e0c"/>
+                    <circle cx="74" cy="52" r="6" fill="#0e0e0c"/>
+                    <line x1="48" y1="76" x2="62" y2="76" stroke="#0e0e0c" strokeWidth="3" strokeLinecap="round"/>
+                  </svg>
+                  <span style={{ fontSize:14, fontWeight:900, color:"#0e0e0c" }}>nervousgeek.com</span>
                 </div>
-
+                <div style={{ flex:1 }}></div>
+                <span style={{ fontSize:13, fontWeight:900, color:"#0e0e0c", marginRight:12, flexShrink:0 }}>{sym}</span>
+                <button onClick={onBack} style={{ height:46, padding:"0 14px", border:"none", borderLeft:"1px solid rgba(0,0,0,0.12)", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:700, flexShrink:0 }}>
+                  {"<"} Back
+                </button>
               </div>
               {/* Full-width white search on row 2 */}
+              <div style={{ borderTop:"1px solid rgba(0,0,0,0.08)", padding:"6px 12px 8px" }}>
               <div style={{ position:"relative" }}>
                 <div style={{ display:"flex", alignItems:"center", background:"#fff", borderRadius:20, padding:"7px 12px", gap:8, border: navFocus ? "2px solid #1a1a14" : "2px solid transparent" }}>
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
