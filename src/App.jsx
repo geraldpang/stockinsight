@@ -3665,77 +3665,76 @@ export default function App() {
     : [];
 
 
+  var NG_LOGO = function(sz, col) {
+    var s = sz || 24; var c = col || LIME;
+    return (
+      <svg width={s} height={s} viewBox="0 0 110 110">
+        <path d="M55 10 L96 33 L96 77 L55 100 L14 77 L14 33 Z" fill="none" stroke={c} strokeWidth="3"/>
+        <circle cx="36" cy="52" r="18" fill="#111" stroke={c} strokeWidth="3"/>
+        <circle cx="74" cy="52" r="18" fill="#111" stroke={c} strokeWidth="3"/>
+        <circle cx="36" cy="52" r="6" fill={c}/>
+        <circle cx="74" cy="52" r="6" fill={c}/>
+        <line x1="48" y1="76" x2="62" y2="76" stroke={c} strokeWidth="3" strokeLinecap="round"/>
+      </svg>
+    );
+  };
+
   return (
-    <div style={{ minHeight:"100vh", background:BG, fontFamily:FONT, position:"relative", overflow:"hidden" }}>
-
-      {/* Grid overlay */}
-      <div style={{
-        position:"fixed", inset:0, zIndex:0, pointerEvents:"none",
-        backgroundImage:"linear-gradient(rgba(200,240,0,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(200,240,0,0.05) 1px,transparent 1px)",
-        backgroundSize:"52px 52px",
-      }} />
-
-      {/* Top glow */}
-      <div style={{
-        position:"fixed", inset:0, zIndex:0, pointerEvents:"none",
-        background:"radial-gradient(ellipse 70% 50% at 50% -10%,rgba(200,240,0,0.07) 0%,transparent 70%)",
-      }} />
+    <div style={{ minHeight:"100vh", background:"#111", fontFamily:FONT }}>
 
       {/* Nav */}
-      <nav style={{ position:"relative", zIndex:10, padding:"0 32px", height:52, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ display:"flex", alignItems:"center" }}>
-          <span style={{ fontSize:17, fontWeight:800, color:"#ffffff" }}>Colabo</span>
-          <span style={{ fontSize:17, fontWeight:800, color:"#ff5c3a" }}>ree</span>
-          <span style={{ fontSize:17, fontWeight:700, color:LIME, marginLeft:4 }}>StockInsight</span>
+      <nav style={{ height:50, padding:"0 24px", display:"flex", alignItems:"center", justifyContent:"space-between", background:"#0a0a08", borderBottom:"1px solid #222", position:"sticky", top:0, zIndex:100 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+          {NG_LOGO(24, LIME)}
+          <span style={{ fontSize:15, fontWeight:900, color:"#fff" }}>nervous<span style={{ color:LIME }}>geek</span></span>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(14,14,12,0.9)", border:"1px solid rgba(200,240,0,0.28)", borderRadius:20, padding:"5px 16px" }}>
-          <span style={{ width:6, height:6, borderRadius:"50%", background:LIME, display:"inline-block" }} />
-          <span style={{ fontSize:11, fontWeight:600, color:LIME }}>Live Market Data . Yahoo Finance</span>
+        <div style={{ display:"flex", alignItems:"center", gap:20 }}>
+          <span style={{ fontSize:12, color:"#555" }}>About</span>
+          <span style={{ fontSize:12, color:"#555" }}>Membership</span>
+          <div style={{ display:"flex", alignItems:"center", gap:5, border:"1px solid #2a2a24", borderRadius:20, padding:"4px 12px" }}>
+            <span style={{ width:5, height:5, borderRadius:"50%", background:LIME, display:"inline-block" }}></span>
+            <span style={{ fontSize:10, color:LIME, fontWeight:700, letterSpacing:"0.05em" }}>LIVE</span>
+          </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <div style={{ position:"relative", zIndex:5, display:"flex", flexDirection:"column", alignItems:"center", paddingTop:70, paddingBottom:80 }}>
+      <div style={{ padding:"52px 32px 32px", maxWidth:680, margin:"0 auto" }}>
 
-        {/* Eyebrow pill */}
-        <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:BG, border:"1px solid rgba(200,240,0,0.28)", borderRadius:24, padding:"7px 20px", marginBottom:32 }}>
-          <span style={{ width:7, height:7, borderRadius:"50%", background:LIME, display:"inline-block" }} />
-          <span style={{ fontSize:11, fontWeight:700, color:LIME, letterSpacing:"0.12em", textTransform:"uppercase" }}>Stock Intelligence Platform</span>
+        {/* Badge + headline */}
+        <div style={{ marginBottom:36 }}>
+          <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:LIME, color:"#0e0e0c", fontSize:10, fontWeight:900, padding:"5px 12px", borderRadius:4, letterSpacing:"0.12em", marginBottom:20 }}>
+            NERVOUSGEEK.COM
+          </div>
+          <div style={{ fontSize:52, fontWeight:900, color:"#fff", lineHeight:"0.95", letterSpacing:"-2.5px", marginBottom:6 }}>Know more.</div>
+          <div style={{ fontSize:52, fontWeight:900, color:LIME, lineHeight:"0.95", letterSpacing:"-2.5px", marginBottom:24 }}>Fear less.</div>
+          <div style={{ fontSize:14, color:"#888", lineHeight:"1.85", maxWidth:460, borderLeft:"2px solid " + LIME, paddingLeft:14 }}>
+            AI-powered stock intelligence for long-term thinkers. Not a trading app. Not financial advice {" " + String.fromCharCode(0x2014) + " "} just observation to manage personal risk.
+          </div>
         </div>
-
-        {/* Headline */}
-        <div style={{ textAlign:"center", marginBottom:16 }}>
-          <div style={{ fontSize:42, fontWeight:900, color:LIME, letterSpacing:"-1.5px" }}>Know your stocks.</div>
-          <div style={{ fontSize:20, fontWeight:500, color:"#5a5450", marginTop:6 }}>Before you miss the move.</div>
-        </div>
-
-        <p style={{ fontSize:14, color:"#a09a8a", textAlign:"center", maxWidth:500, lineHeight:1.75, margin:"0 0 40px" }}>
-          Live prices . P/E ratios . IntrinsicValue(TM) intrinsic estimates . Valuation charts
-        </p>
 
         {/* Search bar */}
-        <div style={{ position:"relative", width:"100%", maxWidth:540 }}>
-          <div style={{
-            display:"flex", alignItems:"center", background:"#1e1e18", borderRadius:50,
-            border:"1.5px solid " + (focused ? LIME : "#2c2c26"),
-            transition:"border-color 0.2s",
-          }}>
+        <div style={{ position:"relative", marginBottom:36 }}>
+          <div style={{ background:"#0a0a08", border:"1px solid " + (focused ? LIME : "#2a2a24"), borderRadius:10, display:"flex", alignItems:"center", overflow:"hidden", transition:"border-color 0.2s" }}>
+            <div style={{ padding:"0 16px", borderRight:"1px solid #222" }}>
+              {NG_LOGO(14, "#444")}
+            </div>
             <input
               value={input}
               onChange={function(e) { setInput(e.target.value); }}
               onFocus={function() { setFocused(true); }}
               onBlur={function() { setTimeout(function() { setFocused(false); }, 180); }}
               onKeyDown={function(e) { if (e.key === "Enter") go(); }}
-              placeholder="Enter ticker - e.g. AAPL, NVDA, TSLA"
-              style={{ flex:1, border:"none", outline:"none", fontSize:14, padding:"15px 20px", color:"#f0ede6", background:"transparent", fontFamily:FONT }}
+              placeholder="Search ticker or company name..."
+              style={{ flex:1, border:"none", outline:"none", fontSize:14, padding:"14px 16px", color:"#f0ede6", background:"transparent", fontFamily:FONT }}
             />
             <button
               onMouseDown={function(e) { e.preventDefault(); go(); }}
               style={{
-                margin:5, padding:"11px 24px", borderRadius:50, border:"none",
-                background:input.trim() ? LIME : "#2c2c26",
-                color:input.trim() ? "#0e0e0c" : "#6a6460",
-                fontWeight:800, fontSize:14, fontFamily:FONT,
+                margin:5, padding:"11px 24px", borderRadius:6, border:"none",
+                background:input.trim() ? LIME : "#222",
+                color:input.trim() ? "#0e0e0c" : "#555",
+                fontWeight:900, fontSize:13, fontFamily:FONT,
                 cursor:input.trim() ? "pointer" : "default",
               }}>
               Assess Stock
@@ -3744,19 +3743,19 @@ export default function App() {
 
           {/* Suggestions dropdown */}
           {sugg.length > 0 && (
-            <div style={{ position:"absolute", top:"calc(100% + 8px)", left:0, right:0, background:"#1e1e18", border:"1px solid #2c2c26", borderRadius:14, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", zIndex:50, overflow:"hidden" }}>
+            <div style={{ position:"absolute", top:"calc(100% + 6px)", left:0, right:0, background:"#1a1a18", border:"1px solid #2c2c26", borderRadius:10, boxShadow:"0 8px 32px rgba(0,0,0,0.6)", zIndex:50, overflow:"hidden" }}>
               {sugg.map(function(s) {
                 return (
                   <div key={s.symbol}
                     onMouseDown={function(e) { e.preventDefault(); setInput(s.symbol); }}
-                    style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 18px", cursor:"pointer", borderBottom:"1px solid #2c2c26" }}
-                    onMouseEnter={function(e) { e.currentTarget.style.background = "rgba(200,240,0,0.10)"; }}
-                    onMouseLeave={function(e) { e.currentTarget.style.background = "transparent"; }}>
+                    style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 18px", cursor:"pointer", borderBottom:"1px solid #222" }}
+                    onMouseEnter={function(e) { e.currentTarget.style.background="rgba(200,240,0,0.06)"; }}
+                    onMouseLeave={function(e) { e.currentTarget.style.background="transparent"; }}>
                     <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                      <span style={{ fontWeight:800, fontSize:12, color:BG, background:LIME, padding:"2px 8px", borderRadius:4, minWidth:48, textAlign:"center" }}>{s.symbol}</span>
-                      <span style={{ fontSize:13, color:"#a09a8a" }}>{s.name}</span>
+                      <span style={{ fontWeight:900, fontSize:12, color:"#0e0e0c", background:LIME, padding:"2px 8px", borderRadius:4, minWidth:48, textAlign:"center" }}>{s.symbol}</span>
+                      <span style={{ fontSize:13, color:"#888" }}>{s.name}</span>
                     </div>
-                    <span style={{ color:"#6a6460", fontSize:12 }}>&gt;</span>
+                    <span style={{ color:"#444", fontSize:12 }}>{">"}</span>
                   </div>
                 );
               })}
@@ -3764,45 +3763,42 @@ export default function App() {
           )}
         </div>
 
-        {/* Free tickers section */}
-        <div style={{ marginTop:32, width:"100%", maxWidth:580, textAlign:"center" }}>
-
-          {/* Header row */}
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, marginBottom:16 }}>
-            <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
-            <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-              <span style={{ width:6, height:6, borderRadius:"50%", background:LIME, display:"inline-block" }}></span>
-              <span style={{ fontSize:11, fontWeight:700, color:LIME, letterSpacing:"0.12em", textTransform:"uppercase" }}>10 Free Stocks</span>
-            </div>
-            <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
+        {/* Free tickers */}
+        <div style={{ borderTop:"1px solid #222", paddingTop:24 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+            <span style={{ fontSize:11, fontWeight:700, color:"#666", letterSpacing:"0.12em", textTransform:"uppercase" }}>Free stocks</span>
           </div>
-
-          {/* Ticker chips */}
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16 }}>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
             {FREE_TICKERS.map(function(t) {
               return (
                 <button key={t}
                   onClick={function() { go(t); }}
-                  style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a", cursor:"pointer", fontFamily:FONT }}
-                  onMouseEnter={function(e) { e.currentTarget.style.background=BG; e.currentTarget.style.color=LIME; e.currentTarget.style.borderColor=LIME; }}
-                  onMouseLeave={function(e) { e.currentTarget.style.background="#1a1a16"; e.currentTarget.style.color="#a09a8a"; e.currentTarget.style.borderColor="#2c2c26"; }}>
+                  style={{ padding:"6px 16px", borderRadius:6, border:"1px solid #333", background:"#1a1a18", fontSize:12, color:"#888", cursor:"pointer", fontFamily:FONT, letterSpacing:"0.04em" }}
+                  onMouseEnter={function(e) { e.currentTarget.style.color=LIME; e.currentTarget.style.borderColor=LIME; e.currentTarget.style.background="#0e0e0c"; }}
+                  onMouseLeave={function(e) { e.currentTarget.style.color="#888"; e.currentTarget.style.borderColor="#333"; e.currentTarget.style.background="#1a1a18"; }}>
                   {t}
                 </button>
               );
             })}
           </div>
-
-          {/* Members note */}
-          <div style={{ fontSize:12, color:"#4a4a44" }}>
+          <div style={{ fontSize:12, color:"#555" }}>
             {"More stocks available with membership " + String.fromCharCode(0x2014) + " "}
-            <span style={{ color:"#6a6460", textDecoration:"underline", cursor:"pointer" }}
+            <span
+              style={{ color:"#888", textDecoration:"underline", textUnderlineOffset:"3px", cursor:"pointer" }}
               onClick={function() { go("INTC"); }}>
               {"see what" + String.fromCharCode(0x2019) + "s coming"}
             </span>
           </div>
-
         </div>
+
       </div>
+
+      {/* Footer */}
+      <div style={{ padding:"14px 32px", background:"#0a0a08", borderTop:"1px solid #222", display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:40 }}>
+        <span style={{ fontSize:11, color:"#444", fontWeight:600 }}>nervousgeek.com</span>
+        <span style={{ fontSize:11, color:"#333" }}>General information only {" " + String.fromCharCode(0x2014) + " "} not financial advice.</span>
+      </div>
+
     </div>
   );
 }
