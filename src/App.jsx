@@ -3490,7 +3490,6 @@ function Detail({ sym, name, onBack }) {
           })()}
 
         </div>
-      </div>
       {/* Sticky disclaimer footer */}
       <div style={{
         position:"fixed", bottom:0, left:0, right:0, zIndex:100,
@@ -3547,6 +3546,8 @@ function Detail({ sym, name, onBack }) {
         </div>
       </div>
     </div>
+  </div>
+  </div>
   );
 }
 
