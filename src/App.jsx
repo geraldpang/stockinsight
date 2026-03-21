@@ -735,9 +735,7 @@ function Detail({ sym, name, onBack }) {
                 <button onClick={onBack} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"5px 12px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
                   Back
                 </button>
-                <span style={{ fontWeight:800, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap" }}>
-                  nervous<span style={{ color:"#1a1a14" }}>geek</span>
-                </span>
+                <span style={{ fontWeight:800, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap" }}>nervousgeek</span>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
               {/* Right cell - search pill aligned to start of right panel */}
@@ -3543,8 +3541,7 @@ function PaywallCard({ sym, name, onBack }) {
           style={{ background:"none", border:"none", cursor:"pointer", color:"#0e0e0c", fontWeight:800, fontSize:13, fontFamily:FONT, display:"flex", alignItems:"center", gap:6, padding:0 }}>
           {"< Back"}
         </button>
-        <span style={{ fontWeight:800, fontSize:15, color:"#0e0e0c" }}>nervous</span>
-        <span style={{ fontWeight:800, fontSize:15, color:"#333", marginLeft:0 }}>geek</span>
+        <span style={{ fontWeight:800, fontSize:15, color:"#0e0e0c" }}>nervousgeek</span>
       </nav>
 
       {/* Card */}
@@ -3625,6 +3622,10 @@ export default function App() {
     return function() { window.removeEventListener("hashchange", onHash); };
   }, []);
 
+  useEffect(function() {
+    document.title = "nervousgeek.com";
+  }, []);
+
   function go(sym) {
     var s = (sym || input).toUpperCase().trim();
     if (!s) return;
@@ -3680,37 +3681,31 @@ export default function App() {
       }} />
 
       {/* Nav */}
-      <nav style={{ position:"relative", zIndex:10, padding:"0 32px", height:52, display:"flex", alignItems:"center", justifyContent:"space-between", background:LIME }}>
+      <nav style={{ position:"relative", zIndex:10, padding:"0 32px", height:52, display:"flex", alignItems:"center", justifyContent:"space-between", background:"#0e0e0c", borderBottom:"1px solid #1e1e1a" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <svg width="24" height="24" viewBox="0 0 110 110">
-            <path d="M55 10 L96 33 L96 77 L55 100 L14 77 L14 33 Z" fill="none" stroke="#0e0e0c" strokeWidth="3"/>
-            <circle cx="36" cy="52" r="18" fill={LIME} stroke="#0e0e0c" strokeWidth="3"/>
-            <circle cx="74" cy="52" r="18" fill={LIME} stroke="#0e0e0c" strokeWidth="3"/>
-            <circle cx="36" cy="52" r="6" fill="#0e0e0c"/>
-            <circle cx="74" cy="52" r="6" fill="#0e0e0c"/>
-            <line x1="48" y1="76" x2="62" y2="76" stroke="#0e0e0c" strokeWidth="3" strokeLinecap="round"/>
+            <path d="M55 10 L96 33 L96 77 L55 100 L14 77 L14 33 Z" fill="none" stroke={LIME} strokeWidth="3"/>
+            <circle cx="36" cy="52" r="18" fill="#0e0e0c" stroke={LIME} strokeWidth="3"/>
+            <circle cx="74" cy="52" r="18" fill="#0e0e0c" stroke={LIME} strokeWidth="3"/>
+            <circle cx="36" cy="52" r="6" fill={LIME}/>
+            <circle cx="74" cy="52" r="6" fill={LIME}/>
+            <line x1="48" y1="76" x2="62" y2="76" stroke={LIME} strokeWidth="3" strokeLinecap="round"/>
           </svg>
-          <span style={{ fontSize:17, fontWeight:900, color:"#0e0e0c" }}>nervous<span style={{ color:"#333" }}>geek</span></span>
+          <span style={{ fontSize:17, fontWeight:900 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(0,0,0,0.12)", borderRadius:20, padding:"5px 16px" }}>
-          <span style={{ width:6, height:6, borderRadius:"50%", background:"#0e0e0c", display:"inline-block" }} />
-          <span style={{ fontSize:11, fontWeight:600, color:"#0e0e0c" }}>Live Market Data</span>
+        <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(200,240,0,0.08)", border:"1px solid rgba(200,240,0,0.25)", borderRadius:20, padding:"5px 16px" }}>
+          <span style={{ width:6, height:6, borderRadius:"50%", background:LIME, display:"inline-block" }} />
+          <span style={{ fontSize:11, fontWeight:600, color:LIME }}>Live Market Data</span>
         </div>
       </nav>
 
       {/* Hero */}
       <div style={{ position:"relative", zIndex:5, display:"flex", flexDirection:"column", alignItems:"center", paddingTop:70, paddingBottom:80 }}>
 
-        {/* Eyebrow pill */}
-        <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:BG, border:"1px solid rgba(200,240,0,0.28)", borderRadius:24, padding:"7px 20px", marginBottom:32 }}>
-          <span style={{ width:7, height:7, borderRadius:"50%", background:LIME, display:"inline-block" }} />
-          <span style={{ fontSize:11, fontWeight:700, color:LIME, letterSpacing:"0.12em", textTransform:"uppercase" }}>Stock Intelligence Platform</span>
-        </div>
-
         {/* Headline */}
         <div style={{ textAlign:"center", marginBottom:16 }}>
-          <div style={{ fontSize:42, fontWeight:900, color:LIME, letterSpacing:"-1.5px" }}>Know more.</div>
-          <div style={{ fontSize:20, fontWeight:500, color:"#5a5450", marginTop:6 }}>Fear less.</div>
+          <div style={{ fontSize:42, fontWeight:900, color:"#ffffff", letterSpacing:"-1.5px" }}>Know more.</div>
+          <div style={{ fontSize:42, fontWeight:900, color:LIME, letterSpacing:"-1.5px" }}>Fear less.</div>
         </div>
 
         <p style={{ fontSize:14, color:"#a09a8a", textAlign:"center", maxWidth:500, lineHeight:1.75, margin:"0 0 40px" }}>
@@ -3798,6 +3793,59 @@ export default function App() {
               {"see what" + String.fromCharCode(0x2019) + "s coming"}
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* Sticky disclaimer footer */}
+      <div style={{
+        position:"fixed", bottom:0, left:0, right:0, zIndex:100,
+        background:"#111",
+        borderTop:"1px solid #333",
+      }}>
+        <div id="lp-disc-full"
+          onClick={function(){ var d=document.getElementById("lp-disc-full"); if(d) d.style.display="none"; var t=document.getElementById("lp-disc-tap"); if(t) t.innerText="tap to read"; }}
+          style={{
+            display:"none",
+            maxHeight:"50vh",
+            overflowY:"auto",
+            padding:"14px 20px",
+            borderBottom:"0.5px solid #333",
+            background:"#111",
+            cursor:"pointer",
+          }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+            <span style={{ fontSize:11, fontWeight:600, color:"#F05A1A", textTransform:"uppercase", letterSpacing:"0.06em" }}>Disclaimer</span>
+            <button
+              onClick={function(){ var d=document.getElementById("lp-disc-full"); if(d) d.style.display="none"; var t=document.getElementById("lp-disc-tap"); if(t) t.innerText="tap to read"; }}
+              style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#666", lineHeight:1, padding:"0 2px" }}>
+              &times;
+            </button>
+          </div>
+          <div style={{ fontSize:11, color:"#aaa", lineHeight:1.8 }}>
+            nervousgeek.com is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). &copy; nervousgeek.com 2026.
+          </div>
+        </div>
+        <div
+          style={{ padding:"7px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}
+          onClick={function(){
+            var d=document.getElementById("lp-disc-full");
+            var t=document.getElementById("lp-disc-tap");
+            if(d){
+              var open=d.style.display!=="none";
+              d.style.display=open?"none":"block";
+              if(t) t.innerText=open?"tap to read":"tap to close";
+            }
+          }}>
+          <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+            <div style={{ width:14, height:14, borderRadius:"50%", background:"#222", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+                <circle cx="6" cy="6" r="5" stroke="#c8f000" strokeWidth="1.2"/>
+                <path d="M6 5v4M6 3.5v.5" stroke="#c8f000" strokeWidth="1.2" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <span style={{ fontSize:10, fontWeight:600, color:"#c8f000", textTransform:"uppercase", letterSpacing:"0.06em" }}>General information only -- not financial advice</span>
+          </div>
+          <span id="lp-disc-tap" style={{ fontSize:10, color:"#555" }}>tap to read</span>
         </div>
       </div>
     </div>
