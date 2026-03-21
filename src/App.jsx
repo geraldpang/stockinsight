@@ -702,7 +702,7 @@ function Detail({ sym, name, onBack }) {
                 placeholder="Search ticker or company..."
                 style={{ flex:1, border:"none", outline:"none", background:"transparent", fontSize:12, color:"#333", fontFamily:FONT }}
               />
-              {navInput && <span onClick={function(){ setNavInput(""); }} style={{ cursor:"pointer", color:"#bbb", fontSize:15, lineHeight:1, flexShrink:0 }}>&times;</span>}
+              {navInput && <span onClick={function(){ setNavInput(""); }} style={{ cursor:"pointer", color:"#bbb", fontSize:15, lineHeight:1, flexShrink:0 }}>{String.fromCharCode(0xD7)}</span>}
             </div>
             {navSugg.length > 0 && (
               <div style={{ position:"absolute", top:"calc(100% + 5px)", left:0, right:0, background:"#1c1c1e", border:"0.5px solid #333", borderRadius:10, zIndex:200, overflow:"hidden" }}>
@@ -795,7 +795,7 @@ function Detail({ sym, name, onBack }) {
                     placeholder="Search company or ticker..."
                     style={{ flex:1, border:"none", outline:"none", background:"transparent", fontSize:13, color:"#333", fontFamily:FONT }}
                   />
-                  {navInput && <span onClick={function(){ setNavInput(""); }} style={{ cursor:"pointer", color:"#bbb", fontSize:15, lineHeight:1 }}>&times;</span>}
+                  {navInput && <span onClick={function(){ setNavInput(""); }} style={{ cursor:"pointer", color:"#bbb", fontSize:15, lineHeight:1 }}>{String.fromCharCode(0xD7)}</span>}
                 </div>
                 {navSugg.length > 0 && (
                   <div style={{ position:"absolute", top:"calc(100% + 5px)", left:0, right:0, background:"#1c1c1e", border:"0.5px solid #333", borderRadius:10, zIndex:200, overflow:"hidden" }}>
@@ -960,7 +960,7 @@ function Detail({ sym, name, onBack }) {
                       <span style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em" }}>Analysis Rating</span>
                       <div style={{ display:"flex", alignItems:"center", gap:7 }}>
                         <span style={{ display:"inline-flex" }}>{_StarRow(_star)}</span>
-                        <span style={{ fontSize:12, fontWeight:500, color:_col }}>{_lbl}&nbsp;&nbsp;{_star.toFixed(1)}&nbsp;/&nbsp;5.0</span>
+                        <span style={{ fontSize:12, fontWeight:500, color:_col }}>{_lbl}{String.fromCharCode(0xA0)}{String.fromCharCode(0xA0)}{_star.toFixed(1)}{String.fromCharCode(0xA0)}/{String.fromCharCode(0xA0)}5.0</span>
                       </div>
                     </div>
                   </div>
@@ -1992,7 +1992,7 @@ function Detail({ sym, name, onBack }) {
                                       {showRevWatch && (
                                         <div style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10, fontWeight:700, color:"#633806", background:"#FAEEDA", padding:"2px 8px", borderRadius:10, border:"0.5px solid #EF9F27" }}>
                                           <span style={{ width:6, height:6, borderRadius:"50%", background:"#BA7517", display:"inline-block" }} />
-                                          Reversal Watch &mdash; {revCount} signals
+                                          Reversal Watch {String.fromCharCode(0x2014)} {revCount} signals
                                         </div>
                                       )}
                                     </div>
@@ -2011,7 +2011,7 @@ function Detail({ sym, name, onBack }) {
 
                                   {/* Trend signals */}
                                   <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:8 }}>
-                                    Trend &amp; Price Action <span style={{ fontWeight:400, color:"#bbb" }}>55%</span>
+                                    Trend {"&"} Price Action <span style={{ fontWeight:400, color:"#bbb" }}>55%</span>
                                   </div>
                                   {trendSigs.map(function(sig) {
                                     var sc = scores[sig.key];
@@ -2064,8 +2064,8 @@ function Detail({ sym, name, onBack }) {
                                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:9 }}>
                                       <div style={{ fontSize:10, fontWeight:700, color:"#854F0B", textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Detection</div>
                                       {revCount > 0
-                                        ? <div style={{ fontSize:10, color:"#633806", background:"#FAEEDA", padding:"2px 9px", borderRadius:8, border:"0.5px solid #EF9F27", fontWeight:600 }}>{revCount} active &mdash; total bonus <span style={{ color:"#1a6a1a" }}>+{bonus}pts</span></div>
-                                        : <div style={{ fontSize:10, color:"#bbb" }}>0 active &mdash; 0 pts</div>
+                                        ? <div style={{ fontSize:10, color:"#633806", background:"#FAEEDA", padding:"2px 9px", borderRadius:8, border:"0.5px solid #EF9F27", fontWeight:600 }}>{revCount} active {String.fromCharCode(0x2014)} total bonus <span style={{ color:"#1a6a1a" }}>+{bonus}pts</span></div>
+                                        : <div style={{ fontSize:10, color:"#bbb" }}>0 active {String.fromCharCode(0x2014)} 0 pts</div>
                                       }
                                     </div>
 
@@ -2100,7 +2100,7 @@ function Detail({ sym, name, onBack }) {
                                         <div style={{ padding:"3px 9px", background: bonus > 0 ? "#EAF3DE" : "#f5f5f5", borderRadius:5, border:"0.5px solid " + (bonus > 0 ? "#7abd00" : "#ddd"), fontSize:11, fontWeight:600, color: bonus > 0 ? "#27500A" : "#bbb" }}>Bonus +{bonus}</div>
                                         <span style={{ fontSize:11, color:"#bbb" }}>=</span>
                                         <div style={{ padding:"3px 10px", background:vCol, borderRadius:5, fontSize:12, fontWeight:700, color:"#fff" }}>{finalScore}/100 {verdict}</div>
-                                        {base >= 50 && bonus === 0 && <span style={{ fontSize:10, color:"#aaa" }}>(bonus only when base &lt; 50)</span>}
+                                        {base >= 50 && bonus === 0 && <span style={{ fontSize:10, color:"#aaa" }}>(bonus only when base {"<"} 50)</span>}
                                       </div>
                                     </div>
                                   </div>
@@ -2109,7 +2109,7 @@ function Detail({ sym, name, onBack }) {
                               </div>
                             ) : (
                               <div style={{ padding:"12px 14px", background:"#fafaf8", borderRadius:8, border:"0.5px solid #e8e4dc", marginBottom:4, fontSize:12, color:"#aaa" }}>
-                                Market Signal unavailable &mdash; requires Massive.com data.
+                                Market Signal unavailable {String.fromCharCode(0x2014)} requires Massive.com data.
                               </div>
                             )}
 
@@ -2427,11 +2427,11 @@ function Detail({ sym, name, onBack }) {
                                 <span style={{fontSize:11,color:"#555",marginLeft:6}}>{parsed.techScore}/5</span>
                               </div>
                             )}
-                            {ind2.sma50&&price2>0&&<span><strong style={{fontWeight:700}}>SMA50:</strong> ${(ind2.sma50).toFixed(2)} ({price2>ind2.sma50?"above":"below"}) &nbsp;</span>}
-                            {ind2.sma200&&price2>0&&<span><strong style={{fontWeight:700}}>SMA200:</strong> ${(ind2.sma200).toFixed(2)} ({price2>ind2.sma200?"above":"below"}) &nbsp;</span>}
-                            {ind2.rsi14!=null&&<span><strong style={{fontWeight:700}}>RSI:</strong> {ind2.rsi14!=null?ind2.rsi14.toFixed(1):"-"} &nbsp;</span>}
-                            {ind2.macd&&ind2.macd.histogram!=null&&<span><strong style={{fontWeight:700}}>MACD Hist:</strong> {ind2.macd&&ind2.macd.histogram!=null?ind2.macd.histogram.toFixed(4):"-"} &nbsp;</span>}
-                            {bbMid>0&&<span><strong style={{fontWeight:700}}>BB:</strong> {bbMid>0?"$"+bbLower.toFixed(2)+" / $"+bbMid.toFixed(2)+" / $"+bbUpper.toFixed(2):"-"} &nbsp;</span>}
+                            {ind2.sma50&&price2>0&&<span><strong style={{fontWeight:700}}>SMA50:</strong> ${(ind2.sma50).toFixed(2)} ({price2>ind2.sma50?"above":"below"}) {String.fromCharCode(0xA0)}</span>}
+                            {ind2.sma200&&price2>0&&<span><strong style={{fontWeight:700}}>SMA200:</strong> ${(ind2.sma200).toFixed(2)} ({price2>ind2.sma200?"above":"below"}) {String.fromCharCode(0xA0)}</span>}
+                            {ind2.rsi14!=null&&<span><strong style={{fontWeight:700}}>RSI:</strong> {ind2.rsi14!=null?ind2.rsi14.toFixed(1):"-"} {String.fromCharCode(0xA0)}</span>}
+                            {ind2.macd&&ind2.macd.histogram!=null&&<span><strong style={{fontWeight:700}}>MACD Hist:</strong> {ind2.macd&&ind2.macd.histogram!=null?ind2.macd.histogram.toFixed(4):"-"} {String.fromCharCode(0xA0)}</span>}
+                            {bbMid>0&&<span><strong style={{fontWeight:700}}>BB:</strong> {bbMid>0?"$"+bbLower.toFixed(2)+" / $"+bbMid.toFixed(2)+" / $"+bbUpper.toFixed(2):"-"} {String.fromCharCode(0xA0)}</span>}
                             {fib382>0&&<span><strong style={{fontWeight:700}}>Fib:</strong> 38.2%=${fib382} / 50%=${fib500} / 61.8%=${fib618}</span>}
                           </div>
                         ) : <div style={{color:"#aaa",fontSize:12}}>Technical data will appear after AI Insight generates.</div>}
@@ -3294,7 +3294,7 @@ function Detail({ sym, name, onBack }) {
                         </div>
 
                         {/* Trend signals */}
-                        <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Trend &amp; Price Action <span style={{fontWeight:400,color:"#bbb"}}>55%</span></div>
+                        <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Trend {"&"} Price Action <span style={{fontWeight:400,color:"#bbb"}}>55%</span></div>
                         {SIGS2.filter(function(s){return s.cat==="Trend";}).map(function(sig){
                           var sc=scores2[sig.key],col=scColMap2[sc],lbl=scLbMap2[sc],pts=Math.round((sc/5)*sig.w);
                           return (<div key={sig.key} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"0.5px solid #f5f2ec"}}>
@@ -3364,7 +3364,7 @@ function Detail({ sym, name, onBack }) {
                               <div style={{padding:"3px 9px",background:bonus2>0?"#EAF3DE":"#f5f5f5",borderRadius:5,border:"0.5px solid "+(bonus2>0?"#7abd00":"#ddd"),fontSize:11,fontWeight:600,color:bonus2>0?"#27500A":"#bbb"}}>Bonus +{bonus2}</div>
                               <span style={{fontSize:11,color:"#bbb"}}>=</span>
                               <div style={{padding:"3px 10px",background:vCol2,borderRadius:5,fontSize:12,fontWeight:700,color:"#fff"}}>{final2}/100 {verdict2}</div>
-                              {base2>=50&&<span style={{fontSize:10,color:"#aaa"}}>(bonus only when base &lt; 50)</span>}
+                              {base2>=50&&<span style={{fontSize:10,color:"#aaa"}}>(bonus only when base {"<"} 50)</span>}
                             </div>
                           </div>
                         </div>
@@ -3514,11 +3514,11 @@ function Detail({ sym, name, onBack }) {
             <button
               onClick={function(){ var d=document.getElementById("disc-full"); if(d) d.style.display="none"; var t=document.getElementById("disc-tap"); if(t) t.innerText="tap to read"; }}
               style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#666", lineHeight:1, padding:"0 2px" }}>
-              &times;
+              {String.fromCharCode(0xD7)}
             </button>
           </div>
           <div style={{ fontSize:11, color:"#aaa", lineHeight:1.8 }}>
-            nervousgeek.com is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). &copy; nervousgeek.com 2026.
+            nervousgeek.com is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). {String.fromCharCode(0xA9)} nervousgeek.com 2026.
           </div>
         </div>
         {/* Slim always-visible bar */}
@@ -3839,11 +3839,11 @@ export default function App() {
             <button
               onClick={function(){ var d=document.getElementById("lp-disc-full"); if(d) d.style.display="none"; var t=document.getElementById("lp-disc-tap"); if(t) t.innerText="tap to read"; }}
               style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#666", lineHeight:1, padding:"0 2px" }}>
-              &times;
+              {String.fromCharCode(0xD7)}
             </button>
           </div>
           <div style={{ fontSize:11, color:"#aaa", lineHeight:1.8 }}>
-            nervousgeek.com is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). &copy; nervousgeek.com 2026.
+            nervousgeek.com is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). {String.fromCharCode(0xA9)} nervousgeek.com 2026.
           </div>
         </div>
         <div
