@@ -17,9 +17,8 @@ const NAMES = {
   BRKB:"Berkshire Hathaway B",
 };
 
-// -- Freemium tier ------------------------------------------------------------
-var FREE_TICKERS   = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
-var CACHE_VERSION  = "v1";  // bump to force cache regeneration for all free tickers
+var FREE_TICKERS  = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
+var CACHE_VERSION = "v1";
 
 const qCache  = {};
 const ovCache = {};
@@ -729,57 +728,38 @@ function Detail({ sym, name, onBack }) {
 
             {/* DESKTOP */}
             {/* Nav mirrors the 400px / 1fr body grid so search aligns with the right panel */}
-            <div className="nav-desktop" style={{ background:"#c8f000", display:"flex", alignItems:"center", height:52 }}>
-              {/* Logo + nervousgeek.com */}
-              <div style={{ display:"flex", alignItems:"center", gap:9, padding:"0 20px", flexShrink:0 }}>
-                <svg width="22" height="22" viewBox="0 0 110 110">
-                  <path d="M55 10 L96 33 L96 77 L55 100 L14 77 L14 33 Z" fill="none" stroke="#0e0e0c" strokeWidth="3"/>
-                  <circle cx="36" cy="52" r="18" fill="#c8f000" stroke="#0e0e0c" strokeWidth="3"/>
-                  <circle cx="74" cy="52" r="18" fill="#c8f000" stroke="#0e0e0c" strokeWidth="3"/>
-                  <circle cx="36" cy="52" r="6" fill="#0e0e0c"/>
-                  <circle cx="74" cy="52" r="6" fill="#0e0e0c"/>
-                  <line x1="48" y1="76" x2="62" y2="76" stroke="#0e0e0c" strokeWidth="3" strokeLinecap="round"/>
-                </svg>
-                <span style={{ fontSize:16, fontWeight:900, color:"#0e0e0c", letterSpacing:"-0.3px" }}>nervousgeek.com</span>
-              </div>
-              {/* Spacer */}
-              <div style={{ flex:1 }}></div>
-              {/* Ticker + search + back */}
-              <div style={{ display:"flex", alignItems:"center", gap:10, padding:"0 0 0 16px" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:0, flexShrink:0 }}>
-                  <span style={{ fontSize:13, fontWeight:900, color:"#0e0e0c" }}>{sym}</span>
-                  <span style={{ fontSize:12, color:"rgba(0,0,0,0.4)", margin:"0 5px" }}>/</span>
-                  <span style={{ fontSize:12, color:"rgba(0,0,0,0.6)", fontWeight:600 }}>{name}</span>
-                </div>
-                {SearchPill}
-                <button onClick={onBack} style={{ height:52, padding:"0 18px", border:"none", borderLeft:"1px solid rgba(0,0,0,0.12)", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:700, whiteSpace:"nowrap", flexShrink:0 }}>
-                  {"<"} Back
+            <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"400px 1fr", alignItems:"center", gap:0 }}>
+              {/* Left cell - matches left sidebar width (400px - 20px nav padding) */}
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <button onClick={onBack} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"5px 12px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
+                  Back
                 </button>
+                <span style={{ fontWeight:800, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap" }}>
+                  nervousgeek.com
+                </span>
+                <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
+              </div>
+              {/* Right cell - search pill aligned to start of right panel */}
+              <div style={{ display:"flex", alignItems:"center" }}>
+                {SearchPill}
               </div>
             </div>
 
             {/* MOBILE */}
-            <div className="nav-mobile" style={{ background:"#c8f000", padding:"0" }}>
-              <div style={{ display:"flex", alignItems:"center", height:46 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:7, padding:"0 14px", flexShrink:0 }}>
-                  <svg width="18" height="18" viewBox="0 0 110 110">
-                    <path d="M55 10 L96 33 L96 77 L55 100 L14 77 L14 33 Z" fill="none" stroke="#0e0e0c" strokeWidth="3"/>
-                    <circle cx="36" cy="52" r="18" fill="#c8f000" stroke="#0e0e0c" strokeWidth="3"/>
-                    <circle cx="74" cy="52" r="18" fill="#c8f000" stroke="#0e0e0c" strokeWidth="3"/>
-                    <circle cx="36" cy="52" r="6" fill="#0e0e0c"/>
-                    <circle cx="74" cy="52" r="6" fill="#0e0e0c"/>
-                    <line x1="48" y1="76" x2="62" y2="76" stroke="#0e0e0c" strokeWidth="3" strokeLinecap="round"/>
-                  </svg>
-                  <span style={{ fontSize:14, fontWeight:900, color:"#0e0e0c" }}>nervousgeek.com</span>
+            <div className="nav-mobile" style={{ background:"#c8f000", padding:"8px 14px 7px" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:7 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <button onClick={onBack} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"4px 10px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:11, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
+                    Back
+                  </button>
+                  <span style={{ fontWeight:800, fontSize:14, color:"#1a1a14" }}>
+                    nervousgeek.com
+                  </span>
+                  <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
-                <div style={{ flex:1 }}></div>
-                <span style={{ fontSize:13, fontWeight:900, color:"#0e0e0c", marginRight:12, flexShrink:0 }}>{sym}</span>
-                <button onClick={onBack} style={{ height:46, padding:"0 14px", border:"none", borderLeft:"1px solid rgba(0,0,0,0.12)", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:700, flexShrink:0 }}>
-                  {"<"} Back
-                </button>
+
               </div>
               {/* Full-width white search on row 2 */}
-              <div style={{ borderTop:"1px solid rgba(0,0,0,0.08)", padding:"6px 12px 8px" }}>
               <div style={{ position:"relative" }}>
                 <div style={{ display:"flex", alignItems:"center", background:"#fff", borderRadius:20, padding:"7px 12px", gap:8, border: navFocus ? "2px solid #1a1a14" : "2px solid transparent" }}>
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
@@ -3490,6 +3470,7 @@ function Detail({ sym, name, onBack }) {
           })()}
 
         </div>
+      </div>
       {/* Sticky disclaimer footer */}
       <div style={{
         position:"fixed", bottom:0, left:0, right:0, zIndex:100,
@@ -3546,51 +3527,40 @@ function Detail({ sym, name, onBack }) {
         </div>
       </div>
     </div>
-  </div>
-  </div>
   );
 }
+
 
 // -- Paywall card -------------------------------------------------------------
 function PaywallCard({ sym, name, onBack }) {
   var ORANGE = "#F05A1A";
   return (
     <div style={{ minHeight:"100vh", background:"#0e0e0c", fontFamily:FONT, display:"flex", flexDirection:"column" }}>
-      {/* Nav */}
-      <nav style={{ height:52, padding:"0 24px", display:"flex", alignItems:"center", gap:12, background:"#c8f000" }}>
+      <nav style={{ height:52, padding:"0 24px", display:"flex", alignItems:"center", gap:12, background:LIME }}>
         <button
           onClick={onBack}
           style={{ background:"none", border:"none", cursor:"pointer", color:"#0e0e0c", fontWeight:800, fontSize:13, fontFamily:FONT, display:"flex", alignItems:"center", gap:6, padding:0 }}>
           {"< Back"}
         </button>
-        <span style={{ fontWeight:800, fontSize:15, color:"#0e0e0c" }}>nervousgeek</span>
+        <span style={{ fontWeight:800, fontSize:15, color:"#0e0e0c" }}>nervousgeek.com</span>
       </nav>
-
-      {/* Card */}
       <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
         <div style={{ maxWidth:480, width:"100%", background:"#1c1c1e", border:"1px solid #2c2c26", borderRadius:20, padding:"48px 40px", textAlign:"center" }}>
-
-          {/* Lock icon */}
           <div style={{ width:64, height:64, borderRadius:"50%", background:"#2a2010", border:"2px solid #4a3810", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 24px" }}>
             <span style={{ fontSize:28 }}>{String.fromCharCode(0x1F512)}</span>
           </div>
-
-          {/* Ticker badge */}
           <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"#2a2010", border:"1px solid #4a3810", borderRadius:8, padding:"6px 16px", marginBottom:20 }}>
             <span style={{ fontWeight:900, fontSize:14, color:"#EF9F27" }}>{sym}</span>
             <span style={{ fontSize:13, color:"#a09a8a" }}>{name}</span>
           </div>
-
           <div style={{ fontSize:22, fontWeight:800, color:"#f0ede6", marginBottom:12, lineHeight:1.3 }}>
             Members Only
           </div>
           <div style={{ fontSize:14, color:"#a09a8a", lineHeight:1.7, marginBottom:32 }}>
             {"Full AI insights for " + sym + " are available to members."}
             <br />
-            {"10 stocks are available free " + String.fromCharCode(0x2014) + " including NVDA, AAPL, TSLA, MSFT and more."}
+            {"10 stocks are free " + String.fromCharCode(0x2014) + " including NVDA, AAPL, TSLA, MSFT and more."}
           </div>
-
-          {/* Free tickers preview */}
           <div style={{ marginBottom:32 }}>
             <div style={{ fontSize:11, fontWeight:700, color:"#6a6460", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:10 }}>Free tickers</div>
             <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
@@ -3601,8 +3571,6 @@ function PaywallCard({ sym, name, onBack }) {
               })}
             </div>
           </div>
-
-          {/* CTA buttons */}
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             <button
               onClick={function() {
@@ -3620,7 +3588,6 @@ function PaywallCard({ sym, name, onBack }) {
               {"Back to free stocks"}
             </button>
           </div>
-
         </div>
       </div>
     </div>
@@ -3657,7 +3624,6 @@ export default function App() {
 
   if (hashSym) {
     var _onBack = function() { window.location.hash = ""; };
-    // Known ticker but NOT in free tier -> show paywall
     if (FREE_TICKERS.indexOf(hashSym) === -1) {
       return (
         <PaywallCard
@@ -3667,7 +3633,6 @@ export default function App() {
         />
       );
     }
-    // Free ticker (or unknown ticker typed directly) -> show detail
     return (
       <Detail
         sym={hashSym}
@@ -3731,7 +3696,7 @@ export default function App() {
         </div>
 
         <p style={{ fontSize:14, color:"#a09a8a", textAlign:"center", maxWidth:500, lineHeight:1.75, margin:"0 0 40px" }}>
-          AI-powered stock intelligence for long-term thinkers. Not a trading app. Not financial advice {"" + String.fromCharCode(0x2014) + ""} just observation to manage personal risk.
+          {"AI-powered stock intelligence for long-term thinkers. Not a trading app. Not financial advice " + String.fromCharCode(0x2014) + " just observation to manage personal risk."}
         </p>
 
         {/* Search bar */}
@@ -3815,59 +3780,6 @@ export default function App() {
               {"see what" + String.fromCharCode(0x2019) + "s coming"}
             </span>
           </div>
-        </div>
-      </div>
-
-      {/* Sticky disclaimer footer */}
-      <div style={{
-        position:"fixed", bottom:0, left:0, right:0, zIndex:100,
-        background:"#111",
-        borderTop:"1px solid #333",
-      }}>
-        <div id="lp-disc-full"
-          onClick={function(){ var d=document.getElementById("lp-disc-full"); if(d) d.style.display="none"; var t=document.getElementById("lp-disc-tap"); if(t) t.innerText="tap to read"; }}
-          style={{
-            display:"none",
-            maxHeight:"50vh",
-            overflowY:"auto",
-            padding:"14px 20px",
-            borderBottom:"0.5px solid #333",
-            background:"#111",
-            cursor:"pointer",
-          }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-            <span style={{ fontSize:11, fontWeight:600, color:"#F05A1A", textTransform:"uppercase", letterSpacing:"0.06em" }}>Disclaimer</span>
-            <button
-              onClick={function(){ var d=document.getElementById("lp-disc-full"); if(d) d.style.display="none"; var t=document.getElementById("lp-disc-tap"); if(t) t.innerText="tap to read"; }}
-              style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#666", lineHeight:1, padding:"0 2px" }}>
-              {String.fromCharCode(0xD7)}
-            </button>
-          </div>
-          <div style={{ fontSize:11, color:"#aaa", lineHeight:1.8 }}>
-            nervousgeek.com is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). {String.fromCharCode(0xA9)} nervousgeek.com 2026.
-          </div>
-        </div>
-        <div
-          style={{ padding:"7px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}
-          onClick={function(){
-            var d=document.getElementById("lp-disc-full");
-            var t=document.getElementById("lp-disc-tap");
-            if(d){
-              var open=d.style.display!=="none";
-              d.style.display=open?"none":"block";
-              if(t) t.innerText=open?"tap to read":"tap to close";
-            }
-          }}>
-          <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-            <div style={{ width:14, height:14, borderRadius:"50%", background:"#222", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
-                <circle cx="6" cy="6" r="5" stroke="#c8f000" strokeWidth="1.2"/>
-                <path d="M6 5v4M6 3.5v.5" stroke="#c8f000" strokeWidth="1.2" strokeLinecap="round"/>
-              </svg>
-            </div>
-            <span style={{ fontSize:10, fontWeight:600, color:"#c8f000", textTransform:"uppercase", letterSpacing:"0.06em" }}>General information only -- not financial advice</span>
-          </div>
-          <span id="lp-disc-tap" style={{ fontSize:10, color:"#555" }}>tap to read</span>
         </div>
       </div>
     </div>
