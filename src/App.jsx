@@ -3783,5 +3783,58 @@ export default function App() {
         </div>
       </div>
     </div>
+
+      {/* Sticky disclaimer footer */}
+      <div style={{
+        position:"fixed", bottom:0, left:0, right:0, zIndex:100,
+        background:"#111",
+        borderTop:"1px solid #333",
+      }}>
+        <div id="lp-disc-full"
+          onClick={function(){ var d=document.getElementById("lp-disc-full"); if(d) d.style.display="none"; var t=document.getElementById("lp-disc-tap"); if(t) t.innerText="tap to read"; }}
+          style={{
+            display:"none",
+            maxHeight:"50vh",
+            overflowY:"auto",
+            padding:"14px 20px",
+            borderBottom:"0.5px solid #333",
+            background:"#111",
+            cursor:"pointer",
+          }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+            <span style={{ fontSize:11, fontWeight:600, color:"#F05A1A", textTransform:"uppercase", letterSpacing:"0.06em" }}>Disclaimer</span>
+            <button
+              onClick={function(){ var d=document.getElementById("lp-disc-full"); if(d) d.style.display="none"; var t=document.getElementById("lp-disc-tap"); if(t) t.innerText="tap to read"; }}
+              style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#666", lineHeight:1, padding:"0 2px" }}>
+              {String.fromCharCode(0xD7)}
+            </button>
+          </div>
+          <div style={{ fontSize:11, color:"#aaa", lineHeight:1.8 }}>
+            nervousgeek.com is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). {String.fromCharCode(0xA9)} nervousgeek.com 2026.
+          </div>
+        </div>
+        <div
+          style={{ padding:"7px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}
+          onClick={function(){
+            var d=document.getElementById("lp-disc-full");
+            var t=document.getElementById("lp-disc-tap");
+            if(d){
+              var open=d.style.display!=="none";
+              d.style.display=open?"none":"block";
+              if(t) t.innerText=open?"tap to read":"tap to close";
+            }
+          }}>
+          <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+            <div style={{ width:14, height:14, borderRadius:"50%", background:"#222", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+                <circle cx="6" cy="6" r="5" stroke={LIME} strokeWidth="1.2"/>
+                <path d="M6 5v4M6 3.5v.5" stroke={LIME} strokeWidth="1.2" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <span style={{ fontSize:10, fontWeight:600, color:LIME, textTransform:"uppercase", letterSpacing:"0.06em" }}>General information only -- not financial advice</span>
+          </div>
+          <span id="lp-disc-tap" style={{ fontSize:10, color:"#555" }}>tap to read</span>
+        </div>
+      </div>
   );
 }
