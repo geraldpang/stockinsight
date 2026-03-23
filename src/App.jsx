@@ -3782,7 +3782,6 @@ export default function App() {
           </div>
         </div>
       </div>
-    </div>
 
       {/* Sticky disclaimer footer */}
       <div style={{
@@ -3836,5 +3835,6 @@ export default function App() {
           <span id="lp-disc-tap" style={{ fontSize:10, color:"#555" }}>tap to read</span>
         </div>
       </div>
+    </div>
   );
 }
