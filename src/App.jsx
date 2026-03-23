@@ -3654,13 +3654,6 @@ export default function App() {
   return (
     <div style={{ minHeight:"100vh", background:BG, fontFamily:FONT, position:"relative", overflow:"hidden" }}>
 
-      {/* Grid overlay */}
-      <div style={{
-        position:"fixed", inset:0, zIndex:0, pointerEvents:"none",
-        backgroundImage:"linear-gradient(rgba(200,240,0,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(200,240,0,0.05) 1px,transparent 1px)",
-        backgroundSize:"52px 52px",
-      }} />
-
       {/* Top glow */}
       <div style={{
         position:"fixed", inset:0, zIndex:0, pointerEvents:"none",
