@@ -3661,21 +3661,21 @@ export default function App() {
       }} />
 
       {/* Nav */}
-      <nav style={{ position:"relative", zIndex:10, padding:"0 32px", height:52, display:"flex", alignItems:"center", justifyContent:"space-between", background:"#0e0e0c", borderBottom:"1px solid #1e1e1a" }}>
+      <nav style={{ position:"relative", zIndex:10, padding:"0 32px", height:52, display:"flex", alignItems:"center", justifyContent:"space-between", background:LIME }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <svg width="24" height="24" viewBox="0 0 110 110">
-            <path d="M55 10 L96 33 L96 77 L55 100 L14 77 L14 33 Z" fill="none" stroke={LIME} strokeWidth="3"/>
-            <circle cx="36" cy="52" r="18" fill="#0e0e0c" stroke={LIME} strokeWidth="3"/>
-            <circle cx="74" cy="52" r="18" fill="#0e0e0c" stroke={LIME} strokeWidth="3"/>
-            <circle cx="36" cy="52" r="6" fill={LIME}/>
-            <circle cx="74" cy="52" r="6" fill={LIME}/>
-            <line x1="48" y1="76" x2="62" y2="76" stroke={LIME} strokeWidth="3" strokeLinecap="round"/>
+            <path d="M55 10 L96 33 L96 77 L55 100 L14 77 L14 33 Z" fill="none" stroke="#0e0e0c" strokeWidth="3"/>
+            <circle cx="36" cy="52" r="18" fill={LIME} stroke="#0e0e0c" strokeWidth="3"/>
+            <circle cx="74" cy="52" r="18" fill={LIME} stroke="#0e0e0c" strokeWidth="3"/>
+            <circle cx="36" cy="52" r="6" fill="#0e0e0c"/>
+            <circle cx="74" cy="52" r="6" fill="#0e0e0c"/>
+            <line x1="48" y1="76" x2="62" y2="76" stroke="#0e0e0c" strokeWidth="3" strokeLinecap="round"/>
           </svg>
-          <span style={{ fontSize:17, fontWeight:900 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
+          <span style={{ fontSize:17, fontWeight:900, letterSpacing:0 }}><span style={{ color:"#0e0e0c" }}>nervous</span><span style={{ color:"#333" }}>geek</span></span>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(200,240,0,0.08)", border:"1px solid rgba(200,240,0,0.25)", borderRadius:20, padding:"5px 16px" }}>
-          <span style={{ width:6, height:6, borderRadius:"50%", background:LIME, display:"inline-block" }} />
-          <span style={{ fontSize:11, fontWeight:600, color:LIME }}>Live Market Data</span>
+        <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(0,0,0,0.1)", borderRadius:20, padding:"5px 16px" }}>
+          <span style={{ width:6, height:6, borderRadius:"50%", background:"#0e0e0c", display:"inline-block" }} />
+          <span style={{ fontSize:11, fontWeight:600, color:"#0e0e0c" }}>Live Market Data</span>
         </div>
       </nav>
 
