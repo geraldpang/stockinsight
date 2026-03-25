@@ -17,13 +17,10 @@ const NAMES = {
   BRKB:"Berkshire Hathaway B",
 };
 
-var FREE_TICKERS  = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
-var CACHE_VERSION = "v1";
-
 const qCache  = {};
 const ovCache = {};
 
-// Proxy runs on same domain (nervousgeek.com/proxy) - no CORS issues
+// Proxy runs on same domain (stock.colaboree.com/proxy) - no CORS issues
 async function yfetch(url) {
   var r    = await fetch("/proxy?url=" + encodeURIComponent(url));
   var text = await r.text();
@@ -326,12 +323,43 @@ function Detail({ sym, name, onBack }) {
     if (tabId === "aiinsight") {
       result = parseAiInsight(text) || {};
     } else if (tabId === "moat") {
-      var m = text.match(/Economic Moat Rating[^0-9]*([0-9])/);
-      var score = m ? parseInt(m[1], 10) : 0;
-      if (!score) {
-        if (text.indexOf("Wide") !== -1) score = 4;
-        else if (text.indexOf("Narrow") !== -1) score = 3;
-        else score = 1;
+      // v1.13 Option C: compute weighted score from individual driver scores
+      // Weights based on Dorsey/Morningstar moat durability research:
+      // Switching Costs 25%, Network Effects 25%, Intangible Assets 20%,
+      // Cost Advantage 15%, Ecosystem Lock-in 10%, Efficient Scale 5%
+      var driverWeights = {
+        "Switching Costs":   0.25,
+        "Network Effects":   0.25,
+        "Intangible Assets": 0.20,
+        "Cost Advantage":    0.15,
+        "Ecosystem Lock-in": 0.10,
+        "Efficient Scale":   0.05
+      };
+      var weightedSum = 0;
+      var weightUsed = 0;
+      var driverNames = Object.keys(driverWeights);
+      for (var di = 0; di < driverNames.length; di++) {
+        var dName = driverNames[di];
+        var dMatch = text.match(new RegExp(dName + "[^0-9]*([1-5])/5"));
+        if (dMatch) {
+          var dScore = parseInt(dMatch[1], 10);
+          weightedSum += dScore * driverWeights[dName];
+          weightUsed  += driverWeights[dName];
+        }
+      }
+      // If at least half the drivers parsed, use weighted score; else fall back to AI rating
+      var score;
+      if (weightUsed >= 0.5) {
+        score = Math.round(weightedSum / weightUsed);
+        score = Math.max(1, Math.min(5, score));
+      } else {
+        var mFallback = text.match(/Economic Moat Rating[^0-9]*([0-9])/);
+        score = mFallback ? parseInt(mFallback[1], 10) : 0;
+        if (!score) {
+          if (text.indexOf("Wide") !== -1) score = 4;
+          else if (text.indexOf("Narrow") !== -1) score = 3;
+          else score = 1;
+        }
       }
       var expIdx = text.indexOf("Explanation");
       var explanation = expIdx !== -1 ? text.substring(expIdx).replace(/^Explanation[^:]*:\s*/, "").split("\n")[0].trim() : "";
@@ -397,15 +425,30 @@ function Detail({ sym, name, onBack }) {
       } else {
         setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary returned null" }]); });
       }
-    }).catch(function(e) {
-      setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary error", data: { error: String(e) } }]); });
-    });
 
-    // Auto-generate all 4 AI insight tabs in parallel
-    var aiTabs = ["moat", "financial", "aiinsight"];
+      // Auto-generate all 4 AI insight tabs in parallel
+      // v1.13 Option B: use resolved res (not ov state) so financial context is always populated
+      var _ovSnap = res || null;
+      var _moatFinCtx = (function() {
+        if (!_ovSnap) return "";
+        var lines = [];
+        if (_ovSnap.grossMargin > 0)   lines.push("Gross margin: " + _ovSnap.grossMargin.toFixed(1) + "%");
+        if (_ovSnap.opMargin > 0)      lines.push("Operating margin: " + _ovSnap.opMargin.toFixed(1) + "%");
+        if (_ovSnap.revGrowth !== 0)   lines.push("Revenue growth YoY: " + _ovSnap.revGrowth.toFixed(1) + "%");
+        if (_ovSnap.beta > 0)          lines.push("Beta: " + _ovSnap.beta.toFixed(2));
+        if (_ovSnap.recBuy > 0 || _ovSnap.recHold > 0 || _ovSnap.recSell > 0)
+          lines.push("Analyst consensus: " + _ovSnap.recBuy + " buy / " + _ovSnap.recHold + " hold / " + _ovSnap.recSell + " sell");
+        if (_ovSnap.fcfRaw && _ovSnap.sharesOut > 0) {
+          var _fcfM = (_ovSnap.fcfRaw / 1e6).toFixed(0);
+          lines.push("Free cash flow: $" + _fcfM + "M");
+        }
+        if (lines.length === 0) return "";
+        return "\n\nFinancial context (use these figures to ground your scores, do not contradict them):\n" + lines.join("\n");
+      })();
+      var aiTabs = ["moat", "financial", "aiinsight"];
     aiTabs.forEach(function(tabId) {
       var prompts = {
-        moat: "You are a professional equity research analyst. Analyze the economic moat of " + sym + " (" + (NAMES[sym]||sym) + ") using only well-known business fundamentals and observable financial indicators. Do not fabricate statistics or unsupported claims. Most companies do not have strong moats - scores of 4 or 5 should be rare.\n\nReturn results in EXACTLY this format:\n\nNetwork Effects: X/5\nAssessment Criteria: The product or platform becomes more valuable as more users join.\nResult: One sentence explaining the score.\n\nSwitching Costs: X/5\nAssessment Criteria: Customers face difficulty, cost, or disruption when changing to competitors.\nResult: One sentence explaining the score.\n\nCost Advantage: X/5\nAssessment Criteria: The company can operate at lower cost or higher efficiency than competitors.\nResult: One sentence explaining the score.\n\nIntangible Assets: X/5\nAssessment Criteria: Brand, patents, intellectual property, regulatory licenses, or proprietary technology.\nResult: One sentence explaining the score.\n\nEfficient Scale: X/5\nAssessment Criteria: The market only supports a few profitable players due to high barriers to entry.\nResult: One sentence explaining the score.\n\nEcosystem Lock-in: X/5\nAssessment Criteria: Customers rely on multiple integrated products or services within the company ecosystem.\nResult: One sentence explaining the score.\n\nEconomic Moat Rating: X / 5\n\nExplanation (maximum 100 words): Summarize the main competitive advantages. Focus only on the most important moat drivers. Only assign 4-5 if advantages are clear, durable, and supported by financial performance.",
+        moat: "You are a professional equity research analyst. Analyze the economic moat of " + sym + " (" + (NAMES[sym]||sym) + ") using only well-known business fundamentals and observable financial indicators. Do not fabricate statistics or unsupported claims. Most companies do not have strong moats - scores of 4 or 5 should be rare." + _moatFinCtx + "\n\nReturn results in EXACTLY this format:\n\nNetwork Effects: X/5\nAssessment Criteria: The product or platform becomes more valuable as more users join.\nResult: One sentence explaining the score.\n\nSwitching Costs: X/5\nAssessment Criteria: Customers face difficulty, cost, or disruption when changing to competitors.\nResult: One sentence explaining the score.\n\nCost Advantage: X/5\nAssessment Criteria: The company can operate at lower cost or higher efficiency than competitors.\nResult: One sentence explaining the score.\n\nIntangible Assets: X/5\nAssessment Criteria: Brand, patents, intellectual property, regulatory licenses, or proprietary technology.\nResult: One sentence explaining the score.\n\nEfficient Scale: X/5\nAssessment Criteria: The market only supports a few profitable players due to high barriers to entry.\nResult: One sentence explaining the score.\n\nEcosystem Lock-in: X/5\nAssessment Criteria: Customers rely on multiple integrated products or services within the company ecosystem.\nResult: One sentence explaining the score.\n\nEconomic Moat Rating: X / 5\n\nExplanation (maximum 100 words): Summarize the main competitive advantages. Focus only on the most important moat drivers. Only assign 4-5 if advantages are clear, durable, and supported by financial performance.",
         financial: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), assess Financial Strength across these 7 dimensions in concise paragraphs: 1. Revenue Growth Trend 2. Gross Margin Stability 3. Operating Margin Trend 4. Free Cash Flow Consistency 5. Debt Level 6. Share Dilution or Buyback Discipline 7. Earnings Predictability. End with: Financial Strength Classification: Strong / Moderate / Weak and one sentence of reasoning.",
         technical: "You are a professional technical analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), provide a technical analysis covering: Trend (50-day MA, 200-day MA, direction), Momentum (RSI condition, MACD condition), Support and Resistance zones, Volume analysis (confirms move? accumulation or distribution?), Chart Patterns (breakout / consolidation / reversal / double bottom / head and shoulders / flag/pennant / no clear pattern). End with: Technical Rating: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish and Entry Timing View: Good Entry / Wait for Pullback / Breakout Watch / Avoid for Now. Be specific with price levels where possible.",
         aiinsight: "You are a senior investment analyst. For " + sym + " (" + (NAMES[sym]||sym) + "), provide an AI Insight in EXACTLY this format:\\n\\nFundamental: X/5\\nResult: One sentence.\\n\\nTechnical: X/5\\nResult: One sentence.\\n\\nSentiment: X/5\\nResult: One sentence.\\n\\nOverall Verdict: Buy / Hold / Avoid / Strong Buy / Strong Avoid\\nConfidence: Low / Medium / High\\nHorizon: Short-term (1-3m) / Medium-term (3-12m) / Long-term (12m+)\\n\\nKey Risk: One sentence on the most important downside risk.\\nKey Opportunity: One sentence on the most important upside catalyst.\\n\\nAI Insight Summary (max 80 words): Concise investment conclusion."
@@ -434,6 +477,9 @@ function Detail({ sym, name, onBack }) {
             return next;
           });
         });
+    });
+    }).catch(function(e) {
+      setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary error", data: { error: String(e) } }]); });
     });
 
     // Fetch 10-year historical financials via Claude Haiku (GAAP figures)
@@ -496,7 +542,23 @@ function Detail({ sym, name, onBack }) {
     var prompts = {
       business: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), write a concise Business Overview covering: what the company does, how it makes money, key products or services, major competitors, and overall industry position. Be analytical and factual. Use plain text paragraphs, no markdown headers.",
 
-      moat: "You are a professional equity research analyst. Analyze the economic moat of " + sym + " (" + (NAMES[sym]||sym) + ") using only well-known business fundamentals and observable financial indicators. Do not fabricate statistics or unsupported claims. Most companies do not have strong moats - scores of 4 or 5 should be rare.\n\nReturn results in EXACTLY this format:\n\nNetwork Effects: X/5\nAssessment Criteria: The product or platform becomes more valuable as more users join.\nResult: One sentence explaining the score.\n\nSwitching Costs: X/5\nAssessment Criteria: Customers face difficulty, cost, or disruption when changing to competitors.\nResult: One sentence explaining the score.\n\nCost Advantage: X/5\nAssessment Criteria: The company can operate at lower cost or higher efficiency than competitors.\nResult: One sentence explaining the score.\n\nIntangible Assets: X/5\nAssessment Criteria: Brand, patents, intellectual property, regulatory licenses, or proprietary technology.\nResult: One sentence explaining the score.\n\nEfficient Scale: X/5\nAssessment Criteria: The market only supports a few profitable players due to high barriers to entry.\nResult: One sentence explaining the score.\n\nEcosystem Lock-in: X/5\nAssessment Criteria: Customers rely on multiple integrated products or services within the company ecosystem.\nResult: One sentence explaining the score.\n\nEconomic Moat Rating: X / 5\n\nExplanation (maximum 100 words): Summarize the main competitive advantages. Focus only on the most important moat drivers. Only assign 4-5 if advantages are clear, durable, and supported by financial performance.",
+      moat: (function() {
+        var _fc2 = (function() {
+          if (!ov) return "";
+          var _l2 = [];
+          if (ov.grossMargin > 0)   _l2.push("Gross margin: " + ov.grossMargin.toFixed(1) + "%");
+          if (ov.opMargin > 0)      _l2.push("Operating margin: " + ov.opMargin.toFixed(1) + "%");
+          if (ov.revGrowth !== 0)   _l2.push("Revenue growth YoY: " + ov.revGrowth.toFixed(1) + "%");
+          if (ov.beta > 0)          _l2.push("Beta: " + ov.beta.toFixed(2));
+          if (ov.recBuy > 0 || ov.recHold > 0 || ov.recSell > 0)
+            _l2.push("Analyst consensus: " + ov.recBuy + " buy / " + ov.recHold + " hold / " + ov.recSell + " sell");
+          if (ov.fcfRaw && ov.sharesOut > 0)
+            _l2.push("Free cash flow: $" + (ov.fcfRaw / 1e6).toFixed(0) + "M");
+          if (_l2.length === 0) return "";
+          return "\n\nFinancial context (use these figures to ground your scores, do not contradict them):\n" + _l2.join("\n");
+        })();
+        return "You are a professional equity research analyst. Analyze the economic moat of " + sym + " (" + (NAMES[sym]||sym) + ") using only well-known business fundamentals and observable financial indicators. Do not fabricate statistics or unsupported claims. Most companies do not have strong moats - scores of 4 or 5 should be rare." + _fc2 + "\n\nReturn results in EXACTLY this format:\n\nNetwork Effects: X/5\nAssessment Criteria: The product or platform becomes more valuable as more users join.\nResult: One sentence explaining the score.\n\nSwitching Costs: X/5\nAssessment Criteria: Customers face difficulty, cost, or disruption when changing to competitors.\nResult: One sentence explaining the score.\n\nCost Advantage: X/5\nAssessment Criteria: The company can operate at lower cost or higher efficiency than competitors.\nResult: One sentence explaining the score.\n\nIntangible Assets: X/5\nAssessment Criteria: Brand, patents, intellectual property, regulatory licenses, or proprietary technology.\nResult: One sentence explaining the score.\n\nEfficient Scale: X/5\nAssessment Criteria: The market only supports a few profitable players due to high barriers to entry.\nResult: One sentence explaining the score.\n\nEcosystem Lock-in: X/5\nAssessment Criteria: Customers rely on multiple integrated products or services within the company ecosystem.\nResult: One sentence explaining the score.\n\nEconomic Moat Rating: X / 5\n\nExplanation (maximum 100 words): Summarize the main competitive advantages. Focus only on the most important moat drivers. Only assign 4-5 if advantages are clear, durable, and supported by financial performance.";
+      })(),
 
       financial: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), assess Financial Strength across these 7 dimensions in concise paragraphs: 1. Revenue Growth Trend 2. Gross Margin Stability 3. Operating Margin Trend 4. Free Cash Flow Consistency 5. Debt Level 6. Share Dilution or Buyback Discipline 7. Earnings Predictability. End with: Financial Strength Classification: Strong / Moderate / Weak and one sentence of reasoning.",
 
@@ -542,9 +604,11 @@ function Detail({ sym, name, onBack }) {
   const eps = (pe > 0 && price > 0) ? price / pe : 0;
   const gr  = Math.max(ov ? (ov.epsG || 5) : 5, 2) / 100;
 
-  const moat   = !ov ? "-" : (pe > 0 && pe < 15) ? "Wide" : (pe > 0 && pe < 25) ? "Narrow" : "None";
-  const moatBg = moat === "Wide" ? "#1a6a1a" : moat === "Narrow" ? "#b88000" : "#ccc";
-  const moatFg = (moat === "Wide" || moat === "Narrow") ? "#fff" : "#555";
+  // v1.13 Option A: moat classification derived from AI weighted score, not PE ratio
+  var _aiMoat  = parsedInsights["moat"] || {};
+  const moat   = _aiMoat.classification || "-";
+  const moatBg = moat === "Wide" ? "#1a6a1a" : moat === "Narrow" ? "#b88000" : "#444";
+  const moatFg = (moat === "Wide" || moat === "Narrow") ? "#fff" : "#888";
 
   function calcDCF(eps0, growthRate, terminalRate, wacc, years) {
     var total = 0, fcf = eps0;
@@ -701,7 +765,7 @@ function Detail({ sym, name, onBack }) {
                 placeholder="Search ticker or company..."
                 style={{ flex:1, border:"none", outline:"none", background:"transparent", fontSize:12, color:"#333", fontFamily:FONT }}
               />
-              {navInput && <span onClick={function(){ setNavInput(""); }} style={{ cursor:"pointer", color:"#bbb", fontSize:15, lineHeight:1, flexShrink:0 }}>{String.fromCharCode(0xD7)}</span>}
+              {navInput && <span onClick={function(){ setNavInput(""); }} style={{ cursor:"pointer", color:"#bbb", fontSize:15, lineHeight:1, flexShrink:0 }}>&times;</span>}
             </div>
             {navSugg.length > 0 && (
               <div style={{ position:"absolute", top:"calc(100% + 5px)", left:0, right:0, background:"#1c1c1e", border:"0.5px solid #333", borderRadius:10, zIndex:200, overflow:"hidden" }}>
@@ -735,7 +799,8 @@ function Detail({ sym, name, onBack }) {
                   Back
                 </button>
                 <span style={{ fontWeight:800, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap" }}>
-                  nervousgeek.com
+                  Colabo<span style={{ color:"#F05A1A" }}>ree</span>{" "}
+                  <span style={{ color:"#1a1a14" }}>StockInsight</span>
                 </span>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -753,7 +818,7 @@ function Detail({ sym, name, onBack }) {
                     Back
                   </button>
                   <span style={{ fontWeight:800, fontSize:14, color:"#1a1a14" }}>
-                    nervousgeek.com
+                    Colabo<span style={{ color:"#F05A1A" }}>ree</span>
                   </span>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -775,7 +840,7 @@ function Detail({ sym, name, onBack }) {
                     placeholder="Search company or ticker..."
                     style={{ flex:1, border:"none", outline:"none", background:"transparent", fontSize:13, color:"#333", fontFamily:FONT }}
                   />
-                  {navInput && <span onClick={function(){ setNavInput(""); }} style={{ cursor:"pointer", color:"#bbb", fontSize:15, lineHeight:1 }}>{String.fromCharCode(0xD7)}</span>}
+                  {navInput && <span onClick={function(){ setNavInput(""); }} style={{ cursor:"pointer", color:"#bbb", fontSize:15, lineHeight:1 }}>&times;</span>}
                 </div>
                 {navSugg.length > 0 && (
                   <div style={{ position:"absolute", top:"calc(100% + 5px)", left:0, right:0, background:"#1c1c1e", border:"0.5px solid #333", borderRadius:10, zIndex:200, overflow:"hidden" }}>
@@ -940,7 +1005,7 @@ function Detail({ sym, name, onBack }) {
                       <span style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em" }}>Analysis Rating</span>
                       <div style={{ display:"flex", alignItems:"center", gap:7 }}>
                         <span style={{ display:"inline-flex" }}>{_StarRow(_star)}</span>
-                        <span style={{ fontSize:12, fontWeight:500, color:_col }}>{_lbl}{String.fromCharCode(0xA0)}{String.fromCharCode(0xA0)}{_star.toFixed(1)}{String.fromCharCode(0xA0)}/{String.fromCharCode(0xA0)}5.0</span>
+                        <span style={{ fontSize:12, fontWeight:500, color:_col }}>{_lbl}&nbsp;&nbsp;{_star.toFixed(1)}&nbsp;/&nbsp;5.0</span>
                       </div>
                     </div>
                   </div>
@@ -1972,7 +2037,7 @@ function Detail({ sym, name, onBack }) {
                                       {showRevWatch && (
                                         <div style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10, fontWeight:700, color:"#633806", background:"#FAEEDA", padding:"2px 8px", borderRadius:10, border:"0.5px solid #EF9F27" }}>
                                           <span style={{ width:6, height:6, borderRadius:"50%", background:"#BA7517", display:"inline-block" }} />
-                                          Reversal Watch {String.fromCharCode(0x2014)} {revCount} signals
+                                          Reversal Watch &mdash; {revCount} signals
                                         </div>
                                       )}
                                     </div>
@@ -1991,7 +2056,7 @@ function Detail({ sym, name, onBack }) {
 
                                   {/* Trend signals */}
                                   <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:8 }}>
-                                    Trend {"&"} Price Action <span style={{ fontWeight:400, color:"#bbb" }}>55%</span>
+                                    Trend &amp; Price Action <span style={{ fontWeight:400, color:"#bbb" }}>55%</span>
                                   </div>
                                   {trendSigs.map(function(sig) {
                                     var sc = scores[sig.key];
@@ -2044,8 +2109,8 @@ function Detail({ sym, name, onBack }) {
                                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:9 }}>
                                       <div style={{ fontSize:10, fontWeight:700, color:"#854F0B", textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Detection</div>
                                       {revCount > 0
-                                        ? <div style={{ fontSize:10, color:"#633806", background:"#FAEEDA", padding:"2px 9px", borderRadius:8, border:"0.5px solid #EF9F27", fontWeight:600 }}>{revCount} active {String.fromCharCode(0x2014)} total bonus <span style={{ color:"#1a6a1a" }}>+{bonus}pts</span></div>
-                                        : <div style={{ fontSize:10, color:"#bbb" }}>0 active {String.fromCharCode(0x2014)} 0 pts</div>
+                                        ? <div style={{ fontSize:10, color:"#633806", background:"#FAEEDA", padding:"2px 9px", borderRadius:8, border:"0.5px solid #EF9F27", fontWeight:600 }}>{revCount} active &mdash; total bonus <span style={{ color:"#1a6a1a" }}>+{bonus}pts</span></div>
+                                        : <div style={{ fontSize:10, color:"#bbb" }}>0 active &mdash; 0 pts</div>
                                       }
                                     </div>
 
@@ -2080,7 +2145,7 @@ function Detail({ sym, name, onBack }) {
                                         <div style={{ padding:"3px 9px", background: bonus > 0 ? "#EAF3DE" : "#f5f5f5", borderRadius:5, border:"0.5px solid " + (bonus > 0 ? "#7abd00" : "#ddd"), fontSize:11, fontWeight:600, color: bonus > 0 ? "#27500A" : "#bbb" }}>Bonus +{bonus}</div>
                                         <span style={{ fontSize:11, color:"#bbb" }}>=</span>
                                         <div style={{ padding:"3px 10px", background:vCol, borderRadius:5, fontSize:12, fontWeight:700, color:"#fff" }}>{finalScore}/100 {verdict}</div>
-                                        {base >= 50 && bonus === 0 && <span style={{ fontSize:10, color:"#aaa" }}>(bonus only when base {"<"} 50)</span>}
+                                        {base >= 50 && bonus === 0 && <span style={{ fontSize:10, color:"#aaa" }}>(bonus only when base &lt; 50)</span>}
                                       </div>
                                     </div>
                                   </div>
@@ -2089,7 +2154,7 @@ function Detail({ sym, name, onBack }) {
                               </div>
                             ) : (
                               <div style={{ padding:"12px 14px", background:"#fafaf8", borderRadius:8, border:"0.5px solid #e8e4dc", marginBottom:4, fontSize:12, color:"#aaa" }}>
-                                Market Signal unavailable {String.fromCharCode(0x2014)} requires Massive.com data.
+                                Market Signal unavailable &mdash; requires Massive.com data.
                               </div>
                             )}
 
@@ -2407,11 +2472,11 @@ function Detail({ sym, name, onBack }) {
                                 <span style={{fontSize:11,color:"#555",marginLeft:6}}>{parsed.techScore}/5</span>
                               </div>
                             )}
-                            {ind2.sma50&&price2>0&&<span><strong style={{fontWeight:700}}>SMA50:</strong> ${(ind2.sma50).toFixed(2)} ({price2>ind2.sma50?"above":"below"}) {String.fromCharCode(0xA0)}</span>}
-                            {ind2.sma200&&price2>0&&<span><strong style={{fontWeight:700}}>SMA200:</strong> ${(ind2.sma200).toFixed(2)} ({price2>ind2.sma200?"above":"below"}) {String.fromCharCode(0xA0)}</span>}
-                            {ind2.rsi14!=null&&<span><strong style={{fontWeight:700}}>RSI:</strong> {ind2.rsi14!=null?ind2.rsi14.toFixed(1):"-"} {String.fromCharCode(0xA0)}</span>}
-                            {ind2.macd&&ind2.macd.histogram!=null&&<span><strong style={{fontWeight:700}}>MACD Hist:</strong> {ind2.macd&&ind2.macd.histogram!=null?ind2.macd.histogram.toFixed(4):"-"} {String.fromCharCode(0xA0)}</span>}
-                            {bbMid>0&&<span><strong style={{fontWeight:700}}>BB:</strong> {bbMid>0?"$"+bbLower.toFixed(2)+" / $"+bbMid.toFixed(2)+" / $"+bbUpper.toFixed(2):"-"} {String.fromCharCode(0xA0)}</span>}
+                            {ind2.sma50&&price2>0&&<span><strong style={{fontWeight:700}}>SMA50:</strong> ${(ind2.sma50).toFixed(2)} ({price2>ind2.sma50?"above":"below"}) &nbsp;</span>}
+                            {ind2.sma200&&price2>0&&<span><strong style={{fontWeight:700}}>SMA200:</strong> ${(ind2.sma200).toFixed(2)} ({price2>ind2.sma200?"above":"below"}) &nbsp;</span>}
+                            {ind2.rsi14!=null&&<span><strong style={{fontWeight:700}}>RSI:</strong> {ind2.rsi14!=null?ind2.rsi14.toFixed(1):"-"} &nbsp;</span>}
+                            {ind2.macd&&ind2.macd.histogram!=null&&<span><strong style={{fontWeight:700}}>MACD Hist:</strong> {ind2.macd&&ind2.macd.histogram!=null?ind2.macd.histogram.toFixed(4):"-"} &nbsp;</span>}
+                            {bbMid>0&&<span><strong style={{fontWeight:700}}>BB:</strong> {bbMid>0?"$"+bbLower.toFixed(2)+" / $"+bbMid.toFixed(2)+" / $"+bbUpper.toFixed(2):"-"} &nbsp;</span>}
                             {fib382>0&&<span><strong style={{fontWeight:700}}>Fib:</strong> 38.2%=${fib382} / 50%=${fib500} / 61.8%=${fib618}</span>}
                           </div>
                         ) : <div style={{color:"#aaa",fontSize:12}}>Technical data will appear after AI Insight generates.</div>}
@@ -3274,7 +3339,7 @@ function Detail({ sym, name, onBack }) {
                         </div>
 
                         {/* Trend signals */}
-                        <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Trend {"&"} Price Action <span style={{fontWeight:400,color:"#bbb"}}>55%</span></div>
+                        <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Trend &amp; Price Action <span style={{fontWeight:400,color:"#bbb"}}>55%</span></div>
                         {SIGS2.filter(function(s){return s.cat==="Trend";}).map(function(sig){
                           var sc=scores2[sig.key],col=scColMap2[sc],lbl=scLbMap2[sc],pts=Math.round((sc/5)*sig.w);
                           return (<div key={sig.key} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"0.5px solid #f5f2ec"}}>
@@ -3344,7 +3409,7 @@ function Detail({ sym, name, onBack }) {
                               <div style={{padding:"3px 9px",background:bonus2>0?"#EAF3DE":"#f5f5f5",borderRadius:5,border:"0.5px solid "+(bonus2>0?"#7abd00":"#ddd"),fontSize:11,fontWeight:600,color:bonus2>0?"#27500A":"#bbb"}}>Bonus +{bonus2}</div>
                               <span style={{fontSize:11,color:"#bbb"}}>=</span>
                               <div style={{padding:"3px 10px",background:vCol2,borderRadius:5,fontSize:12,fontWeight:700,color:"#fff"}}>{final2}/100 {verdict2}</div>
-                              {base2>=50&&<span style={{fontSize:10,color:"#aaa"}}>(bonus only when base {"<"} 50)</span>}
+                              {base2>=50&&<span style={{fontSize:10,color:"#aaa"}}>(bonus only when base &lt; 50)</span>}
                             </div>
                           </div>
                         </div>
@@ -3406,7 +3471,7 @@ function Detail({ sym, name, onBack }) {
                                   <td style={{ padding:"5px 8px", fontWeight:700, fontFamily:"monospace", color:"#111" }}>{e.key}</td>
                                   <td style={{ padding:"5px 8px", color:"#888" }}>{e.note}</td>
                                   <td style={{ padding:"5px 8px" }}>
-                                    <a href={"https://nervousgeek.com/massive?sym=" + sym} target="_blank" rel="noopener noreferrer" style={{ fontSize:10, color:"#0044cc" }}>
+                                    <a href={"https://stock.colaboree.com/massive?sym=" + sym} target="_blank" rel="noopener noreferrer" style={{ fontSize:10, color:"#0044cc" }}>
                                       {e.key === "MASSIVE_KEY" ? "Test ->" : ""}
                                     </a>
                                   </td>
@@ -3494,11 +3559,11 @@ function Detail({ sym, name, onBack }) {
             <button
               onClick={function(){ var d=document.getElementById("disc-full"); if(d) d.style.display="none"; var t=document.getElementById("disc-tap"); if(t) t.innerText="tap to read"; }}
               style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#666", lineHeight:1, padding:"0 2px" }}>
-              {String.fromCharCode(0xD7)}
+              &times;
             </button>
           </div>
           <div style={{ fontSize:11, color:"#aaa", lineHeight:1.8 }}>
-            nervousgeek.com is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). {String.fromCharCode(0xA9)} nervousgeek.com 2026.
+            Colaboree StockInsight is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). &copy; Colaboree StockInsight 2026.
           </div>
         </div>
         {/* Slim always-visible bar */}
@@ -3523,71 +3588,7 @@ function Detail({ sym, name, onBack }) {
             </div>
             <span style={{ fontSize:10, fontWeight:600, color:"#c8f000", textTransform:"uppercase", letterSpacing:"0.06em" }}>General information only -- not financial advice</span>
           </div>
-          <span id="disc-tap" style={{ fontSize:10, color:"#555" }}>tap to close</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-// -- Paywall card -------------------------------------------------------------
-function PaywallCard({ sym, name, onBack }) {
-  var ORANGE = "#F05A1A";
-  return (
-    <div style={{ minHeight:"100vh", background:"#0e0e0c", fontFamily:FONT, display:"flex", flexDirection:"column" }}>
-      <nav style={{ height:52, padding:"0 24px", display:"flex", alignItems:"center", gap:12, background:LIME }}>
-        <button
-          onClick={onBack}
-          style={{ background:"none", border:"none", cursor:"pointer", color:"#0e0e0c", fontWeight:800, fontSize:13, fontFamily:FONT, display:"flex", alignItems:"center", gap:6, padding:0 }}>
-          {"< Back"}
-        </button>
-        <span style={{ fontWeight:800, fontSize:15, color:"#0e0e0c" }}>nervousgeek.com</span>
-      </nav>
-      <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
-        <div style={{ maxWidth:480, width:"100%", background:"#1c1c1e", border:"1px solid #2c2c26", borderRadius:20, padding:"48px 40px", textAlign:"center" }}>
-          <div style={{ width:64, height:64, borderRadius:"50%", background:"#2a2010", border:"2px solid #4a3810", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 24px" }}>
-            <span style={{ fontSize:28 }}>{String.fromCharCode(0x1F512)}</span>
-          </div>
-          <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"#2a2010", border:"1px solid #4a3810", borderRadius:8, padding:"6px 16px", marginBottom:20 }}>
-            <span style={{ fontWeight:900, fontSize:14, color:"#EF9F27" }}>{sym}</span>
-            <span style={{ fontSize:13, color:"#a09a8a" }}>{name}</span>
-          </div>
-          <div style={{ fontSize:22, fontWeight:800, color:"#f0ede6", marginBottom:12, lineHeight:1.3 }}>
-            Members Only
-          </div>
-          <div style={{ fontSize:14, color:"#a09a8a", lineHeight:1.7, marginBottom:32 }}>
-            {"Full AI insights for " + sym + " are available to members."}
-            <br />
-            {"10 stocks are free " + String.fromCharCode(0x2014) + " including NVDA, AAPL, TSLA, MSFT and more."}
-          </div>
-          <div style={{ marginBottom:32 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:"#6a6460", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:10 }}>Free tickers</div>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
-              {FREE_TICKERS.map(function(t) {
-                return (
-                  <span key={t} style={{ padding:"4px 12px", borderRadius:20, background:"#1e2a1e", border:"1px solid #2a5020", fontSize:12, fontWeight:700, color:"#7abd00" }}>{t}</span>
-                );
-              })}
-            </div>
-          </div>
-          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-            <button
-              onClick={function() {
-                var email = window.prompt("Enter your email to register interest:");
-                if (email && email.indexOf("@") > 0) {
-                  window.alert("Thanks! We" + String.fromCharCode(0x2019) + "ll be in touch at " + email + " when membership opens.");
-                }
-              }}
-              style={{ width:"100%", padding:"14px", borderRadius:50, border:"none", background:ORANGE, color:"#fff", fontWeight:800, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
-              Register Interest
-            </button>
-            <button
-              onClick={onBack}
-              style={{ width:"100%", padding:"14px", borderRadius:50, border:"1px solid #2c2c26", background:"transparent", color:"#a09a8a", fontWeight:700, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
-              {"Back to free stocks"}
-            </button>
-          </div>
+          <span id="disc-tap" style={{ fontSize:10, color:"#555" }}>tap to read</span>
         </div>
       </div>
     </div>
@@ -3611,10 +3612,6 @@ export default function App() {
     return function() { window.removeEventListener("hashchange", onHash); };
   }, []);
 
-  useEffect(function() {
-    document.title = "nervousgeek.com";
-  }, []);
-
   function go(sym) {
     var s = (sym || input).toUpperCase().trim();
     if (!s) return;
@@ -3623,21 +3620,11 @@ export default function App() {
   }
 
   if (hashSym) {
-    var _onBack = function() { window.location.hash = ""; };
-    if (FREE_TICKERS.indexOf(hashSym) === -1) {
-      return (
-        <PaywallCard
-          sym={hashSym}
-          name={NAMES[hashSym]}
-          onBack={_onBack}
-        />
-      );
-    }
     return (
       <Detail
         sym={hashSym}
         name={NAMES[hashSym] || hashSym}
-        onBack={_onBack}
+        onBack={function() { window.location.hash = ""; }}
       />
     );
   }
@@ -3650,9 +3637,17 @@ export default function App() {
       }).slice(0, 6)
     : [];
 
+  const QUICK = ["AAPL","NVDA","TSLA","MSFT","GOOGL","BRKB"];
 
   return (
     <div style={{ minHeight:"100vh", background:BG, fontFamily:FONT, position:"relative", overflow:"hidden" }}>
+
+      {/* Grid overlay */}
+      <div style={{
+        position:"fixed", inset:0, zIndex:0, pointerEvents:"none",
+        backgroundImage:"linear-gradient(rgba(200,240,0,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(200,240,0,0.05) 1px,transparent 1px)",
+        backgroundSize:"52px 52px",
+      }} />
 
       {/* Top glow */}
       <div style={{
@@ -3662,34 +3657,34 @@ export default function App() {
 
       {/* Nav */}
       <nav style={{ position:"relative", zIndex:10, padding:"0 32px", height:52, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <svg width="24" height="24" viewBox="0 0 110 110">
-            <path d="M55 10 L96 33 L96 77 L55 100 L14 77 L14 33 Z" fill="none" stroke={LIME} strokeWidth="3"/>
-            <circle cx="36" cy="52" r="18" fill="#0e0e0c" stroke={LIME} strokeWidth="3"/>
-            <circle cx="74" cy="52" r="18" fill="#0e0e0c" stroke={LIME} strokeWidth="3"/>
-            <circle cx="36" cy="52" r="6" fill={LIME}/>
-            <circle cx="74" cy="52" r="6" fill={LIME}/>
-            <line x1="48" y1="76" x2="62" y2="76" stroke={LIME} strokeWidth="3" strokeLinecap="round"/>
-          </svg>
-          <span style={{ fontSize:17, fontWeight:900, letterSpacing:0 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
+        <div style={{ display:"flex", alignItems:"center" }}>
+          <span style={{ fontSize:17, fontWeight:800, color:"#ffffff" }}>Colabo</span>
+          <span style={{ fontSize:17, fontWeight:800, color:"#ff5c3a" }}>ree</span>
+          <span style={{ fontSize:17, fontWeight:700, color:LIME, marginLeft:4 }}>StockInsight</span>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(200,240,0,0.08)", border:"1px solid rgba(200,240,0,0.25)", borderRadius:20, padding:"5px 16px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(14,14,12,0.9)", border:"1px solid rgba(200,240,0,0.28)", borderRadius:20, padding:"5px 16px" }}>
           <span style={{ width:6, height:6, borderRadius:"50%", background:LIME, display:"inline-block" }} />
-          <span style={{ fontSize:11, fontWeight:600, color:LIME }}>Live Market Data</span>
+          <span style={{ fontSize:11, fontWeight:600, color:LIME }}>Live Market Data . Yahoo Finance</span>
         </div>
       </nav>
 
       {/* Hero */}
       <div style={{ position:"relative", zIndex:5, display:"flex", flexDirection:"column", alignItems:"center", paddingTop:70, paddingBottom:80 }}>
 
+        {/* Eyebrow pill */}
+        <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:BG, border:"1px solid rgba(200,240,0,0.28)", borderRadius:24, padding:"7px 20px", marginBottom:32 }}>
+          <span style={{ width:7, height:7, borderRadius:"50%", background:LIME, display:"inline-block" }} />
+          <span style={{ fontSize:11, fontWeight:700, color:LIME, letterSpacing:"0.12em", textTransform:"uppercase" }}>Stock Intelligence Platform</span>
+        </div>
+
         {/* Headline */}
         <div style={{ textAlign:"center", marginBottom:16 }}>
-          <div style={{ fontSize:42, fontWeight:900, color:"#ffffff", letterSpacing:"-1.5px" }}>Know more.</div>
-          <div style={{ fontSize:42, fontWeight:900, color:LIME, letterSpacing:"-1.5px" }}>Fear less.</div>
+          <div style={{ fontSize:42, fontWeight:900, color:LIME, letterSpacing:"-1.5px" }}>Know your stocks.</div>
+          <div style={{ fontSize:20, fontWeight:500, color:"#5a5450", marginTop:6 }}>Before you miss the move.</div>
         </div>
 
         <p style={{ fontSize:14, color:"#a09a8a", textAlign:"center", maxWidth:500, lineHeight:1.75, margin:"0 0 40px" }}>
-          {"AI-powered stock intelligence for long-term thinkers. Not a trading app. Not financial advice " + String.fromCharCode(0x2014) + " just observation to manage personal risk."}
+          Live prices . P/E ratios . IntrinsicValue(TM) intrinsic estimates . Valuation charts
         </p>
 
         {/* Search bar */}
@@ -3735,7 +3730,7 @@ export default function App() {
                       <span style={{ fontWeight:800, fontSize:12, color:BG, background:LIME, padding:"2px 8px", borderRadius:4, minWidth:48, textAlign:"center" }}>{s.symbol}</span>
                       <span style={{ fontSize:13, color:"#a09a8a" }}>{s.name}</span>
                     </div>
-                    <span style={{ color:"#6a6460", fontSize:12 }}>{">"}</span>
+                    <span style={{ color:"#6a6460", fontSize:12 }}>&gt;</span>
                   </div>
                 );
               })}
@@ -3743,89 +3738,20 @@ export default function App() {
           )}
         </div>
 
-        {/* Free tickers section */}
-        <div style={{ marginTop:32, width:"100%", maxWidth:580, textAlign:"center" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, marginBottom:16 }}>
-            <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
-            <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-              <span style={{ width:6, height:6, borderRadius:"50%", background:LIME, display:"inline-block" }}></span>
-              <span style={{ fontSize:11, fontWeight:700, color:LIME, letterSpacing:"0.12em", textTransform:"uppercase" }}>10 Free Stocks</span>
-            </div>
-            <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
-          </div>
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16 }}>
-            {FREE_TICKERS.map(function(t) {
-              return (
-                <button key={t}
-                  onClick={function() { go(t); }}
-                  style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a", cursor:"pointer", fontFamily:FONT }}
-                  onMouseEnter={function(e) { e.currentTarget.style.background=BG; e.currentTarget.style.color=LIME; e.currentTarget.style.borderColor=LIME; }}
-                  onMouseLeave={function(e) { e.currentTarget.style.background="#1a1a16"; e.currentTarget.style.color="#a09a8a"; e.currentTarget.style.borderColor="#2c2c26"; }}>
-                  {t}
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ fontSize:12, color:"#4a4a44" }}>
-            {"More stocks available with membership " + String.fromCharCode(0x2014) + " "}
-            <span style={{ color:"#6a6460", textDecoration:"underline", cursor:"pointer" }}
-              onClick={function() { go("INTC"); }}>
-              {"see what" + String.fromCharCode(0x2019) + "s coming"}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Sticky disclaimer footer */}
-      <div style={{
-        position:"fixed", bottom:0, left:0, right:0, zIndex:100,
-        background:"#111",
-        borderTop:"1px solid #333",
-      }}>
-        <div id="lp-disc-full"
-          onClick={function(){ var d=document.getElementById("lp-disc-full"); if(d) d.style.display="none"; var t=document.getElementById("lp-disc-tap"); if(t) t.innerText="tap to read"; }}
-          style={{
-            display:"block",
-            maxHeight:"50vh",
-            overflowY:"auto",
-            padding:"14px 20px",
-            borderBottom:"0.5px solid #333",
-            background:"#111",
-            cursor:"pointer",
-          }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-            <span style={{ fontSize:11, fontWeight:600, color:"#F05A1A", textTransform:"uppercase", letterSpacing:"0.06em" }}>Disclaimer</span>
-            <button
-              onClick={function(){ var d=document.getElementById("lp-disc-full"); if(d) d.style.display="none"; var t=document.getElementById("lp-disc-tap"); if(t) t.innerText="tap to read"; }}
-              style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#666", lineHeight:1, padding:"0 2px" }}>
-              {String.fromCharCode(0xD7)}
-            </button>
-          </div>
-          <div style={{ fontSize:11, color:"#aaa", lineHeight:1.8 }}>
-            nervousgeek.com is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). {String.fromCharCode(0xA9)} nervousgeek.com 2026.
-          </div>
-        </div>
-        <div
-          style={{ padding:"7px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}
-          onClick={function(){
-            var d=document.getElementById("lp-disc-full");
-            var t=document.getElementById("lp-disc-tap");
-            if(d){
-              var open=d.style.display!=="none";
-              d.style.display=open?"none":"block";
-              if(t) t.innerText=open?"tap to read":"tap to close";
-            }
-          }}>
-          <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-            <div style={{ width:14, height:14, borderRadius:"50%", background:"#222", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
-                <circle cx="6" cy="6" r="5" stroke={LIME} strokeWidth="1.2"/>
-                <path d="M6 5v4M6 3.5v.5" stroke={LIME} strokeWidth="1.2" strokeLinecap="round"/>
-              </svg>
-            </div>
-            <span style={{ fontSize:10, fontWeight:600, color:LIME, textTransform:"uppercase", letterSpacing:"0.06em" }}>General information only -- not financial advice</span>
-          </div>
-          <span id="lp-disc-tap" style={{ fontSize:10, color:"#555" }}>tap to close</span>
+        {/* Quick-pick chips */}
+        <div style={{ display:"flex", gap:8, marginTop:14, flexWrap:"wrap", justifyContent:"center" }}>
+          {QUICK.map(function(t) {
+            return (
+              <button key={t}
+                onMouseDown={function(e) { e.preventDefault(); setInput(t); }}
+                onClick={function() { setInput(t); }}
+                style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a", cursor:"pointer", fontFamily:FONT }}
+                onMouseEnter={function(e) { e.currentTarget.style.background=BG; e.currentTarget.style.color=LIME; e.currentTarget.style.borderColor=LIME; }}
+                onMouseLeave={function(e) { e.currentTarget.style.background="#1a1a16"; e.currentTarget.style.color="#a09a8a"; e.currentTarget.style.borderColor="#2c2c26"; }}>
+                {t}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
