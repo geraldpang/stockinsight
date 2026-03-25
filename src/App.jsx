@@ -3538,6 +3538,22 @@ function Detail({ sym, name, onBack }) {
                 GOOGL:"Alphabet", AVGO:"Broadcom", META:"Meta", TSLA:"Tesla",
                 LLY:"Eli Lilly", BRKB:"Berkshire B"
               };
+              // adminCfg = array of tickers currently set to LIVE (loaded from KV on mount)
+              // adminCfgLoaded = whether we have fetched from KV yet
+              if (!window.__adminCfgLoaded) {
+                window.__adminCfgLoaded = true;
+                window.__adminCfg = FREE.slice(); // default all live
+                fetch("/cache?action=config")
+                  .then(function(r) { return r.json(); })
+                  .then(function(d) {
+                    if (d && Array.isArray(d.value)) {
+                      window.__adminCfg = d.value;
+                    }
+                    setInsightTab("admin");
+                  })
+                  .catch(function() { setInsightTab("admin"); });
+              }
+              var liveSet = window.__adminCfg || FREE.slice();
               return (
                 <div style={{ padding:"20px 24px" }}>
                   <div style={{ marginBottom:20 }}>
@@ -3549,7 +3565,7 @@ function Detail({ sym, name, onBack }) {
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                     {FREE.map(function(t) {
-                      var isLive = (typeof window.__liveSet !== "undefined") ? window.__liveSet[t] : true;
+                      var isLive = liveSet.indexOf(t) !== -1;
                       return (
                         <div key={t} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#1c1c1e", border:"1px solid #2c2c26", borderRadius:10, padding:"12px 16px" }}>
                           <div>
@@ -3562,23 +3578,21 @@ function Detail({ sym, name, onBack }) {
                             </span>
                             <div
                               onClick={function() {
-                                if (typeof window.__liveSet === "undefined") {
-                                  window.__liveSet = {};
-                                  FREE.forEach(function(x) { window.__liveSet[x] = true; });
+                                var nowLive = window.__adminCfg.indexOf(t) !== -1;
+                                if (nowLive) {
+                                  window.__adminCfg = window.__adminCfg.filter(function(x) { return x !== t; });
+                                } else {
+                                  window.__adminCfg = window.__adminCfg.concat([t]);
                                 }
-                                var nowLive = window.__liveSet[t];
-                                window.__liveSet[t] = !nowLive;
-                                var liveArr = FREE.filter(function(x) { return window.__liveSet[x]; });
                                 fetch("/cache?action=config", {
                                   method: "POST",
                                   headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify(liveArr),
+                                  body: JSON.stringify(window.__adminCfg),
                                 }).then(function(r) { return r.json(); }).then(function(d) {
                                   if (d.ok) {
                                     setDebugLog(function(prev) {
                                       return prev.concat([{ time: new Date().toISOString(), label: t + " switched to " + (nowLive ? "CACHED" : "LIVE") }]);
                                     });
-                                    // Force re-render by nudging a state
                                     setInsightTab("admin");
                                   }
                                 });
