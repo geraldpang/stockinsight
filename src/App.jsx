@@ -3533,93 +3533,201 @@ function Detail({ sym, name, onBack }) {
 
             {insightTab === "admin" && (function() {
               var FREE = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
+              var AI_TABS = ["moat","financial","aiinsight"];
               var NAMES_SHORT = {
                 NVDA:"NVIDIA", AAPL:"Apple", MSFT:"Microsoft", AMZN:"Amazon",
                 GOOGL:"Alphabet", AVGO:"Broadcom", META:"Meta", TSLA:"Tesla",
                 LLY:"Eli Lilly", BRKB:"Berkshire B"
               };
-              // adminCfg = array of tickers currently set to LIVE (loaded from KV on mount)
-              // adminCfgLoaded = whether we have fetched from KV yet
+
+              // Load config + stats from KV on first open
               if (!window.__adminCfgLoaded) {
                 window.__adminCfgLoaded = true;
-                window.__adminCfg = FREE.slice(); // default all live
-                fetch("/cache?action=config")
-                  .then(function(r) { return r.json(); })
-                  .then(function(d) {
-                    if (d && Array.isArray(d.value)) {
-                      window.__adminCfg = d.value;
-                    }
-                    setInsightTab("admin");
-                  })
-                  .catch(function() { setInsightTab("admin"); });
+                window.__adminCfg   = FREE.slice();
+                window.__adminStats = {};
+                Promise.all([
+                  fetch("/cache?action=config").then(function(r){ return r.json(); }).catch(function(){ return {}; }),
+                  fetch("/cache?action=stats").then(function(r){ return r.json(); }).catch(function(){ return {}; }),
+                ]).then(function(results) {
+                  var cfg   = results[0];
+                  var stats = results[1];
+                  if (cfg && Array.isArray(cfg.value)) { window.__adminCfg = cfg.value; }
+                  if (stats && Array.isArray(stats.keys)) {
+                    stats.keys.forEach(function(k) {
+                      window.__adminStats[k.key] = { cachedAt: k.cachedAt, size: k.size };
+                    });
+                  }
+                  setInsightTab("admin");
+                });
               }
-              var liveSet = window.__adminCfg || FREE.slice();
+
+              var liveSet = window.__adminCfg   || FREE.slice();
+              var statsMap = window.__adminStats || {};
+
+              function fmtAge(iso) {
+                if (!iso) return null;
+                var diff = Date.now() - new Date(iso).getTime();
+                var mins = Math.floor(diff / 60000);
+                var hrs  = Math.floor(mins / 60);
+                var days = Math.floor(hrs / 24);
+                if (days > 0)  return days + "d ago";
+                if (hrs > 0)   return hrs + "h ago";
+                if (mins > 0)  return mins + "m ago";
+                return "just now";
+              }
+
+              function fmtDate(iso) {
+                if (!iso) return null;
+                var d = new Date(iso);
+                return d.toLocaleDateString("en-AU", { day:"2-digit", month:"short", year:"numeric" }) + " " +
+                       d.toLocaleTimeString("en-AU", { hour:"2-digit", minute:"2-digit" });
+              }
+
+              function fmtSize(bytes) {
+                if (!bytes) return null;
+                if (bytes > 1024) return (bytes / 1024).toFixed(1) + "KB";
+                return bytes + "B";
+              }
+
               return (
                 <div style={{ padding:"20px 24px" }}>
-                  <div style={{ marginBottom:20 }}>
-                    <div style={{ fontSize:13, fontWeight:700, color:"#f0ede6", marginBottom:4 }}>Cache Manager</div>
-                    <div style={{ fontSize:11, color:"#666", lineHeight:1.6 }}>
-                      Toggle each ticker between Live (calls Claude on every visit) and Cached (serves stored result).
-                      Switching to Cached triggers one final Claude call then stores the result for 7 days.
+
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#f0ede6", marginBottom:3 }}>Cache Manager</div>
+                      <div style={{ fontSize:11, color:"#555" }}>Toggle live or cached per ticker. Cached serves stored AI result at no cost.</div>
                     </div>
+                    <button
+                      onClick={function() {
+                        window.__adminCfgLoaded = false;
+                        window.__adminStats = {};
+                        setInsightTab("admin");
+                      }}
+                      style={{ fontSize:11, color:"#555", background:"none", border:"1px solid #333", borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:FONT }}>
+                      Refresh
+                    </button>
                   </div>
+
                   <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                     {FREE.map(function(t) {
                       var isLive = liveSet.indexOf(t) !== -1;
+                      // Collect cached tabs for this ticker
+                      var cachedTabs = AI_TABS.filter(function(tab) {
+                        return !!statsMap["insight:" + t + ":" + tab];
+                      });
+                      // Most recent cache date across all tabs
+                      var latestDate = null;
+                      var latestSize = 0;
+                      AI_TABS.forEach(function(tab) {
+                        var meta = statsMap["insight:" + t + ":" + tab];
+                        if (meta && meta.cachedAt) {
+                          if (!latestDate || new Date(meta.cachedAt) > new Date(latestDate)) {
+                            latestDate = meta.cachedAt;
+                          }
+                          if (meta.size) latestSize += meta.size;
+                        }
+                      });
+
                       return (
-                        <div key={t} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#1c1c1e", border:"1px solid #2c2c26", borderRadius:10, padding:"12px 16px" }}>
-                          <div>
-                            <span style={{ fontSize:13, fontWeight:800, color:"#f0ede6" }}>{t}</span>
-                            <span style={{ fontSize:11, color:"#555", marginLeft:8 }}>{NAMES_SHORT[t] || t}</span>
-                          </div>
-                          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                            <span style={{ fontSize:11, color: isLive ? "#c8f000" : "#555", fontWeight:600 }}>
-                              {isLive ? "LIVE" : "CACHED"}
-                            </span>
-                            <div
-                              onClick={function() {
-                                var nowLive = window.__adminCfg.indexOf(t) !== -1;
-                                if (nowLive) {
-                                  window.__adminCfg = window.__adminCfg.filter(function(x) { return x !== t; });
-                                } else {
-                                  window.__adminCfg = window.__adminCfg.concat([t]);
-                                }
-                                fetch("/cache?action=config", {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify(window.__adminCfg),
-                                }).then(function(r) { return r.json(); }).then(function(d) {
-                                  if (d.ok) {
-                                    setDebugLog(function(prev) {
-                                      return prev.concat([{ time: new Date().toISOString(), label: t + " switched to " + (nowLive ? "CACHED" : "LIVE") }]);
-                                    });
-                                    setInsightTab("admin");
+                        <div key={t} style={{ background:"#1c1c1e", border:"1px solid " + (isLive ? "#2a3a14" : "#2c2c26"), borderRadius:10, padding:"12px 16px" }}>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: cachedTabs.length > 0 ? 10 : 0 }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                              <div>
+                                <span style={{ fontSize:13, fontWeight:800, color:"#f0ede6" }}>{t}</span>
+                                <span style={{ fontSize:11, color:"#555", marginLeft:8 }}>{NAMES_SHORT[t] || t}</span>
+                              </div>
+                              {cachedTabs.length === AI_TABS.length && (
+                                <span style={{ fontSize:9, fontWeight:700, color:"#7abd00", background:"#1e2a1e", border:"1px solid #2a5020", borderRadius:4, padding:"2px 6px" }}>FULL CACHE</span>
+                              )}
+                              {cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length && (
+                                <span style={{ fontSize:9, fontWeight:700, color:"#EF9F27", background:"#2a2010", border:"1px solid #4a3810", borderRadius:4, padding:"2px 6px" }}>PARTIAL</span>
+                              )}
+                              {cachedTabs.length === 0 && !isLive && (
+                                <span style={{ fontSize:9, fontWeight:700, color:"#e05050", background:"#2a1e1e", border:"1px solid #4a2020", borderRadius:4, padding:"2px 6px" }}>NO CACHE</span>
+                              )}
+                            </div>
+                            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                              <span style={{ fontSize:11, color: isLive ? "#c8f000" : "#555", fontWeight:700 }}>
+                                {isLive ? "LIVE" : "CACHED"}
+                              </span>
+                              <div
+                                onClick={function() {
+                                  var nowLive = window.__adminCfg.indexOf(t) !== -1;
+                                  if (nowLive) {
+                                    window.__adminCfg = window.__adminCfg.filter(function(x) { return x !== t; });
+                                  } else {
+                                    window.__adminCfg = window.__adminCfg.concat([t]);
                                   }
-                                });
-                              }}
-                              style={{
-                                width:40, height:22, borderRadius:11,
-                                background: isLive ? "#c8f000" : "#333",
-                                position:"relative", cursor:"pointer",
-                                transition:"background 0.2s",
-                                border: isLive ? "none" : "1px solid #444",
-                              }}>
-                              <div style={{
-                                position:"absolute", top:3,
-                                left: isLive ? 20 : 3,
-                                width:16, height:16, borderRadius:"50%",
-                                background: isLive ? "#0e0e0c" : "#666",
-                                transition:"left 0.2s",
-                              }}></div>
+                                  fetch("/cache?action=config", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify(window.__adminCfg),
+                                  }).then(function(r) { return r.json(); }).then(function(d) {
+                                    if (d.ok) {
+                                      setDebugLog(function(prev) {
+                                        return prev.concat([{ time: new Date().toISOString(), label: t + " switched to " + (nowLive ? "CACHED" : "LIVE") }]);
+                                      });
+                                      setInsightTab("admin");
+                                    }
+                                  });
+                                }}
+                                style={{
+                                  width:40, height:22, borderRadius:11,
+                                  background: isLive ? "#c8f000" : "#333",
+                                  position:"relative", cursor:"pointer",
+                                  border: isLive ? "none" : "1px solid #444",
+                                }}>
+                                <div style={{
+                                  position:"absolute", top:3,
+                                  left: isLive ? 20 : 3,
+                                  width:16, height:16, borderRadius:"50%",
+                                  background: isLive ? "#0e0e0c" : "#666",
+                                }}></div>
+                              </div>
                             </div>
                           </div>
+
+                          {(cachedTabs.length > 0 || latestDate) && (
+                            <div style={{ borderTop:"1px solid #252525", paddingTop:8, display:"flex", flexWrap:"wrap", gap:10 }}>
+                              <div style={{ display:"flex", gap:5 }}>
+                                {AI_TABS.map(function(tab) {
+                                  var meta = statsMap["insight:" + t + ":" + tab];
+                                  var hit  = !!meta;
+                                  return (
+                                    <div key={tab} style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:4,
+                                      color: hit ? "#7abd00" : "#444",
+                                      background: hit ? "#1e2a1e" : "#181818",
+                                      border: "1px solid " + (hit ? "#2a5020" : "#252525"),
+                                    }}>
+                                      {tab === "aiinsight" ? "AI" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                      {hit ? " " + String.fromCharCode(0x2713) : " " + String.fromCharCode(0x2013)}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <div style={{ marginLeft:"auto", textAlign:"right" }}>
+                                {latestDate && (
+                                  <span style={{ fontSize:10, color:"#555" }}>
+                                    {"Last cached: " + fmtDate(latestDate) + " (" + fmtAge(latestDate) + ")"}
+                                  </span>
+                                )}
+                                {latestSize > 0 && (
+                                  <span style={{ fontSize:10, color:"#444", marginLeft:10 }}>
+                                    {fmtSize(latestSize)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
                   </div>
-                  <div style={{ marginTop:20, padding:"12px 16px", background:"#1a1a10", border:"1px solid #2c2c14", borderRadius:8, fontSize:11, color:"#7abd00", lineHeight:1.7 }}>
-                    {"Live = Claude runs on every visit (" + String.fromCharCode(0x7E) + "$0.03/visit). Cached = stored result served free for 7 days."}
+
+                  <div style={{ marginTop:16, padding:"10px 14px", background:"#1a1a10", border:"1px solid #2c2c14", borderRadius:8, fontSize:11, color:"#7abd00", lineHeight:1.7 }}>
+                    {"Live = Claude runs on every visit (" + String.fromCharCode(0x7E) + "$0.03/visit)." + String.fromCharCode(0xA0) + "Cached = stored result served free for 7 days."}
                   </div>
+
                 </div>
               );
             })()}
