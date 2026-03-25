@@ -1447,6 +1447,7 @@ function Detail({ sym, name, onBack }) {
               { id:"aiinsight", label:"AI Insight" },
               { id:"addlinfo",  label:"Additional Information" },
               { id:"debug",     label:"Debug" },
+              { id:"admin",     label:"Admin" },
             ];
 
             function handleTab(id) {
@@ -3529,6 +3530,84 @@ function Detail({ sym, name, onBack }) {
                     );
                   })()}
 
+            {insightTab === "admin" && (function() {
+              var FREE = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
+              var NAMES_SHORT = {
+                NVDA:"NVIDIA", AAPL:"Apple", MSFT:"Microsoft", AMZN:"Amazon",
+                GOOGL:"Alphabet", AVGO:"Broadcom", META:"Meta", TSLA:"Tesla",
+                LLY:"Eli Lilly", BRKB:"Berkshire B"
+              };
+              return (
+                <div style={{ padding:"20px 24px" }}>
+                  <div style={{ marginBottom:20 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#f0ede6", marginBottom:4 }}>Cache Manager</div>
+                    <div style={{ fontSize:11, color:"#666", lineHeight:1.6 }}>
+                      Toggle each ticker between Live (calls Claude on every visit) and Cached (serves stored result).
+                      Switching to Cached triggers one final Claude call then stores the result for 7 days.
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {FREE.map(function(t) {
+                      var isLive = (typeof window.__liveSet !== "undefined") ? window.__liveSet[t] : true;
+                      return (
+                        <div key={t} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#1c1c1e", border:"1px solid #2c2c26", borderRadius:10, padding:"12px 16px" }}>
+                          <div>
+                            <span style={{ fontSize:13, fontWeight:800, color:"#f0ede6" }}>{t}</span>
+                            <span style={{ fontSize:11, color:"#555", marginLeft:8 }}>{NAMES_SHORT[t] || t}</span>
+                          </div>
+                          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                            <span style={{ fontSize:11, color: isLive ? "#c8f000" : "#555", fontWeight:600 }}>
+                              {isLive ? "LIVE" : "CACHED"}
+                            </span>
+                            <div
+                              onClick={function() {
+                                if (typeof window.__liveSet === "undefined") {
+                                  window.__liveSet = {};
+                                  FREE.forEach(function(x) { window.__liveSet[x] = true; });
+                                }
+                                var nowLive = window.__liveSet[t];
+                                window.__liveSet[t] = !nowLive;
+                                var liveArr = FREE.filter(function(x) { return window.__liveSet[x]; });
+                                fetch("/cache?action=config", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify(liveArr),
+                                }).then(function(r) { return r.json(); }).then(function(d) {
+                                  if (d.ok) {
+                                    setDebugLog(function(prev) {
+                                      return prev.concat([{ time: new Date().toISOString(), label: t + " switched to " + (nowLive ? "CACHED" : "LIVE") }]);
+                                    });
+                                    // Force re-render by nudging a state
+                                    setInsightTab("admin");
+                                  }
+                                });
+                              }}
+                              style={{
+                                width:40, height:22, borderRadius:11,
+                                background: isLive ? "#c8f000" : "#333",
+                                position:"relative", cursor:"pointer",
+                                transition:"background 0.2s",
+                                border: isLive ? "none" : "1px solid #444",
+                              }}>
+                              <div style={{
+                                position:"absolute", top:3,
+                                left: isLive ? 20 : 3,
+                                width:16, height:16, borderRadius:"50%",
+                                background: isLive ? "#0e0e0c" : "#666",
+                                transition:"left 0.2s",
+                              }}></div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ marginTop:20, padding:"12px 16px", background:"#1a1a10", border:"1px solid #2c2c14", borderRadius:8, fontSize:11, color:"#7abd00", lineHeight:1.7 }}>
+                    {"Live = Claude runs on every visit (" + String.fromCharCode(0x7E) + "$0.03/visit). Cached = stored result served free for 7 days."}
+                  </div>
+                </div>
+              );
+            })()}
 
               </div>
             );
