@@ -39,7 +39,7 @@ export async function onRequest(context) {
   try {
 
     // Only handle specific API routes -- pass everything else to the React app
-    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps"];
+    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache"];
     var isApiRoute  = false;
     for (var ri = 0; ri < knownRoutes.length; ri++) {
       if (url.pathname === knownRoutes[ri] || url.pathname.startsWith(knownRoutes[ri] + "?")) {
@@ -188,6 +188,84 @@ export async function onRequest(context) {
           indStatus:    rsiData   ? (rsiData.status   || "ok") : "null",
         },
       }), { headers: {"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
+    }
+
+
+    // -------------------------------------------------------------------------
+    // /cache  -- Cloudflare KV cache read/write for AI insights
+    // GET  /cache?sym=NVDA&tab=moat        -> read from KV
+    // POST /cache?sym=NVDA&tab=moat        -> write to KV (body = insight text)
+    // GET  /cache?action=config            -> read live_tickers config
+    // POST /cache?action=config            -> write live_tickers config (body = JSON array)
+    // -------------------------------------------------------------------------
+    if (url.pathname === "/cache") {
+      var CACHE = context.env.CACHE;
+      if (!CACHE) {
+        return new Response(JSON.stringify({ error: "CACHE KV not bound" }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+
+      var action = url.searchParams.get("action") || "";
+      var sym    = (url.searchParams.get("sym") || "").toUpperCase().trim();
+      var tab    = (url.searchParams.get("tab") || "").toLowerCase().trim();
+
+      // Config: read/write live_tickers list
+      if (action === "config") {
+        if (context.request.method === "POST") {
+          var cfgBody = await context.request.text();
+          await CACHE.put("config:live_tickers", cfgBody, { expirationTtl: 60 * 60 * 24 * 365 });
+          return new Response(JSON.stringify({ ok: true }), {
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        } else {
+          var cfgVal = await CACHE.get("config:live_tickers");
+          return new Response(JSON.stringify({ value: cfgVal ? JSON.parse(cfgVal) : [] }), {
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
+      }
+
+      // Cache stats: list all cached keys
+      if (action === "stats") {
+        var listed = await CACHE.list({ prefix: "insight:" });
+        var keys   = listed.keys.map(function(k) { return k.name; });
+        return new Response(JSON.stringify({ keys: keys, count: keys.length }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+
+      if (!sym || !tab) {
+        return new Response(JSON.stringify({ error: "Missing sym or tab" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+
+      var cacheKey = "insight:" + sym + ":" + tab;
+
+      // Write to cache
+      if (context.request.method === "POST") {
+        var bodyText = await context.request.text();
+        // Cache for 7 days
+        await CACHE.put(cacheKey, bodyText, { expirationTtl: 60 * 60 * 24 * 7 });
+        return new Response(JSON.stringify({ ok: true, key: cacheKey }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+
+      // Read from cache
+      var cached = await CACHE.get(cacheKey);
+      if (cached) {
+        return new Response(JSON.stringify({ hit: true, value: cached }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      } else {
+        return new Response(JSON.stringify({ hit: false }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
     }
 
     if (url.pathname === "/anthropic") {
