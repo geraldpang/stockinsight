@@ -227,10 +227,24 @@ export async function onRequest(context) {
         }
       }
 
-      // Cache stats: list all cached keys
+      // Cache stats: list all cached keys with metadata
       if (action === "stats") {
         var listed = await CACHE.list({ prefix: "insight:" });
-        var keys   = listed.keys.map(function(k) { return k.name; });
+        var metaListed = await CACHE.list({ prefix: "meta:" });
+        // Build meta map
+        var metaMap = {};
+        for (var mi = 0; mi < metaListed.keys.length; mi++) {
+          var mk = metaListed.keys[mi].name;
+          var mv = await CACHE.get(mk);
+          if (mv) {
+            try { metaMap[mk] = JSON.parse(mv); } catch(e) { metaMap[mk] = {}; }
+          }
+        }
+        var keys = listed.keys.map(function(k) {
+          var metaKey = k.name.replace("insight:", "meta:");
+          var meta = metaMap[metaKey] || {};
+          return { key: k.name, cachedAt: meta.cachedAt || null, size: meta.size || null };
+        });
         return new Response(JSON.stringify({ keys: keys, count: keys.length }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
@@ -250,6 +264,10 @@ export async function onRequest(context) {
         var bodyText = await context.request.text();
         // Cache for 7 days
         await CACHE.put(cacheKey, bodyText, { expirationTtl: 60 * 60 * 24 * 7 });
+        // Write metadata (cachedAt, size) — longer TTL so stats survive
+        var metaKey = "meta:" + sym + ":" + tab;
+        var metaVal = JSON.stringify({ cachedAt: new Date().toISOString(), size: bodyText.length });
+        await CACHE.put(metaKey, metaVal, { expirationTtl: 60 * 60 * 24 * 8 });
         return new Response(JSON.stringify({ ok: true, key: cacheKey }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
