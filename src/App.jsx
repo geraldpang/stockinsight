@@ -319,6 +319,8 @@ function Detail({ sym, name, onBack }) {
   const [addlLoading,   setAddlLoading]   = useState(false);
   const [massiveInfo,   setMassiveInfo]   = useState(null);
   const [debugLog,      setDebugLog]      = useState([]);
+  const [adminCfg,      setAdminCfg]      = useState(null);
+  const [adminStats,    setAdminStats]    = useState({});
 
   function parseAndStoreInsight(tabId, text) {
     if (!text) return;
@@ -3672,27 +3674,6 @@ function Detail({ sym, name, onBack }) {
               var AI_TABS = ["moat","financial","aiinsight"];
               var NAMES_SHORT = { NVDA:"NVIDIA", AAPL:"Apple", MSFT:"Microsoft", AMZN:"Amazon", GOOGL:"Alphabet", AVGO:"Broadcom", META:"Meta", TSLA:"Tesla", LLY:"Eli Lilly", BRKB:"Berkshire B" };
 
-              // Load config + stats using React state -- triggers proper re-render
-              if (!window.__adminCfgLoaded) {
-                window.__adminCfgLoaded = true;
-                Promise.all([
-                  fetch("/cache?action=config").then(function(r){ return r.json(); }).catch(function(){ return {}; }),
-                  fetch("/cache?action=stats").then(function(r){ return r.json(); }).catch(function(){ return {}; }),
-                ]).then(function(results) {
-                  var cfg   = results[0];
-                  var stats = results[1];
-                  var newCfg = (cfg && Array.isArray(cfg.value)) ? cfg.value : FREE.slice();
-                  var newStats = {};
-                  if (stats && Array.isArray(stats.keys)) {
-                    stats.keys.forEach(function(k) {
-                      newStats[k.key] = { cachedAt: k.cachedAt, size: k.size };
-                    });
-                  }
-                  setAdminCfg(newCfg);
-                  setAdminStats(newStats);
-                });
-              }
-
               var liveSet  = adminCfg  || FREE.slice();
               var statsMap = adminStats || {};
 
@@ -3945,6 +3926,24 @@ export default function App() {
   useEffect(function() {
     document.title = "nervousgeek.com";
   }, []);
+
+  useEffect(function() {
+    if (insightTab !== "admin") return;
+    fetch("/cache?action=config").then(function(r){ return r.json(); }).catch(function(){ return {}; })
+      .then(function(cfg) {
+        var newCfg = (cfg && Array.isArray(cfg.value)) ? cfg.value : ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
+        setAdminCfg(newCfg);
+        window.__adminCfg = newCfg;
+      });
+    fetch("/cache?action=stats").then(function(r){ return r.json(); }).catch(function(){ return {}; })
+      .then(function(stats) {
+        var newStats = {};
+        if (stats && Array.isArray(stats.keys)) {
+          stats.keys.forEach(function(k) { newStats[k.key] = { cachedAt: k.cachedAt, size: k.size }; });
+        }
+        setAdminStats(newStats);
+      });
+  }, [insightTab]);
 
   function go(sym) {
     var s = (sym || input).toUpperCase().trim();
