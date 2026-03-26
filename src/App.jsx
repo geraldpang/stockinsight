@@ -543,9 +543,16 @@ function Detail({ sym, name, onBack }) {
                 }).then(function(r) { return r.json(); })
                   .then(function(wr) {
                     setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache WRITE: " + sym + ":" + tabId + " -- " + (wr.ok ? "OK" : "FAIL") }]); });
-                    // Reset so Admin tab reloads fresh stats next open
-                    window.__adminCfgLoaded = false;
-                    window.__adminStats = {};
+                    // Reload stats immediately so Admin tab shows updated cache status
+                    fetch("/cache?action=stats")
+                      .then(function(r) { return r.json(); })
+                      .then(function(s) {
+                        if (s && Array.isArray(s.keys)) {
+                          window.__adminStats = {};
+                          s.keys.forEach(function(k) { window.__adminStats[k.key] = { cachedAt: k.cachedAt, size: k.size }; });
+                        }
+                        setInsightTab("admin");
+                      }).catch(function() {});
                   }).catch(function() {});
               });
             }
@@ -3660,8 +3667,8 @@ function Detail({ sym, name, onBack }) {
               var NAMES_SHORT = { NVDA:"NVIDIA", AAPL:"Apple", MSFT:"Microsoft", AMZN:"Amazon", GOOGL:"Alphabet", AVGO:"Broadcom", META:"Meta", TSLA:"Tesla", LLY:"Eli Lilly", BRKB:"Berkshire B" };
               if (!window.__adminCfgLoaded) {
                 window.__adminCfgLoaded = true;
-                window.__adminCfg   = window.__adminCfg || FREE.slice();
-                window.__adminStats = {};
+                window.__adminCfg     = window.__adminCfg || FREE.slice();
+                window.__adminStats   = window.__adminStats || {};
                 window.__adminLoading = true;
                 Promise.all([
                   fetch("/cache?action=config").then(function(r){ return r.json(); }).catch(function(){ return {}; }),
@@ -3677,6 +3684,7 @@ function Detail({ sym, name, onBack }) {
                     });
                   }
                   window.__adminLoading = false;
+                  window.__adminCfgLoaded = false;
                   setInsightTab("admin");
                 });
               }
