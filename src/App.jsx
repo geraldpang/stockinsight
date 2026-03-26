@@ -56,7 +56,7 @@ async function getOverview(sym) {
   var ySym = sym === "BRKB" ? "BRK-B" : sym;
   var d   = await yfetch(
     "https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + ySym +
-    "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile,earningsTrend,recommendationTrend,upgradeDowngradeHistory,balanceSheetHistory,earningsHistory,calendarEvents,majorHoldersBreakdown,institutionOwnership,insiderTransactions,secFilings"
+    "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile,earningsTrend,recommendationTrend,upgradeDowngradeHistory,balanceSheetHistory,balanceSheetHistoryQuarterly,earningsHistory,calendarEvents,majorHoldersBreakdown,institutionOwnership,insiderTransactions,secFilings"
   );
   var res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
   if (!res) return null;
@@ -144,7 +144,8 @@ async function getOverview(sym) {
   // ---- Additional data modules ----
   var rt  = res.recommendationTrend || {};
   var udh = res.upgradeDowngradeHistory || {};
-  var bsh = res.balanceSheetHistory || {};
+  var bsh  = res.balanceSheetHistory || {};
+  var bshq = res.balanceSheetHistoryQuarterly || {};
   var eh  = res.earningsHistory || {};
   var ce  = res.calendarEvents || {};
 
@@ -165,21 +166,31 @@ async function getOverview(sym) {
   var ksTotalDebt = (ks.totalDebt && ks.totalDebt.raw) || null;
   var fdTotalCash = (fd.totalCash && fd.totalCash.raw) || null;
 
-  // Balance sheet (most recent annual)
-  var bs0 = (bsh.balanceSheetStatements && bsh.balanceSheetStatements[0]) || {};
-  // Cash: try multiple Yahoo fields
-  out.cash = (bs0.cashAndCashEquivalents && bs0.cashAndCashEquivalents.raw)
+  // Balance sheet: try annual first, then quarterly
+  var bs0  = (bsh.balanceSheetStatements  && bsh.balanceSheetStatements[0])  || {};
+  var bsq0 = (bshq.balanceSheetStatements && bshq.balanceSheetStatements[0]) || {};
+
+  // Cash: annual -> quarterly -> financialData
+  out.cash = (bs0.cashAndCashEquivalents  && bs0.cashAndCashEquivalents.raw)
           || (bs0.cashAndShortTermInvestments && bs0.cashAndShortTermInvestments.raw)
           || (bs0.cash && bs0.cash.raw)
+          || (bsq0.cashAndCashEquivalents && bsq0.cashAndCashEquivalents.raw)
+          || (bsq0.cashAndShortTermInvestments && bsq0.cashAndShortTermInvestments.raw)
+          || (bsq0.cash && bsq0.cash.raw)
           || fdTotalCash
-          || null;
-  // Total debt: try multiple Yahoo fields
+          || 0;
+
+  // Total debt: annual -> ks -> quarterly -> 0 (not null -- show $0M not -)
   out.totalDebt = (bs0.totalDebt && bs0.totalDebt.raw)
                || ksTotalDebt
                || (bs0.longTermDebt && bs0.longTermDebt.raw
                    ? (bs0.longTermDebt.raw + ((bs0.shortLongTermDebt && bs0.shortLongTermDebt.raw) || 0))
                    : null)
-               || null;
+               || (bsq0.totalDebt && bsq0.totalDebt.raw)
+               || (bsq0.longTermDebt && bsq0.longTermDebt.raw
+                   ? (bsq0.longTermDebt.raw + ((bsq0.shortLongTermDebt && bsq0.shortLongTermDebt.raw) || 0))
+                   : null)
+               || 0;
   out.totalAssets  = bs0.totalAssets             ? bs0.totalAssets.raw             : null;
   out.bookValue    = bs0.totalStockholderEquity  ? bs0.totalStockholderEquity.raw  : null;
   out.bsDate       = bs0.endDate                 ? bs0.endDate.fmt                 : "";
@@ -1806,7 +1817,7 @@ function Detail({ sym, name, onBack }) {
                             var shares = ov.sharesOut  || 0;
                             var usePE  = fpe > 0 ? fpe : pe;
 
-                            function fmtM(v) { return v ? "$" + (v/1e6).toFixed(0) + "M" : "-"; }
+                            function fmtM(v) { return v !== null && v !== undefined ? "$" + (v/1e6).toFixed(0) + "M" : "-"; }
                             function calcEV(fcf0, gr1, gr2, gr3) {
                               var ev = 0, f = fcf0;
                               for (var y = 1; y <= 20; y++) {
