@@ -449,7 +449,27 @@ function Detail({ sym, name, onBack }) {
         return "\n\nFinancial context (use these figures to ground your scores, do not contradict them):\n" + lines.join("\n");
       })();
       var aiTabs = ["moat", "financial", "aiinsight"];
-    aiTabs.forEach(function(tabId) {
+
+      // Load KV config fresh, then run tab fetches
+      fetch("/cache?action=config")
+        .then(function(r) { return r.json(); })
+        .then(function(cfgData) {
+          if (cfgData && Array.isArray(cfgData.value)) {
+            window.__adminCfg = cfgData.value;
+          } else if (!window.__adminCfg) {
+            window.__adminCfg = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
+          }
+          runAiTabs();
+        })
+        .catch(function() {
+          if (!window.__adminCfg) {
+            window.__adminCfg = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
+          }
+          runAiTabs();
+        });
+
+      function runAiTabs() {
+      aiTabs.forEach(function(tabId) {
       var prompts = {
         moat: "You are a professional equity research analyst. Analyze the economic moat of " + sym + " (" + (NAMES[sym]||sym) + ") using only well-known business fundamentals and observable financial indicators. Do not fabricate statistics or unsupported claims. Most companies do not have strong moats - scores of 4 or 5 should be rare." + _moatFinCtx + "\n\nReturn results in EXACTLY this format:\n\nNetwork Effects: X/5\nAssessment Criteria: The product or platform becomes more valuable as more users join.\nResult: One sentence explaining the score.\n\nSwitching Costs: X/5\nAssessment Criteria: Customers face difficulty, cost, or disruption when changing to competitors.\nResult: One sentence explaining the score.\n\nCost Advantage: X/5\nAssessment Criteria: The company can operate at lower cost or higher efficiency than competitors.\nResult: One sentence explaining the score.\n\nIntangible Assets: X/5\nAssessment Criteria: Brand, patents, intellectual property, regulatory licenses, or proprietary technology.\nResult: One sentence explaining the score.\n\nEfficient Scale: X/5\nAssessment Criteria: The market only supports a few profitable players due to high barriers to entry.\nResult: One sentence explaining the score.\n\nEcosystem Lock-in: X/5\nAssessment Criteria: Customers rely on multiple integrated products or services within the company ecosystem.\nResult: One sentence explaining the score.\n\nEconomic Moat Rating: X / 5\n\nExplanation (maximum 100 words): Summarize the main competitive advantages. Focus only on the most important moat drivers. Only assign 4-5 if advantages are clear, durable, and supported by financial performance.",
         financial: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), assess Financial Strength across these 7 dimensions in concise paragraphs: 1. Revenue Growth Trend 2. Gross Margin Stability 3. Operating Margin Trend 4. Free Cash Flow Consistency 5. Debt Level 6. Share Dilution or Buyback Discipline 7. Earnings Predictability. End with: Financial Strength Classification: Strong / Moderate / Weak and one sentence of reasoning.",
@@ -531,7 +551,8 @@ function Detail({ sym, name, onBack }) {
             _callClaude(function(text) { _storeResult(text); });
           });
       }
-    });
+    }); // end aiTabs.forEach
+      } // end runAiTabs
     }).catch(function(e) {
       setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary error", data: { error: String(e) } }]); });
     });
