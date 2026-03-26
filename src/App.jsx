@@ -645,10 +645,13 @@ function Detail({ sym, name, onBack }) {
         var newStats = {};
         if (stats && Array.isArray(stats.keys)) {
           stats.keys.forEach(function(k) {
-            newStats[k.key] = { cachedAt: k.cachedAt, size: k.size };
+            newStats[k.key] = { cachedAt: k.cachedAt, size: k.size, exists: true };
           });
         }
-        setAdminStats(newStats);
+        // Merge: preserve any entries populated by cache HITs not yet in KV stats
+        setAdminStats(function(prev) {
+          return Object.assign({}, prev, newStats);
+        });
         // Build per-ticker cache summary for debug log
         var FREE_LOG = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
         var AI_TABS_LOG = ["moat","financial","aiinsight"];
