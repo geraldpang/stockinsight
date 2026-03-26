@@ -527,8 +527,11 @@ function Detail({ sym, name, onBack }) {
               window.__cacheStatus[sym + ":" + tabId] = "hit";
               // Update admin stats with cachedAt from response
               if (d.cachedAt) {
-                if (!window.__adminStats) window.__adminStats = {};
-                window.__adminStats["insight:" + sym + ":" + tabId] = { cachedAt: d.cachedAt, size: d.value.length };
+                setAdminStats(function(prev) {
+                  var next = Object.assign({}, prev);
+                  next["insight:" + sym + ":" + tabId] = { cachedAt: d.cachedAt, size: d.value ? d.value.length : 0 };
+                  return next;
+                });
               }
               setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache HIT: " + sym + ":" + tabId }]); });
               _storeResult(d.value);
@@ -548,12 +551,14 @@ function Detail({ sym, name, onBack }) {
                 }).then(function(r) { return r.json(); })
                   .then(function(wr) {
                     setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache WRITE: " + sym + ":" + tabId + " -- " + (wr.ok ? "OK" : "FAIL") }]); });
-                    // Update adminStats immediately with write response
+                    // Update admin stats with write response
                     if (wr.cachedAt) {
-                      if (!window.__adminStats) window.__adminStats = {};
-                      window.__adminStats["insight:" + sym + ":" + tabId] = { cachedAt: wr.cachedAt, size: text.length };
+                      setAdminStats(function(prev) {
+                        var next = Object.assign({}, prev);
+                        next["insight:" + sym + ":" + tabId] = { cachedAt: wr.cachedAt, size: text ? text.length : 0 };
+                        return next;
+                      });
                     }
-                    setInsightTab("admin");
                   }).catch(function() {});
               });
             }
@@ -3666,32 +3671,31 @@ function Detail({ sym, name, onBack }) {
               var FREE = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
               var AI_TABS = ["moat","financial","aiinsight"];
               var NAMES_SHORT = { NVDA:"NVIDIA", AAPL:"Apple", MSFT:"Microsoft", AMZN:"Amazon", GOOGL:"Alphabet", AVGO:"Broadcom", META:"Meta", TSLA:"Tesla", LLY:"Eli Lilly", BRKB:"Berkshire B" };
+
+              // Load config + stats using React state -- triggers proper re-render
               if (!window.__adminCfgLoaded) {
                 window.__adminCfgLoaded = true;
-                window.__adminCfg     = window.__adminCfg || FREE.slice();
-                window.__adminStats   = window.__adminStats || {};
-                window.__adminLoading = true;
                 Promise.all([
                   fetch("/cache?action=config").then(function(r){ return r.json(); }).catch(function(){ return {}; }),
                   fetch("/cache?action=stats").then(function(r){ return r.json(); }).catch(function(){ return {}; }),
                 ]).then(function(results) {
                   var cfg   = results[0];
                   var stats = results[1];
-                  if (cfg && Array.isArray(cfg.value)) { window.__adminCfg = cfg.value; }
-                  window.__adminStats = {};
+                  var newCfg = (cfg && Array.isArray(cfg.value)) ? cfg.value : FREE.slice();
+                  var newStats = {};
                   if (stats && Array.isArray(stats.keys)) {
                     stats.keys.forEach(function(k) {
-                      window.__adminStats[k.key] = { cachedAt: k.cachedAt, size: k.size };
+                      newStats[k.key] = { cachedAt: k.cachedAt, size: k.size };
                     });
                   }
-                  window.__adminLoading = false;
-                  window.__adminCfgLoaded = false;
-                  setInsightTab("admin");
+                  setAdminCfg(newCfg);
+                  setAdminStats(newStats);
                 });
               }
-              var liveSet      = window.__adminCfg    || FREE.slice();
-              var statsMap     = window.__adminStats  || {};
-              var adminLoading = !!window.__adminLoading;
+
+              var liveSet  = adminCfg  || FREE.slice();
+              var statsMap = adminStats || {};
+
               function fmtAge(iso) {
                 if (!iso) return null;
                 var diff = Date.now() - new Date(iso).getTime();
@@ -3708,26 +3712,19 @@ function Detail({ sym, name, onBack }) {
                 var d = new Date(iso);
                 return d.toLocaleDateString("en-AU", { day:"2-digit", month:"short", year:"numeric" }) + " " + d.toLocaleTimeString("en-AU", { hour:"2-digit", minute:"2-digit" });
               }
-              function fmtSize(bytes) {
-                if (!bytes) return null;
-                return bytes > 1024 ? (bytes / 1024).toFixed(1) + "KB" : bytes + "B";
-              }
+
               return (
                 <div style={{ padding:"20px 24px" }}>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
                     <div>
-                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                        <div style={{ fontSize:13, fontWeight:700, color:"#f0ede6" }}>Cache Manager</div>
-                        {adminLoading && <div style={{ width:10, height:10, borderRadius:"50%", border:"2px solid #333", borderTop:"2px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div>}
-                      </div>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#f0ede6" }}>Cache Manager</div>
                       <div style={{ fontSize:11, color:"#555", marginTop:3 }}>Toggle live or cached per ticker. Cached serves stored AI result at no cost.</div>
                     </div>
                     <button
                       onClick={function() {
                         window.__adminCfgLoaded = false;
-                        window.__adminStats = {};
-                        window.__adminLoading = false;
-                        setInsightTab("admin");
+                        setAdminCfg(null);
+                        setAdminStats({});
                       }}
                       style={{ fontSize:11, color:"#c8f000", background:"none", border:"1px solid #2a5020", borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:FONT }}>
                       {String.fromCharCode(0x21BA) + " Refresh"}
@@ -3736,19 +3733,17 @@ function Detail({ sym, name, onBack }) {
                   <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                     {FREE.map(function(t) {
                       var isLive = liveSet.indexOf(t) !== -1;
-                      var cachedTabs = AI_TABS.filter(function(tab) { return !!statsMap["insight:" + t + ":" + tab]; });
+                      var cachedTabs = AI_TABS.filter(function(tab) { return !!(statsMap["insight:" + t + ":" + tab] && statsMap["insight:" + t + ":" + tab].cachedAt); });
                       var latestDate = null;
-                      var latestSize = 0;
                       AI_TABS.forEach(function(tab) {
                         var meta = statsMap["insight:" + t + ":" + tab];
                         if (meta && meta.cachedAt) {
                           if (!latestDate || new Date(meta.cachedAt) > new Date(latestDate)) { latestDate = meta.cachedAt; }
-                          if (meta.size) latestSize += meta.size;
                         }
                       });
                       return (
                         <div key={t} style={{ background:"#1c1c1e", border:"1px solid " + (isLive ? "#2a3a14" : "#2c2c26"), borderRadius:10, padding:"12px 16px" }}>
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length ? 10 : 0 }}>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                               <div>
                                 <span style={{ fontSize:13, fontWeight:800, color:"#f0ede6" }}>{t}</span>
@@ -3762,43 +3757,31 @@ function Detail({ sym, name, onBack }) {
                               <span style={{ fontSize:11, color: isLive ? "#c8f000" : "#555", fontWeight:700 }}>{isLive ? "LIVE" : "CACHED"}</span>
                               <div
                                 onClick={function() {
-                                  var nowLive = window.__adminCfg.indexOf(t) !== -1;
-                                  if (nowLive) {
-                                    window.__adminCfg = window.__adminCfg.filter(function(x) { return x !== t; });
-                                  } else {
-                                    window.__adminCfg = window.__adminCfg.concat([t]);
-                                  }
-                                  fetch("/cache?action=config", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(window.__adminCfg) })
-                                    .then(function(r) { return r.json(); })
-                                    .then(function(d) {
-                                      if (d.ok) {
-                                        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: t + " switched to " + (nowLive ? "CACHED" : "LIVE") }]); });
-                                        setInsightTab("admin");
-                                      }
-                                    });
+                                  var nowLive = liveSet.indexOf(t) !== -1;
+                                  var newCfg  = nowLive ? liveSet.filter(function(x){ return x !== t; }) : liveSet.concat([t]);
+                                  window.__adminCfg = newCfg;
+                                  fetch("/cache?action=config", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newCfg) })
+                                    .then(function(r){ return r.json(); })
+                                    .then(function(d){ if (d.ok) { setAdminCfg(newCfg); } });
                                 }}
                                 style={{ width:40, height:22, borderRadius:11, background: isLive ? "#c8f000" : "#333", position:"relative", cursor:"pointer", border: isLive ? "none" : "1px solid #444" }}>
                                 <div style={{ position:"absolute", top:3, left: isLive ? 20 : 3, width:16, height:16, borderRadius:"50%", background: isLive ? "#0e0e0c" : "#666" }}></div>
                               </div>
                             </div>
                           </div>
-                          {cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length && (
-                            <div style={{ borderTop:"1px solid #252525", paddingTop:8, display:"flex", flexWrap:"wrap", gap:10 }}>
+                          {latestDate && (
+                            <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #252525", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                               <div style={{ display:"flex", gap:5 }}>
-                                {AI_TABS.map(function(tab) {
-                                  var meta = statsMap["insight:" + t + ":" + tab];
-                                  var hit  = !!meta;
+                                {cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length && AI_TABS.map(function(tab) {
+                                  var hit = !!(statsMap["insight:" + t + ":" + tab] && statsMap["insight:" + t + ":" + tab].cachedAt);
                                   return (
-                                    <div key={tab} style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:4, color: hit ? "#7abd00" : "#444", background: hit ? "#1e2a1e" : "#181818", border:"1px solid " + (hit ? "#2a5020" : "#252525") }}>
-                                      {tab === "aiinsight" ? "AI" : tab.charAt(0).toUpperCase() + tab.slice(1)}
-                                      {hit ? " " + String.fromCharCode(0x2713) : " " + String.fromCharCode(0x2013)}
-                                    </div>
+                                    <span key={tab} style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:4, color: hit ? "#7abd00" : "#444", background: hit ? "#1e2a1e" : "#181818", border:"1px solid " + (hit ? "#2a5020" : "#252525") }}>
+                                      {tab === "aiinsight" ? "AI" : tab.charAt(0).toUpperCase() + tab.slice(1)}{hit ? " " + String.fromCharCode(0x2713) : " " + String.fromCharCode(0x2013)}
+                                    </span>
                                   );
                                 })}
                               </div>
-                              <div style={{ marginLeft:"auto", textAlign:"right" }}>
-                                {latestDate && <span style={{ fontSize:10, color:"#555" }}>{"Last cached: " + fmtDate(latestDate) + " (" + fmtAge(latestDate) + ")"}</span>}
-                              </div>
+                              <span style={{ fontSize:10, color:"#555" }}>{"Last cached: " + fmtDate(latestDate) + " (" + fmtAge(latestDate) + ")"}</span>
                             </div>
                           )}
                         </div>
