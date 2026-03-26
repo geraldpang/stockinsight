@@ -132,6 +132,7 @@ async function getOverview(sym) {
     lo52:             (sd.fiftyTwoWeekLow  && sd.fiftyTwoWeekLow.raw)  || 0,
     sharesOut:        (ks.sharesOutstanding && ks.sharesOutstanding.raw) || 0,
     fcfRaw:           (fd.freeCashflow && fd.freeCashflow.raw) || 0,
+    ocfRaw:           (fd.operatingCashflow && fd.operatingCashflow.raw) || 0,
     niRaw:            (fd.netIncomeToCommon && fd.netIncomeToCommon.raw) || 0,
     // Business profile from Yahoo assetProfile
     bizSummary:       ap.longBusinessSummary || "",
@@ -1808,14 +1809,18 @@ function Detail({ sym, name, onBack }) {
                           {/* Calculation Breakdowns */}
                           {ov && (function() {
                             var DISC   = 0.10;
-                            var ltGPct = ov.ltG > 0 ? ov.ltG : Math.min(histGrowthRate * 100, 25);
-                            var g1     = Math.min(ltGPct / 100, 0.50);
-                            var g2     = g1 * 0.50;
+                            // Y1-5: recent EPS growth (TTM), Y6-10: LT analyst estimate
+                            var g1Pct  = ov.epsG > 0 ? Math.min(ov.epsG, 50) : Math.min(histGrowthRate * 100, 50);
+                            var g2Pct  = ov.ltG  > 0 ? Math.min(ov.ltG,  50) : g1Pct * 0.50;
+                            var g1     = g1Pct / 100;
+                            var g2     = g2Pct / 100;
                             var g3     = 0.04;
                             var debt   = ov.totalDebt || 0;
                             var cash   = ov.cash      || 0;
                             var shares = ov.sharesOut  || 0;
                             var usePE  = fpe > 0 ? fpe : pe;
+                            // Use operating cash flow (before capex) as base
+                            var ocf    = ov.ocfRaw > 0 ? ov.ocfRaw : ov.fcfRaw;
 
                             function fmtM(v) { return v !== null && v !== undefined ? "$" + (v/1e6).toFixed(0) + "M" : "-"; }
                             function calcEV(fcf0, gr1, gr2, gr3) {
@@ -1834,9 +1839,9 @@ function Detail({ sym, name, onBack }) {
                               return { ev: ev, equity: equity, perShare: equity / shares };
                             }
 
-                            var dcf20Res   = ov.fcfRaw  > 0 && shares > 0 ? calcPerShare(ov.fcfRaw)  : null;
-                            var dcff20Res  = ov.niRaw   > 0 && shares > 0 ? calcPerShare(ov.niRaw)   : null;
-                            var eps20Res   = baseEps    > 0 && shares > 0 ? calcPerShare(baseEps * shares) : null;
+                            var dcf20Res   = ocf       > 0 && shares > 0 ? calcPerShare(ocf)        : null;
+                            var dcff20Res  = ov.niRaw  > 0 && shares > 0 ? calcPerShare(ov.niRaw)   : null;
+                            var eps20Res   = baseEps   > 0 && shares > 0 ? calcPerShare(baseEps * shares) : null;
 
                             function BdRow(props) {
                               return (
@@ -1867,12 +1872,12 @@ function Detail({ sym, name, onBack }) {
                                 {/* DCF-20 */}
                                 {dcf20Res && (
                                   <BdSection title="DCF-20 Breakdown">
-                                    <BdRow label="Operating Cash Flow"  val={fmtM(ov.fcfRaw)} />
+                                    <BdRow label="Operating Cash Flow"  val={fmtM(ocf)} />
                                     <BdRow label="Total Debt"           val={fmtM(debt)} />
                                     <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
                                     <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label="Growth Y1-5"          val={(g1*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y6-10"         val={(g2*100).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y1-5 (recent EPS growth)" val={(g1*100).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y6-10 (LT analyst est.)"  val={(g2*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y11-20"        val="4%" />
                                     <BdRow label="Discount Rate"        val="10%" />
                                     <BdDivider />
