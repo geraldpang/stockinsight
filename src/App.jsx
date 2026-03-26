@@ -807,45 +807,162 @@ function Detail({ sym, name, onBack }) {
   }
 
   // Initial oracle estimate (overridden below once vals are built)
-  var oracle = (baseEps > 0 && pe > 0)
-    ? calcDCF(baseEps, histGrowthRate, 0.04, WACC_ADJ, 10).toFixed(2)
-    : (price > 0 ? price.toFixed(2) : "-");
+  var oracle = price > 0 ? price.toFixed(2) : "-";
+
+  // Helper: proper DCF-20 using FCF with 3-phase growth + debt/cash bridge
+  function calcDCF20(fcfRaw, ltGPct, totalDebt, cash, sharesOut) {
+    var disc  = 0.10; // fixed 10% discount rate
+    var g1    = Math.min(ltGPct / 100, 0.50); // Year 1-5: analyst estimate (capped 50%)
+    var g2    = g1 * 0.50;                    // Year 6-10: half of g1
+    var g3    = 0.04;                          // Year 11-20: terminal 4%
+    var fcf   = fcfRaw;
+    var ev    = 0;
+    for (var y = 1; y <= 20; y++) {
+      var g = y <= 5 ? g1 : y <= 10 ? g2 : g3;
+      fcf   = fcf * (1 + g);
+      ev   += fcf / Math.pow(1 + disc, y);
+    }
+    var equity = ev - (totalDebt || 0) + (cash || 0);
+    return sharesOut > 0 ? equity / sharesOut : 0;
+  }
 
   // Build valuation rows
   const vals = [];
-  if (ov && baseEps > 0 && price > 0) {
-    const termGrowth = 0.04;
-    const grCapped   = Math.min(histGrowthRate, 0.25);
-    const maxVal     = price * 3;
-    const cap        = function(v) { return Math.min(v, maxVal); };
+  if (ov && price > 0) {
+    const DISC    = 0.10;
+    const ltGPct  = ov.ltG > 0 ? ov.ltG : (histGrowthRate * 100);
+    const g1      = Math.min(ltGPct / 100, 0.50);
+    const g2      = g1 * 0.50;
+    const g3      = 0.04;
+    const debt    = ov.totalDebt   || 0;
+    const cashVal = ov.cash        || 0;
+    const shares  = ov.sharesOut   || 0;
+    const fcfRaw  = ov.fcfRaw      || 0;
+    const niRaw   = ov.niRaw       || 0;
+    const maxVal  = price * 5;
+    const cap     = function(v) { return Math.min(Math.max(v, 0), maxVal); };
 
-    const dcf20  = cap(calcDCF(baseEps,   grCapped, termGrowth, WACC_ADJ, 20));
-    const dcff20 = fcfPerShare > 0 ? cap(calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 20)) : 0;
-    const dni20  = niPerShare  > 0 ? cap(calcDCF(niPerShare,  grCapped, termGrowth, WACC_ADJ, 20)) : 0;
-    const dcffT  = fcfPerShare > 0 ? cap(
-      calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 20) -
-      calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 10)
-    ) : 0;
-    const peVal   = cap(fpe > 0 ? baseEps * fpe : baseEps * pe);
-    const pb      = ov.hi52 > 0 ? (ov.hi52 + ov.lo52) / 2 : 0;
-    const ps      = cap(peVal * Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0));
-    const ltgRate = ov.ltG > 0 ? ov.ltG : grCapped * 100;
-    const psg     = ltgRate > 0 ? Math.min(price / ltgRate, maxVal) : 0;
-    const pegVal  = ov.peg > 0 ? Math.min(baseEps * 15, maxVal) : 0;
+    // --- DCF-20: Operating Cash Flow based ---
+    var dcf20Val = 0;
+    if (fcfRaw > 0 && shares > 0) {
+      dcf20Val = cap(calcDCF20(fcfRaw, ltGPct, debt, cashVal, shares));
+      vals.push({
+        label: "Discounted Cash Flow 20-year\n(DCF-20)",
+        value: dcf20Val, color: "#EF9F27",
+        bd: {
+          inputs: [
+            ["Operating Cash Flow", "$" + (fcfRaw/1e6).toFixed(0) + "M"],
+            ["Total Debt",          "$" + (debt/1e6).toFixed(0) + "M"],
+            ["Cash & ST Investments","$" + (cashVal/1e6).toFixed(0) + "M"],
+            ["Shares Outstanding",  (shares/1e6).toFixed(0) + "M"],
+          ],
+          assumptions: [
+            ["Discount Rate",           "10%"],
+            ["Growth Rate (Year 1-5)",  (g1*100).toFixed(1) + "%"],
+            ["Growth Rate (Year 6-10)", (g2*100).toFixed(1) + "%"],
+            ["Growth Rate (Year 11-20)","4.0% (terminal)"],
+          ],
+          result: [
+            ["Enterprise Value (DCF)", "$" + ((function(){ var ev=0,f=fcfRaw; for(var y=1;y<=20;y++){var g=y<=5?g1:y<=10?g2:g3; f=f*(1+g); ev+=f/Math.pow(1+DISC,y);} return (ev/1e9).toFixed(0); })()) + "B"],
+            ["- Total Debt + Cash",    "$" + ((cashVal-debt)/1e6).toFixed(0) + "M"],
+            [String.fromCharCode(0xF7) + " Shares Outstanding", (shares/1e6).toFixed(0) + "M"],
+          ],
+          final: "$" + dcf20Val.toFixed(2),
+        }
+      });
+    }
 
-    vals.push({ label:"Discounted Cash Flow 20-year\n(DCF-20)",         value:dcf20,  color:"#d4a800" });
-    if (dcff20 > 0) vals.push({ label:"Discounted Free Cash Flow 20-year\n(DCFF-20)",   value:dcff20, color:"#d4a800" });
-    if (dni20  > 0) vals.push({ label:"Discounted Net Income 20-year\n(DNI-20)",        value:dni20,  color:"#d4a800" });
-    if (dcffT  > 0) vals.push({ label:"DCF Free Cash Flow Terminal\n(DCFF-Terminal)",   value:dcffT,  color:"#d4a800" });
-    vals.push({ label:"Mean Price to Sales\n(PS) Ratio",                value:ps,     color:"#d4a800" });
-    vals.push({ label:"Mean Price to Earnings\n(PE) Ratio Without NRI", value:peVal,  color:"#d4a800" });
-    if (pb > 0)     vals.push({ label:"Mean Price to Book\n(PB) Ratio",                        value:pb,     color:"#d4a800" });
-    if (psg > 0)    vals.push({ label:"Price to Sales Growth\n(PSG) Ratio",                    value:psg,    color:"#c03030" });
-    if (pegVal > 0) vals.push({ label:"Price to Earnings Growth\n(PEG) Ratio Without NRI",     value:pegVal, color:"#c03030" });
+    // --- DCFF-20: Net Income based ---
+    var dcff20Val = 0;
+    if (niRaw > 0 && shares > 0) {
+      dcff20Val = cap(calcDCF20(niRaw, ltGPct, debt, cashVal, shares));
+      vals.push({
+        label: "Discounted Net Income 20-year\n(DCFF-20)",
+        value: dcff20Val, color: "#EF9F27",
+        bd: {
+          inputs: [
+            ["Net Income",           "$" + (niRaw/1e6).toFixed(0) + "M"],
+            ["Total Debt",           "$" + (debt/1e6).toFixed(0) + "M"],
+            ["Cash & ST Investments","$" + (cashVal/1e6).toFixed(0) + "M"],
+            ["Shares Outstanding",   (shares/1e6).toFixed(0) + "M"],
+          ],
+          assumptions: [
+            ["Discount Rate",           "10%"],
+            ["Growth Rate (Year 1-5)",  (g1*100).toFixed(1) + "%"],
+            ["Growth Rate (Year 6-10)", (g2*100).toFixed(1) + "%"],
+            ["Growth Rate (Year 11-20)","4.0% (terminal)"],
+          ],
+          result: [
+            ["Enterprise Value (DCF)", "$" + ((function(){ var ev=0,f=niRaw; for(var y=1;y<=20;y++){var g=y<=5?g1:y<=10?g2:g3; f=f*(1+g); ev+=f/Math.pow(1+DISC,y);} return (ev/1e9).toFixed(0); })()) + "B"],
+            ["- Total Debt + Cash",    "$" + ((cashVal-debt)/1e6).toFixed(0) + "M"],
+            [String.fromCharCode(0xF7) + " Shares Outstanding", (shares/1e6).toFixed(0) + "M"],
+          ],
+          final: "$" + dcff20Val.toFixed(2),
+        }
+      });
+    }
 
-    const oracleAvg = vals.reduce(function(sum, v) { return sum + v.value; }, 0) / vals.length;
-    oracle = oracleAvg.toFixed(2);
-    vals.push({ label:"IntrinsicValue(TM)", value:oracleAvg, color:"#1a8a3a", bold:true });
+    // --- PE: EPS x Forward P/E ---
+    var peVal = 0;
+    if (baseEps > 0 && (fpe > 0 || pe > 0)) {
+      peVal = cap(baseEps * (fpe > 0 ? fpe : pe));
+      vals.push({
+        label: "Mean Price to Earnings\n(PE) Ratio",
+        value: peVal, color: "#7abd00",
+        bd: {
+          inputs: [
+            ["EPS (TTM)",           "$" + baseEps.toFixed(2)],
+            [fpe > 0 ? "Forward P/E" : "Trailing P/E", (fpe > 0 ? fpe : pe).toFixed(1) + String.fromCharCode(0xD7)],
+          ],
+          assumptions: [],
+          result: [
+            ["EPS " + String.fromCharCode(0xD7) + " P/E", "$" + baseEps.toFixed(2) + " " + String.fromCharCode(0xD7) + " " + (fpe > 0 ? fpe : pe).toFixed(1)],
+          ],
+          final: "$" + peVal.toFixed(2),
+        }
+      });
+    }
+
+    // --- PS: Revenue per share x P/S ---
+    var psVal = 0;
+    if (ov.ps > 0 && shares > 0 && ov.niRaw !== undefined) {
+      var revRaw = (function() {
+        var r = 0;
+        if (ov.ps > 0 && price > 0 && shares > 0) { r = (price / ov.ps) * shares; }
+        return r;
+      })();
+      var revPerShare = shares > 0 ? revRaw / shares : 0;
+      psVal = cap(revPerShare * ov.ps);
+      if (psVal > 0) vals.push({
+        label: "Mean Price to Sales\n(PS) Ratio",
+        value: psVal, color: "#7abd00",
+        bd: {
+          inputs: [
+            ["Revenue per Share",  "$" + revPerShare.toFixed(2)],
+            ["P/S Ratio (TTM)",    ov.ps.toFixed(1) + String.fromCharCode(0xD7)],
+          ],
+          assumptions: [],
+          result: [
+            ["Rev/Share " + String.fromCharCode(0xD7) + " P/S", "$" + revPerShare.toFixed(2) + " " + String.fromCharCode(0xD7) + " " + ov.ps.toFixed(1)],
+          ],
+          final: "$" + psVal.toFixed(2),
+        }
+      });
+    }
+
+    if (vals.length > 0) {
+      const oracleAvg = vals.reduce(function(sum, v) { return sum + v.value; }, 0) / vals.length;
+      oracle = oracleAvg.toFixed(2);
+      vals.push({
+        label: "IntrinsicValue(TM)", value: oracleAvg, color: "#c8f000", bold: true,
+        bd: {
+          inputs: vals.slice(0,-1).map(function(v){ return [v.label.split("\n")[0], "$" + v.value.toFixed(2)]; }),
+          assumptions: [],
+          result: [["Average of " + vals.slice(0,-1).length + " methods", ""]],
+          final: "$" + oracleAvg.toFixed(2),
+        }
+      });
+    }
   }
 
   const maxV = vals.length
@@ -1752,36 +1869,114 @@ function Detail({ sym, name, onBack }) {
                         var isUnder = iv > price;
                         var pct = price > 0 ? Math.round(Math.abs(iv - price) / price * 100) : 0;
                         return (
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background: isUnder ? "#e6f4e6" : "#fff0f0", borderRadius:8, marginBottom:16, border:"0.5px solid " + (isUnder ? "#7abd00" : "#e08080") }}>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background: isUnder ? "#1e2a1e" : "#2a1e1e", borderRadius:8, marginBottom:16, border:"0.5px solid " + (isUnder ? "#2a5020" : "#4a2020") }}>
                             <div>
-                              <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Intrinsic Value</div>
-                              <div style={{ fontSize:15, fontWeight:700, color: isUnder ? "#1a6a1a" : "#c03030" }}>{isUnder ? "Undervalued" : "Overvalued"} by {pct}%</div>
+                              <div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Intrinsic Value</div>
+                              <div style={{ fontSize:14, fontWeight:700, color: isUnder ? "#7abd00" : "#e05050" }}>{isUnder ? "Undervalued" : "Overvalued"} by {pct}%</div>
                               <div style={{ fontSize:11, color:"#555", marginTop:2 }}>Est. fair value ${oracle} vs current ${price.toFixed(2)}</div>
                             </div>
-                            <div style={{ fontSize:22, fontWeight:900, color: isUnder ? "#1a6a1a" : "#c03030" }}>${oracle}</div>
+                            <div style={{ fontSize:22, fontWeight:900, color: isUnder ? "#c8f000" : "#e05050" }}>${oracle}</div>
                           </div>
                         );
                       })()}
-                      <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:14 }}>
-                        <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>
-                          Summary
-                        </span>
-                      </div>
+                      <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em", borderBottom:"0.5px solid #2a2a28", paddingBottom:6, marginBottom:12 }}>Summary</div>
                       {vals.length > 0 ? (
                         <div>
                           <div style={{ textAlign:"right", marginBottom:8 }}>
-                            <span style={{ fontSize:11, color:"#aaa" }}>IntrinsicValue(TM) {oracle}</span>
+                            <span style={{ fontSize:11, color:"#333" }}>IntrinsicValue{String.fromCharCode(0x2122)} ${oracle}</span>
                           </div>
                           {vals.map(function(v, i) {
-                            return <VBar key={i} label={v.label} value={v.value} maxV={maxV} color={v.color} bold={v.bold} />;
+                            var isBold = !!v.bold;
+                            var barW   = maxV > 0 ? Math.min(v.value / maxV * 100, 100) : 0;
+                            return (
+                              <div key={i} style={{ marginBottom: isBold ? 0 : 10, marginTop: isBold ? 14 : 0, paddingTop: isBold ? 12 : 0, borderTop: isBold ? "0.5px solid #2a2a28" : "none" }}>
+                                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+                                  <div style={{ fontSize:11, color: isBold ? v.color : "#888", fontWeight: isBold ? 700 : 400, whiteSpace:"pre-line", lineHeight:1.3 }}>{v.label.replace("(TM)", String.fromCharCode(0x2122))}</div>
+                                  <div style={{ fontSize: isBold ? 14 : 12, fontWeight:700, color: v.color, marginLeft:12, flexShrink:0 }}>${Math.round(v.value)}</div>
+                                </div>
+                                <div style={{ height:8, background:"#1e1e1c", borderRadius:4 }}>
+                                  <div style={{ height:8, borderRadius:4, background:v.color, width:barW + "%" }}></div>
+                                </div>
+                                {v.bd && (
+                                  <div>
+                                    {(function() {
+                                      var bdKey = "bd_open_" + i;
+                                      var isOpen = !!window[bdKey];
+                                      return (
+                                        <div>
+                                          <div
+                                            onClick={function() { window[bdKey] = !window[bdKey]; setInsightTab("intrinsic"); }}
+                                            style={{ fontSize:10, color:"#555", cursor:"pointer", display:"flex", alignItems:"center", gap:4, marginTop:5, userSelect:"none" }}>
+                                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                                              {isOpen
+                                                ? <path d="M2 6.5L5 3.5L8 6.5" stroke="#888" strokeWidth="1.5" strokeLinecap="round"/>
+                                                : <path d="M2 3.5L5 6.5L8 3.5" stroke="#555" strokeWidth="1.5" strokeLinecap="round"/>
+                                              }
+                                            </svg>
+                                            <span>{isOpen ? "Hide breakdown" : "Show breakdown"}</span>
+                                          </div>
+                                          {isOpen && (
+                                            <div style={{ background:"#141412", border:"0.5px solid #2a2a28", borderRadius:8, padding:"10px 14px", marginTop:6 }}>
+                                              {v.bd.inputs.length > 0 && (
+                                                <div>
+                                                  <div style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.06em", paddingBottom:3, marginBottom:2 }}>Inputs</div>
+                                                  {v.bd.inputs.map(function(r, ri) {
+                                                    return (
+                                                      <div key={ri} style={{ display:"flex", justifyContent:"space-between", padding:"3px 0", borderBottom:"0.5px solid #1e1e1c" }}>
+                                                        <span style={{ fontSize:11, color:"#666" }}>{r[0]}</span>
+                                                        <span style={{ fontSize:11, color:"#c8c4bc", fontWeight:600 }}>{r[1]}</span>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              )}
+                                              {v.bd.assumptions.length > 0 && (
+                                                <div style={{ marginTop:8 }}>
+                                                  <div style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.06em", paddingBottom:3, marginBottom:2 }}>Assumptions</div>
+                                                  {v.bd.assumptions.map(function(r, ri) {
+                                                    return (
+                                                      <div key={ri} style={{ display:"flex", justifyContent:"space-between", padding:"3px 0", borderBottom:"0.5px solid #1e1e1c" }}>
+                                                        <span style={{ fontSize:11, color:"#666" }}>{r[0]}</span>
+                                                        <span style={{ fontSize:11, color: r[0]==="Discount Rate" ? "#EF9F27" : r[0].indexOf("Growth")!==-1 ? "#7abd00" : "#c8c4bc", fontWeight:600 }}>{r[1]}</span>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              )}
+                                              {v.bd.result.length > 0 && (
+                                                <div style={{ marginTop:8 }}>
+                                                  <div style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.06em", paddingBottom:3, marginBottom:2 }}>Result</div>
+                                                  {v.bd.result.map(function(r, ri) {
+                                                    return (
+                                                      <div key={ri} style={{ display:"flex", justifyContent:"space-between", padding:"3px 0", borderBottom:"0.5px solid #1e1e1c" }}>
+                                                        <span style={{ fontSize:11, color:"#666" }}>{r[0]}</span>
+                                                        <span style={{ fontSize:11, color:"#c8c4bc", fontWeight:600 }}>{r[1]}</span>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              )}
+                                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", paddingTop:8, marginTop:4, borderTop:"0.5px solid #2a5020" }}>
+                                                <span style={{ fontSize:11, color:"#c8f000", fontWeight:700 }}>= Intrinsic Value</span>
+                                                <span style={{ fontSize:13, color:"#c8f000", fontWeight:900 }}>{v.bd.final}</span>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                )}
+                              </div>
+                            );
                           })}
-                          <div style={{ marginTop:10, paddingTop:8, borderTop:"1px solid #e0dbd0", textAlign:"right" }}>
-                            <span style={{ fontSize:11, color:"#aaa" }}>Stock price: ${price.toFixed(2)}</span>
+                          <div style={{ marginTop:10, paddingTop:8, borderTop:"0.5px solid #2a2a28", textAlign:"right" }}>
+                            <span style={{ fontSize:11, color:"#333" }}>Stock price: ${price.toFixed(2)}</span>
                           </div>
                         </div>
                       ) : (
-                        <div style={{ textAlign:"center", padding:"28px 0", color:"#aaa", fontSize:13 }}>
-                          {msg ? "Data unavailable" : "Loading valuation data..."}
+                        <div style={{ textAlign:"center", padding:"28px 0", color:"#555", fontSize:13 }}>
+                          {ov ? "Insufficient data for valuation" : "Loading valuation data..."}
                         </div>
                       )}
                     </div>
