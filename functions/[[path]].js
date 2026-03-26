@@ -287,6 +287,17 @@ export async function onRequest(context) {
       }
 
       // ── Read: unwrap metadata if present ──────────────────────────────────
+      // Delete: clear all cached insights for a ticker
+      if (context.request.method === "DELETE") {
+        var delTabs = ["moat", "financial", "aiinsight"];
+        for (var di = 0; di < delTabs.length; di++) {
+          await CACHE.delete("insight:" + sym + ":" + delTabs[di]);
+        }
+        return new Response(JSON.stringify({ ok: true, sym: sym }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+
       var cached = await CACHE.get(cacheKey);
       if (cached) {
         var text     = cached;
