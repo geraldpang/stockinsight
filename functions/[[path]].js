@@ -209,8 +209,7 @@ export async function onRequest(context) {
       var CACHE = context.env.CACHE;
       if (!CACHE) {
         return new Response(JSON.stringify({ error: "CACHE KV not bound" }), {
-          status: 500,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       }
 
@@ -218,7 +217,7 @@ export async function onRequest(context) {
       var sym    = (url.searchParams.get("sym") || "").toUpperCase().trim();
       var tab    = (url.searchParams.get("tab") || "").toLowerCase().trim();
 
-      // Config: read/write live_tickers list
+      // ── Config: read/write live_tickers list ──────────────────────────────
       if (action === "config") {
         if (context.request.method === "POST") {
           var cfgBody = await context.request.text();
@@ -228,16 +227,18 @@ export async function onRequest(context) {
           });
         } else {
           var cfgVal = await CACHE.get("config:live_tickers");
-          return new Response(JSON.stringify({ value: cfgVal ? JSON.parse(cfgVal) : [] }), {
+          var cfgParsed = null;
+          try { cfgParsed = cfgVal ? JSON.parse(cfgVal) : []; } catch(e) { cfgParsed = []; }
+          return new Response(JSON.stringify({ ok: true, value: cfgParsed }), {
             headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
           });
         }
       }
 
-      // Cache stats: list all cached keys and read metadata from each value
+      // ── Stats: list all cached insight keys with metadata ─────────────────
       if (action === "stats") {
         var listed = await CACHE.list({ prefix: "insight:" });
-        var keys = [];
+        var keys   = [];
         for (var ki = 0; ki < listed.keys.length; ki++) {
           var kname    = listed.keys[ki].name;
           var kval     = await CACHE.get(kname);
@@ -246,53 +247,64 @@ export async function onRequest(context) {
           if (kval) {
             try {
               var kparsed = JSON.parse(kval);
-              if (kparsed && kparsed.text) { cachedAt = kparsed.cachedAt || null; size = kparsed.size || null; }
-            } catch(e) {}
+              if (kparsed && kparsed.text) {
+                cachedAt = kparsed.cachedAt || null;
+                size     = kparsed.size     || kparsed.text.length;
+              } else {
+                size = kval.length;
+              }
+            } catch(e) {
+              size = kval.length;
+            }
           }
           keys.push({ key: kname, cachedAt: cachedAt, size: size });
         }
-        return new Response(JSON.stringify({ keys: keys, count: keys.length }), {
+        return new Response(JSON.stringify({ ok: true, keys: keys, count: keys.length }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       }
 
+      // ── Require sym + tab for read/write ──────────────────────────────────
       if (!sym || !tab) {
-        return new Response(JSON.stringify({ error: "Missing sym or tab" }), {
-          status: 400,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        return new Response(JSON.stringify({ error: "Missing sym or tab", sym: sym, tab: tab }), {
+          status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       }
 
       var cacheKey = "insight:" + sym + ":" + tab;
 
-      // Write to cache — store as JSON wrapper with metadata
+      // ── Write: store insight with metadata wrapper ────────────────────────
       if (context.request.method === "POST") {
         var bodyText = await context.request.text();
         var cachedAt = new Date().toISOString();
         var wrapped  = JSON.stringify({ text: bodyText, cachedAt: cachedAt, size: bodyText.length });
         await CACHE.put(cacheKey, wrapped, { expirationTtl: 60 * 60 * 24 * 7 });
-        return new Response(JSON.stringify({ ok: true, key: cacheKey, cachedAt: cachedAt }), {
+        return new Response(JSON.stringify({ ok: true, key: cacheKey, cachedAt: cachedAt, size: bodyText.length }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       }
 
-      // Read from cache — unwrap JSON wrapper if present
+      // ── Read: unwrap metadata if present ──────────────────────────────────
       var cached = await CACHE.get(cacheKey);
       if (cached) {
-        var text = cached;
+        var text     = cached;
         var cachedAt = null;
+        var size     = cached.length;
         try {
-          var parsed = JSON.parse(cached);
-          if (parsed && parsed.text) { text = parsed.text; cachedAt = parsed.cachedAt || null; }
+          var cparsed = JSON.parse(cached);
+          if (cparsed && cparsed.text) {
+            text     = cparsed.text;
+            cachedAt = cparsed.cachedAt || null;
+            size     = cparsed.size     || cparsed.text.length;
+          }
         } catch(e) {}
-        return new Response(JSON.stringify({ hit: true, value: text, cachedAt: cachedAt }), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
-      } else {
-        return new Response(JSON.stringify({ hit: false }), {
+        return new Response(JSON.stringify({ hit: true, value: text, cachedAt: cachedAt, size: size, key: cacheKey }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       }
+      return new Response(JSON.stringify({ hit: false, key: cacheKey }), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
     }
 
     if (url.pathname === "/anthropic") {
