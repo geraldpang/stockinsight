@@ -3789,7 +3789,7 @@ function Detail({ sym, name, onBack }) {
                             </div>
                           </div>
 
-                          {(cachedTabs.length > 0 || latestDate) && (
+                          {cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length && (
                             <div style={{ borderTop:"1px solid #252525", paddingTop:8, display:"flex", flexWrap:"wrap", gap:10 }}>
                               <div style={{ display:"flex", gap:5 }}>
                                 {AI_TABS.map(function(tab) {
@@ -3811,11 +3811,6 @@ function Detail({ sym, name, onBack }) {
                                 {latestDate && (
                                   <span style={{ fontSize:10, color:"#555" }}>
                                     {"Last cached: " + fmtDate(latestDate) + " (" + fmtAge(latestDate) + ")"}
-                                  </span>
-                                )}
-                                {latestSize > 0 && (
-                                  <span style={{ fontSize:10, color:"#444", marginLeft:10 }}>
-                                    {fmtSize(latestSize)}
                                   </span>
                                 )}
                               </div>
