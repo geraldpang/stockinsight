@@ -456,30 +456,74 @@ function Detail({ sym, name, onBack }) {
         technical: "You are a professional technical analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), provide a technical analysis covering: Trend (50-day MA, 200-day MA, direction), Momentum (RSI condition, MACD condition), Support and Resistance zones, Volume analysis (confirms move? accumulation or distribution?), Chart Patterns (breakout / consolidation / reversal / double bottom / head and shoulders / flag/pennant / no clear pattern). End with: Technical Rating: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish and Entry Timing View: Good Entry / Wait for Pullback / Breakout Watch / Avoid for Now. Be specific with price levels where possible.",
         aiinsight: "You are a senior investment analyst. For " + sym + " (" + (NAMES[sym]||sym) + "), provide an AI Insight in EXACTLY this format:\\n\\nFundamental: X/5\\nResult: One sentence.\\n\\nTechnical: X/5\\nResult: One sentence.\\n\\nSentiment: X/5\\nResult: One sentence.\\n\\nOverall Verdict: Buy / Hold / Avoid / Strong Buy / Strong Avoid\\nConfidence: Low / Medium / High\\nHorizon: Short-term (1-3m) / Medium-term (3-12m) / Long-term (12m+)\\n\\nKey Risk: One sentence on the most important downside risk.\\nKey Opportunity: One sentence on the most important upside catalyst.\\n\\nAI Insight Summary (max 80 words): Concise investment conclusion."
       };
-      fetch("/anthropic", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 900,
-          messages: [{ role: "user", content: prompts[tabId] }]
-        })
-      }).then(function(r) { return r.json(); })
-        .then(function(data) {
-          var text = data && data.content && data.content[0] && data.content[0].text;
-          setInsightCache(function(prev) {
-            var next = Object.assign({}, prev);
-            next[tabId] = text || "Analysis unavailable.";
-            parseAndStoreInsight(tabId, next[tabId]);
-            return next;
+      // Check KV config: is this ticker in LIVE or CACHED mode?
+      var _kvCfg = window.__adminCfg || null;
+      var _isLiveMode = !_kvCfg || _kvCfg.indexOf(sym) !== -1;
+
+      function _callClaude(onResult) {
+        fetch("/anthropic", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 900,
+            messages: [{ role: "user", content: prompts[tabId] }]
+          })
+        }).then(function(r) { return r.json(); })
+          .then(function(data) {
+            var text = data && data.content && data.content[0] && data.content[0].text;
+            onResult(text || "Analysis unavailable.");
+          }).catch(function() {
+            onResult("Analysis unavailable. Please try again.");
           });
-        }).catch(function() {
-          setInsightCache(function(prev) {
-            var next = Object.assign({}, prev);
-            next[tabId] = "Analysis unavailable. Please try again.";
-            return next;
-          });
+      }
+
+      function _storeResult(text) {
+        setInsightCache(function(prev) {
+          var next = Object.assign({}, prev);
+          next[tabId] = text;
+          parseAndStoreInsight(tabId, next[tabId]);
+          return next;
         });
+      }
+
+      if (_isLiveMode) {
+        // LIVE: call Claude directly, no caching
+        _callClaude(function(text) {
+          _storeResult(text);
+        });
+      } else {
+        // CACHED: try KV first
+        fetch("/cache?sym=" + sym + "&tab=" + tabId)
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (d && d.hit && d.value) {
+              // Cache hit -- use stored result
+              setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache HIT: " + sym + ":" + tabId }]); });
+              _storeResult(d.value);
+            } else {
+              // Cache miss -- call Claude then write to KV
+              setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache MISS: " + sym + ":" + tabId + " -- calling Claude" }]); });
+              _callClaude(function(text) {
+                _storeResult(text);
+                // Write to KV cache
+                fetch("/cache?sym=" + sym + "&tab=" + tabId, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: text,
+                }).then(function(r) { return r.json(); })
+                  .then(function(wr) {
+                    setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache WRITE: " + sym + ":" + tabId + " -- " + (wr.ok ? "OK" : "FAIL") }]); });
+                    // Reload admin stats so UI reflects new cache
+                    window.__adminCfgLoaded = false;
+                  }).catch(function() {});
+              });
+            }
+          }).catch(function() {
+            // KV read failed -- fall back to Claude
+            _callClaude(function(text) { _storeResult(text); });
+          });
+      }
     });
     }).catch(function(e) {
       setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary error", data: { error: String(e) } }]); });
