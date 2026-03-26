@@ -238,10 +238,12 @@ export async function onRequest(context) {
       // ── Stats: list all cached insight keys with metadata ─────────────────
       if (action === "stats") {
         var listed = await CACHE.list({ prefix: "insight:" });
-        var keys   = [];
-        for (var ki = 0; ki < listed.keys.length; ki++) {
-          var kname    = listed.keys[ki].name;
-          var kval     = await CACHE.get(kname);
+        // Fetch all values in parallel for speed
+        var names   = listed.keys.map(function(k) { return k.name; });
+        var fetches = names.map(function(n) { return CACHE.get(n).catch(function(){ return null; }); });
+        var vals    = await Promise.all(fetches);
+        var keys    = names.map(function(kname, ki) {
+          var kval     = vals[ki];
           var cachedAt = null;
           var size     = null;
           if (kval) {
@@ -249,7 +251,7 @@ export async function onRequest(context) {
               var kparsed = JSON.parse(kval);
               if (kparsed && kparsed.text) {
                 cachedAt = kparsed.cachedAt || null;
-                size     = kparsed.size     || kparsed.text.length;
+                size     = kparsed.size || kparsed.text.length;
               } else {
                 size = kval.length;
               }
@@ -257,8 +259,8 @@ export async function onRequest(context) {
               size = kval.length;
             }
           }
-          keys.push({ key: kname, cachedAt: cachedAt, size: size });
-        }
+          return { key: kname, cachedAt: cachedAt, size: size, exists: kval ? true : false };
+        });
         return new Response(JSON.stringify({ ok: true, keys: keys, count: keys.length }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
