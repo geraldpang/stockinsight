@@ -82,14 +82,10 @@ export async function onRequest(context) {
       var fromDate  = new Date(today.getTime() - 730 * 86400000).toISOString().slice(0,10);
       var from1yr   = new Date(today.getTime() - 365 * 86400000).toISOString().slice(0,10);
 
-      var results = await Promise.all([
-        // Existing
-        fetch(BASE + "/v2/reference/news?ticker=" + sym + "&limit=10&order=desc&sort=published_utc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/vX/reference/tickers/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/v3/reference/dividends?ticker=" + sym + "&limit=10&order=desc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/v3/reference/splits?ticker=" + sym + "&order=desc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        // New endpoints
-        fetch(BASE + "/v2/aggs/ticker/" + sym + "/range/1/day/" + from1yr + "/" + toDate + "?adjusted=true&sort=desc&limit=365&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+      // Group A: fast indicators needed for Signal + Reversal (no 10-K, reduced aggs)
+      var from30d  = new Date(today.getTime() - 60 * 86400000).toISOString().slice(0,10);
+      var fastResults = await Promise.all([
+        fetch(BASE + "/v2/aggs/ticker/" + sym + "/range/1/day/" + from30d + "/" + toDate + "?adjusted=true&sort=desc&limit=60&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v2/snapshot/locale/us/markets/stocks/tickers/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=day&adjusted=true&window=50&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=day&adjusted=true&window=200&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
@@ -99,26 +95,37 @@ export async function onRequest(context) {
         fetch(BASE + "/v2/last/trade/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=week&adjusted=true&window=10&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=week&adjusted=true&window=40&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+      ]);
+
+      // Group B: slow reference data (news, dividends, 10-K) - fire in parallel, don't await
+      var slowPromise = Promise.all([
+        fetch(BASE + "/v2/reference/news?ticker=" + sym + "&limit=10&order=desc&sort=published_utc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/vX/reference/tickers/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v3/reference/dividends?ticker=" + sym + "&limit=10&order=desc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v3/reference/splits?ticker=" + sym + "&order=desc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/stocks/filings/10-K/vX/sections?ticker=" + sym + "&section=business&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/stocks/filings/10-K/vX/sections?ticker=" + sym + "&section=risk_factors&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
       ]);
 
-      var newsData     = results[0];
-      var tickerData   = results[1];
-      var dividendData = results[2];
-      var splitsData   = results[3];
-      var aggsData     = results[4];
-      var snapData     = results[5];
-      var sma50Data    = results[6];
-      var sma200Data   = results[7];
-      var ema20Data    = results[8];
-      var rsiData      = results[9];
-      var macdData      = results[10];
-      var lastTradeData = results[11];
-      var wsma10Data    = results[12];
-      var wsma40Data    = results[13];
-      var tenKBizData   = results[14];
-      var tenKRiskData  = results[15];
+      var aggsData      = fastResults[0];
+      var snapData      = fastResults[1];
+      var sma50Data     = fastResults[2];
+      var sma200Data    = fastResults[3];
+      var ema20Data     = fastResults[4];
+      var rsiData       = fastResults[5];
+      var macdData      = fastResults[6];
+      var lastTradeData = fastResults[7];
+      var wsma10Data    = fastResults[8];
+      var wsma40Data    = fastResults[9];
+
+      // Await slow group now (by the time fast group finished, slow is likely done too)
+      var slowResults  = await slowPromise;
+      var newsData     = slowResults[0];
+      var tickerData   = slowResults[1];
+      var dividendData = slowResults[2];
+      var splitsData   = slowResults[3];
+      var tenKBizData  = slowResults[4];
+      var tenKRiskData = slowResults[5];
 
       function indVal(d) {
         return d && d.results && d.results.values && d.results.values[0] ? d.results.values[0].value : null;
