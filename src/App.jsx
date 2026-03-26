@@ -525,6 +525,11 @@ function Detail({ sym, name, onBack }) {
               // Cache hit -- use stored result
               if (!window.__cacheStatus) window.__cacheStatus = {};
               window.__cacheStatus[sym + ":" + tabId] = "hit";
+              // Update admin stats with cachedAt from response
+              if (d.cachedAt) {
+                if (!window.__adminStats) window.__adminStats = {};
+                window.__adminStats["insight:" + sym + ":" + tabId] = { cachedAt: d.cachedAt, size: d.value.length };
+              }
               setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache HIT: " + sym + ":" + tabId }]); });
               _storeResult(d.value);
             } else {
@@ -543,16 +548,12 @@ function Detail({ sym, name, onBack }) {
                 }).then(function(r) { return r.json(); })
                   .then(function(wr) {
                     setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache WRITE: " + sym + ":" + tabId + " -- " + (wr.ok ? "OK" : "FAIL") }]); });
-                    // Reload stats immediately so Admin tab shows updated cache status
-                    fetch("/cache?action=stats")
-                      .then(function(r) { return r.json(); })
-                      .then(function(s) {
-                        if (s && Array.isArray(s.keys)) {
-                          window.__adminStats = {};
-                          s.keys.forEach(function(k) { window.__adminStats[k.key] = { cachedAt: k.cachedAt, size: k.size }; });
-                        }
-                        setInsightTab("admin");
-                      }).catch(function() {});
+                    // Update adminStats immediately with write response
+                    if (wr.cachedAt) {
+                      if (!window.__adminStats) window.__adminStats = {};
+                      window.__adminStats["insight:" + sym + ":" + tabId] = { cachedAt: wr.cachedAt, size: text.length };
+                    }
+                    setInsightTab("admin");
                   }).catch(function() {});
               });
             }
