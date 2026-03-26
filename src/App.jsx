@@ -541,8 +541,9 @@ function Detail({ sym, name, onBack }) {
                 }).then(function(r) { return r.json(); })
                   .then(function(wr) {
                     setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache WRITE: " + sym + ":" + tabId + " -- " + (wr.ok ? "OK" : "FAIL") }]); });
-                    // Reload admin stats so UI reflects new cache
+                    // Reset so Admin tab reloads fresh stats next open
                     window.__adminCfgLoaded = false;
+                    window.__adminStats = {};
                   }).catch(function() {});
               });
             }
@@ -3633,11 +3634,12 @@ function Detail({ sym, name, onBack }) {
                 LLY:"Eli Lilly", BRKB:"Berkshire B"
               };
 
-              // Load config + stats from KV on first open
+              // Load config + stats from KV every time Admin tab opens
               if (!window.__adminCfgLoaded) {
                 window.__adminCfgLoaded = true;
-                window.__adminCfg   = FREE.slice();
+                window.__adminCfg   = window.__adminCfg || FREE.slice();
                 window.__adminStats = {};
+                window.__adminLoading = true;
                 Promise.all([
                   fetch("/cache?action=config").then(function(r){ return r.json(); }).catch(function(){ return {}; }),
                   fetch("/cache?action=stats").then(function(r){ return r.json(); }).catch(function(){ return {}; }),
@@ -3645,17 +3647,20 @@ function Detail({ sym, name, onBack }) {
                   var cfg   = results[0];
                   var stats = results[1];
                   if (cfg && Array.isArray(cfg.value)) { window.__adminCfg = cfg.value; }
+                  window.__adminStats = {};
                   if (stats && Array.isArray(stats.keys)) {
                     stats.keys.forEach(function(k) {
                       window.__adminStats[k.key] = { cachedAt: k.cachedAt, size: k.size };
                     });
                   }
+                  window.__adminLoading = false;
                   setInsightTab("admin");
                 });
               }
 
-              var liveSet = window.__adminCfg   || FREE.slice();
-              var statsMap = window.__adminStats || {};
+              var liveSet    = window.__adminCfg    || FREE.slice();
+              var statsMap   = window.__adminStats  || {};
+              var adminLoading = !!window.__adminLoading;
 
               function fmtAge(iso) {
                 if (!iso) return null;
@@ -3687,17 +3692,21 @@ function Detail({ sym, name, onBack }) {
 
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
                     <div>
-                      <div style={{ fontSize:13, fontWeight:700, color:"#f0ede6", marginBottom:3 }}>Cache Manager</div>
-                      <div style={{ fontSize:11, color:"#555" }}>Toggle live or cached per ticker. Cached serves stored AI result at no cost.</div>
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:"#f0ede6" }}>Cache Manager</div>
+                        {adminLoading && <div style={{ width:10, height:10, borderRadius:"50%", border:"2px solid #333", borderTop:"2px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div>}
+                      </div>
+                      <div style={{ fontSize:11, color:"#555", marginTop:3 }}>Toggle live or cached per ticker. Cached serves stored AI result at no cost.</div>
                     </div>
                     <button
                       onClick={function() {
                         window.__adminCfgLoaded = false;
                         window.__adminStats = {};
+                        window.__adminLoading = false;
                         setInsightTab("admin");
                       }}
-                      style={{ fontSize:11, color:"#555", background:"none", border:"1px solid #333", borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:FONT }}>
-                      Refresh
+                      style={{ fontSize:11, color:"#c8f000", background:"none", border:"1px solid #2a5020", borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:FONT }}>
+                      {String.fromCharCode(0x21BA) + " Refresh"}
                     </button>
                   </div>
 
