@@ -161,10 +161,25 @@ async function getOverview(sym) {
     return { firm: u.firm, action: u.action, from: u.fromGrade, to: u.toGrade, date: u.epochGradeDate ? new Date(u.epochGradeDate * 1000).toISOString().slice(0,10) : "" };
   });
 
+  // Try defaultKeyStatistics for debt (more reliable)
+  var ksTotalDebt = (ks.totalDebt && ks.totalDebt.raw) || null;
+  var fdTotalCash = (fd.totalCash && fd.totalCash.raw) || null;
+
   // Balance sheet (most recent annual)
   var bs0 = (bsh.balanceSheetStatements && bsh.balanceSheetStatements[0]) || {};
-  out.cash         = bs0.cash                    ? bs0.cash.raw                    : null;
-  out.totalDebt    = bs0.longTermDebt            ? bs0.longTermDebt.raw            : null;
+  // Cash: try multiple Yahoo fields
+  out.cash = (bs0.cashAndCashEquivalents && bs0.cashAndCashEquivalents.raw)
+          || (bs0.cashAndShortTermInvestments && bs0.cashAndShortTermInvestments.raw)
+          || (bs0.cash && bs0.cash.raw)
+          || fdTotalCash
+          || null;
+  // Total debt: try multiple Yahoo fields
+  out.totalDebt = (bs0.totalDebt && bs0.totalDebt.raw)
+               || ksTotalDebt
+               || (bs0.longTermDebt && bs0.longTermDebt.raw
+                   ? (bs0.longTermDebt.raw + ((bs0.shortLongTermDebt && bs0.shortLongTermDebt.raw) || 0))
+                   : null)
+               || null;
   out.totalAssets  = bs0.totalAssets             ? bs0.totalAssets.raw             : null;
   out.bookValue    = bs0.totalStockholderEquity  ? bs0.totalStockholderEquity.raw  : null;
   out.bsDate       = bs0.endDate                 ? bs0.endDate.fmt                 : "";
@@ -426,7 +441,7 @@ function Detail({ sym, name, onBack }) {
     getOverview(sym).then(function(res) {
       if (res) {
         setOv(res);
-        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary OK", data: { modules: "summaryDetail,financialData,assetProfile,earningsTrend,recommendationTrend,upgradeDowngradeHistory,balanceSheetHistory,earningsHistory,calendarEvents", recBuy: res.recBuy, recHold: res.recHold, recSell: res.recSell, earningsQ: (res.earningsQ || []).length, nextEarnings: res.nextEarnings } }]); });
+        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary OK", data: { modules: "summaryDetail,financialData,assetProfile,earningsTrend,recommendationTrend,upgradeDowngradeHistory,balanceSheetHistory,earningsHistory,calendarEvents", recBuy: res.recBuy, recHold: res.recHold, recSell: res.recSell, earningsQ: (res.earningsQ || []).length, nextEarnings: res.nextEarnings, cash: res.cash, totalDebt: res.totalDebt, fcfRaw: res.fcfRaw, niRaw: res.niRaw, sharesOut: res.sharesOut } }]); });
       } else {
         setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary returned null" }]); });
       }
