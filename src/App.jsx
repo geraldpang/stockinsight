@@ -490,6 +490,8 @@ function Detail({ sym, name, onBack }) {
       if (_isLiveMode) {
         // LIVE: call Claude directly, no caching
         _callClaude(function(text) {
+          if (!window.__cacheStatus) window.__cacheStatus = {};
+          window.__cacheStatus[sym + ":" + tabId] = "live";
           _storeResult(text);
         });
       } else {
@@ -499,12 +501,17 @@ function Detail({ sym, name, onBack }) {
           .then(function(d) {
             if (d && d.hit && d.value) {
               // Cache hit -- use stored result
+              if (!window.__cacheStatus) window.__cacheStatus = {};
+              window.__cacheStatus[sym + ":" + tabId] = "hit";
               setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache HIT: " + sym + ":" + tabId }]); });
               _storeResult(d.value);
             } else {
               // Cache miss -- call Claude then write to KV
+              if (!window.__cacheStatus) window.__cacheStatus = {};
+              window.__cacheStatus[sym + ":" + tabId] = "miss";
               setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache MISS: " + sym + ":" + tabId + " -- calling Claude" }]); });
               _callClaude(function(text) {
+                window.__cacheStatus[sym + ":" + tabId] = "written";
                 _storeResult(text);
                 // Write to KV cache
                 fetch("/cache?sym=" + sym + "&tab=" + tabId, {
@@ -1601,6 +1608,27 @@ function Detail({ sym, name, onBack }) {
                     );
                   })}
                 </div>
+
+                {/* Cache status strip */}
+                {(function() {
+                  var _cs = window.__cacheStatus && window.__cacheStatus[sym + ":" + insightTab];
+                  if (!_cs) return null;
+                  var _cfg = {
+                    hit:     { bg:"#1e2a1e", border:"#2a5020", dot:"#7abd00", label:"Served from cache", icon:"" },
+                    written: { bg:"#1e2a1e", border:"#2a5020", dot:"#7abd00", label:"Cached and saved", icon:"" },
+                    miss:    { bg:"#2a2010", border:"#4a3810", dot:"#EF9F27", label:"Cache miss -- calling Claude", icon:"" },
+                    live:    { bg:"#111",    border:"#222",     dot:"#555",    label:"Live -- Claude generated", icon:"" },
+                  }[_cs] || null;
+                  if (!_cfg) return null;
+                  return (
+                    <div style={{ padding:"5px 16px", background:_cfg.bg, borderBottom:"1px solid " + _cfg.border, display:"flex", alignItems:"center", gap:7 }}>
+                      <div style={{ width:7, height:7, borderRadius:"50%", background:_cfg.dot, flexShrink:0 }}></div>
+                      <span style={{ fontSize:10, fontWeight:600, color:_cfg.dot, textTransform:"uppercase", letterSpacing:"0.08em" }}>{_cfg.label}</span>
+                      {_cs === "hit" && <span style={{ fontSize:10, color:"#2a5020", marginLeft:"auto" }}>{"No Claude call -- $0.00"}</span>}
+                      {_cs === "live" && <span style={{ fontSize:10, color:"#444", marginLeft:"auto" }}>{"~$0.03 per visit"}</span>}
+                    </div>
+                  );
+                })()}
 
                 {/* Tab content */}
                 <div style={{ padding:"20px 22px", background:"#fff" }}>
