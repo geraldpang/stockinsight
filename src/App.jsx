@@ -658,7 +658,8 @@ function Detail({ sym, name, onBack }) {
         var summary = FREE_LOG.map(function(t) {
           var tabs = AI_TABS_LOG.map(function(tab) {
             var meta = newStats["insight:" + t + ":" + tab];
-            if (!meta || !meta.cachedAt) return tab + ":NO";
+            if (!meta || (!meta.exists && !meta.cachedAt)) return tab + ":NO";
+            if (!meta.cachedAt) return tab + ":EXISTS(no date)";
             var age = Math.round((Date.now() - new Date(meta.cachedAt).getTime()) / 60000);
             return tab + ":OK(" + (age < 60 ? age + "m" : Math.round(age/60) + "h") + ")";
           });
@@ -3762,11 +3763,14 @@ function Detail({ sym, name, onBack }) {
                     {FREE.map(function(t) {
                       var isLive = liveSet.indexOf(t) !== -1;
                       var cachedTabs = AI_TABS.filter(function(tab) { var m = statsMap["insight:" + t + ":" + tab]; return !!(m && (m.exists || m.cachedAt)); });
-                      var latestDate = null;
+                      var latestDate   = null;
+                      var hasOldFormat = false;
                       AI_TABS.forEach(function(tab) {
                         var meta = statsMap["insight:" + t + ":" + tab];
                         if (meta && meta.cachedAt) {
                           if (!latestDate || new Date(meta.cachedAt) > new Date(latestDate)) { latestDate = meta.cachedAt; }
+                        } else if (meta && meta.exists) {
+                          hasOldFormat = true;
                         }
                       });
                       return (
@@ -3797,7 +3801,7 @@ function Detail({ sym, name, onBack }) {
                               </div>
                             </div>
                           </div>
-                          {latestDate && (
+                          {(latestDate || hasOldFormat) && (
                             <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #252525", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                               <div style={{ display:"flex", gap:5 }}>
                                 {cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length && AI_TABS.map(function(tab) {
@@ -3809,7 +3813,7 @@ function Detail({ sym, name, onBack }) {
                                   );
                                 })}
                               </div>
-                              <span style={{ fontSize:10, color:"#555" }}>{"Last cached: " + fmtDate(latestDate) + " (" + fmtAge(latestDate) + ")"}</span>
+                              <span style={{ fontSize:10, color:"#555" }}>{latestDate ? "Last cached: " + fmtDate(latestDate) + " (" + fmtAge(latestDate) + ")" : "Cached (date unavailable -- reload ticker to refresh)"}</span>
                             </div>
                           )}
                         </div>
