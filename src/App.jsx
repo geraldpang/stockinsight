@@ -1031,9 +1031,14 @@ function Detail({ sym, name, onBack }) {
                   <div style={{ fontSize:10, color: loading ? "#aaa" : c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>{props.label}</div>
                   <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
                     <div>
-                      <div style={{ fontSize:14, fontWeight:700, color: loading ? "#555" : c.fg, display:"flex", alignItems:"center", gap:6 }}>
-                        {isSpinning && <div style={{ width:8, height:8, borderRadius:"50%", border:"2px solid #333", borderTop:"2px solid #c8f000", animation:"spin 0.8s linear infinite", flexShrink:0 }}></div>}
-                        {loading ? (isSpinning ? "Loading..." : "...") : props.value}
+                      <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                        {isSpinning
+                          ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                              <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite", flexShrink:0 }}></div>
+                              <span style={{ fontSize:10, color:"#555", fontWeight:600 }}>Loading...</span>
+                            </div>
+                          : <span style={{ fontSize:14, fontWeight:700, color: loading ? "#555" : c.fg }}>{loading ? "..." : props.value}</span>
+                        }
                       </div>
                       {!loading && props.sublabel && (
                         <div style={{ fontSize:10, fontWeight:600, color:c.fg, marginTop:2, opacity:0.85 }}>{props.sublabel}</div>
@@ -1103,9 +1108,14 @@ function Detail({ sym, name, onBack }) {
                       <div style={{ padding:"10px 12px", background:loading?"#252525":darkify(c).bg, border:"0.5px solid "+(loading?"#333":darkify(c).border), borderRadius:8, opacity:loading?0.6:1 }}>
                         <div style={{ fontSize:10, color:loading?"#aaa":c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>Intrinsic Value</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                          <div style={{ fontSize:14, fontWeight:700, color:loading?"#ccc":c.fg, display:"flex", alignItems:"center", gap:6 }}>
-                            {loading && ovLoading && <div style={{ width:8, height:8, borderRadius:"50%", border:"2px solid #333", borderTop:"2px solid #c8f000", animation:"spin 0.8s linear infinite", flexShrink:0 }}></div>}
-                            {loading?"Loading...":ivVal}
+                          <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                            {loading && ovLoading
+                              ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                                  <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite", flexShrink:0 }}></div>
+                                  <span style={{ fontSize:10, color:"#555", fontWeight:600 }}>Loading...</span>
+                                </div>
+                              : <span style={{ fontSize:14, fontWeight:700, color:loading?"#ccc":c.fg }}>{loading?"...":ivVal}</span>
+                            }
                           </div>
                           {!loading && <Dots score={ivScore} filled={c.dot} empty={c.dotEmpty} />}
                         </div>
@@ -1252,7 +1262,12 @@ function Detail({ sym, name, onBack }) {
                     return (
                       <div style={{ marginTop:12 }}>
                         <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em", marginTop:16, marginBottom:6 }}>Reversal Indicator</div>
-                        <div style={{ padding:"9px 12px", background:bg3, borderRadius:8, border:"0.5px solid "+border3 }}>
+                        {!massiveInfo
+                          ? <div style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 12px", background:"#222", borderRadius:8, border:"0.5px solid #333" }}>
+                              <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite", flexShrink:0 }}></div>
+                              <span style={{ fontSize:10, color:"#555", fontWeight:600 }}>Loading...</span>
+                            </div>
+                          : <div style={{ padding:"9px 12px", background:bg3, borderRadius:8, border:"0.5px solid "+border3 }}>
                           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                             <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                               {pulse3 && <span style={{ width:7, height:7, borderRadius:"50%", background:pulse3, flexShrink:0, display:"inline-block" }} />}
@@ -1283,13 +1298,14 @@ function Detail({ sym, name, onBack }) {
                                     textDecoration:active?"none":"none",
                                     opacity:active?1:0.5,
                                   }}>
-                                    {active && <span style={{marginRight:3}}>&#10003;</span>}{name}
+                                    {active && <span style={{marginRight:3}}>{String.fromCharCode(0x2713)}</span>}{name}
                                   </span>
                                 );
                               })}
                             </div>
                           )}
                         </div>
+                        }
                       </div>
                     );
                   })()}
@@ -2710,6 +2726,7 @@ function Detail({ sym, name, onBack }) {
                         <div style={{marginTop:10,fontSize:11,color:"#bbb"}}>
                           AI analysis by Claude Haiku. Data from Yahoo Finance + Massive.com. Not financial advice.
                         </div>
+                        }
                       </div>
                     );
                   })()}
@@ -3521,6 +3538,7 @@ function Detail({ sym, name, onBack }) {
                         <div style={{marginTop:10,fontSize:11,color:"#bbb"}}>
                           Powered by Massive.com real-time data. Weekly/monthly horizon. Not financial advice.
                         </div>
+                        }
                       </div>
                     );
                   })()}
@@ -3629,6 +3647,7 @@ function Detail({ sym, name, onBack }) {
                         <div style={{ marginTop:14, padding:"8px 12px", background:"#fff8e6", borderRadius:6, fontSize:11, color:"#854F0B" }}>
                           Remove or hide this tab before going to production.
                         </div>
+                        }
                       </div>
                     );
                   })()}
@@ -3636,13 +3655,7 @@ function Detail({ sym, name, onBack }) {
             {insightTab === "admin" && (function() {
               var FREE = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
               var AI_TABS = ["moat","financial","aiinsight"];
-              var NAMES_SHORT = {
-                NVDA:"NVIDIA", AAPL:"Apple", MSFT:"Microsoft", AMZN:"Amazon",
-                GOOGL:"Alphabet", AVGO:"Broadcom", META:"Meta", TSLA:"Tesla",
-                LLY:"Eli Lilly", BRKB:"Berkshire B"
-              };
-
-              // Load config + stats from KV every time Admin tab opens
+              var NAMES_SHORT = { NVDA:"NVIDIA", AAPL:"Apple", MSFT:"Microsoft", AMZN:"Amazon", GOOGL:"Alphabet", AVGO:"Broadcom", META:"Meta", TSLA:"Tesla", LLY:"Eli Lilly", BRKB:"Berkshire B" };
               if (!window.__adminCfgLoaded) {
                 window.__adminCfgLoaded = true;
                 window.__adminCfg   = window.__adminCfg || FREE.slice();
@@ -3665,39 +3678,31 @@ function Detail({ sym, name, onBack }) {
                   setInsightTab("admin");
                 });
               }
-
-              var liveSet    = window.__adminCfg    || FREE.slice();
-              var statsMap   = window.__adminStats  || {};
+              var liveSet      = window.__adminCfg    || FREE.slice();
+              var statsMap     = window.__adminStats  || {};
               var adminLoading = !!window.__adminLoading;
-
               function fmtAge(iso) {
                 if (!iso) return null;
                 var diff = Date.now() - new Date(iso).getTime();
                 var mins = Math.floor(diff / 60000);
                 var hrs  = Math.floor(mins / 60);
                 var days = Math.floor(hrs / 24);
-                if (days > 0)  return days + "d ago";
-                if (hrs > 0)   return hrs + "h ago";
-                if (mins > 0)  return mins + "m ago";
+                if (days > 0) return days + "d ago";
+                if (hrs > 0)  return hrs + "h ago";
+                if (mins > 0) return mins + "m ago";
                 return "just now";
               }
-
               function fmtDate(iso) {
                 if (!iso) return null;
                 var d = new Date(iso);
-                return d.toLocaleDateString("en-AU", { day:"2-digit", month:"short", year:"numeric" }) + " " +
-                       d.toLocaleTimeString("en-AU", { hour:"2-digit", minute:"2-digit" });
+                return d.toLocaleDateString("en-AU", { day:"2-digit", month:"short", year:"numeric" }) + " " + d.toLocaleTimeString("en-AU", { hour:"2-digit", minute:"2-digit" });
               }
-
               function fmtSize(bytes) {
                 if (!bytes) return null;
-                if (bytes > 1024) return (bytes / 1024).toFixed(1) + "KB";
-                return bytes + "B";
+                return bytes > 1024 ? (bytes / 1024).toFixed(1) + "KB" : bytes + "B";
               }
-
               return (
                 <div style={{ padding:"20px 24px" }}>
-
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
                     <div>
                       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -3717,49 +3722,33 @@ function Detail({ sym, name, onBack }) {
                       {String.fromCharCode(0x21BA) + " Refresh"}
                     </button>
                   </div>
-
                   <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                     {FREE.map(function(t) {
                       var isLive = liveSet.indexOf(t) !== -1;
-                      // Collect cached tabs for this ticker
-                      var cachedTabs = AI_TABS.filter(function(tab) {
-                        return !!statsMap["insight:" + t + ":" + tab];
-                      });
-                      // Most recent cache date across all tabs
+                      var cachedTabs = AI_TABS.filter(function(tab) { return !!statsMap["insight:" + t + ":" + tab]; });
                       var latestDate = null;
                       var latestSize = 0;
                       AI_TABS.forEach(function(tab) {
                         var meta = statsMap["insight:" + t + ":" + tab];
                         if (meta && meta.cachedAt) {
-                          if (!latestDate || new Date(meta.cachedAt) > new Date(latestDate)) {
-                            latestDate = meta.cachedAt;
-                          }
+                          if (!latestDate || new Date(meta.cachedAt) > new Date(latestDate)) { latestDate = meta.cachedAt; }
                           if (meta.size) latestSize += meta.size;
                         }
                       });
-
                       return (
                         <div key={t} style={{ background:"#1c1c1e", border:"1px solid " + (isLive ? "#2a3a14" : "#2c2c26"), borderRadius:10, padding:"12px 16px" }}>
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: cachedTabs.length > 0 ? 10 : 0 }}>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length ? 10 : 0 }}>
                             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                               <div>
                                 <span style={{ fontSize:13, fontWeight:800, color:"#f0ede6" }}>{t}</span>
                                 <span style={{ fontSize:11, color:"#555", marginLeft:8 }}>{NAMES_SHORT[t] || t}</span>
                               </div>
-                              {cachedTabs.length === AI_TABS.length && (
-                                <span style={{ fontSize:9, fontWeight:700, color:"#7abd00", background:"#1e2a1e", border:"1px solid #2a5020", borderRadius:4, padding:"2px 6px" }}>FULL CACHE</span>
-                              )}
-                              {cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length && (
-                                <span style={{ fontSize:9, fontWeight:700, color:"#EF9F27", background:"#2a2010", border:"1px solid #4a3810", borderRadius:4, padding:"2px 6px" }}>PARTIAL</span>
-                              )}
-                              {cachedTabs.length === 0 && !isLive && (
-                                <span style={{ fontSize:9, fontWeight:700, color:"#e05050", background:"#2a1e1e", border:"1px solid #4a2020", borderRadius:4, padding:"2px 6px" }}>NO CACHE</span>
-                              )}
+                              {cachedTabs.length === AI_TABS.length && <span style={{ fontSize:9, fontWeight:700, color:"#7abd00", background:"#1e2a1e", border:"1px solid #2a5020", borderRadius:4, padding:"2px 6px" }}>FULL CACHE</span>}
+                              {cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length && <span style={{ fontSize:9, fontWeight:700, color:"#EF9F27", background:"#2a2010", border:"1px solid #4a3810", borderRadius:4, padding:"2px 6px" }}>PARTIAL</span>}
+                              {cachedTabs.length === 0 && !isLive && <span style={{ fontSize:9, fontWeight:700, color:"#e05050", background:"#2a1e1e", border:"1px solid #4a2020", borderRadius:4, padding:"2px 6px" }}>NO CACHE</span>}
                             </div>
                             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                              <span style={{ fontSize:11, color: isLive ? "#c8f000" : "#555", fontWeight:700 }}>
-                                {isLive ? "LIVE" : "CACHED"}
-                              </span>
+                              <span style={{ fontSize:11, color: isLive ? "#c8f000" : "#555", fontWeight:700 }}>{isLive ? "LIVE" : "CACHED"}</span>
                               <div
                                 onClick={function() {
                                   var nowLive = window.__adminCfg.indexOf(t) !== -1;
@@ -3768,35 +3757,20 @@ function Detail({ sym, name, onBack }) {
                                   } else {
                                     window.__adminCfg = window.__adminCfg.concat([t]);
                                   }
-                                  fetch("/cache?action=config", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify(window.__adminCfg),
-                                  }).then(function(r) { return r.json(); }).then(function(d) {
-                                    if (d.ok) {
-                                      setDebugLog(function(prev) {
-                                        return prev.concat([{ time: new Date().toISOString(), label: t + " switched to " + (nowLive ? "CACHED" : "LIVE") }]);
-                                      });
-                                      setInsightTab("admin");
-                                    }
-                                  });
+                                  fetch("/cache?action=config", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(window.__adminCfg) })
+                                    .then(function(r) { return r.json(); })
+                                    .then(function(d) {
+                                      if (d.ok) {
+                                        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: t + " switched to " + (nowLive ? "CACHED" : "LIVE") }]); });
+                                        setInsightTab("admin");
+                                      }
+                                    });
                                 }}
-                                style={{
-                                  width:40, height:22, borderRadius:11,
-                                  background: isLive ? "#c8f000" : "#333",
-                                  position:"relative", cursor:"pointer",
-                                  border: isLive ? "none" : "1px solid #444",
-                                }}>
-                                <div style={{
-                                  position:"absolute", top:3,
-                                  left: isLive ? 20 : 3,
-                                  width:16, height:16, borderRadius:"50%",
-                                  background: isLive ? "#0e0e0c" : "#666",
-                                }}></div>
+                                style={{ width:40, height:22, borderRadius:11, background: isLive ? "#c8f000" : "#333", position:"relative", cursor:"pointer", border: isLive ? "none" : "1px solid #444" }}>
+                                <div style={{ position:"absolute", top:3, left: isLive ? 20 : 3, width:16, height:16, borderRadius:"50%", background: isLive ? "#0e0e0c" : "#666" }}></div>
                               </div>
                             </div>
                           </div>
-
                           {cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length && (
                             <div style={{ borderTop:"1px solid #252525", paddingTop:8, display:"flex", flexWrap:"wrap", gap:10 }}>
                               <div style={{ display:"flex", gap:5 }}>
@@ -3804,11 +3778,7 @@ function Detail({ sym, name, onBack }) {
                                   var meta = statsMap["insight:" + t + ":" + tab];
                                   var hit  = !!meta;
                                   return (
-                                    <div key={tab} style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:4,
-                                      color: hit ? "#7abd00" : "#444",
-                                      background: hit ? "#1e2a1e" : "#181818",
-                                      border: "1px solid " + (hit ? "#2a5020" : "#252525"),
-                                    }}>
+                                    <div key={tab} style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:4, color: hit ? "#7abd00" : "#444", background: hit ? "#1e2a1e" : "#181818", border:"1px solid " + (hit ? "#2a5020" : "#252525") }}>
                                       {tab === "aiinsight" ? "AI" : tab.charAt(0).toUpperCase() + tab.slice(1)}
                                       {hit ? " " + String.fromCharCode(0x2713) : " " + String.fromCharCode(0x2013)}
                                     </div>
@@ -3816,11 +3786,7 @@ function Detail({ sym, name, onBack }) {
                                 })}
                               </div>
                               <div style={{ marginLeft:"auto", textAlign:"right" }}>
-                                {latestDate && (
-                                  <span style={{ fontSize:10, color:"#555" }}>
-                                    {"Last cached: " + fmtDate(latestDate) + " (" + fmtAge(latestDate) + ")"}
-                                  </span>
-                                )}
+                                {latestDate && <span style={{ fontSize:10, color:"#555" }}>{"Last cached: " + fmtDate(latestDate) + " (" + fmtAge(latestDate) + ")"}</span>}
                               </div>
                             </div>
                           )}
@@ -3828,14 +3794,13 @@ function Detail({ sym, name, onBack }) {
                       );
                     })}
                   </div>
-
                   <div style={{ marginTop:16, padding:"10px 14px", background:"#1a1a10", border:"1px solid #2c2c14", borderRadius:8, fontSize:11, color:"#7abd00", lineHeight:1.7 }}>
                     {"Live = Claude runs on every visit (" + String.fromCharCode(0x7E) + "$0.03/visit)." + String.fromCharCode(0xA0) + "Cached = stored result served free for 7 days."}
                   </div>
-
                 </div>
               );
             })()}
+
 
               </div>
             );
