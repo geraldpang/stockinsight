@@ -3799,6 +3799,26 @@ function Detail({ sym, name, onBack }) {
                                 style={{ width:40, height:22, borderRadius:11, background: isLive ? "#c8f000" : "#333", position:"relative", cursor:"pointer", border: isLive ? "none" : "1px solid #444" }}>
                                 <div style={{ position:"absolute", top:3, left: isLive ? 20 : 3, width:16, height:16, borderRadius:"50%", background: isLive ? "#0e0e0c" : "#666" }}></div>
                               </div>
+                              {!isLive && (
+                                <button
+                                  onClick={function() {
+                                    if (!window.confirm("Clear cache for " + t + "? Next visitor will trigger a fresh Claude call.")) return;
+                                    fetch("/cache?sym=" + t + "&tab=moat", { method:"DELETE" })
+                                      .then(function() {
+                                        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache CLEARED: " + t }]); });
+                                        setAdminStats(function(prev) {
+                                          var next = Object.assign({}, prev);
+                                          delete next["insight:" + t + ":moat"];
+                                          delete next["insight:" + t + ":financial"];
+                                          delete next["insight:" + t + ":aiinsight"];
+                                          return next;
+                                        });
+                                      });
+                                  }}
+                                  style={{ fontSize:10, color:"#e05050", background:"none", border:"1px solid #4a2020", borderRadius:6, padding:"3px 8px", cursor:"pointer", fontFamily:FONT, whiteSpace:"nowrap" }}>
+                                  Clear
+                                </button>
+                              )}
                             </div>
                           </div>
                           {(latestDate || hasOldFormat) && (
@@ -3813,7 +3833,7 @@ function Detail({ sym, name, onBack }) {
                                   );
                                 })}
                               </div>
-                              <span style={{ fontSize:10, color:"#555" }}>{latestDate ? "Last cached: " + fmtDate(latestDate) + " (" + fmtAge(latestDate) + ")" : "Cached (date unavailable -- reload ticker to refresh)"}</span>
+                              <span style={{ fontSize:10, color:"#555" }}>{latestDate ? "Last cached: " + fmtDate(latestDate) + " (" + fmtAge(latestDate) + ")" : "Cached (visit ticker to update date)"}</span>
                             </div>
                           )}
                         </div>
