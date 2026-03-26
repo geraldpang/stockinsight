@@ -528,20 +528,18 @@ function Detail({ sym, name, onBack }) {
               if (!window.__cacheStatus) window.__cacheStatus = {};
               window.__cacheStatus[sym + ":" + tabId] = "hit";
               // Update admin stats with cachedAt from response
-              if (d.cachedAt) {
-                setAdminStats(function(prev) {
-                  var next = Object.assign({}, prev);
-                  next["insight:" + sym + ":" + tabId] = { cachedAt: d.cachedAt, size: d.value ? d.value.length : 0 };
-                  return next;
-                });
-              }
-              setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache HIT: " + sym + ":" + tabId }]); });
+              setAdminStats(function(prev) {
+                var next = Object.assign({}, prev);
+                next["insight:" + sym + ":" + tabId] = { cachedAt: d.cachedAt || null, size: d.value ? d.value.length : 0, exists: true };
+                return next;
+              });
+              setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache HIT: " + sym + ":" + tabId, data: { cachedAt: d.cachedAt || "none", size: d.value ? d.value.length : 0 } }]); });
               _storeResult(d.value);
             } else {
               // Cache miss -- call Claude then write to KV
               if (!window.__cacheStatus) window.__cacheStatus = {};
               window.__cacheStatus[sym + ":" + tabId] = "miss";
-              setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache MISS: " + sym + ":" + tabId + " -- calling Claude" }]); });
+              setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache MISS: " + sym + ":" + tabId + " -- calling Claude (no KV entry)" }]); });
               _callClaude(function(text) {
                 window.__cacheStatus[sym + ":" + tabId] = "written";
                 _storeResult(text);
@@ -552,15 +550,13 @@ function Detail({ sym, name, onBack }) {
                   body: text,
                 }).then(function(r) { return r.json(); })
                   .then(function(wr) {
-                    setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache WRITE: " + sym + ":" + tabId + " -- " + (wr.ok ? "OK" : "FAIL") }]); });
+                    setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache WRITE: " + sym + ":" + tabId + " -- " + (wr.ok ? "OK cachedAt=" + (wr.cachedAt || "?") : "FAIL"), data: wr }]); });
                     // Update admin stats with write response
-                    if (wr.cachedAt) {
-                      setAdminStats(function(prev) {
-                        var next = Object.assign({}, prev);
-                        next["insight:" + sym + ":" + tabId] = { cachedAt: wr.cachedAt, size: text ? text.length : 0 };
-                        return next;
-                      });
-                    }
+                    setAdminStats(function(prev) {
+                      var next = Object.assign({}, prev);
+                      next["insight:" + sym + ":" + tabId] = { cachedAt: wr.cachedAt || null, size: text ? text.length : 0, exists: true };
+                      return next;
+                    });
                   }).catch(function() {});
               });
             }
@@ -630,19 +626,48 @@ function Detail({ sym, name, onBack }) {
   // -- Admin tab data load -----------------------------------------------------
   useEffect(function() {
     if (insightTab !== "admin") return;
-    fetch("/cache?action=config").then(function(r){ return r.json(); }).catch(function(){ return {}; })
+    var t0 = Date.now();
+    setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Admin tab -- fetching config + stats" }]); });
+    fetch("/cache?action=config")
+      .then(function(r) { return r.json(); })
       .then(function(cfg) {
-        var newCfg = (cfg && Array.isArray(cfg.value)) ? cfg.value : ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
+        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Config fetched", data: cfg }]); });
+        var newCfg = (cfg && cfg.ok && Array.isArray(cfg.value)) ? cfg.value : ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
         setAdminCfg(newCfg);
         window.__adminCfg = newCfg;
+      })
+      .catch(function(e) {
+        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Config fetch ERROR: " + String(e) }]); });
       });
-    fetch("/cache?action=stats").then(function(r){ return r.json(); }).catch(function(){ return {}; })
+    fetch("/cache?action=stats")
+      .then(function(r) { return r.json(); })
       .then(function(stats) {
         var newStats = {};
         if (stats && Array.isArray(stats.keys)) {
-          stats.keys.forEach(function(k) { newStats[k.key] = { cachedAt: k.cachedAt, size: k.size }; });
+          stats.keys.forEach(function(k) {
+            newStats[k.key] = { cachedAt: k.cachedAt, size: k.size };
+          });
         }
         setAdminStats(newStats);
+        // Build per-ticker cache summary for debug log
+        var FREE_LOG = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
+        var AI_TABS_LOG = ["moat","financial","aiinsight"];
+        var summary = FREE_LOG.map(function(t) {
+          var tabs = AI_TABS_LOG.map(function(tab) {
+            var meta = newStats["insight:" + t + ":" + tab];
+            if (!meta || !meta.cachedAt) return tab + ":NO";
+            var age = Math.round((Date.now() - new Date(meta.cachedAt).getTime()) / 60000);
+            return tab + ":OK(" + (age < 60 ? age + "m" : Math.round(age/60) + "h") + ")";
+          });
+          return t + " [" + tabs.join(" ") + "]";
+        });
+        setDebugLog(function(prev) { return prev.concat([
+          { time: new Date().toISOString(), label: "Stats fetched in " + (Date.now()-t0) + "ms -- " + (stats.count || 0) + " entries" },
+          { time: new Date().toISOString(), label: "Cache status per ticker", data: summary }
+        ]); });
+      })
+      .catch(function(e) {
+        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Stats fetch ERROR: " + String(e) }]); });
       });
   }, [insightTab]);
 
@@ -3733,7 +3758,7 @@ function Detail({ sym, name, onBack }) {
                   <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                     {FREE.map(function(t) {
                       var isLive = liveSet.indexOf(t) !== -1;
-                      var cachedTabs = AI_TABS.filter(function(tab) { return !!(statsMap["insight:" + t + ":" + tab] && statsMap["insight:" + t + ":" + tab].cachedAt); });
+                      var cachedTabs = AI_TABS.filter(function(tab) { var m = statsMap["insight:" + t + ":" + tab]; return !!(m && (m.exists || m.cachedAt)); });
                       var latestDate = null;
                       AI_TABS.forEach(function(tab) {
                         var meta = statsMap["insight:" + t + ":" + tab];
