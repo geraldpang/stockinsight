@@ -1781,88 +1781,123 @@ function Detail({ sym, name, onBack }) {
 
                           {/* Calculation Breakdowns */}
                           {ov && (function() {
-                            var grCapped2 = Math.min(histGrowthRate, 0.25);
-                            var ltGRate   = ov.ltG > 0 ? ov.ltG : grCapped2 * 100;
-                            var g1Pct     = (grCapped2 * 100).toFixed(1);
-                            var disc      = (WACC_ADJ * 100).toFixed(1);
-                            var sharesM   = ov.sharesOut > 0 ? (ov.sharesOut/1e6).toFixed(0) + "M" : "-";
-                            var debtM     = ov.totalDebt ? "$" + (ov.totalDebt/1e6).toFixed(0) + "M" : "-";
-                            var cashM     = ov.cash ? "$" + (ov.cash/1e6).toFixed(0) + "M" : "-";
-                            var fcfM      = ov.fcfRaw ? "$" + (ov.fcfRaw/1e6).toFixed(0) + "M" : "-";
-                            var niM       = ov.niRaw  ? "$" + (ov.niRaw/1e6).toFixed(0)  + "M" : "-";
-                            var usePE     = fpe > 0 ? fpe : pe;
+                            var DISC   = 0.10;
+                            var ltGPct = ov.ltG > 0 ? ov.ltG : Math.min(histGrowthRate * 100, 25);
+                            var g1     = Math.min(ltGPct / 100, 0.50);
+                            var g2     = g1 * 0.50;
+                            var g3     = 0.04;
+                            var debt   = ov.totalDebt || 0;
+                            var cash   = ov.cash      || 0;
+                            var shares = ov.sharesOut  || 0;
+                            var usePE  = fpe > 0 ? fpe : pe;
 
-                            var sections = [
-                              {
-                                title: "DCF-20 -- Discounted Cash Flow",
-                                rows: [
-                                  ["Base EPS", "$" + baseEps.toFixed(2)],
-                                  ["Growth Rate (capped)", g1Pct + "%"],
-                                  ["Terminal Rate", "4.0%"],
-                                  ["Discount Rate (WACC)", disc + "%"],
-                                  ["Years", "20"],
-                                ]
-                              },
-                              fcfPerShare > 0 ? {
-                                title: "DCFF-20 -- Discounted Free Cash Flow",
-                                rows: [
-                                  ["Free Cash Flow", fcfM],
-                                  ["FCF per Share", "$" + fcfPerShare.toFixed(2)],
-                                  ["Growth Rate (capped)", g1Pct + "%"],
-                                  ["Terminal Rate", "4.0%"],
-                                  ["Discount Rate (WACC)", disc + "%"],
-                                ]
-                              } : null,
-                              niPerShare > 0 ? {
-                                title: "DNI-20 -- Discounted Net Income",
-                                rows: [
-                                  ["Net Income", niM],
-                                  ["NI per Share", "$" + niPerShare.toFixed(2)],
-                                  ["Growth Rate (capped)", g1Pct + "%"],
-                                  ["Terminal Rate", "4.0%"],
-                                  ["Discount Rate (WACC)", disc + "%"],
-                                ]
-                              } : null,
-                              {
-                                title: "PE -- Mean Price to Earnings",
-                                rows: [
-                                  ["EPS (Base)", "$" + baseEps.toFixed(2)],
-                                  [fpe > 0 ? "Forward P/E" : "Trailing P/E", usePE.toFixed(1) + "x"],
-                                  ["EPS x P/E", "$" + baseEps.toFixed(2) + " x " + usePE.toFixed(1)],
-                                ]
-                              },
-                              {
-                                title: "PS -- Mean Price to Sales",
-                                rows: [
-                                  ["Return on IC", (ov.roic > 0 ? (ov.roic).toFixed(1) : "-") + "%"],
-                                  ["PE-based proxy", "$" + (fpe > 0 ? baseEps * fpe : baseEps * pe).toFixed(2)],
-                                  ["PS adjustment factor", (Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0) * 100).toFixed(0) + "%"],
-                                ]
-                              },
-                            ].filter(function(s){ return s !== null; });
+                            function fmtM(v) { return v ? "$" + (v/1e6).toFixed(0) + "M" : "-"; }
+                            function calcEV(fcf0, gr1, gr2, gr3) {
+                              var ev = 0, f = fcf0;
+                              for (var y = 1; y <= 20; y++) {
+                                var g = y <= 5 ? gr1 : y <= 10 ? gr2 : gr3;
+                                f = f * (1 + g);
+                                ev += f / Math.pow(1 + DISC, y);
+                              }
+                              return ev;
+                            }
+                            function calcPerShare(fcf0) {
+                              if (!fcf0 || !shares) return null;
+                              var ev     = calcEV(fcf0, g1, g2, g3);
+                              var equity = ev - debt + cash;
+                              return { ev: ev, equity: equity, perShare: equity / shares };
+                            }
+
+                            var dcf20Res   = ov.fcfRaw  > 0 && shares > 0 ? calcPerShare(ov.fcfRaw)  : null;
+                            var dcff20Res  = ov.niRaw   > 0 && shares > 0 ? calcPerShare(ov.niRaw)   : null;
+                            var eps20Res   = baseEps    > 0 && shares > 0 ? calcPerShare(baseEps * shares) : null;
+
+                            function BdRow(props) {
+                              return (
+                                <div style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom: props.last ? "none" : "0.5px solid #e8e4de" }}>
+                                  <span style={{ fontSize:11, color: props.bold ? "#333" : "#888" }}>{props.label}</span>
+                                  <span style={{ fontSize:11, color: props.highlight ? "#1a6a1a" : "#333", fontWeight: props.bold || props.highlight ? 700 : 600 }}>{props.val}</span>
+                                </div>
+                              );
+                            }
+                            function BdDivider() {
+                              return <div style={{ borderTop:"1px solid #c8c0b0", margin:"6px 0" }}></div>;
+                            }
+                            function BdSection(props) {
+                              return (
+                                <div style={{ marginBottom:12, background:"#f8f6f2", borderRadius:8, border:"0.5px solid #e0dbd0", overflow:"hidden" }}>
+                                  <div style={{ padding:"7px 12px", background:"#ede9e1", borderBottom:"0.5px solid #e0dbd0", fontSize:11, fontWeight:700, color:"#555" }}>
+                                    {props.title}
+                                  </div>
+                                  <div style={{ padding:"6px 12px" }}>{props.children}</div>
+                                </div>
+                              );
+                            }
 
                             return (
                               <div style={{ marginTop:20, borderTop:"2px solid #e0dbd0", paddingTop:14 }}>
                                 <div style={{ fontSize:12, fontWeight:700, color:"#111", marginBottom:12 }}>Calculation Details</div>
-                                {sections.map(function(sec, si) {
-                                  return (
-                                    <div key={si} style={{ marginBottom:12, background:"#f8f6f2", borderRadius:8, border:"0.5px solid #e0dbd0", overflow:"hidden" }}>
-                                      <div style={{ padding:"7px 12px", background:"#ede9e1", borderBottom:"0.5px solid #e0dbd0", fontSize:11, fontWeight:700, color:"#555" }}>
-                                        {sec.title}
-                                      </div>
-                                      <div style={{ padding:"6px 12px" }}>
-                                        {sec.rows.map(function(r, ri) {
-                                          return (
-                                            <div key={ri} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom: ri < sec.rows.length - 1 ? "0.5px solid #e8e4de" : "none" }}>
-                                              <span style={{ fontSize:11, color:"#888" }}>{r[0]}</span>
-                                              <span style={{ fontSize:11, color:"#333", fontWeight:600 }}>{r[1]}</span>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+
+                                {/* DCF-20 */}
+                                {dcf20Res && (
+                                  <BdSection title="DCF-20 Breakdown">
+                                    <BdRow label="Operating Cash Flow"  val={fmtM(ov.fcfRaw)} />
+                                    <BdRow label="Total Debt"           val={fmtM(debt)} />
+                                    <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
+                                    <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
+                                    <BdRow label="Growth Y1-5"          val={(g1*100).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y6-10"         val={(g2*100).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y11-20"        val="4%" />
+                                    <BdRow label="Discount Rate"        val="10%" />
+                                    <BdDivider />
+                                    <BdRow label="Enterprise Value"     val={"$" + (dcf20Res.ev/1e6).toFixed(0) + "M"} />
+                                    <BdRow label="- Debt + Cash"        val={"$" + ((cash - debt)/1e6).toFixed(0) + "M"} />
+                                    <BdRow label="/ Shares"             val={(shares/1e6).toFixed(0) + "M"} />
+                                    <BdDivider />
+                                    <BdRow label="= Intrinsic Value"    val={"$" + (dcf20Res.perShare).toFixed(2)} bold={true} highlight={true} last={true} />
+                                  </BdSection>
+                                )}
+
+                                {/* DCFF-20 */}
+                                {dcff20Res && (
+                                  <BdSection title="DCFF-20 Breakdown">
+                                    <BdRow label="Net Income"           val={fmtM(ov.niRaw)} />
+                                    <BdRow label="Total Debt"           val={fmtM(debt)} />
+                                    <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
+                                    <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
+                                    <BdRow label="Growth Y1-5"          val={(g1*100).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y6-10"         val={(g2*100).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y11-20"        val="4%" />
+                                    <BdRow label="Discount Rate"        val="10%" />
+                                    <BdDivider />
+                                    <BdRow label="Enterprise Value"     val={"$" + (dcff20Res.ev/1e6).toFixed(0) + "M"} />
+                                    <BdRow label="- Debt + Cash"        val={"$" + ((cash - debt)/1e6).toFixed(0) + "M"} />
+                                    <BdRow label="/ Shares"             val={(shares/1e6).toFixed(0) + "M"} />
+                                    <BdDivider />
+                                    <BdRow label="= Intrinsic Value"    val={"$" + (dcff20Res.perShare).toFixed(2)} bold={true} highlight={true} last={true} />
+                                  </BdSection>
+                                )}
+
+                                {/* PE */}
+                                {baseEps > 0 && usePE > 0 && (
+                                  <BdSection title="PE Breakdown">
+                                    <BdRow label="EPS (Base)"           val={"$" + baseEps.toFixed(2)} />
+                                    <BdRow label={fpe > 0 ? "Forward P/E" : "Trailing P/E"} val={usePE.toFixed(1) + "x"} />
+                                    <BdDivider />
+                                    <BdRow label="= Intrinsic Value"    val={"$" + (baseEps * usePE).toFixed(2)} bold={true} highlight={true} last={true} />
+                                  </BdSection>
+                                )}
+
+                                {/* PS */}
+                                {ov.ps > 0 && baseEps > 0 && (
+                                  <BdSection title="PS Breakdown">
+                                    <BdRow label="PE Value"             val={"$" + (baseEps * usePE).toFixed(2)} />
+                                    <BdRow label="ROIC adjustment"      val={(Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0) * 100).toFixed(0) + "%"} />
+                                    <BdDivider />
+                                    <BdRow label="= Intrinsic Value"    val={"$" + (baseEps * usePE * Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0)).toFixed(2)} bold={true} highlight={true} last={true} />
+                                  </BdSection>
+                                )}
+
                               </div>
                             );
                           })()}
