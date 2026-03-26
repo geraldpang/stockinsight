@@ -3946,24 +3946,6 @@ export default function App() {
     document.title = "nervousgeek.com";
   }, []);
 
-  useEffect(function() {
-    if (insightTab !== "admin") return;
-    fetch("/cache?action=config").then(function(r){ return r.json(); }).catch(function(){ return {}; })
-      .then(function(cfg) {
-        var newCfg = (cfg && Array.isArray(cfg.value)) ? cfg.value : ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
-        setAdminCfg(newCfg);
-        window.__adminCfg = newCfg;
-      });
-    fetch("/cache?action=stats").then(function(r){ return r.json(); }).catch(function(){ return {}; })
-      .then(function(stats) {
-        var newStats = {};
-        if (stats && Array.isArray(stats.keys)) {
-          stats.keys.forEach(function(k) { newStats[k.key] = { cachedAt: k.cachedAt, size: k.size }; });
-        }
-        setAdminStats(newStats);
-      });
-  }, [insightTab]);
-
   function go(sym) {
     var s = (sym || input).toUpperCase().trim();
     if (!s) return;
