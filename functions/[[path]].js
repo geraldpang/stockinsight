@@ -39,7 +39,7 @@ export async function onRequest(context) {
   try {
 
     // Only handle specific API routes -- pass everything else to the React app
-    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache"];
+    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache", "/simfin"];
     var isApiRoute  = false;
     for (var ri = 0; ri < knownRoutes.length; ri++) {
       if (url.pathname === knownRoutes[ri] || url.pathname.startsWith(knownRoutes[ri] + "?")) {
@@ -330,7 +330,7 @@ export async function onRequest(context) {
         });
       }
       var sfBase = "https://backend.simfin.com/api/v3";
-      var sfHdr  = { "Authorization": sfKey, "Accept": "application/json" };
+      var sfHdr  = { "Authorization": "api-key " + sfKey, "Accept": "application/json" };
       // Also append api-key as query param as fallback (some SimFin endpoints need this)
       var sfAuth = "&api-key=" + encodeURIComponent(sfKey);
       try {
