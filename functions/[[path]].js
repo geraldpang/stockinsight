@@ -320,6 +320,85 @@ export async function onRequest(context) {
       });
     }
 
+    // ── /simfin — fetch data from SimFin API ────────────────────────────────
+    if (url.pathname === "/simfin") {
+      var sfSym = (url.searchParams.get("sym") || "").toUpperCase().trim();
+      var sfKey = context.env.SIMFIN_KEY;
+      if (!sfSym || !sfKey) {
+        return new Response(JSON.stringify({ error: "Missing sym or SIMFIN_KEY" }), {
+          status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+      var sfBase = "https://backend.simfin.com/api/v3";
+      var sfHdr  = { "Authorization": sfKey, "Accept": "application/json" };
+      try {
+        // Fetch in parallel: income statement, balance sheet, cash flow (annual)
+        var sfStart = "2013-01-01"; // get up to 12 years of data
+        var sfResults = await Promise.all([
+          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=pl&period=fy&start=" + sfStart, { headers: sfHdr }).then(function(r){ return r.json(); }).catch(function(e){ return { error: String(e) }; }),
+          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=bs&period=fy&start=" + sfStart, { headers: sfHdr }).then(function(r){ return r.json(); }).catch(function(e){ return { error: String(e) }; }),
+          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=cf&period=fy&start=" + sfStart, { headers: sfHdr }).then(function(r){ return r.json(); }).catch(function(e){ return { error: String(e) }; }),
+          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=derived&period=fy&start=" + sfStart, { headers: sfHdr }).then(function(r){ return r.json(); }).catch(function(e){ return { error: String(e) }; }),
+        ]);
+        return new Response(JSON.stringify({
+          ok: true,
+          sym: sfSym,
+          income:   sfResults[0],
+          balance:  sfResults[1],
+          cashflow: sfResults[2],
+          derived:  sfResults[3],
+        }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      } catch(e) {
+        return new Response(JSON.stringify({ error: String(e) }), {
+          status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+    }
+
+    // ── /eps  — 10yr annual EPS from Polygon financials ────────────────────
+    if (url.pathname === "/eps") {
+      var epsSym = (url.searchParams.get("sym") || "").toUpperCase().trim();
+      var massiveKey2 = context.env.MASSIVE_KEY;
+      if (!epsSym || !massiveKey2) {
+        return new Response(JSON.stringify({ error: "Missing sym or MASSIVE_KEY" }), {
+          status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+      try {
+        var pfUrl = "https://api.polygon.io/vX/reference/financials?ticker=" + epsSym +
+                    "&timeframe=annual&limit=10&apiKey=" + massiveKey2;
+        var pfResp = await fetch(pfUrl, { headers: { "User-Agent": UA } });
+        var pfData = await pfResp.json();
+        var rows = [];
+        if (pfData && pfData.results) {
+          for (var pi = 0; pi < pfData.results.length; pi++) {
+            var r = pfData.results[pi];
+            var ic = r.financials && r.financials.income_statement;
+            if (!ic) continue;
+            var epsBasic = ic.basic_earnings_per_share && ic.basic_earnings_per_share.value;
+            var epsDiluted = ic.diluted_earnings_per_share && ic.diluted_earnings_per_share.value;
+            var eps = epsDiluted || epsBasic || null;
+            var rev = ic.revenues && ic.revenues.value;
+            var ni  = ic.net_income_loss && ic.net_income_loss.value;
+            var yr  = r.fiscal_year ? parseInt(r.fiscal_year) : null;
+            if (yr && eps !== null) {
+              rows.push({ year: yr, eps: eps, revenue: rev ? "$" + (rev/1e9).toFixed(1) + "B" : null, netIncome: ni ? "$" + (ni/1e9).toFixed(1) + "B" : null });
+            }
+          }
+        }
+        rows.sort(function(a, b) { return b.year - a.year; });
+        return new Response(JSON.stringify({ ok: true, rows: rows, source: "polygon" }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      } catch(e) {
+        return new Response(JSON.stringify({ error: String(e), source: "polygon" }), {
+          status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+    }
+
     if (url.pathname === "/anthropic") {
       const anthropicKey = context.env.ANTHROPIC_KEY;
       if (!anthropicKey) {
