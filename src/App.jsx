@@ -136,7 +136,9 @@ async function getOverview(sym) {
     sharesOut:        (ks.sharesOutstanding && ks.sharesOutstanding.raw) || 0,
     fcfRaw:           (fd.freeCashflow && fd.freeCashflow.raw) || 0,
     ocfRaw:           (fd.operatingCashflow && fd.operatingCashflow.raw) || 0,
-    niRaw:            (fd.netIncomeToCommon && fd.netIncomeToCommon.raw) || 0,
+    niRaw:            (fd.netIncomeToCommon && fd.netIncomeToCommon.raw)
+                       || (fd.netIncome && fd.netIncome.raw)
+                       || 0,
     // Business profile from Yahoo assetProfile
     bizSummary:       ap.longBusinessSummary || "",
     industry:         ap.industry || "",
@@ -196,8 +198,20 @@ async function getOverview(sym) {
                    : null)
                || null; // calculated below from D/E ratio if still null
   out.totalAssets  = bs0.totalAssets             ? bs0.totalAssets.raw             : null;
-  out.bookValue    = bs0.totalStockholderEquity  ? bs0.totalStockholderEquity.raw  : null;
+  out.bookValue = (bs0.totalStockholderEquity  && bs0.totalStockholderEquity.raw)
+               || (bsq0.totalStockholderEquity && bsq0.totalStockholderEquity.raw)
+               || (bs0.totalEquityGrossMinorityInterest && bs0.totalEquityGrossMinorityInterest.raw)
+               || (bsq0.totalEquityGrossMinorityInterest && bsq0.totalEquityGrossMinorityInterest.raw)
+               // Fallback: bookValue per share x shares outstanding
+               || ((ks.bookValue && ks.bookValue.raw && (ks.sharesOutstanding && ks.sharesOutstanding.raw))
+                   ? ks.bookValue.raw * ks.sharesOutstanding.raw : null)
+               || null;
   out.bsDate       = bs0.endDate                 ? bs0.endDate.fmt                 : "";
+  // Extra fallback: derive book value from P/B ratio if still null
+  // bookValue per share = ks.bookValue.raw (already tried above)
+  // We store pb for later use in Detail where we have price
+  out.pbRatio = (ks.priceToBook && ks.priceToBook.raw) || 0;
+
   // Store raw diagnostic values before D/E fallback
   out._debtDiag = {
     bs0_totalDebt:      bs0.totalDebt      ? bs0.totalDebt.raw      : null,
@@ -1878,6 +1892,12 @@ function Detail({ sym, name, onBack }) {
                             var debt   = ov.totalDebt || 0;
                             var cash   = ov.cash      || 0;
                             var shares = ov.sharesOut  || 0;
+                            // If debt is 0 but we have D/E and can derive equity from P/B
+                            if (!debt && ov.de > 0 && ov.pbRatio > 0 && price > 0 && shares > 0) {
+                              var bvPerShare  = price / ov.pbRatio;
+                              var totalEquity = bvPerShare * shares;
+                              debt = ov.de * totalEquity;
+                            }
                             var usePE  = fpe > 0 ? fpe : pe;
                             // Use operating cash flow (before capex) as base
                             var ocf    = ov.ocfRaw > 0 ? ov.ocfRaw : ov.fcfRaw;
