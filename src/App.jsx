@@ -636,7 +636,10 @@ function Detail({ sym, name, onBack }) {
                   } else { setEpsError(true); }
                 } catch(e2) { setEpsError(true); }
               }).catch(function() { setEpsError(true); });
-    })()
+          }
+        })
+        .catch(function() { setEpsError(true); });
+    })();
 
     // Fetch Massive.com data (news + ticker reference + dividends + splits)
     setAddlLoading(true);
