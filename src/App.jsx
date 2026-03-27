@@ -817,22 +817,22 @@ function Detail({ sym, name, onBack }) {
   var histCagrYears  = 0;  // how many years used in CAGR
   if (epsHistory && epsHistory.length >= 2) {
     var sorted = epsHistory.slice().sort(function(a, b) { return b.year - a.year; });
-    // Try 5-yr CAGR first, fall back to however many years we have
-    var tryYears = [5, 4, 3, 2];
+    var epsNewest = sorted[0].eps;
+    // Try longest CAGR first (7yr, 6yr, 5yr, 4yr, 3yr, 2yr)
+    var tryYears = [7, 6, 5, 4, 3, 2];
     for (var ti = 0; ti < tryYears.length; ti++) {
       var n = tryYears[ti];
       if (sorted.length > n) {
-        var epsNew = sorted[0].eps;
-        var epsOld = sorted[n].eps;
-        if (epsNew > 0 && epsOld > 0) {
-          var cagr = Math.pow(epsNew / epsOld, 1 / n) - 1;
-          histGrowthRate = Math.max(Math.min(cagr, 0.60), 0.02); // cap 2%-60%
+        var epsOldest = sorted[n].eps;
+        if (epsNewest > 0 && epsOldest > 0) {
+          var cagr = Math.pow(epsNewest / epsOldest, 1 / n) - 1;
+          histGrowthRate = Math.max(Math.min(cagr, 0.60), -0.20); // cap -20% to 60%
           histCagrYears  = n;
           break;
         }
       }
     }
-    // Fallback: average of YoY rates if CAGR not possible
+    // Fallback: average of YoY rates
     if (histCagrYears === 0) {
       var growthRates = [];
       for (var i = 0; i < Math.min(sorted.length - 1, 5); i++) {
@@ -841,7 +841,7 @@ function Detail({ sym, name, onBack }) {
       }
       if (growthRates.length > 0) {
         var avgG = growthRates.reduce(function(s, v) { return s + v; }, 0) / growthRates.length;
-        histGrowthRate = Math.max(Math.min(avgG, 0.60), 0.02);
+        histGrowthRate = Math.max(Math.min(avgG, 0.60), -0.20);
         histCagrYears  = growthRates.length;
       }
     }
@@ -1844,8 +1844,9 @@ function Detail({ sym, name, onBack }) {
                           {ov && (function() {
                             var DISC   = 0.10;
                             // Y1-5: 5-yr historical EPS CAGR, Y6-10: +5yr analyst estimate
-                            var g1Pct  = histCagrYears > 0
-                                           ? Math.min(histGrowthRate * 100, 50)
+                            // Y1-5: longest available historical EPS CAGR (7yr preferred)
+                            var g1Pct  = histCagrYears >= 2
+                                           ? Math.min(Math.max(histGrowthRate * 100, 0), 50)
                                            : (ov.ltG1Y > 0 ? Math.min(ov.ltG1Y, 50) : Math.min(histGrowthRate * 100, 50));
                             var g2Pct  = ov.ltG > 0 ? Math.min(ov.ltG, 50) : g1Pct * 0.50;
                             var g1     = g1Pct / 100;
@@ -1912,7 +1913,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label="Total Debt"           val={fmtM(debt)} />
                                     <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
                                     <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr EPS CAGR)" : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
+                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr hist EPS CAGR)" : "LT analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y6-10 (LT analyst est.)"  val={(g2*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y11-20"        val="4%" />
                                     <BdRow label="Discount Rate"        val="10%" />
