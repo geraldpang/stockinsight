@@ -331,14 +331,16 @@ export async function onRequest(context) {
       }
       var sfBase = "https://backend.simfin.com/api/v3";
       var sfHdr  = { "Authorization": sfKey, "Accept": "application/json" };
+      // Also append api-key as query param as fallback (some SimFin endpoints need this)
+      var sfAuth = "&api-key=" + encodeURIComponent(sfKey);
       try {
         // Fetch in parallel: income statement, balance sheet, cash flow (annual)
         var sfStart = "2013-01-01"; // get up to 12 years of data
         var sfResults = await Promise.all([
-          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=pl&period=fy&start=" + sfStart, { headers: sfHdr }).then(function(r){ return r.json(); }).catch(function(e){ return { error: String(e) }; }),
-          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=bs&period=fy&start=" + sfStart, { headers: sfHdr }).then(function(r){ return r.json(); }).catch(function(e){ return { error: String(e) }; }),
-          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=cf&period=fy&start=" + sfStart, { headers: sfHdr }).then(function(r){ return r.json(); }).catch(function(e){ return { error: String(e) }; }),
-          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=derived&period=fy&start=" + sfStart, { headers: sfHdr }).then(function(r){ return r.json(); }).catch(function(e){ return { error: String(e) }; }),
+          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=pl&period=fy&start=" + sfStart + sfAuth, { headers: sfHdr }).then(function(r){ return r.text(); }).then(function(t){ try{return JSON.parse(t);}catch(e){return {error:"Parse error: "+t.slice(0,100)};} }).catch(function(e){ return { error: String(e) }; }),
+          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=bs&period=fy&start=" + sfStart + sfAuth, { headers: sfHdr }).then(function(r){ return r.text(); }).then(function(t){ try{return JSON.parse(t);}catch(e){return {error:"Parse error: "+t.slice(0,100)};} }).catch(function(e){ return { error: String(e) }; }),
+          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=cf&period=fy&start=" + sfStart + sfAuth, { headers: sfHdr }).then(function(r){ return r.text(); }).then(function(t){ try{return JSON.parse(t);}catch(e){return {error:"Parse error: "+t.slice(0,100)};} }).catch(function(e){ return { error: String(e) }; }),
+          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=derived&period=fy&start=" + sfStart + sfAuth, { headers: sfHdr }).then(function(r){ return r.text(); }).then(function(t){ try{return JSON.parse(t);}catch(e){return {error:"Parse error: "+t.slice(0,100)};} }).catch(function(e){ return { error: String(e) }; }),
         ]);
         return new Response(JSON.stringify({
           ok: true,
