@@ -198,12 +198,27 @@ async function getOverview(sym) {
   out.totalAssets  = bs0.totalAssets             ? bs0.totalAssets.raw             : null;
   out.bookValue    = bs0.totalStockholderEquity  ? bs0.totalStockholderEquity.raw  : null;
   out.bsDate       = bs0.endDate                 ? bs0.endDate.fmt                 : "";
+  // Store raw diagnostic values before D/E fallback
+  out._debtDiag = {
+    bs0_totalDebt:      bs0.totalDebt      ? bs0.totalDebt.raw      : null,
+    bs0_longTermDebt:   bs0.longTermDebt   ? bs0.longTermDebt.raw   : null,
+    bs0_shortDebt:      bs0.shortLongTermDebt ? bs0.shortLongTermDebt.raw : null,
+    bsq0_totalDebt:     bsq0.totalDebt     ? bsq0.totalDebt.raw     : null,
+    bsq0_longTermDebt:  bsq0.longTermDebt  ? bsq0.longTermDebt.raw  : null,
+    ksTotalDebt:        ksTotalDebt,
+    de:                 out.de,
+    bookValue:          out.bookValue,
+    totalDebtBeforeDe:  out.totalDebt,
+  };
   // Fallback: calculate total debt from D/E ratio x book value if not found in balance sheet
   if (!out.totalDebt && out.de > 0 && out.bookValue && out.bookValue > 0) {
     out.totalDebt = out.de * out.bookValue;
     out.totalDebtSource = "de_x_equity";
-  } else if (out.totalDebt === null) {
+  } else if (out.totalDebt === null || out.totalDebt === undefined) {
     out.totalDebt = 0;
+    out.totalDebtSource = "default_zero";
+  } else {
+    out.totalDebtSource = "balance_sheet";
   }
 
   // Earnings history (last 4 quarters)
@@ -463,7 +478,7 @@ function Detail({ sym, name, onBack }) {
     getOverview(sym).then(function(res) {
       if (res) {
         setOv(res);
-        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary OK", data: { modules: "summaryDetail,financialData,assetProfile,earningsTrend,recommendationTrend,upgradeDowngradeHistory,balanceSheetHistory,earningsHistory,calendarEvents", recBuy: res.recBuy, recHold: res.recHold, recSell: res.recSell, earningsQ: (res.earningsQ || []).length, nextEarnings: res.nextEarnings, cash: res.cash, totalDebt: res.totalDebt, de: res.de, bookValue: res.bookValue, fcfRaw: res.fcfRaw, ocfRaw: res.ocfRaw, niRaw: res.niRaw, sharesOut: res.sharesOut, ltG: res.ltG, ltG1Y: res.ltG1Y } }]); });
+        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary OK", data: { modules: "summaryDetail,financialData,assetProfile,earningsTrend,recommendationTrend,upgradeDowngradeHistory,balanceSheetHistory,earningsHistory,calendarEvents", recBuy: res.recBuy, recHold: res.recHold, recSell: res.recSell, earningsQ: (res.earningsQ || []).length, nextEarnings: res.nextEarnings, cash: res.cash, totalDebt: res.totalDebt, totalDebtSource: res.totalDebtSource, debtDiag: res._debtDiag, fcfRaw: res.fcfRaw, ocfRaw: res.ocfRaw, niRaw: res.niRaw, sharesOut: res.sharesOut, ltG: res.ltG, ltG1Y: res.ltG1Y } }]); });
       } else {
         setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary returned null" }]); });
       }
