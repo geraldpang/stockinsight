@@ -68,17 +68,19 @@ async function getOverview(sym) {
   var mcStr = mc >= 1e12 ? "$" + (mc/1e12).toFixed(2) + "T"
             : mc >= 1e9  ? "$" + (mc/1e9).toFixed(1)  + "B"
             : mc >= 1e6  ? "$" + (mc/1e6).toFixed(0)  + "M" : "-";
-  // Long-term EPS growth from earningsTrend (+5yr analyst estimate)
-  var ltG = (function() {
+  // EPS growth from earningsTrend
+  var ltG = 0;   // +5yr analyst estimate
+  var ltG1Y = 0; // +1yr analyst estimate
+  (function() {
     var et = res.earningsTrend;
     if (et && et.trend) {
       for (var i = 0; i < et.trend.length; i++) {
-        if (et.trend[i].period === "+5y" && et.trend[i].growth && et.trend[i].growth.raw) {
-          return et.trend[i].growth.raw * 100;
-        }
+        var t = et.trend[i];
+        if (t.period === "+5y" && t.growth && t.growth.raw) ltG   = t.growth.raw * 100;
+        if (t.period === "+1y" && t.growth && t.growth.raw) ltG1Y = t.growth.raw * 100;
       }
     }
-    return ((fd.revenueGrowth && fd.revenueGrowth.raw) || 0) * 100;
+    if (!ltG) ltG = ((fd.revenueGrowth && fd.revenueGrowth.raw) || 0) * 100;
   })();
   // Free Cash Flow formatting
   var fcfRaw = (fd.freeCashflow && fd.freeCashflow.raw) || 0;
@@ -98,6 +100,7 @@ async function getOverview(sym) {
     pFcf:         (ks.priceToFreeCashflows && ks.priceToFreeCashflows.raw) || 0,
     epsG:         ((fd.earningsGrowth && fd.earningsGrowth.raw) || 0) * 100,
     ltG,
+    ltG1Y,
     divY:         ((sd.dividendYield  && sd.dividendYield.raw)  || 0) * 100,
     // Financial Health
     grossMargin:  ((fd.grossMargins    && fd.grossMargins.raw)    || 0) * 100,
@@ -603,27 +606,36 @@ function Detail({ sym, name, onBack }) {
       var currentYear = new Date().getFullYear();
       var years = [];
       for (var y = currentYear - 1; y >= currentYear - 10; y--) years.push(y);
-      fetch("/anthropic", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 1000,
-          messages: [{ role: "user", content: 'Return ONLY a valid JSON array, no markdown. For ' + sym + ' (' + (NAMES[sym]||sym) + '), provide annual financial data for fiscal years ' + years.join(', ') + '. Each item: {year:number, eps:number (GAAP diluted EPS from 10-K NOT non-GAAP), revenue:string (e.g. "$21B"), netIncome:string, fcf:string (free cash flow), debt:string (long-term debt)}. Use null for unknown eps. Use actual reported GAAP figures.' }]
-        })
-      }).then(function(r) { return r.json(); })
+      fetch("/eps?sym=" + sym)
+        .then(function(r) { return r.json(); })
         .then(function(d) {
-          var text = d && d.content && d.content[0] && d.content[0].text;
-          if (!text) { setEpsError(true); return; }
-          text = text.replace(/```json|```/g, "").trim();
-          try {
-            var rows = JSON.parse(text);
-            if (rows && rows.length > 0) {
-              rows.sort(function(a, b) { return b.year - a.year; });
-              setEpsHistory(rows.slice(0, 10));
-            } else { setEpsError(true); }
-          } catch(e) { setEpsError(true); }
-        }).catch(function() { setEpsError(true); });
+          if (d && d.ok && d.rows && d.rows.length > 0) {
+            setEpsHistory(d.rows.slice(0, 10));
+            setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "EPS history: Polygon " + d.rows.length + " years", data: d.rows.map(function(r){ return r.year + ": $" + r.eps.toFixed(2); }) }]); });
+          } else {
+            // Fallback: Claude Haiku AI-estimated EPS
+            setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "EPS Polygon failed, falling back to Claude Haiku", data: d }]); });
+            fetch("/anthropic", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                model: "claude-haiku-4-5-20251001",
+                max_tokens: 1000,
+                messages: [{ role: "user", content: "Return ONLY a valid JSON array, no markdown. For " + sym + " (" + (NAMES[sym]||sym) + "), provide annual EPS for the last 10 fiscal years. Each item: {year:number, eps:number (GAAP diluted EPS)}. Use null for unknown. Actual reported figures only." }]
+              })
+            }).then(function(r) { return r.json(); })
+              .then(function(d2) {
+                var text = d2 && d2.content && d2.content[0] && d2.content[0].text;
+                if (!text) { setEpsError(true); return; }
+                text = text.replace(/```json|```/g, "").trim();
+                try {
+                  var rows = JSON.parse(text);
+                  if (rows && rows.length > 0) {
+                    rows.sort(function(a, b) { return b.year - a.year; });
+                    setEpsHistory(rows.slice(0, 10));
+                  } else { setEpsError(true); }
+                } catch(e2) { setEpsError(true); }
+              }).catch(function() { setEpsError(true); });
     })()
 
     // Fetch Massive.com data (news + ticker reference + dividends + splits)
@@ -799,17 +811,36 @@ function Detail({ sym, name, onBack }) {
 
   // 2) Historical 5-year average EPS growth rate
   var histGrowthRate = gr; // fallback
+  var histCagrYears  = 0;  // how many years used in CAGR
   if (epsHistory && epsHistory.length >= 2) {
     var sorted = epsHistory.slice().sort(function(a, b) { return b.year - a.year; });
-    var recent = sorted.slice(0, 5); // up to 5 most recent years
-    var growthRates = [];
-    for (var i = 0; i < recent.length - 1; i++) {
-      var curr = recent[i].eps, prev = recent[i + 1].eps;
-      if (prev > 0 && curr > 0) growthRates.push((curr - prev) / prev);
+    // Try 5-yr CAGR first, fall back to however many years we have
+    var tryYears = [5, 4, 3, 2];
+    for (var ti = 0; ti < tryYears.length; ti++) {
+      var n = tryYears[ti];
+      if (sorted.length > n) {
+        var epsNew = sorted[0].eps;
+        var epsOld = sorted[n].eps;
+        if (epsNew > 0 && epsOld > 0) {
+          var cagr = Math.pow(epsNew / epsOld, 1 / n) - 1;
+          histGrowthRate = Math.max(Math.min(cagr, 0.60), 0.02); // cap 2%-60%
+          histCagrYears  = n;
+          break;
+        }
+      }
     }
-    if (growthRates.length > 0) {
-      var avgG = growthRates.reduce(function(s, v) { return s + v; }, 0) / growthRates.length;
-      histGrowthRate = Math.max(Math.min(avgG, 0.40), 0.02); // cap 2%-40%
+    // Fallback: average of YoY rates if CAGR not possible
+    if (histCagrYears === 0) {
+      var growthRates = [];
+      for (var i = 0; i < Math.min(sorted.length - 1, 5); i++) {
+        var curr = sorted[i].eps, prev = sorted[i + 1].eps;
+        if (prev > 0 && curr > 0) growthRates.push((curr - prev) / prev);
+      }
+      if (growthRates.length > 0) {
+        var avgG = growthRates.reduce(function(s, v) { return s + v; }, 0) / growthRates.length;
+        histGrowthRate = Math.max(Math.min(avgG, 0.60), 0.02);
+        histCagrYears  = growthRates.length;
+      }
     }
   }
 
@@ -1809,9 +1840,11 @@ function Detail({ sym, name, onBack }) {
                           {/* Calculation Breakdowns */}
                           {ov && (function() {
                             var DISC   = 0.10;
-                            // Y1-5: recent EPS growth (TTM), Y6-10: LT analyst estimate
-                            var g1Pct  = ov.epsG > 0 ? Math.min(ov.epsG, 50) : Math.min(histGrowthRate * 100, 50);
-                            var g2Pct  = ov.ltG  > 0 ? Math.min(ov.ltG,  50) : g1Pct * 0.50;
+                            // Y1-5: 5-yr historical EPS CAGR, Y6-10: +5yr analyst estimate
+                            var g1Pct  = histCagrYears > 0
+                                           ? Math.min(histGrowthRate * 100, 50)
+                                           : (ov.ltG1Y > 0 ? Math.min(ov.ltG1Y, 50) : Math.min(histGrowthRate * 100, 50));
+                            var g2Pct  = ov.ltG > 0 ? Math.min(ov.ltG, 50) : g1Pct * 0.50;
                             var g1     = g1Pct / 100;
                             var g2     = g2Pct / 100;
                             var g3     = 0.04;
@@ -1876,7 +1909,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label="Total Debt"           val={fmtM(debt)} />
                                     <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
                                     <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label="Growth Y1-5 (recent EPS growth)" val={(g1*100).toFixed(1) + "%"} />
+                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr EPS CAGR)" : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y6-10 (LT analyst est.)"  val={(g2*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y11-20"        val="4%" />
                                     <BdRow label="Discount Rate"        val="10%" />
@@ -3539,6 +3572,129 @@ function Detail({ sym, name, onBack }) {
                         ) : addlLoading ? null : <div style={{ color:"#aaa" }}>No stock split history found.</div>}
 
                       </div>
+
+                      {/* SimFin Data Explorer */}
+                      {(function() {
+                        if (!window.__simfinData) window.__simfinData = {};
+                        if (!window.__simfinLoading) window.__simfinLoading = {};
+                        var sfKey = sym;
+                        var sfData    = window.__simfinData[sfKey];
+                        var sfLoading = window.__simfinLoading[sfKey];
+
+                        if (!sfData && !sfLoading) {
+                          window.__simfinLoading[sfKey] = true;
+                          fetch("/simfin?sym=" + sym)
+                            .then(function(r) { return r.json(); })
+                            .then(function(d) {
+                              window.__simfinData[sfKey]    = d;
+                              window.__simfinLoading[sfKey] = false;
+                              setInsightTab("addlinfo");
+                            })
+                            .catch(function(e) {
+                              window.__simfinData[sfKey]    = { error: String(e) };
+                              window.__simfinLoading[sfKey] = false;
+                              setInsightTab("addlinfo");
+                            });
+                        }
+
+                        return (
+                          <div style={{ marginTop:24, borderTop:"2px solid #e0dbd0", paddingTop:16 }}>
+                            <div style={{ fontSize:13, fontWeight:700, color:"#111", marginBottom:12 }}>SimFin Data Explorer</div>
+                            {sfLoading && !sfData && (
+                              <div style={{ display:"flex", alignItems:"center", gap:8, color:"#aaa", fontSize:12 }}>
+                                <div style={{ width:14, height:14, border:"2px solid #e0dbd0", borderTop:"2px solid #c8f000", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}></div>
+                                Loading SimFin data...
+                              </div>
+                            )}
+                            {sfData && sfData.error && (
+                              <div style={{ fontSize:12, color:"#c03030", background:"#fff0f0", padding:"8px 12px", borderRadius:6, border:"0.5px solid #e08080" }}>
+                                SimFin error: {sfData.error}
+                              </div>
+                            )}
+                            {sfData && sfData.ok && (function() {
+                              // Parse SimFin compact format: columns array + data array of arrays
+                              function parseCompact(stmt) {
+                                if (!stmt || !Array.isArray(stmt) || stmt.length === 0) return null;
+                                var s = stmt[0];
+                                if (!s || !s.columns || !s.data) return null;
+                                var cols = s.columns;
+                                return s.data.map(function(row) {
+                                  var obj = {};
+                                  cols.forEach(function(col, ci) { obj[col] = row[ci]; });
+                                  return obj;
+                                });
+                              }
+
+                              var income   = parseCompact(sfData.income);
+                              var balance  = parseCompact(sfData.balance);
+                              var cashflow = parseCompact(sfData.cashflow);
+                              var derived  = parseCompact(sfData.derived);
+
+                              function fmtV(v) {
+                                if (v == null || v === "") return "-";
+                                if (typeof v === "number") {
+                                  var a = Math.abs(v);
+                                  if (a >= 1e9)  return (v < 0 ? "-" : "") + "$" + (a/1e9).toFixed(2)  + "B";
+                                  if (a >= 1e6)  return (v < 0 ? "-" : "") + "$" + (a/1e6).toFixed(0)  + "M";
+                                  if (a >= 1000) return (v < 0 ? "-" : "") + "$" + (a/1000).toFixed(0) + "K";
+                                  return v.toFixed(2);
+                                }
+                                return String(v);
+                              }
+
+                              function DataSection(props) {
+                                return (
+                                  <div style={{ marginBottom:16 }}>
+                                    <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6 }}>{props.title}</div>
+                                    <div style={{ overflowX:"auto" }}>
+                                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                                        <thead>
+                                          <tr style={{ background:"#f0ede8" }}>
+                                            <th style={{ padding:"5px 10px", textAlign:"left", color:"#555", fontWeight:600, borderBottom:"1px solid #e0dbd0", whiteSpace:"nowrap" }}>Field</th>
+                                            {props.rows && props.rows.slice().reverse().map(function(r, ri) {
+                                              return <th key={ri} style={{ padding:"5px 10px", textAlign:"right", color:"#555", fontWeight:600, borderBottom:"1px solid #e0dbd0", whiteSpace:"nowrap" }}>{r["Fiscal Year"] || r["Report Date"] || ri}</th>;
+                                            })}
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {props.fields.map(function(field, fi) {
+                                            return (
+                                              <tr key={fi} style={{ borderBottom:"0.5px solid #f0ede8", background: fi % 2 === 0 ? "#fff" : "#faf8f5" }}>
+                                                <td style={{ padding:"4px 10px", color:"#555", whiteSpace:"nowrap" }}>{field}</td>
+                                                {props.rows && props.rows.slice().reverse().map(function(r, ri) {
+                                                  return <td key={ri} style={{ padding:"4px 10px", textAlign:"right", color:"#333", fontWeight:500 }}>{fmtV(r[field])}</td>;
+                                                })}
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              var incomeFields   = income   ? Object.keys(income[0]).filter(function(k)   { return k !== "Fiscal Year" && k !== "Fiscal Period" && k !== "Report Date" && k !== "Publish Date" && k !== "Source"; }) : [];
+                              var balanceFields  = balance  ? Object.keys(balance[0]).filter(function(k)  { return k !== "Fiscal Year" && k !== "Fiscal Period" && k !== "Report Date" && k !== "Publish Date" && k !== "Source"; }) : [];
+                              var cashflowFields = cashflow ? Object.keys(cashflow[0]).filter(function(k) { return k !== "Fiscal Year" && k !== "Fiscal Period" && k !== "Report Date" && k !== "Publish Date" && k !== "Source"; }) : [];
+                              var derivedFields  = derived  ? Object.keys(derived[0]).filter(function(k)  { return k !== "Fiscal Year" && k !== "Fiscal Period" && k !== "Report Date" && k !== "Publish Date" && k !== "Source"; }) : [];
+
+                              return (
+                                <div>
+                                  {income   && <DataSection title="Income Statement (Annual)"   rows={income}   fields={incomeFields} />}
+                                  {balance  && <DataSection title="Balance Sheet (Annual)"      rows={balance}  fields={balanceFields} />}
+                                  {cashflow && <DataSection title="Cash Flow Statement (Annual)" rows={cashflow} fields={cashflowFields} />}
+                                  {derived  && <DataSection title="Derived Metrics (Annual)"    rows={derived}  fields={derivedFields} />}
+                                  <div style={{ fontSize:10, color:"#aaa", marginTop:8 }}>
+                                    Raw JSON: <span style={{ fontFamily:"monospace", wordBreak:"break-all" }}>{JSON.stringify(sfData).slice(0, 200)}...</span>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        );
+                      })()}
+
                     );
                   })()}
 
