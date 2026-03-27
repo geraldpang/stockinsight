@@ -463,7 +463,7 @@ function Detail({ sym, name, onBack }) {
     getOverview(sym).then(function(res) {
       if (res) {
         setOv(res);
-        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary OK", data: { modules: "summaryDetail,financialData,assetProfile,earningsTrend,recommendationTrend,upgradeDowngradeHistory,balanceSheetHistory,earningsHistory,calendarEvents", recBuy: res.recBuy, recHold: res.recHold, recSell: res.recSell, earningsQ: (res.earningsQ || []).length, nextEarnings: res.nextEarnings, cash: res.cash, totalDebt: res.totalDebt, fcfRaw: res.fcfRaw, niRaw: res.niRaw, sharesOut: res.sharesOut } }]); });
+        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary OK", data: { modules: "summaryDetail,financialData,assetProfile,earningsTrend,recommendationTrend,upgradeDowngradeHistory,balanceSheetHistory,earningsHistory,calendarEvents", recBuy: res.recBuy, recHold: res.recHold, recSell: res.recSell, earningsQ: (res.earningsQ || []).length, nextEarnings: res.nextEarnings, cash: res.cash, totalDebt: res.totalDebt, de: res.de, bookValue: res.bookValue, fcfRaw: res.fcfRaw, ocfRaw: res.ocfRaw, niRaw: res.niRaw, sharesOut: res.sharesOut, ltG: res.ltG, ltG1Y: res.ltG1Y } }]); });
       } else {
         setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary returned null" }]); });
       }
@@ -826,7 +826,7 @@ function Detail({ sym, name, onBack }) {
     var sorted = epsHistory.slice().sort(function(a, b) { return b.year - a.year; });
     var epsNewest = sorted[0].eps;
     // Try longest CAGR first (7yr, 6yr, 5yr, 4yr, 3yr, 2yr)
-    var tryYears = [7, 6, 5, 4, 3, 2];
+    var tryYears = [9, 8, 7, 6, 5, 4, 3, 2];
     for (var ti = 0; ti < tryYears.length; ti++) {
       var n = tryYears[ti];
       if (sorted.length > n) {
@@ -1851,12 +1851,12 @@ function Detail({ sym, name, onBack }) {
                           {ov && (function() {
                             var DISC   = 0.10;
                             // Y1-5: 5-yr historical EPS CAGR, Y6-10: +5yr analyst estimate
-                            // Y1-5: +1yr analyst estimate (matches reference calculator)
-                            // Fallback: historical CAGR if no analyst estimate available
-                            var g1Pct  = ov.ltG1Y > 0
-                                           ? Math.min(ov.ltG1Y, 50)
-                                           : (histCagrYears >= 2 ? Math.min(Math.max(histGrowthRate * 100, 0), 50) : Math.min(histGrowthRate * 100, 50));
-                            var g2Pct  = ov.ltG > 0 ? Math.min(ov.ltG, 50) : g1Pct * 0.50;
+                            // Y1-5: longest available historical EPS CAGR (up to 9yr)
+                            // Y6-10: half of Y1-5
+                            var g1Pct  = histCagrYears >= 2
+                                           ? Math.min(Math.max(histGrowthRate * 100, 0), 50)
+                                           : (ov.ltG1Y > 0 ? Math.min(ov.ltG1Y, 50) : Math.min(histGrowthRate * 100, 50));
+                            var g2Pct  = g1Pct * 0.50;
                             var g1     = g1Pct / 100;
                             var g2     = g2Pct / 100;
                             var g3     = 0.04;
@@ -1921,8 +1921,8 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label="Total Debt"           val={fmtM(debt)} />
                                     <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
                                     <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label={"Growth Y1-5 (" + (ov.ltG1Y > 0 ? "1-yr analyst est." : histCagrYears > 0 ? histCagrYears + "-yr hist CAGR" : "LT analyst") + ")"} val={(g1*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y6-10 (LT analyst est.)"  val={(g2*100).toFixed(1) + "%"} />
+                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr hist EPS CAGR)" : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y6-10 (50% of Y1-5)"      val={(g2*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y11-20"        val="4%" />
                                     <BdRow label="Discount Rate"        val="10%" />
                                     <BdDivider />
