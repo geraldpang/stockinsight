@@ -194,10 +194,17 @@ async function getOverview(sym) {
                || (bsq0.longTermDebt && bsq0.longTermDebt.raw
                    ? (bsq0.longTermDebt.raw + ((bsq0.shortLongTermDebt && bsq0.shortLongTermDebt.raw) || 0))
                    : null)
-               || 0;
+               || null; // calculated below from D/E ratio if still null
   out.totalAssets  = bs0.totalAssets             ? bs0.totalAssets.raw             : null;
   out.bookValue    = bs0.totalStockholderEquity  ? bs0.totalStockholderEquity.raw  : null;
   out.bsDate       = bs0.endDate                 ? bs0.endDate.fmt                 : "";
+  // Fallback: calculate total debt from D/E ratio x book value if not found in balance sheet
+  if (!out.totalDebt && out.de > 0 && out.bookValue && out.bookValue > 0) {
+    out.totalDebt = out.de * out.bookValue;
+    out.totalDebtSource = "de_x_equity";
+  } else if (out.totalDebt === null) {
+    out.totalDebt = 0;
+  }
 
   // Earnings history (last 4 quarters)
   var ehList = (eh.history || []).slice().reverse().slice(0,4);
