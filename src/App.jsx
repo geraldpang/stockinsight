@@ -1851,10 +1851,11 @@ function Detail({ sym, name, onBack }) {
                           {ov && (function() {
                             var DISC   = 0.10;
                             // Y1-5: 5-yr historical EPS CAGR, Y6-10: +5yr analyst estimate
-                            // Y1-5: longest available historical EPS CAGR (7yr preferred)
-                            var g1Pct  = histCagrYears >= 2
-                                           ? Math.min(Math.max(histGrowthRate * 100, 0), 50)
-                                           : (ov.ltG1Y > 0 ? Math.min(ov.ltG1Y, 50) : Math.min(histGrowthRate * 100, 50));
+                            // Y1-5: +1yr analyst estimate (matches reference calculator)
+                            // Fallback: historical CAGR if no analyst estimate available
+                            var g1Pct  = ov.ltG1Y > 0
+                                           ? Math.min(ov.ltG1Y, 50)
+                                           : (histCagrYears >= 2 ? Math.min(Math.max(histGrowthRate * 100, 0), 50) : Math.min(histGrowthRate * 100, 50));
                             var g2Pct  = ov.ltG > 0 ? Math.min(ov.ltG, 50) : g1Pct * 0.50;
                             var g1     = g1Pct / 100;
                             var g2     = g2Pct / 100;
@@ -1920,7 +1921,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label="Total Debt"           val={fmtM(debt)} />
                                     <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
                                     <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr hist EPS CAGR)" : "LT analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
+                                    <BdRow label={"Growth Y1-5 (" + (ov.ltG1Y > 0 ? "1-yr analyst est." : histCagrYears > 0 ? histCagrYears + "-yr hist CAGR" : "LT analyst") + ")"} val={(g1*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y6-10 (LT analyst est.)"  val={(g2*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y11-20"        val="4%" />
                                     <BdRow label="Discount Rate"        val="10%" />
