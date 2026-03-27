@@ -336,19 +336,14 @@ export async function onRequest(context) {
       try {
         // Fetch in parallel: income statement, balance sheet, cash flow (annual)
         var sfStart = "2013-01-01"; // get up to 12 years of data
-        var sfResults = await Promise.all([
-          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=pl&period=fy&start=" + sfStart + sfAuth, { headers: sfHdr }).then(function(r){ return r.text(); }).then(function(t){ try{return JSON.parse(t);}catch(e){return {error:"Parse error: "+t.slice(0,100)};} }).catch(function(e){ return { error: String(e) }; }),
-          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=bs&period=fy&start=" + sfStart + sfAuth, { headers: sfHdr }).then(function(r){ return r.text(); }).then(function(t){ try{return JSON.parse(t);}catch(e){return {error:"Parse error: "+t.slice(0,100)};} }).catch(function(e){ return { error: String(e) }; }),
-          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=cf&period=fy&start=" + sfStart + sfAuth, { headers: sfHdr }).then(function(r){ return r.text(); }).then(function(t){ try{return JSON.parse(t);}catch(e){return {error:"Parse error: "+t.slice(0,100)};} }).catch(function(e){ return { error: String(e) }; }),
-          fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=derived&period=fy&start=" + sfStart + sfAuth, { headers: sfHdr }).then(function(r){ return r.text(); }).then(function(t){ try{return JSON.parse(t);}catch(e){return {error:"Parse error: "+t.slice(0,100)};} }).catch(function(e){ return { error: String(e) }; }),
-        ]);
+        // Single call: income statement only (EPS, revenue, net income) to conserve quota
+        var sfText = await fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=pl&period=fy&start=" + sfStart + sfAuth, { headers: sfHdr }).then(function(r){ return r.text(); });
+        var sfIncome;
+        try { sfIncome = JSON.parse(sfText); } catch(e) { sfIncome = { error: "Parse error: " + sfText.slice(0, 200) }; }
         return new Response(JSON.stringify({
           ok: true,
           sym: sfSym,
-          income:   sfResults[0],
-          balance:  sfResults[1],
-          cashflow: sfResults[2],
-          derived:  sfResults[3],
+          income: sfIncome,
         }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
@@ -369,29 +364,60 @@ export async function onRequest(context) {
         });
       }
       try {
-        var pfUrl = "https://api.polygon.io/vX/reference/financials?ticker=" + epsSym +
-                    "&timeframe=annual&limit=10&apiKey=" + massiveKey2;
-        var pfResp = await fetch(pfUrl, { headers: { "User-Agent": UA } });
-        var pfData = await pfResp.json();
+        // Fetch EPS history and split history in parallel
+        var epsAndSplits = await Promise.all([
+          fetch("https://api.polygon.io/vX/reference/financials?ticker=" + epsSym + "&timeframe=annual&limit=10&apiKey=" + massiveKey2, { headers: { "User-Agent": UA } }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+          fetch("https://api.polygon.io/v3/reference/splits?ticker=" + epsSym + "&order=desc&apiKey=" + massiveKey2, { headers: { "User-Agent": UA } }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        ]);
+        var pfData    = epsAndSplits[0];
+        var splitData = epsAndSplits[1];
+
+        // Build cumulative split adjustment factor per date
+        // Each split: for dates BEFORE execution_date, multiply EPS by split_from/split_to
+        var splits = [];
+        if (splitData && splitData.results) {
+          for (var si = 0; si < splitData.results.length; si++) {
+            var sp = splitData.results[si];
+            if (sp.execution_date && sp.split_from && sp.split_to) {
+              splits.push({ date: sp.execution_date, factor: sp.split_from / sp.split_to });
+            }
+          }
+        }
+
+        function getAdjFactor(fiscalYearEndDate) {
+          // For each split that happened AFTER this fiscal year end, apply the adjustment
+          var factor = 1;
+          for (var fi = 0; fi < splits.length; fi++) {
+            if (splits[fi].date > fiscalYearEndDate) {
+              factor = factor * splits[fi].factor;
+            }
+          }
+          return factor;
+        }
+
         var rows = [];
         if (pfData && pfData.results) {
           for (var pi = 0; pi < pfData.results.length; pi++) {
             var r = pfData.results[pi];
             var ic = r.financials && r.financials.income_statement;
             if (!ic) continue;
-            var epsBasic = ic.basic_earnings_per_share && ic.basic_earnings_per_share.value;
+            var epsBasic   = ic.basic_earnings_per_share   && ic.basic_earnings_per_share.value;
             var epsDiluted = ic.diluted_earnings_per_share && ic.diluted_earnings_per_share.value;
             var eps = epsDiluted || epsBasic || null;
             var rev = ic.revenues && ic.revenues.value;
             var ni  = ic.net_income_loss && ic.net_income_loss.value;
             var yr  = r.fiscal_year ? parseInt(r.fiscal_year) : null;
+            var endDate = r.end_date || (yr + "-12-31");
             if (yr && eps !== null) {
-              rows.push({ year: yr, eps: eps, revenue: rev ? "$" + (rev/1e9).toFixed(1) + "B" : null, netIncome: ni ? "$" + (ni/1e9).toFixed(1) + "B" : null });
+              var adj = getAdjFactor(endDate);
+              rows.push({ year: yr, eps: eps * adj, epsRaw: eps, adjFactor: adj, endDate: endDate,
+                          revenue: rev ? "$" + (rev/1e9).toFixed(1) + "B" : null,
+                          netIncome: ni ? "$" + (ni/1e9).toFixed(1) + "B" : null });
             }
           }
         }
         rows.sort(function(a, b) { return b.year - a.year; });
-        return new Response(JSON.stringify({ ok: true, rows: rows, source: "polygon" }), {
+        return new Response(JSON.stringify({ ok: true, rows: rows, splits: splits, source: "polygon" }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       } catch(e) {
