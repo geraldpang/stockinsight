@@ -611,7 +611,7 @@ function Detail({ sym, name, onBack }) {
         .then(function(d) {
           if (d && d.ok && d.rows && d.rows.length > 0) {
             setEpsHistory(d.rows.slice(0, 10));
-            setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "EPS history: Polygon " + d.rows.length + " years", data: d.rows.map(function(r){ return r.year + ": $" + r.eps.toFixed(2); }) }]); });
+            setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "EPS history: Polygon " + d.rows.length + " years (split-adjusted)", data: { splits: d.splits, eps: d.rows.map(function(r){ return r.year + ": $" + r.eps.toFixed(2) + (r.adjFactor !== 1 ? " (adj " + r.adjFactor + "x from $" + r.epsRaw.toFixed(2) + ")" : ""); }) } }]); });
           } else {
             // Fallback: Claude Haiku AI-estimated EPS
             setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "EPS Polygon failed, falling back to Claude Haiku", data: d }]); });
@@ -3585,14 +3585,17 @@ function Detail({ sym, name, onBack }) {
                         if (!sfData && !sfLoading) {
                           window.__simfinLoading[sfKey] = true;
                           fetch("/simfin?sym=" + sym)
-                            .then(function(r) { return r.json(); })
-                            .then(function(d) {
+                            .then(function(r) { return r.text(); })
+                            .then(function(txt) {
+                              var d;
+                              try { d = JSON.parse(txt); }
+                              catch(e) { d = { error: "Worker returned non-JSON. First 300 chars: " + txt.slice(0, 300) }; }
                               window.__simfinData[sfKey]    = d;
                               window.__simfinLoading[sfKey] = false;
                               setInsightTab("addlinfo");
                             })
                             .catch(function(e) {
-                              window.__simfinData[sfKey]    = { error: String(e) };
+                              window.__simfinData[sfKey]    = { error: "Fetch failed: " + String(e) };
                               window.__simfinLoading[sfKey] = false;
                               setInsightTab("addlinfo");
                             });
@@ -3627,9 +3630,9 @@ function Detail({ sym, name, onBack }) {
                               }
 
                               var income   = parseCompact(sfData.income);
-                              var balance  = parseCompact(sfData.balance);
-                              var cashflow = parseCompact(sfData.cashflow);
-                              var derived  = parseCompact(sfData.derived);
+                              var balance  = null;
+                              var cashflow = null;
+                              var derived  = null;
 
                               function fmtV(v) {
                                 if (v == null || v === "") return "-";
@@ -3675,19 +3678,21 @@ function Detail({ sym, name, onBack }) {
                                 );
                               }
 
-                              var incomeFields   = income   ? Object.keys(income[0]).filter(function(k)   { return k !== "Fiscal Year" && k !== "Fiscal Period" && k !== "Report Date" && k !== "Publish Date" && k !== "Source"; }) : [];
-                              var balanceFields  = balance  ? Object.keys(balance[0]).filter(function(k)  { return k !== "Fiscal Year" && k !== "Fiscal Period" && k !== "Report Date" && k !== "Publish Date" && k !== "Source"; }) : [];
-                              var cashflowFields = cashflow ? Object.keys(cashflow[0]).filter(function(k) { return k !== "Fiscal Year" && k !== "Fiscal Period" && k !== "Report Date" && k !== "Publish Date" && k !== "Source"; }) : [];
-                              var derivedFields  = derived  ? Object.keys(derived[0]).filter(function(k)  { return k !== "Fiscal Year" && k !== "Fiscal Period" && k !== "Report Date" && k !== "Publish Date" && k !== "Source"; }) : [];
+                              var SKIP = { "Fiscal Year":1, "Fiscal Period":1, "Report Date":1, "Publish Date":1, "Source":1, "Currency":1, "SimFinId":1 };
+                              var incomeFields = income ? Object.keys(income[0]).filter(function(k) { return !SKIP[k]; }) : [];
+                              var balanceFields = []; var cashflowFields = []; var derivedFields = [];
 
                               return (
                                 <div>
-                                  {income   && <DataSection title="Income Statement (Annual)"   rows={income}   fields={incomeFields} />}
-                                  {balance  && <DataSection title="Balance Sheet (Annual)"      rows={balance}  fields={balanceFields} />}
-                                  {cashflow && <DataSection title="Cash Flow Statement (Annual)" rows={cashflow} fields={cashflowFields} />}
-                                  {derived  && <DataSection title="Derived Metrics (Annual)"    rows={derived}  fields={derivedFields} />}
+                                  {income && income.error && (
+                                    <div style={{ fontSize:12, color:"#c03030", background:"#fff0f0", padding:"8px 12px", borderRadius:6, border:"0.5px solid #e08080", marginBottom:8 }}>
+                                      SimFin API error: {income.error}{income.message ? " -- " + income.message : ""}
+                                      {income.status === "429" && <div style={{ marginTop:4, color:"#888" }}>Quota resets daily. Try again tomorrow or upgrade SimFin plan.</div>}
+                                    </div>
+                                  )}
+                                  {income && !income.error && <DataSection title="Income Statement (Annual)" rows={income} fields={incomeFields} />}
                                   <div style={{ fontSize:10, color:"#aaa", marginTop:8 }}>
-                                    Raw JSON: <span style={{ fontFamily:"monospace", wordBreak:"break-all" }}>{JSON.stringify(sfData).slice(0, 200)}...</span>
+                                    Raw JSON: <span style={{ fontFamily:"monospace", wordBreak:"break-all" }}>{JSON.stringify(sfData).slice(0, 300)}...</span>
                                   </div>
                                 </div>
                               );
