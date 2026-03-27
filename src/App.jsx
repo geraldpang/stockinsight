@@ -3574,10 +3574,8 @@ function Detail({ sym, name, onBack }) {
                           </table>
                         ) : addlLoading ? null : <div style={{ color:"#aaa" }}>No stock split history found.</div>}
 
-                      </div>
-
-                      {/* SimFin Data Explorer */}
-                      {(function() {
+                        {/* SimFin Data Explorer */}
+                        {(function() {
                         if (!window.__simfinData) window.__simfinData = {};
                         if (!window.__simfinLoading) window.__simfinLoading = {};
                         var sfKey = sym;
@@ -3696,8 +3694,9 @@ function Detail({ sym, name, onBack }) {
                             })()}
                           </div>
                         );
-                      })()}
+                        })()}
 
+                      </div>
                     );
                   })()}
 
