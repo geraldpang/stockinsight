@@ -2110,7 +2110,7 @@ function Detail({ sym, name, onBack }) {
                             var niPerShareDNI = niBase > 0 && shares > 0 ? niBase / shares
                                              : baseEps > 0 ? baseEps * 0.90 : 0;
                             // Same growth rule as DCF-20
-                            var WACC_DNI = Math.min(Math.max(0.045 + (ov.beta > 0 ? ov.beta : 1.0) * 0.055, 0.06), 0.18);
+                            var WACC_DNI = 0.10; // fixed 10% consistent with DCF-20 and DCFF-20
                             function calcDNI20Bd(niPS) {
                               if (!niPS) return null;
                               var ev = 0; var f = niPS;
@@ -2231,7 +2231,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagr > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y6-10 (50% of Y1-5)"     val={(g2*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y11-20"        val="4%" />
-                                    <BdRow label={"Discount Rate (WACC, " + String.fromCharCode(946) + "=" + (ov.beta > 0 ? ov.beta.toFixed(2) : "1.00") + ")"} val={(WACC_DNI * 100).toFixed(2) + "%"} />
+                                    <BdRow label="Discount Rate"        val="10%" />
                                     <BdDivider />
                                     <BdRow label="= Intrinsic Value"    val={"$" + (dni20Res.perShare).toFixed(2)} bold={true} highlight={true} last={true} />
                                   </BdSection>
