@@ -1728,70 +1728,113 @@ function Detail({ sym, name, onBack }) {
             </div>
           </div>
 
-          {/* EPS History Chart */}
-          {epsHistory && epsHistory.length >= 2 && (function() {
-            var epsSorted = epsHistory.slice().sort(function(a,b){ return a.year - b.year; });
-            var epsVals   = epsSorted.map(function(r){ return r.eps; }).filter(function(v){ return v !== null; });
-            if (epsVals.length < 2) return null;
-            var maxEps = Math.max.apply(null, epsVals);
-            var minEps = Math.min.apply(null, epsVals);
-            var range  = maxEps - minEps || 1;
-            var n = epsSorted.length;
-            var W = 500; var H = 110; var PL = 36; var PR = 10; var PT = 10; var PB = 18;
-            var cW = W - PL - PR; var cH = H - PT - PB;
-            function xPos(i) { return PL + (i / (n-1)) * cW; }
-            function yPos(v) { return PT + cH - ((v - minEps) / range) * cH; }
-            var pts = epsSorted.map(function(r,i){
-              return r.eps !== null ? xPos(i).toFixed(1) + "," + yPos(r.eps).toFixed(1) : null;
-            }).filter(Boolean).join(" ");
-            var positiveTrend = epsSorted[epsSorted.length-1].eps > epsSorted[0].eps;
-            var lineColor = positiveTrend ? "#4a9a4a" : "#c04040";
-            return (
-              <div style={{ margin:"0 0 0 0", background:"#fff", borderTop:"1px solid #e0dbd0", padding:"12px 16px" }}>
-                <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6 }}>
-                  {"EPS History (" + epsSorted[0].year + String.fromCharCode(8211) + epsSorted[epsSorted.length-1].year + ", split-adjusted)"}
+          {/* EPS / Revenue / Net Income History Charts */}
+          {(function() {
+            // Get SimFin income data for Revenue and Net Income
+            var sfD   = window.__simfinData && window.__simfinData[sym];
+            var sfInc = sfD && sfD.income && Array.isArray(sfD.income) && sfD.income[0] && sfD.income[0].statements
+                        ? sfD.income[0].statements[0] : null;
+            var sfCols = sfInc ? sfInc.columns : [];
+            var sfRows = sfInc ? sfInc.data.filter(function(r) {
+              var ttm = r[sfCols.indexOf("TTM")];
+              var fp  = r[sfCols.indexOf("Fiscal Period")];
+              return ttm !== 1 && (fp === "FY" || fp === "Q4" || !fp);
+            }).sort(function(a,b){ return (a[sfCols.indexOf("Fiscal Year")]||0) - (b[sfCols.indexOf("Fiscal Year")]||0); }) : [];
+
+            function sfGet(row, name) {
+              var ci = sfCols.indexOf(name);
+              return ci !== -1 ? row[ci] : null;
+            }
+
+            // Build revenue and net income series from SimFin
+            var revSeries = sfRows.map(function(r) {
+              return { year: sfGet(r,"Fiscal Year"), val: sfGet(r,"Revenue") };
+            }).filter(function(r){ return r.year && r.val !== null; });
+            var niSeries = sfRows.map(function(r) {
+              return { year: sfGet(r,"Fiscal Year"), val: sfGet(r,"Net Income") };
+            }).filter(function(r){ return r.year && r.val !== null; });
+
+            // EPS series from epsHistory state
+            var epsSeries = epsHistory ? epsHistory.slice().sort(function(a,b){ return a.year-b.year; })
+                                                   .filter(function(r){ return r.eps !== null; }) : [];
+
+            if (epsSeries.length < 2 && revSeries.length < 2) return null;
+
+            function MiniChart(props) {
+              var data = props.data; // [{year, val}]
+              var label = props.label;
+              var color = props.color || "#4a9a4a";
+              var isCurrency = props.isCurrency !== false;
+              if (!data || data.length < 2) return (
+                <div style={{ flex:"1 1 0", minWidth:0 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{label}</div>
+                  <div style={{ fontSize:11, color:"#ccc", paddingTop:20 }}>No data</div>
                 </div>
-                <svg viewBox={"0 0 " + W + " " + H} style={{ width:"100%", height:H, display:"block" }}>
-                  {/* Horizontal grid lines */}
-                  {[0, 0.5, 1].map(function(t, ti) {
-                    var y = PT + cH - t * cH;
-                    var val = minEps + t * range;
-                    return (
-                      <g key={ti}>
-                        <line x1={PL} y1={y} x2={W-PR} y2={y} stroke="#f0ede8" strokeWidth="1" />
-                        <text x={PL-4} y={y+3} textAnchor="end" fontSize="9" fill="#aaa">
-                          {"$" + (Math.abs(val) >= 10 ? val.toFixed(0) : val.toFixed(1))}
-                        </text>
-                      </g>
-                    );
-                  })}
-                  {/* Shaded area under line */}
-                  <polygon
-                    points={pts + " " + xPos(n-1).toFixed(1) + "," + (PT+cH) + " " + xPos(0).toFixed(1) + "," + (PT+cH)}
-                    fill={positiveTrend ? "rgba(72,180,72,0.08)" : "rgba(192,64,64,0.08)"}
-                  />
-                  {/* Line */}
-                  <polyline points={pts} fill="none" stroke={lineColor} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-                  {/* Dots + year labels + value labels */}
-                  {epsSorted.map(function(r, i) {
-                    if (r.eps === null) return null;
-                    var x = xPos(i); var y = yPos(r.eps);
-                    var isFirst = i === 0; var isLast = i === n-1;
-                    var showVal = isFirst || isLast || i === Math.floor(n/2);
-                    var anchor = isFirst ? "start" : isLast ? "end" : "middle";
-                    return (
-                      <g key={i}>
-                        <circle cx={x} cy={y} r={isLast ? 4 : 2.5} fill={isLast ? lineColor : "#fff"} stroke={lineColor} strokeWidth="1.5" />
-                        <text x={x} y={H-2} textAnchor="middle" fontSize="8" fill="#bbb">{String(r.year).slice(2)}</text>
-                        {showVal && (
-                          <text x={x + (isFirst ? 2 : isLast ? -2 : 0)} y={y-6} textAnchor={anchor} fontSize="9" fill="#444" fontWeight="600">
-                            {"$" + r.eps.toFixed(2)}
-                          </text>
-                        )}
-                      </g>
-                    );
-                  })}
-                </svg>
+              );
+              var vals  = data.map(function(r){ return r.val; });
+              var maxV  = Math.max.apply(null, vals);
+              var minV  = Math.min.apply(null, vals);
+              var range = maxV - minV || 1;
+              var n = data.length;
+              var W=160; var H=90; var PL=32; var PR=6; var PT=12; var PB=16;
+              var cW=W-PL-PR; var cH=H-PT-PB;
+              function xPos(i){ return PL + (i/(n-1))*cW; }
+              function yPos(v){ return PT + cH - ((v-minV)/range)*cH; }
+              var pts = data.map(function(r,i){ return xPos(i).toFixed(1)+","+yPos(r.val).toFixed(1); }).join(" ");
+              var posUp = vals[vals.length-1] > vals[0];
+              var lc = posUp ? color : "#c04040";
+              function fmtV(v) {
+                var a = Math.abs(v);
+                if (a >= 1e9) return (v<0?"-":"")+"$"+(a/1e9).toFixed(1)+"B";
+                if (a >= 1e6) return (v<0?"-":"")+"$"+(a/1e6).toFixed(0)+"M";
+                return (v<0?"-":"")+"$"+a.toFixed(2);
+              }
+              return (
+                <div style={{ flex:"1 1 0", minWidth:0 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{label}</div>
+                  <svg viewBox={"0 0 "+W+" "+H} style={{ width:"100%", height:H, display:"block" }}>
+                    {[0,0.5,1].map(function(t,ti){
+                      var y = PT+cH-t*cH; var v = minV+t*range;
+                      return (
+                        <g key={ti}>
+                          <line x1={PL} y1={y} x2={W-PR} y2={y} stroke="#f0ede8" strokeWidth="0.8" />
+                          <text x={PL-3} y={y+3} textAnchor="end" fontSize="7.5" fill="#bbb">{fmtV(v)}</text>
+                        </g>
+                      );
+                    })}
+                    <polygon points={pts+" "+xPos(n-1).toFixed(1)+","+(PT+cH)+" "+xPos(0).toFixed(1)+","+(PT+cH)}
+                      fill={posUp?"rgba(74,154,74,0.08)":"rgba(192,64,64,0.08)"} />
+                    <polyline points={pts} fill="none" stroke={lc} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+                    {data.map(function(r,i){
+                      var x=xPos(i); var y=yPos(r.val);
+                      var isLast=i===n-1; var isFirst=i===0;
+                      var showVal=isFirst||isLast;
+                      var anchor=isFirst?"start":isLast?"end":"middle";
+                      return (
+                        <g key={i}>
+                          <circle cx={x} cy={y} r={isLast?3.5:2} fill={isLast?lc:"#fff"} stroke={lc} strokeWidth="1.2" />
+                          <text x={x} y={H-2} textAnchor="middle" fontSize="7.5" fill="#ccc">{"'"+String(r.year).slice(2)}</text>
+                          {showVal && <text x={x+(isFirst?2:-2)} y={y-5} textAnchor={anchor} fontSize="8" fill="#444" fontWeight="600">{fmtV(r.val)}</text>}
+                        </g>
+                      );
+                    })}
+                  </svg>
+                </div>
+              );
+            }
+
+            var epsData = epsSeries.map(function(r){ return { year: r.year, val: r.eps }; });
+
+            return (
+              <div style={{ background:"#fff", borderTop:"1px solid #e0dbd0", padding:"12px 16px" }}>
+                <div style={{ fontSize:10, fontWeight:700, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:10 }}>
+                  Financial History (split-adjusted)
+                </div>
+                <div style={{ display:"flex", gap:16 }}>
+                  <MiniChart data={epsData}   label="EPS"        color="#4a9a4a" isCurrency={true} />
+                  <MiniChart data={revSeries} label="Revenue"    color="#4a7aaa" isCurrency={true} />
+                  <MiniChart data={niSeries}  label="Net Income" color="#9a6a4a" isCurrency={true} />
+                </div>
               </div>
             );
           })()}
