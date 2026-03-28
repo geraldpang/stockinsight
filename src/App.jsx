@@ -1036,9 +1036,47 @@ function Detail({ sym, name, onBack }) {
     const maxVal     = price * 3;
     const cap        = function(v) { return Math.min(v, maxVal); };
 
-    const dcf20  = cap(calcDCF(baseEps,   grCapped, termGrowth, WACC_ADJ, 20));
-    const dcff20 = fcfPerShare > 0 ? cap(calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 20)) : 0;
-    const dni20  = niPerShare  > 0 ? cap(calcDCF(niPerShare,  grCapped, termGrowth, WACC_ADJ, 20)) : 0;
+    // Use same growth rule as DCF-20 breakdown:
+    // Raw CAGR -> if > 50%, divide by 2 -> Y6-10 = Y1-5/2 -> Y11-20 = 4%
+    const rawCagrSum = histCagrYears >= 2
+      ? Math.max(histGrowthRate * 100, 0)
+      : (ov.ltG1Y > 0 ? ov.ltG1Y : Math.max(histGrowthRate * 100, 0));
+    const g1Sum = rawCagrSum > 50 ? rawCagrSum / 2 : rawCagrSum;
+    const g2Sum = g1Sum * 0.50;
+
+    // Get SimFin debt and cash for accurate DCF
+    var sfDebtSum = 0; var sfCashSum = ov.cash || 0;
+    var sfBalSum = window.__simfinData && window.__simfinData[sym];
+    if (sfBalSum && sfBalSum.balance && Array.isArray(sfBalSum.balance) && sfBalSum.balance[0]) {
+      var sfStmtSum = sfBalSum.balance[0].statements && sfBalSum.balance[0].statements[0];
+      if (sfStmtSum && sfStmtSum.columns && sfStmtSum.data && sfStmtSum.data.length > 0) {
+        var sfColsSum = sfStmtSum.columns;
+        var sfRowSum  = sfStmtSum.data[sfStmtSum.data.length - 1];
+        function sfGetSum(n) { var ci = sfColsSum.indexOf(n); return (ci !== -1 && sfRowSum[ci] !== null) ? sfRowSum[ci] : null; }
+        var ltd = sfGetSum("Long Term Debt") || 0;
+        var std = sfGetSum("Short Term Debt") || 0;
+        if (ltd + std > 0) sfDebtSum = ltd + std;
+        var sc = sfGetSum("Cash, Cash Equivalents & Short Term Investments");
+        if (sc !== null) sfCashSum = sc;
+      }
+    }
+
+    // DCF-20 using OCF (matching breakdown exactly)
+    var ocfSum = ov.ocfRaw > 0 ? ov.ocfRaw : ov.fcfRaw;
+    var sharesSum = ov.sharesOut || 1;
+    function calcDCF20Sum(base, g1p, g2p) {
+      if (!base || !sharesSum) return 0;
+      var ev = 0; var f = base;
+      for (var y = 1; y <= 20; y++) {
+        var g = y <= 5 ? g1p/100 : y <= 10 ? g2p/100 : termGrowth;
+        f *= (1 + g); ev += f / Math.pow(1.10, y);
+      }
+      return (ev - sfDebtSum + sfCashSum) / sharesSum;
+    }
+
+    const dcf20  = ocfSum > 0 ? cap(calcDCF20Sum(ocfSum, g1Sum, g2Sum)) : 0;
+    const dcff20 = ov.fcfRaw > 0 && ov.fcfRaw !== ocfSum ? cap(calcDCF20Sum(ov.fcfRaw, g1Sum, g2Sum)) : 0;
+    const dni20  = niPerShare > 0 ? cap(calcDCF(niPerShare, grCapped, termGrowth, WACC_ADJ, 20)) : 0;
     const dcffT  = fcfPerShare > 0 ? cap(
       calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 20) -
       calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 10)
