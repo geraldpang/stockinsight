@@ -755,12 +755,7 @@ function Detail({ sym, name, onBack }) {
               time:  new Date().toISOString(),
               label: "SimFin prefetch -- " + (d.ok ? "OK" : "FAILED: " + (d.error || JSON.stringify(d).slice(0,100))),
               data:  { status_pl: d.diag ? d.diag.status_pl : null, status_bs: d.diag ? d.diag.status_bs : null,
-                       incomeRows: sfPlData.length + " rows", balanceRows: sfBsData.length + " rows",
-                       url_bs: d.diag ? d.diag.url_bs : null,
-                       rawPreview_bs: d.diag ? d.diag.rawPreview_bs : null,
-                       rawLen_bs: d.diag ? d.diag.rawLen_bs : null,
-                       url_pl: d.diag ? d.diag.url_pl : null,
-                       rawPreview_pl: d.diag ? d.diag.rawPreview_pl : null }
+                       incomeRows: sfPlData.length + " rows", balanceRows: sfBsData.length + " rows" }
             },
             {
               time:  new Date().toISOString(),
@@ -2142,8 +2137,7 @@ function Detail({ sym, name, onBack }) {
                                   </BdSection>
                                 )}
 
-
-                                {/* DNI-20 - computed inline, no external deps */}
+                                {/* DNI-20 */}
                                 {(function() {
                                   var sfBD = window.__simfinData && window.__simfinData[sym];
                                   var niBD = (ov.niRaw > 0 ? ov.niRaw : 0);
@@ -2183,23 +2177,29 @@ function Detail({ sym, name, onBack }) {
 
                                 {/* Gordon Growth */}
                                 {ov.fcfRaw > 0 && (function() {
-                                  var fcfBaseGGBd = ov.fcfRaw > 0 ? ov.fcfRaw : ocf;
-                                  var fcfPSGGBd   = shares > 0 ? fcfBaseGGBd / shares : 0;
+                                  var rawCagrGG = histCagrYears >= 2 ? Math.max(histGrowthRate * 100, 0) : (ov.ltG1Y > 0 ? ov.ltG1Y : 0);
+                                  var g1GG = (rawCagrGG > 50 ? rawCagrGG / 2 : rawCagrGG) / 100;
+                                  var g2GG = g1GG * 0.5; var g3GG = 0.04;
+                                  var shGG = ov.sharesOut || 0;
+                                  if (!shGG) return null;
+                                  var fcfBaseGGBd = ov.fcfRaw;
+                                  var fcfPSGGBd   = fcfBaseGGBd / shGG;
+                                  function fmtMGG(v) { return v !== null && v !== undefined ? "$" + (v/1e6).toFixed(0) + "M" : "-"; }
                                   var pvExpBd = 0; var fBd = fcfPSGGBd;
                                   for (var gy = 1; gy <= 20; gy++) {
-                                    var ggyBd = gy <= 5 ? g1 : gy <= 10 ? g2 : g3;
+                                    var ggyBd = gy <= 5 ? g1GG : gy <= 10 ? g2GG : g3GG;
                                     fBd *= (1 + ggyBd);
                                     pvExpBd += fBd / Math.pow(1.10, gy);
                                   }
-                                  var tvBd   = fBd * (1 + g3) / (0.10 - g3);
+                                  var tvBd   = fBd * (1 + g3GG) / (0.10 - g3GG);
                                   var pvTvBd = tvBd / Math.pow(1.10, 20);
                                   var totalGG = pvExpBd + pvTvBd;
                                   return (
                                     <BdSection title="Full Gordon Growth Breakdown (FCF-GG)">
-                                      <BdRow label="Free Cash Flow (Yahoo)"         val={fmtM(fcfBaseGGBd)} />
+                                      <BdRow label="Free Cash Flow (Yahoo)"         val={fmtMGG(fcfBaseGGBd)} />
                                       <BdRow label="FCF per Share"                  val={"$" + fcfPSGGBd.toFixed(4)} />
-                                      <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagr > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
-                                      <BdRow label="Growth Y6-10 (50% of Y1-5)"    val={(g2*100).toFixed(1) + "%"} />
+                                      <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagrGG > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1GG*100).toFixed(1) + "%"} />
+                                      <BdRow label="Growth Y6-10 (50% of Y1-5)"    val={(g2GG*100).toFixed(1) + "%"} />
                                       <BdRow label="Growth Y11-20"                  val="4%" />
                                       <BdRow label="Discount Rate"                  val="10%" />
                                       <BdDivider />
