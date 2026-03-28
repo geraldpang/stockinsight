@@ -682,6 +682,34 @@ function Detail({ sym, name, onBack }) {
         .catch(function() { setEpsError(true); });
     })();
 
+    // Prefetch SimFin balance sheet + income data for DCF accuracy
+    // Runs on ticker load so DCF has data even before Additional Info tab is opened
+    (function() {
+      if (!window.__simfinData) window.__simfinData = {};
+      if (!window.__simfinLoading) window.__simfinLoading = {};
+      if (window.__simfinData[sym] || window.__simfinLoading[sym]) return; // already cached
+      window.__simfinLoading[sym] = true;
+      fetch("/simfin?sym=" + sym)
+        .then(function(r) { return r.text(); })
+        .then(function(txt) {
+          var d;
+          try { d = JSON.parse(txt); } catch(e) { d = { error: String(e) }; }
+          window.__simfinData[sym]    = d;
+          window.__simfinLoading[sym] = false;
+          // Log to debug
+          setDebugLog(function(prev) { return prev.concat([{
+            time:  new Date().toISOString(),
+            label: "SimFin prefetch -- " + (d.ok ? "OK (BS + PL loaded)" : "ERROR: " + (d.error || "unknown")),
+            data:  d.diag ? { status_pl: d.diag.status_pl, status_bs: d.diag.status_bs } : null
+          }]); });
+          // Trigger re-render so DCF breakdown picks up SimFin data
+          setOv(function(prev) { return prev ? Object.assign({}, prev, { _sfLoaded: Date.now() }) : prev; });
+        })
+        .catch(function(e) {
+          window.__simfinLoading[sym] = false;
+        });
+    })();
+
     // Fetch Massive.com data (news + ticker reference + dividends + splits)
     setAddlLoading(true);
     var debugEntries = [];
@@ -4675,4 +4703,3 @@ export default function App() {
     </div>
   );
 }
-                               
