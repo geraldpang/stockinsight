@@ -126,7 +126,6 @@ async function getOverview(sym) {
            : r >= 1e9  ? "$" + (r/1e9).toFixed(1)  + "B"
            : r >= 1e6  ? "$" + (r/1e6).toFixed(0)  + "M" : "-";
     })(),
-    revRaw:       (fd.totalRevenue && fd.totalRevenue.raw) || 0,
     revGrowth:    ((fd.revenueGrowth && fd.revenueGrowth.raw) || 0) * 100,
     // Growth & Profile
     beta:         (sd.beta && sd.beta.raw) || 0,
@@ -1037,110 +1036,16 @@ function Detail({ sym, name, onBack }) {
     const maxVal     = price * 3;
     const cap        = function(v) { return Math.min(v, maxVal); };
 
-    // Use same growth rule as DCF-20 breakdown:
-    // Raw CAGR -> if > 50%, divide by 2 -> Y6-10 = Y1-5/2 -> Y11-20 = 4%
-    const rawCagrSum = histCagrYears >= 2
-      ? Math.max(histGrowthRate * 100, 0)
-      : (ov.ltG1Y > 0 ? ov.ltG1Y : Math.max(histGrowthRate * 100, 0));
-    const g1Sum = rawCagrSum > 50 ? rawCagrSum / 2 : rawCagrSum;
-    const g2Sum = g1Sum * 0.50;
-
-    // Get SimFin debt and cash for accurate DCF
-    var sfDebtSum = 0; var sfCashSum = ov.cash || 0;
-    var sfBalSum = window.__simfinData && window.__simfinData[sym];
-    if (sfBalSum && sfBalSum.balance && Array.isArray(sfBalSum.balance) && sfBalSum.balance[0]) {
-      var sfStmtSum = sfBalSum.balance[0].statements && sfBalSum.balance[0].statements[0];
-      if (sfStmtSum && sfStmtSum.columns && sfStmtSum.data && sfStmtSum.data.length > 0) {
-        var sfColsSum = sfStmtSum.columns;
-        var sfRowSum  = sfStmtSum.data[sfStmtSum.data.length - 1];
-        function sfGetSum(n) { var ci = sfColsSum.indexOf(n); return (ci !== -1 && sfRowSum[ci] !== null) ? sfRowSum[ci] : null; }
-        var ltd = sfGetSum("Long Term Debt") || 0;
-        var std = sfGetSum("Short Term Debt") || 0;
-        if (ltd + std > 0) sfDebtSum = ltd + std;
-        var sc = sfGetSum("Cash, Cash Equivalents & Short Term Investments");
-        if (sc !== null) sfCashSum = sc;
-      }
-    }
-
-    // DCF-20 using OCF (matching breakdown exactly)
-    var ocfSum = ov.ocfRaw > 0 ? ov.ocfRaw : ov.fcfRaw;
-    var sharesSum = ov.sharesOut || 1;
-    function calcDCF20Sum(base, g1p, g2p) {
-      if (!base || !sharesSum) return 0;
-      var ev = 0; var f = base;
-      for (var y = 1; y <= 20; y++) {
-        var g = y <= 5 ? g1p/100 : y <= 10 ? g2p/100 : termGrowth;
-        f *= (1 + g); ev += f / Math.pow(1.10, y);
-      }
-      return (ev - sfDebtSum + sfCashSum) / sharesSum;
-    }
-
-    const dcf20  = ocfSum > 0 ? cap(calcDCF20Sum(ocfSum, g1Sum, g2Sum)) : 0;
-    // DCFF-20 uses Net Income (from SimFin if Yahoo niRaw = 0)
-    var niBaseSum = ov.niRaw > 0 ? ov.niRaw : 0;
-    if (!niBaseSum && sfBalSum && sfBalSum.income && Array.isArray(sfBalSum.income) && sfBalSum.income[0]) {
-      var sfIncS = sfBalSum.income[0].statements && sfBalSum.income[0].statements[0];
-      if (sfIncS && sfIncS.columns && sfIncS.data && sfIncS.data.length > 0) {
-        var sfICols = sfIncS.columns; var sfIRow = sfIncS.data[sfIncS.data.length - 1];
-        function sfGetI(n) { var ci = sfICols.indexOf(n); return (ci !== -1 && sfIRow[ci] !== null) ? sfIRow[ci] : null; }
-        var sfNIS = sfGetI("Net Income") || sfGetI("Net Income Available to Common Shareholders");
-        if (sfNIS && sfNIS > 0) niBaseSum = sfNIS;
-      }
-    }
-    const dcff20 = niBaseSum > 0 ? cap(calcDCF20Sum(niBaseSum, g1Sum, g2Sum)) : 0;
-    // DNI-20: match breakdown exactly (SimFin NI / shares, 10% fixed, same growth rule)
-    var niDNISum = niBaseSum > 0 ? niBaseSum / sharesSum
-                : ov.niRaw > 0  ? ov.niRaw / sharesSum
-                : baseEps > 0   ? baseEps * 0.90 : 0;
-    function calcDNI20Sum(niPS) {
-      if (!niPS) return 0;
-      var ev = 0; var f = niPS;
-      for (var y = 1; y <= 20; y++) {
-        var g = y <= 5 ? g1Sum/100 : y <= 10 ? (g1Sum*0.5)/100 : termGrowth;
-        f *= (1 + g); ev += f / Math.pow(1.10, y);
-      }
-      return ev;
-    }
-    const dni20 = niDNISum > 0 ? cap(calcDNI20Sum(niDNISum)) : 0;
-    // Full Gordon Growth: PV(explicit years 1-20) + PV(terminal perpetuity)
-    // Replaces DCFF-Terminal with a complete standalone valuation
-    // Base: FCF per share. No debt/cash bridge needed (per-share basis)
-    var ggFull = 0;
-    if (sharesSum > 0) {
-      var fcfBaseGG = ov.fcfRaw > 0 ? ov.fcfRaw : (ocfSum > 0 ? ocfSum * 0.6 : 0);
-      if (fcfBaseGG > 0) {
-        var fcfPSGG = fcfBaseGG / sharesSum;
-        // Part 1: PV of explicit years 1-20
-        var pvExplicit = 0; var fGG = fcfPSGG;
-        for (var gy = 1; gy <= 20; gy++) {
-          var ggy = gy <= 5 ? g1Sum/100 : gy <= 10 ? (g1Sum*0.5)/100 : termGrowth;
-          fGG *= (1 + ggy);
-          pvExplicit += fGG / Math.pow(1.10, gy);
-        }
-        // Part 2: PV of terminal perpetuity (Gordon Growth)
-        var tvGG   = fGG * (1 + termGrowth) / (0.10 - termGrowth);
-        var pvTvGG = tvGG / Math.pow(1.10, 20);
-        ggFull = pvExplicit + pvTvGG;
-      }
-    }
-    const dcffT = ggFull > 0 ? cap(ggFull) : 0;
+    const dcf20  = cap(calcDCF(baseEps,   grCapped, termGrowth, WACC_ADJ, 20));
+    const dcff20 = fcfPerShare > 0 ? cap(calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 20)) : 0;
+    const dni20  = niPerShare  > 0 ? cap(calcDCF(niPerShare,  grCapped, termGrowth, WACC_ADJ, 20)) : 0;
+    const dcffT  = fcfPerShare > 0 ? cap(
+      calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 20) -
+      calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 10)
+    ) : 0;
     const peVal   = cap(fpe > 0 ? baseEps * fpe : baseEps * pe);
     const pb      = ov.hi52 > 0 ? (ov.hi52 + ov.lo52) / 2 : 0;
-    // Mean P/S valuation: Revenue per Share x Historical Mean P/S
-    // Rev/share derived from current price / current PS ratio (same as reference)
-    // Fair Value = (price / current_PS) x mean_PS
-    var PS_MEAN = {
-      "NVDA":25.7,"AMD":7.5,"INTC":2.8,"QCOM":4.5,"AVGO":11.0,"TXN":7.5,
-      "MU":4.0,"AAPL":6.5,"MSFT":11.0,"GOOGL":5.5,"META":7.0,"AMZN":3.0,
-      "NFLX":5.5,"TSLA":10.0,"CRM":9.0,"ADBE":13.0,"UBER":4.0,"SPOT":4.5,
-      "JPM":3.0,"BAC":3.0,"GS":1.8,"BRKB":1.5,"LLY":14.0,"UNH":0.9,
-      "MRK":4.5,"XOM":1.0,"CVX":1.0,"NKE":3.0
-    };
-    var psMeanMultiple = PS_MEAN[sym] || 5.0;
-    var psVal = ov.ps > 0 && price > 0
-      ? cap((price / ov.ps) * psMeanMultiple)
-      : 0;
-    const ps = psVal;
+    const ps      = cap(peVal * Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0));
     const ltgRate = ov.ltG > 0 ? ov.ltG : grCapped * 100;
     const psg     = ltgRate > 0 ? Math.min(price / ltgRate, maxVal) : 0;
     const pegVal  = ov.peg > 0 ? Math.min(baseEps * 15, maxVal) : 0;
@@ -1148,8 +1053,8 @@ function Detail({ sym, name, onBack }) {
     vals.push({ label:"Discounted Cash Flow 20-year\n(DCF-20)",         value:dcf20,  color:"#d4a800" });
     if (dcff20 > 0) vals.push({ label:"Discounted Free Cash Flow 20-year\n(DCFF-20)",   value:dcff20, color:"#d4a800" });
     if (dni20  > 0) vals.push({ label:"Discounted Net Income 20-year\n(DNI-20)",        value:dni20,  color:"#d4a800" });
-    if (dcffT  > 0) vals.push({ label:"Gordon Growth Terminal Value\n(DCFF-Terminal)",  value:dcffT,  color:"#d4a800" });
-    vals.push({ label:"Mean Price to Sales\n(P/S Ratio)",             value:ps,     color:"#d4a800" });
+    if (dcffT  > 0) vals.push({ label:"DCF Free Cash Flow Terminal\n(DCFF-Terminal)",   value:dcffT,  color:"#d4a800" });
+    vals.push({ label:"Mean Price to Sales\n(PS) Ratio",                value:ps,     color:"#d4a800" });
     vals.push({ label:"Mean Price to Earnings\n(PE) Ratio Without NRI", value:peVal,  color:"#d4a800" });
     if (pb > 0)     vals.push({ label:"Mean Price to Book\n(PB) Ratio",                        value:pb,     color:"#d4a800" });
     if (psg > 0)    vals.push({ label:"Price to Sales Growth\n(PSG) Ratio",                    value:psg,    color:"#c03030" });
@@ -2096,23 +2001,13 @@ function Detail({ sym, name, onBack }) {
                           {/* Calculation Breakdowns */}
                           {ov && (function() {
                             var DISC   = 0.10;
-                            var PS_MEAN = {
-                              "NVDA":25.7,"AMD":7.5,"INTC":2.8,"QCOM":4.5,"AVGO":11.0,"TXN":7.5,
-                              "MU":4.0,"AAPL":6.5,"MSFT":11.0,"GOOGL":5.5,"META":7.0,"AMZN":3.0,
-                              "NFLX":5.5,"TSLA":10.0,"CRM":9.0,"ADBE":13.0,"UBER":4.0,"SPOT":4.5,
-                              "JPM":3.0,"BAC":3.0,"GS":1.8,"BRKB":1.5,"LLY":14.0,"UNH":0.9,
-                              "MRK":4.5,"XOM":1.0,"CVX":1.0,"NKE":3.0
-                            };
                             // Y1-5: 5-yr historical EPS CAGR, Y6-10: +5yr analyst estimate
                             // Y1-5: longest available historical EPS CAGR (up to 9yr)
                             // Y6-10: half of Y1-5
-                            // Y1-5: hist EPS CAGR. If > 50%, divide by 2 to temper explosive growth
-                            // Y6-10: half of Y1-5. Y11-20: fixed 4%
-                            var rawCagr = histCagrYears >= 2
-                                           ? Math.max(histGrowthRate * 100, 0)
-                                           : (ov.ltG1Y > 0 ? ov.ltG1Y : Math.max(histGrowthRate * 100, 0));
-                            var g1Pct   = rawCagr > 50 ? rawCagr / 2 : rawCagr;
-                            var g2Pct   = g1Pct * 0.50;
+                            var g1Pct  = histCagrYears >= 2
+                                           ? Math.min(Math.max(histGrowthRate * 100, 0), 50)
+                                           : (ov.ltG1Y > 0 ? Math.min(ov.ltG1Y, 50) : Math.min(histGrowthRate * 100, 50));
+                            var g2Pct  = g1Pct * 0.50;
                             var g1     = g1Pct / 100;
                             var g2     = g2Pct / 100;
                             var g3     = 0.04;
@@ -2146,35 +2041,6 @@ function Detail({ sym, name, onBack }) {
                                 if (sfCash !== null)  { cash = sfCash; }
                               }
                             }
-                            // Get Net Income from SimFin if Yahoo niRaw is 0
-                            var niBase = ov.niRaw > 0 ? ov.niRaw : 0;
-                            if (!niBase && sfBal && sfBal.income && Array.isArray(sfBal.income) && sfBal.income[0]) {
-                              var sfIncStmt = sfBal.income[0].statements && sfBal.income[0].statements[0];
-                              if (sfIncStmt && sfIncStmt.columns && sfIncStmt.data && sfIncStmt.data.length > 0) {
-                                var sfIncCols = sfIncStmt.columns;
-                                var sfIncRow  = sfIncStmt.data[sfIncStmt.data.length - 1];
-                                function sfGetInc(n) { var ci = sfIncCols.indexOf(n); return (ci !== -1 && sfIncRow[ci] !== null) ? sfIncRow[ci] : null; }
-                                var sfNI = sfGetInc("Net Income") || sfGetInc("Net Income Available to Common Shareholders");
-                                if (sfNI && sfNI > 0) niBase = sfNI;
-                              }
-                            }
-                            var niSource = niBase === ov.niRaw ? "Yahoo" : "SimFin";
-                            // DNI-20: NI per share using same SimFin priority
-                            var niPerShareDNI = niBase > 0 && shares > 0 ? niBase / shares
-                                             : baseEps > 0 ? baseEps * 0.90 : 0;
-                            // Same growth rule as DCF-20
-                            var WACC_DNI = 0.10; // fixed 10% consistent with DCF-20 and DCFF-20
-                            function calcDNI20Bd(niPS) {
-                              if (!niPS) return null;
-                              var ev = 0; var f = niPS;
-                              for (var y = 1; y <= 20; y++) {
-                                var g = y <= 5 ? g1 : y <= 10 ? g2 : g3;
-                                f *= (1 + g); ev += f / Math.pow(1 + WACC_DNI, y);
-                              }
-                              return { ev: ev * shares, perShare: ev };
-                            }
-                            var dni20Res = niPerShareDNI > 0 ? calcDNI20Bd(niPerShareDNI) : null;
-
                             // Priority 2: estimate from P/B ratio if still missing
                             if (!debt && ov.de > 0 && ov.pbRatio > 0 && price > 0 && shares > 0) {
                               var bvPerShare  = price / ov.pbRatio;
@@ -2186,17 +2052,6 @@ function Detail({ sym, name, onBack }) {
                               debtIsEst = true;
                             }
                             var usePE  = fpe > 0 ? fpe : pe;
-                            // PS breakdown vars (pre-computed for use in return block)
-                            var PS_MEAN_BD = {
-                              "NVDA":25.7,"AMD":7.5,"INTC":2.8,"QCOM":4.5,"AVGO":11.0,"TXN":7.5,
-                              "MU":4.0,"AAPL":6.5,"MSFT":11.0,"GOOGL":5.5,"META":7.0,"AMZN":3.0,
-                              "NFLX":5.5,"TSLA":10.0,"CRM":9.0,"ADBE":13.0,"UBER":4.0,"SPOT":4.5,
-                              "JPM":3.0,"BAC":3.0,"GS":1.8,"BRKB":1.5,"LLY":14.0,"UNH":0.9,
-                              "MRK":4.5,"XOM":1.0,"CVX":1.0,"NKE":3.0
-                            };
-                            var psMeanBD     = PS_MEAN_BD[sym] || 5.0;
-                            var psRevPerShare = ov.ps > 0 ? price / ov.ps : 0;
-                            var psFairVal    = psRevPerShare * psMeanBD;
                             // Use operating cash flow (before capex) as base
                             var ocf    = ov.ocfRaw > 0 ? ov.ocfRaw : ov.fcfRaw;
 
@@ -2218,7 +2073,7 @@ function Detail({ sym, name, onBack }) {
                             }
 
                             var dcf20Res   = ocf       > 0 && shares > 0 ? calcPerShare(ocf)        : null;
-                            var dcff20Res  = niBase    > 0 && shares > 0 ? calcPerShare(niBase)     : null;
+                            var dcff20Res  = ov.niRaw  > 0 && shares > 0 ? calcPerShare(ov.niRaw)   : null;
                             var eps20Res   = baseEps   > 0 && shares > 0 ? calcPerShare(baseEps * shares) : null;
 
                             function BdRow(props) {
@@ -2254,7 +2109,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label={"Total Debt" + (debtIsEst ? " (est.)" : " (SimFin)")} val={fmtM(debt)} />
                                     <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
                                     <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagr > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
+                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr hist EPS CAGR)" : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y6-10 (50% of Y1-5)"      val={(g2*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y11-20"        val="4%" />
                                     <BdRow label="Discount Rate"        val="10%" />
@@ -2270,12 +2125,12 @@ function Detail({ sym, name, onBack }) {
                                 {/* DCFF-20 */}
                                 {dcff20Res && (
                                   <BdSection title="DCFF-20 Breakdown">
-                                    <BdRow label={"Net Income (" + niSource + ")"}   val={fmtM(niBase)} />
+                                    <BdRow label="Net Income"           val={fmtM(ov.niRaw)} />
                                     <BdRow label={"Total Debt" + (debtIsEst ? " (est.)" : " (SimFin)")} val={fmtM(debt)} />
                                     <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
                                     <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagr > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y6-10 (50% of Y1-5)"     val={(g2*100).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y1-5"          val={(g1*100).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y6-10"         val={(g2*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y11-20"        val="4%" />
                                     <BdRow label="Discount Rate"        val="10%" />
                                     <BdDivider />
@@ -2287,76 +2142,8 @@ function Detail({ sym, name, onBack }) {
                                   </BdSection>
                                 )}
 
-                                {/* DNI-20 */}
-                                {dni20Res && (
-                                  <BdSection title="DNI-20 Breakdown">
-                                    <BdRow label={"Net Income per Share (" + niSource + ")"} val={"$" + niPerShareDNI.toFixed(4)} />
-                                    <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagr > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y6-10 (50% of Y1-5)"     val={(g2*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y11-20"        val="4%" />
-                                    <BdRow label="Discount Rate"        val="10%" />
-                                    <BdDivider />
-                                    <BdRow label="= Intrinsic Value"    val={"$" + (dni20Res.perShare).toFixed(2)} bold={true} highlight={true} last={true} />
-                                  </BdSection>
-                                )}
 
-                                {/* DCFF-Terminal */}
-                                {ov.fcfRaw > 0 && (function() {
-                                  var fcfBaseGGBd = ov.fcfRaw > 0 ? ov.fcfRaw : ocf;
-                                  var fcfPSGGBd   = shares > 0 ? fcfBaseGGBd / shares : 0;
-                                  // Part 1: PV of explicit years 1-20
-                                  var pvExpBd = 0; var fBd = fcfPSGGBd;
-                                  for (var gy = 1; gy <= 20; gy++) {
-                                    var ggyBd = gy <= 5 ? g1 : gy <= 10 ? g2 : g3;
-                                    fBd *= (1 + ggyBd);
-                                    pvExpBd += fBd / Math.pow(1.10, gy);
-                                  }
-                                  // Part 2: PV of terminal perpetuity
-                                  var tvBd   = fBd * (1 + g3) / (0.10 - g3);
-                                  var pvTvBd = tvBd / Math.pow(1.10, 20);
-                                  var totalGG = pvExpBd + pvTvBd;
-                                  return (
-                                    <BdSection title="Full Gordon Growth Breakdown (FCF-GG)">
-                                      <BdRow label="Free Cash Flow (Yahoo)"         val={fmtM(fcfBaseGGBd)} />
-                                      <BdRow label="FCF per Share"                  val={"$" + fcfPSGGBd.toFixed(4)} />
-                                      <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagr > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
-                                      <BdRow label="Growth Y6-10 (50% of Y1-5)"    val={(g2*100).toFixed(1) + "%"} />
-                                      <BdRow label="Growth Y11-20"                  val="4%" />
-                                      <BdRow label="Discount Rate"                  val="10%" />
-                                      <BdDivider />
-                                      <BdRow label="Part 1: PV of Years 1-20"       val={"$" + pvExpBd.toFixed(2) + "/sh"} />
-                                      <BdRow label="FCF at Year 20"                 val={"$" + fBd.toFixed(4) + "/sh"} />
-                                      <BdRow label="Terminal Value at Yr 20"        val={"$" + tvBd.toFixed(2) + "/sh  [FCF21/(10%-4%)]"} />
-                                      <BdRow label="Part 2: PV of Terminal Value"   val={"$" + pvTvBd.toFixed(2) + "/sh  [TV/(1.10)^20]"} />
-                                      <BdDivider />
-                                      <BdRow label="= Intrinsic Value (Pt1 + Pt2)"  val={"$" + totalGG.toFixed(2)} bold={true} highlight={true} last={true} />
-                                    </BdSection>
-                                  );
-                                })()}
-
-                                {/* PE */}
-                                {baseEps > 0 && usePE > 0 && (
-                                  <BdSection title="PE Breakdown">
-                                    <BdRow label="EPS (Base)"           val={"$" + baseEps.toFixed(2)} />
-                                    <BdRow label={fpe > 0 ? "Forward P/E" : "Trailing P/E"} val={usePE.toFixed(1) + "x"} />
-                                    <BdDivider />
-                                    <BdRow label="= Intrinsic Value"    val={"$" + (baseEps * usePE).toFixed(2)} bold={true} highlight={true} last={true} />
-                                  </BdSection>
-                                )}
-
-                                {/* PS */}
-                                {ov.ps > 0 && psRevPerShare > 0 && (
-                                  <BdSection title="Mean P/S Ratio Breakdown">
-                                    <BdRow label="Current Price"                  val={"$" + price.toFixed(2)} />
-                                    <BdRow label="Current P/S Ratio (TTM)"        val={ov.ps.toFixed(2) + "x"} />
-                                    <BdRow label="Revenue per Share"              val={"$" + psRevPerShare.toFixed(2) + "  [price/P/S]"} />
-                                    <BdRow label="Historical Mean P/S (5yr est.)" val={psMeanBD.toFixed(1) + "x"} />
-                                    <BdDivider />
-                                    <BdRow label="= Intrinsic Value"              val={"$" + psFairVal.toFixed(2) + "  [rev/sh x mean P/S]"} bold={true} highlight={true} last={true} />
-                                  </BdSection>
-                                )}
-
+                                
                               </div>
                             );
                           })()}
