@@ -366,13 +366,16 @@ export async function onRequest(context) {
       }
 
       try {
-        // Fetch income statement (EPS, revenue, net income) + balance sheet (debt, cash, equity)
-        var sfResults = await Promise.all([ sfFetch("pl"), sfFetch("bs") ]);
+        // Sequential calls with 600ms delay to respect 2 req/sec rate limit
+        // Priority: balance sheet first (debt/cash/equity for DCF), then income (EPS)
+        var sfBalance = await sfFetch("bs");
+        await new Promise(function(r){ setTimeout(r, 600); }); // 600ms gap
+        var sfIncome  = await sfFetch("pl");
         return new Response(JSON.stringify({
           ok: true,
           sym: sfSym,
-          income:  sfResults[0],
-          balance: sfResults[1],
+          income:  sfIncome,
+          balance: sfBalance,
           diag:    sfDiag,
         }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
