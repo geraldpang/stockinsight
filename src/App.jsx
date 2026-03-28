@@ -3666,17 +3666,40 @@ function Detail({ sym, name, onBack }) {
                               window.__simfinData[sfKey]    = d;
                               window.__simfinLoading[sfKey] = false;
                               // Log SimFin result to Debug tab
-                              setDebugLog(function(prev) { return prev.concat([{
-                                time:  new Date().toISOString(),
-                                label: "SimFin fetch complete -- " + (d.ok ? "OK" : "ERROR: " + (d.error || "unknown")),
-                                data:  {
-                                  ok:          d.ok,
-                                  error:       d.error || null,
-                                  diag:        d.diag || null,
-                                  incomeRows:  d.income && Array.isArray(d.income) && d.income[0] && d.income[0].statements ? d.income[0].statements[0].data.length + " rows" : (d.income && d.income.error ? "ERROR: " + (d.income.error || d.income.message) : "no data"),
-                                  balanceRows: d.balance && Array.isArray(d.balance) && d.balance[0] && d.balance[0].statements ? d.balance[0].statements[0].data.length + " rows, cols: " + d.balance[0].statements[0].columns.slice(8,15).join("|") : (d.balance && d.balance.error ? "ERROR: " + d.balance.error : "no data"),
+                              var sfBsCols = d.balance && Array.isArray(d.balance) && d.balance[0] && d.balance[0].statements ? d.balance[0].statements[0].columns : [];
+                              var sfPlCols = d.income  && Array.isArray(d.income)  && d.income[0]  && d.income[0].statements  ? d.income[0].statements[0].columns   : [];
+                              setDebugLog(function(prev) { return prev.concat([
+                                {
+                                  time:  new Date().toISOString(),
+                                  label: "SimFin fetch complete -- " + (d.ok ? "OK" : "ERROR: " + (d.error || "unknown")),
+                                  data:  {
+                                    status_pl: d.diag ? d.diag.status_pl : null,
+                                    status_bs: d.diag ? d.diag.status_bs : null,
+                                    incomeRows:  sfPlCols.length > 0 ? d.income[0].statements[0].data.length + " rows" : (d.income && d.income.error ? "ERROR: " + (d.income.error || d.income.message) : "no data"),
+                                    balanceRows: sfBsCols.length > 0 ? d.balance[0].statements[0].data.length + " rows" : (d.balance && d.balance.error ? "ERROR: " + d.balance.error : "no data"),
+                                  }
+                                },
+                                {
+                                  time:  new Date().toISOString(),
+                                  label: "SimFin BS columns (" + sfBsCols.length + " total)",
+                                  data:  sfBsCols
+                                },
+                                {
+                                  time:  new Date().toISOString(),
+                                  label: "SimFin PL columns (" + sfPlCols.length + " total)",
+                                  data:  sfPlCols
+                                },
+                                {
+                                  time:  new Date().toISOString(),
+                                  label: "SimFin BS latest row (most recent year)",
+                                  data:  sfBsCols.length > 0 ? (function() {
+                                    var row = d.balance[0].statements[0].data[0];
+                                    var obj = {};
+                                    sfBsCols.forEach(function(k, i) { obj[k] = row[i]; });
+                                    return obj;
+                                  })() : "no data"
                                 }
-                              }]); });
+                              ]); });
                               setInsightTab("addlinfo");
                             })
                             .catch(function(e) {
