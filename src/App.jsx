@@ -725,6 +725,12 @@ function Detail({ sym, name, onBack }) {
               incomeType:       typeof d.income,
               incomeIsArray:    Array.isArray(d.income),
               rawBalPreview:    JSON.stringify(d.balance).slice(0, 300),
+              diag_url_bs:      d.diag ? d.diag.url_bs : "no diag",
+              diag_status_bs:   d.diag ? d.diag.status_bs : "no diag",
+              diag_rawPreview_bs: d.diag ? d.diag.rawPreview_bs : "no diag",
+              diag_rawLen_bs:   d.diag ? d.diag.rawLen_bs : "no diag",
+              diag_url_pl:      d.diag ? d.diag.url_pl : "no diag",
+              diag_rawPreview_pl: d.diag ? d.diag.rawPreview_pl : "no diag",
             }
           }]); });
           var sfBsCols = d.balance && Array.isArray(d.balance) && d.balance[0] && d.balance[0].statements ? d.balance[0].statements[0].columns : [];
@@ -3795,6 +3801,12 @@ function Detail({ sym, name, onBack }) {
               incomeType:       typeof d.income,
               incomeIsArray:    Array.isArray(d.income),
               rawBalPreview:    JSON.stringify(d.balance).slice(0, 300),
+              diag_url_bs:      d.diag ? d.diag.url_bs : "no diag",
+              diag_status_bs:   d.diag ? d.diag.status_bs : "no diag",
+              diag_rawPreview_bs: d.diag ? d.diag.rawPreview_bs : "no diag",
+              diag_rawLen_bs:   d.diag ? d.diag.rawLen_bs : "no diag",
+              diag_url_pl:      d.diag ? d.diag.url_pl : "no diag",
+              diag_rawPreview_pl: d.diag ? d.diag.rawPreview_pl : "no diag",
             }
           }]); });
           var sfBsCols = d.balance && Array.isArray(d.balance) && d.balance[0] && d.balance[0].statements ? d.balance[0].statements[0].columns : [];
