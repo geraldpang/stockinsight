@@ -3690,7 +3690,10 @@ function Detail({ sym, name, onBack }) {
                         var sfData    = window.__simfinData[sfKey];
                         var sfLoading = window.__simfinLoading[sfKey];
 
+                        // Data is prefetched on ticker load - no need to re-fetch here
+                        // Just trigger a re-render check if still loading
                         if (!sfData && !sfLoading) {
+                          // Fallback: fetch if prefetch somehow missed
                           window.__simfinLoading[sfKey] = true;
                           fetch("/simfin?sym=" + sym)
                             .then(function(r) { return r.text(); })
