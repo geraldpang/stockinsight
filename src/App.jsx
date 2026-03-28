@@ -2267,7 +2267,7 @@ function Detail({ sym, name, onBack }) {
                                 )}
 
                                 {/* DCFF-Terminal */}
-                                {dcffT > 0 && (function() {
+                                {ov.fcfRaw > 0 && (function() {
                                   var fcfBaseT = ov.fcfRaw > 0 ? ov.fcfRaw : ocf;
                                   var fcfPST   = shares > 0 ? fcfBaseT / shares : 0;
                                   var fcfY20T  = fcfPST;
