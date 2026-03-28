@@ -1101,26 +1101,28 @@ function Detail({ sym, name, onBack }) {
       return ev;
     }
     const dni20 = niDNISum > 0 ? cap(calcDNI20Sum(niDNISum)) : 0;
-    // DCFF-Terminal: Gordon Growth Model (standard perpetuity formula)
-    // TV = FCF_year20 x (1+g) / (r-g), discounted back to today
-    // Uses same growth rule as DCF-20 and 10% fixed discount
-    var dcffT_tv = 0;
-    if (ocfSum > 0 && sharesSum > 0) {
-      // Use FCF (ov.fcfRaw) not OCF for terminal value
-      var fcfBaseSum = ov.fcfRaw > 0 ? ov.fcfRaw : ocfSum;
-      var fcfPS = fcfBaseSum / sharesSum;
-      // Project FCF through 20 years using our growth rule
-      var fcfY20 = fcfPS;
-      for (var ty = 1; ty <= 20; ty++) {
-        var tg = ty <= 5 ? g1Sum/100 : ty <= 10 ? (g1Sum*0.5)/100 : termGrowth;
-        fcfY20 *= (1 + tg);
+    // Full Gordon Growth: PV(explicit years 1-20) + PV(terminal perpetuity)
+    // Replaces DCFF-Terminal with a complete standalone valuation
+    // Base: FCF per share. No debt/cash bridge needed (per-share basis)
+    var ggFull = 0;
+    if (sharesSum > 0) {
+      var fcfBaseGG = ov.fcfRaw > 0 ? ov.fcfRaw : (ocfSum > 0 ? ocfSum * 0.6 : 0);
+      if (fcfBaseGG > 0) {
+        var fcfPSGG = fcfBaseGG / sharesSum;
+        // Part 1: PV of explicit years 1-20
+        var pvExplicit = 0; var fGG = fcfPSGG;
+        for (var gy = 1; gy <= 20; gy++) {
+          var ggy = gy <= 5 ? g1Sum/100 : gy <= 10 ? (g1Sum*0.5)/100 : termGrowth;
+          fGG *= (1 + ggy);
+          pvExplicit += fGG / Math.pow(1.10, gy);
+        }
+        // Part 2: PV of terminal perpetuity (Gordon Growth)
+        var tvGG   = fGG * (1 + termGrowth) / (0.10 - termGrowth);
+        var pvTvGG = tvGG / Math.pow(1.10, 20);
+        ggFull = pvExplicit + pvTvGG;
       }
-      // Gordon Growth: TV = FCF21 / (r - g)
-      var tv = fcfY20 * (1 + termGrowth) / (0.10 - termGrowth);
-      // Discount TV back 20 years at 10%
-      dcffT_tv = tv / Math.pow(1.10, 20);
     }
-    const dcffT = dcffT_tv > 0 ? cap(dcffT_tv) : 0;
+    const dcffT = ggFull > 0 ? cap(ggFull) : 0;
     const peVal   = cap(fpe > 0 ? baseEps * fpe : baseEps * pe);
     const pb      = ov.hi52 > 0 ? (ov.hi52 + ov.lo52) / 2 : 0;
     const ps      = cap(peVal * Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0));
@@ -2268,29 +2270,34 @@ function Detail({ sym, name, onBack }) {
 
                                 {/* DCFF-Terminal */}
                                 {ov.fcfRaw > 0 && (function() {
-                                  var fcfBaseT = ov.fcfRaw > 0 ? ov.fcfRaw : ocf;
-                                  var fcfPST   = shares > 0 ? fcfBaseT / shares : 0;
-                                  var fcfY20T  = fcfPST;
-                                  for (var ty = 1; ty <= 20; ty++) {
-                                    var tgT = ty <= 5 ? g1 : ty <= 10 ? g2 : g3;
-                                    fcfY20T *= (1 + tgT);
+                                  var fcfBaseGGBd = ov.fcfRaw > 0 ? ov.fcfRaw : ocf;
+                                  var fcfPSGGBd   = shares > 0 ? fcfBaseGGBd / shares : 0;
+                                  // Part 1: PV of explicit years 1-20
+                                  var pvExpBd = 0; var fBd = fcfPSGGBd;
+                                  for (var gy = 1; gy <= 20; gy++) {
+                                    var ggyBd = gy <= 5 ? g1 : gy <= 10 ? g2 : g3;
+                                    fBd *= (1 + ggyBd);
+                                    pvExpBd += fBd / Math.pow(1.10, gy);
                                   }
-                                  var tvT   = fcfY20T * (1 + g3) / (0.10 - g3);
-                                  var pvTvT = tvT / Math.pow(1.10, 20);
+                                  // Part 2: PV of terminal perpetuity
+                                  var tvBd   = fBd * (1 + g3) / (0.10 - g3);
+                                  var pvTvBd = tvBd / Math.pow(1.10, 20);
+                                  var totalGG = pvExpBd + pvTvBd;
                                   return (
-                                    <BdSection title="Gordon Growth Terminal Value Breakdown">
-                                      <BdRow label={"Free Cash Flow (Yahoo)"}       val={fmtM(fcfBaseT)} />
-                                      <BdRow label={"FCF per Share"}                val={"$" + fcfPST.toFixed(4)} />
+                                    <BdSection title="Full Gordon Growth Breakdown (FCF-GG)">
+                                      <BdRow label="Free Cash Flow (Yahoo)"         val={fmtM(fcfBaseGGBd)} />
+                                      <BdRow label="FCF per Share"                  val={"$" + fcfPSGGBd.toFixed(4)} />
                                       <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagr > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
                                       <BdRow label="Growth Y6-10 (50% of Y1-5)"    val={(g2*100).toFixed(1) + "%"} />
-                                      <BdRow label="Growth Y11-20 (terminal)"       val="4%" />
+                                      <BdRow label="Growth Y11-20"                  val="4%" />
                                       <BdRow label="Discount Rate"                  val="10%" />
                                       <BdDivider />
-                                      <BdRow label="FCF at Year 20"                 val={"$" + fcfY20T.toFixed(4) + "/sh"} />
-                                      <BdRow label="Terminal Value (Gordon Growth)" val={"$" + tvT.toFixed(2) + "/sh  [FCF21/(10%-4%)]"} />
-                                      <BdRow label="PV of Terminal Value"           val={"$" + pvTvT.toFixed(2) + "/sh  [TV/(1.10)^20]"} />
+                                      <BdRow label="Part 1: PV of Years 1-20"       val={"$" + pvExpBd.toFixed(2) + "/sh"} />
+                                      <BdRow label="FCF at Year 20"                 val={"$" + fBd.toFixed(4) + "/sh"} />
+                                      <BdRow label="Terminal Value at Yr 20"        val={"$" + tvBd.toFixed(2) + "/sh  [FCF21/(10%-4%)]"} />
+                                      <BdRow label="Part 2: PV of Terminal Value"   val={"$" + pvTvBd.toFixed(2) + "/sh  [TV/(1.10)^20]"} />
                                       <BdDivider />
-                                      <BdRow label="= Intrinsic Value"              val={"$" + pvTvT.toFixed(2)} bold={true} highlight={true} last={true} />
+                                      <BdRow label="= Intrinsic Value (Pt1 + Pt2)"  val={"$" + totalGG.toFixed(2)} bold={true} highlight={true} last={true} />
                                     </BdSection>
                                   );
                                 })()}
