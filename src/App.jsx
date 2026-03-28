@@ -2096,6 +2096,13 @@ function Detail({ sym, name, onBack }) {
                           {/* Calculation Breakdowns */}
                           {ov && (function() {
                             var DISC   = 0.10;
+                            var PS_MEAN = {
+                              "NVDA":25.7,"AMD":7.5,"INTC":2.8,"QCOM":4.5,"AVGO":11.0,"TXN":7.5,
+                              "MU":4.0,"AAPL":6.5,"MSFT":11.0,"GOOGL":5.5,"META":7.0,"AMZN":3.0,
+                              "NFLX":5.5,"TSLA":10.0,"CRM":9.0,"ADBE":13.0,"UBER":4.0,"SPOT":4.5,
+                              "JPM":3.0,"BAC":3.0,"GS":1.8,"BRKB":1.5,"LLY":14.0,"UNH":0.9,
+                              "MRK":4.5,"XOM":1.0,"CVX":1.0,"NKE":3.0
+                            };
                             // Y1-5: 5-yr historical EPS CAGR, Y6-10: +5yr analyst estimate
                             // Y1-5: longest available historical EPS CAGR (up to 9yr)
                             // Y6-10: half of Y1-5
@@ -2317,30 +2324,6 @@ function Detail({ sym, name, onBack }) {
                                   );
                                 })()}
 
-                                {/* PS */}
-                                {ov.ps > 0 && price > 0 && (function() {
-                                  var PS_MEAN_BD = {
-                                    "NVDA":25.7,"AMD":7.5,"INTC":2.8,"QCOM":4.5,"AVGO":11.0,"TXN":7.5,
-                                    "MU":4.0,"AAPL":6.5,"MSFT":11.0,"GOOGL":5.5,"META":7.0,"AMZN":3.0,
-                                    "NFLX":5.5,"TSLA":10.0,"CRM":9.0,"ADBE":13.0,"UBER":4.0,"SPOT":4.5,
-                                    "JPM":3.0,"BAC":3.0,"GS":1.8,"BRKB":1.5,"LLY":14.0,"UNH":0.9,
-                                    "MRK":4.5,"XOM":1.0,"CVX":1.0,"NKE":3.0
-                                  };
-                                  var psMeanBD   = PS_MEAN_BD[sym] || 5.0;
-                                  var revPerShBD = price / ov.ps;
-                                  var psFairVal  = revPerShBD * psMeanBD;
-                                  return (
-                                    <BdSection title="Mean P/S Ratio Breakdown">
-                                      <BdRow label="Current Price"                  val={"$" + price.toFixed(2)} />
-                                      <BdRow label="Current P/S Ratio (TTM)"        val={ov.ps.toFixed(2) + "x"} />
-                                      <BdRow label="Revenue per Share"              val={"$" + revPerShBD.toFixed(2) + "  [price / P/S]"} />
-                                      <BdRow label="Historical Mean P/S (5yr est.)" val={psMeanBD.toFixed(1) + "x"} />
-                                      <BdDivider />
-                                      <BdRow label="= Intrinsic Value"              val={"$" + psFairVal.toFixed(2) + "  [rev/sh x mean P/S]"} bold={true} highlight={true} last={true} />
-                                    </BdSection>
-                                  );
-                                })()}
-
                                 {/* PE */}
                                 {baseEps > 0 && usePE > 0 && (
                                   <BdSection title="PE Breakdown">
@@ -2352,12 +2335,14 @@ function Detail({ sym, name, onBack }) {
                                 )}
 
                                 {/* PS */}
-                                {ov.ps > 0 && baseEps > 0 && (
-                                  <BdSection title="PS Breakdown">
-                                    <BdRow label="PE Value"             val={"$" + (baseEps * usePE).toFixed(2)} />
-                                    <BdRow label="ROIC adjustment"      val={(Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0) * 100).toFixed(0) + "%"} />
+                                {ov.ps > 0 && (
+                                  <BdSection title="Mean P/S Ratio Breakdown">
+                                    <BdRow label="Current Price"                  val={"$" + price.toFixed(2)} />
+                                    <BdRow label="Current P/S Ratio (TTM)"        val={ov.ps.toFixed(2) + "x"} />
+                                    <BdRow label="Revenue per Share"              val={"$" + (price / ov.ps).toFixed(2) + "  [price/P/S]"} />
+                                    <BdRow label="Historical Mean P/S (5yr est.)" val={(PS_MEAN[sym] || 5.0).toFixed(1) + "x"} />
                                     <BdDivider />
-                                    <BdRow label="= Intrinsic Value"    val={"$" + (baseEps * usePE * Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0)).toFixed(2)} bold={true} highlight={true} last={true} />
+                                    <BdRow label="= Intrinsic Value"              val={"$" + ((price / ov.ps) * (PS_MEAN[sym] || 5.0)).toFixed(2) + "  [rev/sh x mean P/S]"} bold={true} highlight={true} last={true} />
                                   </BdSection>
                                 )}
 
