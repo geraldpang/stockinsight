@@ -200,9 +200,14 @@ export async function onRequest(context) {
           sma50:        indVal(sma50Data),
           rsi14:        indVal(rsiData),
           newsStatus:   newsData  ? (newsData.status  || "ok") : "null",
+          newsError:    newsData  ? (newsData.error   || null) : "fetch_failed",
           snapStatus:   snapData  ? (snapData.status  || "ok") : "null",
           aggsStatus:   aggsData  ? (aggsData.status  || "ok") : "null",
           indStatus:    rsiData   ? (rsiData.status   || "ok") : "null",
+          tickerStatus: tickerData ? (tickerData.status || "ok") : "null",
+          tickerError:  tickerData ? (tickerData.error  || null) : "fetch_failed",
+          newsRaw:      newsData  ? JSON.stringify(newsData).slice(0, 200) : "null",
+          tickerRaw:    tickerData ? JSON.stringify(tickerData).slice(0, 200) : "null",
         },
       }), { headers: {"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
     }
