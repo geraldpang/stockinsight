@@ -719,7 +719,7 @@ function Detail({ sym, name, onBack }) {
       .then(function(data) {
         debugEntries.push({ time: new Date().toISOString(), label: "Massive response received", data: { newsCount: data && data.news ? data.news.length : 0, tickerName: data && data.ticker ? data.ticker.name : null, debug: data && data._debug } });
         // Set massiveInfo if we got any useful data back
-        if (data && (data.news || data.ticker || data.dividends)) {
+        if (data && (data.news || data.ticker || data.dividends || data.indicators || data.aggs)) {
           setMassiveInfo(data);
         } else {
           debugEntries.push({ time: new Date().toISOString(), label: "Massive data empty or error", data: data });
@@ -1766,7 +1766,7 @@ function Detail({ sym, name, onBack }) {
               var color = props.color || "#4a9a4a";
               var isCurrency = props.isCurrency !== false;
               if (!data || data.length < 2) return (
-                <div style={{ flex:"1 1 0", minWidth:0 }}>
+                <div style={{ flex:"1 1 0", minWidth:0, maxWidth:"33.33%" }}>
                   <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{label}</div>
                   <div style={{ fontSize:11, color:"#ccc", paddingTop:20 }}>No data</div>
                 </div>
@@ -1790,9 +1790,9 @@ function Detail({ sym, name, onBack }) {
                 return (v<0?"-":"")+"$"+a.toFixed(2);
               }
               return (
-                <div style={{ flex:"1 1 0", minWidth:0 }}>
+                <div style={{ flex:"1 1 0", minWidth:0, maxWidth:"33.33%" }}>
                   <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{label}</div>
-                  <svg viewBox={"0 0 "+W+" "+H} style={{ width:"100%", height:H, display:"block" }} preserveAspectRatio="xMidYMid meet">
+                  <svg viewBox={"0 0 "+W+" "+H} style={{ width:"100%", height:H, display:"block" }}>
                     {[0,0.5,1].map(function(t,ti){
                       var y = PT+cH-t*cH; var v = minV+t*range;
                       return (
@@ -1830,7 +1830,7 @@ function Detail({ sym, name, onBack }) {
                 <div style={{ fontSize:10, fontWeight:700, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:10 }}>
                   Financial History (split-adjusted)
                 </div>
-                <div style={{ display:"flex", gap:16 }}>
+                <div style={{ display:"flex", gap:8 }}>
                   <MiniChart data={epsData}   label="EPS"        color="#4a9a4a" isCurrency={true} />
                   <MiniChart data={revSeries} label="Revenue"    color="#4a7aaa" isCurrency={true} />
                   <MiniChart data={niSeries}  label="Net Income" color="#9a6a4a" isCurrency={true} />
@@ -3544,7 +3544,7 @@ function Detail({ sym, name, onBack }) {
                               {macd && (
                                 <div style={{ background:"#f0f3ff", borderRadius:8, padding:"10px 12px" }}>
                                   <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:6 }}>MACD (12/26/9)</div>
-                                  <div style={{ display:"flex", gap:16 }}>
+                                  <div style={{ display:"flex", gap:8 }}>
                                     {[
                                       ["MACD Line",  macd.macd      != null ? macd.macd.toFixed(4)      : "-"],
                                       ["Signal",     macd.signal    != null ? macd.signal.toFixed(4)    : "-"],
