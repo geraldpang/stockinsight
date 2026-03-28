@@ -2343,18 +2343,19 @@ function Detail({ sym, name, onBack }) {
                                     "JPM":3.0,"BAC":3.0,"GS":1.8,"BRKB":1.5,"LLY":14.0,"UNH":0.9,
                                     "MRK":4.5,"XOM":1.0,"CVX":1.0,"NKE":3.0
                                   };
-                                  var psMeanLocal  = PS_MEAN_LOCAL[sym] || 5.0;
+                                  var psMeanLocal   = PS_MEAN_LOCAL[sym] || 5.0;
                                   var revPerShLocal = price / ov.ps;
                                   return (
-                                  <BdSection title="Mean P/S Ratio Breakdown">
-                                    <BdRow label="Current Price"                  val={"$" + price.toFixed(2)} />
-                                    <BdRow label="Current P/S Ratio (TTM)"        val={ov.ps.toFixed(2) + "x"} />
-                                    <BdRow label="Revenue per Share"              val={"$" + (price / ov.ps).toFixed(2) + "  [price/P/S]"} />
-                                    <BdRow label="Historical Mean P/S (5yr est.)" val={(PS_MEAN[sym] || 5.0).toFixed(1) + "x"} />
-                                    <BdDivider />
-                                    <BdRow label="= Intrinsic Value"              val={"$" + ((price / ov.ps) * (PS_MEAN[sym] || 5.0)).toFixed(2) + "  [rev/sh x mean P/S]"} bold={true} highlight={true} last={true} />
-                                  </BdSection>
-                                )}
+                                    <BdSection title="Mean P/S Ratio Breakdown">
+                                      <BdRow label="Current Price"                  val={"$" + price.toFixed(2)} />
+                                      <BdRow label="Current P/S Ratio (TTM)"        val={ov.ps.toFixed(2) + "x"} />
+                                      <BdRow label="Revenue per Share"              val={"$" + revPerShLocal.toFixed(2) + "  [price/P/S]"} />
+                                      <BdRow label="Historical Mean P/S (5yr est.)" val={psMeanLocal.toFixed(1) + "x"} />
+                                      <BdDivider />
+                                      <BdRow label="= Intrinsic Value"              val={"$" + (revPerShLocal * psMeanLocal).toFixed(2) + "  [rev/sh x mean P/S]"} bold={true} highlight={true} last={true} />
+                                    </BdSection>
+                                  );
+                                })()}
 
                               </div>
                             );
