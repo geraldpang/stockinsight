@@ -157,10 +157,7 @@ export async function onRequest(context) {
         ticker:    tickerData   && tickerData.results   ? tickerData.results   : null,
         dividends: dividendData && dividendData.results ? dividendData.results : [],
         splits:    splitsData   && splitsData.results   ? splitsData.results   : [],
-        // Raw financials for debt/cash/equity - pass through for debug, parse in frontend
-        financials: financialsData && financialsData.results && financialsData.results[0]
-          ? financialsData.results[0].financials
-          : null,
+        // financials: removed - now using SimFin for balance sheet data
         aggs:      aggsData     && aggsData.results     ? aggsData.results.slice(0, 30) : [],
         snapshot: snap ? {
           open:      snap.day  ? snap.day.o  : null,
