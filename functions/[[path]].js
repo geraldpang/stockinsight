@@ -366,11 +366,10 @@ export async function onRequest(context) {
       }
 
       try {
-        // Sequential calls with 600ms delay to respect 2 req/sec rate limit
-        // Priority: balance sheet first (debt/cash/equity for DCF), then income (EPS)
-        var sfBalance = await sfFetch("bs");
-        await new Promise(function(r){ setTimeout(r, 600); }); // 600ms gap
-        var sfIncome  = await sfFetch("pl");
+        // Parallel calls - START plan allows 5 req/sec
+        var sfPair   = await Promise.all([ sfFetch("bs"), sfFetch("pl") ]);
+        var sfBalance = sfPair[0];
+        var sfIncome  = sfPair[1];
         return new Response(JSON.stringify({
           ok: true,
           sym: sfSym,
