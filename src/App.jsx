@@ -2004,10 +2004,13 @@ function Detail({ sym, name, onBack }) {
                             // Y1-5: 5-yr historical EPS CAGR, Y6-10: +5yr analyst estimate
                             // Y1-5: longest available historical EPS CAGR (up to 9yr)
                             // Y6-10: half of Y1-5
-                            var g1Pct  = histCagrYears >= 2
-                                           ? Math.min(Math.max(histGrowthRate * 100, 0), 50)
-                                           : (ov.ltG1Y > 0 ? Math.min(ov.ltG1Y, 50) : Math.min(histGrowthRate * 100, 50));
-                            var g2Pct  = g1Pct * 0.50;
+                            // Y1-5: hist EPS CAGR. If > 50%, divide by 2 to temper explosive growth
+                            // Y6-10: half of Y1-5. Y11-20: fixed 4%
+                            var rawCagr = histCagrYears >= 2
+                                           ? Math.max(histGrowthRate * 100, 0)
+                                           : (ov.ltG1Y > 0 ? ov.ltG1Y : Math.max(histGrowthRate * 100, 0));
+                            var g1Pct   = rawCagr > 50 ? rawCagr / 2 : rawCagr;
+                            var g2Pct   = g1Pct * 0.50;
                             var g1     = g1Pct / 100;
                             var g2     = g2Pct / 100;
                             var g3     = 0.04;
