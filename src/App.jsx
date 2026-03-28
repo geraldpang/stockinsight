@@ -1760,7 +1760,7 @@ function Detail({ sym, name, onBack }) {
 
             if (epsSeries.length < 2 && revSeries.length < 2) return null;
 
-            function MiniChart(props) {
+            var MiniChart = function(props) {
               var data = props.data; // [{year, val}]
               var label = props.label;
               var color = props.color || "#4a9a4a";
@@ -1776,7 +1776,7 @@ function Detail({ sym, name, onBack }) {
               var minV  = Math.min.apply(null, vals);
               var range = maxV - minV || 1;
               var n = data.length;
-              var W=160; var H=90; var PL=32; var PR=6; var PT=12; var PB=16;
+              var W=240; var H=100; var PL=34; var PR=8; var PT=14; var PB=18;
               var cW=W-PL-PR; var cH=H-PT-PB;
               function xPos(i){ return PL + (i/(n-1))*cW; }
               function yPos(v){ return PT + cH - ((v-minV)/range)*cH; }
@@ -1792,7 +1792,7 @@ function Detail({ sym, name, onBack }) {
               return (
                 <div style={{ flex:"1 1 0", minWidth:0 }}>
                   <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{label}</div>
-                  <svg viewBox={"0 0 "+W+" "+H} style={{ width:"100%", height:H, display:"block" }}>
+                  <svg viewBox={"0 0 "+W+" "+H} style={{ width:"100%", height:H, display:"block" }} preserveAspectRatio="xMidYMid meet">
                     {[0,0.5,1].map(function(t,ti){
                       var y = PT+cH-t*cH; var v = minV+t*range;
                       return (
@@ -1808,12 +1808,12 @@ function Detail({ sym, name, onBack }) {
                     {data.map(function(r,i){
                       var x=xPos(i); var y=yPos(r.val);
                       var isLast=i===n-1; var isFirst=i===0;
-                      var showVal=isFirst||isLast;
+                      var showVal=isFirst||isLast||(n<=6)||(i%2===0&&n>6);
                       var anchor=isFirst?"start":isLast?"end":"middle";
                       return (
                         <g key={i}>
                           <circle cx={x} cy={y} r={isLast?3.5:2} fill={isLast?lc:"#fff"} stroke={lc} strokeWidth="1.2" />
-                          <text x={x} y={H-2} textAnchor="middle" fontSize="7.5" fill="#ccc">{"'"+String(r.year).slice(2)}</text>
+                          <text x={x} y={H-2} textAnchor="middle" fontSize="7.5" fill="#ccc">{String(r.year).slice(2)}</text>
                           {showVal && <text x={x+(isFirst?2:-2)} y={y-5} textAnchor={anchor} fontSize="8" fill="#444" fontWeight="600">{fmtV(r.val)}</text>}
                         </g>
                       );
