@@ -2143,19 +2143,43 @@ function Detail({ sym, name, onBack }) {
                                 )}
 
 
-                                {/* DNI-20 */}
-                                {dni20Res && (
-                                  <BdSection title="DNI-20 Breakdown">
-                                    <BdRow label={"Net Income per Share (" + niSource + ")"} val={"$" + niPerShareDNI.toFixed(4)} />
-                                    <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagr > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y6-10 (50% of Y1-5)"     val={(g2*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y11-20"        val="4%" />
-                                    <BdRow label="Discount Rate"        val="10%" />
-                                    <BdDivider />
-                                    <BdRow label="= Intrinsic Value"    val={"$" + (dni20Res.perShare).toFixed(2)} bold={true} highlight={true} last={true} />
-                                  </BdSection>
-                                )}
+                                {/* DNI-20 - computed inline, no external deps */}
+                                {(function() {
+                                  var sfBD = window.__simfinData && window.__simfinData[sym];
+                                  var niBD = (ov.niRaw > 0 ? ov.niRaw : 0);
+                                  if (!niBD && sfBD && sfBD.income && Array.isArray(sfBD.income) && sfBD.income[0]) {
+                                    var sfIS = sfBD.income[0].statements && sfBD.income[0].statements[0];
+                                    if (sfIS && sfIS.columns && sfIS.data && sfIS.data.length > 0) {
+                                      var sfIC = sfIS.columns; var sfIR = sfIS.data[sfIS.data.length-1];
+                                      var ciNI = sfIC.indexOf("Net Income");
+                                      if (ciNI !== -1 && sfIR[ciNI] !== null && sfIR[ciNI] > 0) niBD = sfIR[ciNI];
+                                    }
+                                  }
+                                  var shBD = ov.sharesOut || 0;
+                                  if (!niBD || !shBD) return null;
+                                  var niSrcBD  = niBD === ov.niRaw ? "Yahoo" : "SimFin";
+                                  var niPSBD   = niBD / shBD;
+                                  var rawCagrBD = histCagrYears >= 2 ? Math.max(histGrowthRate * 100, 0) : (ov.ltG1Y > 0 ? ov.ltG1Y : 0);
+                                  var g1BD = (rawCagrBD > 50 ? rawCagrBD / 2 : rawCagrBD) / 100;
+                                  var g2BD = g1BD * 0.5; var g3BD = 0.04;
+                                  var evBD = 0; var fBD2 = niPSBD;
+                                  for (var y = 1; y <= 20; y++) {
+                                    var gBD = y <= 5 ? g1BD : y <= 10 ? g2BD : g3BD;
+                                    fBD2 *= (1 + gBD); evBD += fBD2 / Math.pow(1.10, y);
+                                  }
+                                  return (
+                                    <BdSection title="DNI-20 Breakdown">
+                                      <BdRow label={"Net Income per Share (" + niSrcBD + ")"} val={"$" + niPSBD.toFixed(4)} />
+                                      <BdRow label="Shares Outstanding"   val={(shBD/1e6).toFixed(0) + "M"} />
+                                      <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagrBD > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1BD*100).toFixed(1) + "%"} />
+                                      <BdRow label="Growth Y6-10 (50% of Y1-5)"  val={(g2BD*100).toFixed(1) + "%"} />
+                                      <BdRow label="Growth Y11-20"               val="4%" />
+                                      <BdRow label="Discount Rate"               val="10%" />
+                                      <BdDivider />
+                                      <BdRow label="= Intrinsic Value"           val={"$" + evBD.toFixed(2)} bold={true} highlight={true} last={true} />
+                                    </BdSection>
+                                  );
+                                })()}
 
                                 {/* Gordon Growth */}
                                 {ov.fcfRaw > 0 && (function() {
