@@ -1075,7 +1075,18 @@ function Detail({ sym, name, onBack }) {
     }
 
     const dcf20  = ocfSum > 0 ? cap(calcDCF20Sum(ocfSum, g1Sum, g2Sum)) : 0;
-    const dcff20 = ov.fcfRaw > 0 && ov.fcfRaw !== ocfSum ? cap(calcDCF20Sum(ov.fcfRaw, g1Sum, g2Sum)) : 0;
+    // DCFF-20 uses Net Income (from SimFin if Yahoo niRaw = 0)
+    var niBaseSum = ov.niRaw > 0 ? ov.niRaw : 0;
+    if (!niBaseSum && sfBalSum && sfBalSum.income && Array.isArray(sfBalSum.income) && sfBalSum.income[0]) {
+      var sfIncS = sfBalSum.income[0].statements && sfBalSum.income[0].statements[0];
+      if (sfIncS && sfIncS.columns && sfIncS.data && sfIncS.data.length > 0) {
+        var sfICols = sfIncS.columns; var sfIRow = sfIncS.data[sfIncS.data.length - 1];
+        function sfGetI(n) { var ci = sfICols.indexOf(n); return (ci !== -1 && sfIRow[ci] !== null) ? sfIRow[ci] : null; }
+        var sfNIS = sfGetI("Net Income") || sfGetI("Net Income Available to Common Shareholders");
+        if (sfNIS && sfNIS > 0) niBaseSum = sfNIS;
+      }
+    }
+    const dcff20 = niBaseSum > 0 ? cap(calcDCF20Sum(niBaseSum, g1Sum, g2Sum)) : 0;
     const dni20  = niPerShare > 0 ? cap(calcDCF(niPerShare, grCapped, termGrowth, WACC_ADJ, 20)) : 0;
     const dcffT  = fcfPerShare > 0 ? cap(
       calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 20) -
