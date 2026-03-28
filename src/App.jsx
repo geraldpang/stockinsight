@@ -2106,6 +2106,21 @@ function Detail({ sym, name, onBack }) {
                               }
                             }
                             var niSource = niBase === ov.niRaw ? "Yahoo" : "SimFin";
+                            // DNI-20: NI per share using same SimFin priority
+                            var niPerShareDNI = niBase > 0 && shares > 0 ? niBase / shares
+                                             : baseEps > 0 ? baseEps * 0.90 : 0;
+                            // Same growth rule as DCF-20
+                            var WACC_DNI = Math.min(Math.max(0.045 + (ov.beta > 0 ? ov.beta : 1.0) * 0.055, 0.06), 0.18);
+                            function calcDNI20Bd(niPS) {
+                              if (!niPS) return null;
+                              var ev = 0; var f = niPS;
+                              for (var y = 1; y <= 20; y++) {
+                                var g = y <= 5 ? g1 : y <= 10 ? g2 : g3;
+                                f *= (1 + g); ev += f / Math.pow(1 + WACC_DNI, y);
+                              }
+                              return { ev: ev * shares, perShare: ev };
+                            }
+                            var dni20Res = niPerShareDNI > 0 ? calcDNI20Bd(niPerShareDNI) : null;
 
                             // Priority 2: estimate from P/B ratio if still missing
                             if (!debt && ov.de > 0 && ov.pbRatio > 0 && price > 0 && shares > 0) {
@@ -2205,6 +2220,20 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label="/ Shares"             val={(shares/1e6).toFixed(0) + "M"} />
                                     <BdDivider />
                                     <BdRow label="= Intrinsic Value"    val={"$" + (dcff20Res.perShare).toFixed(2)} bold={true} highlight={true} last={true} />
+                                  </BdSection>
+                                )}
+
+                                {/* DNI-20 */}
+                                {dni20Res && (
+                                  <BdSection title="DNI-20 Breakdown">
+                                    <BdRow label={"Net Income per Share (" + niSource + ")"} val={"$" + niPerShareDNI.toFixed(4)} />
+                                    <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
+                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagr > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y6-10 (50% of Y1-5)"     val={(g2*100).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y11-20"        val="4%" />
+                                    <BdRow label={"Discount Rate (WACC, " + String.fromCharCode(946) + "=" + (ov.beta > 0 ? ov.beta.toFixed(2) : "1.00") + ")"} val={(WACC_DNI * 100).toFixed(2) + "%"} />
+                                    <BdDivider />
+                                    <BdRow label="= Intrinsic Value"    val={"$" + (dni20Res.perShare).toFixed(2)} bold={true} highlight={true} last={true} />
                                   </BdSection>
                                 )}
 
