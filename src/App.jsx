@@ -126,6 +126,7 @@ async function getOverview(sym) {
            : r >= 1e9  ? "$" + (r/1e9).toFixed(1)  + "B"
            : r >= 1e6  ? "$" + (r/1e6).toFixed(0)  + "M" : "-";
     })(),
+    revRaw:       (fd.totalRevenue && fd.totalRevenue.raw) || 0,
     revGrowth:    ((fd.revenueGrowth && fd.revenueGrowth.raw) || 0) * 100,
     // Growth & Profile
     beta:         (sd.beta && sd.beta.raw) || 0,
@@ -1125,7 +1126,21 @@ function Detail({ sym, name, onBack }) {
     const dcffT = ggFull > 0 ? cap(ggFull) : 0;
     const peVal   = cap(fpe > 0 ? baseEps * fpe : baseEps * pe);
     const pb      = ov.hi52 > 0 ? (ov.hi52 + ov.lo52) / 2 : 0;
-    const ps      = cap(peVal * Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0));
+    // Mean P/S valuation: Revenue per Share x Historical Mean P/S
+    // Rev/share derived from current price / current PS ratio (same as reference)
+    // Fair Value = (price / current_PS) x mean_PS
+    var PS_MEAN = {
+      "NVDA":25.7,"AMD":7.5,"INTC":2.8,"QCOM":4.5,"AVGO":11.0,"TXN":7.5,
+      "MU":4.0,"AAPL":6.5,"MSFT":11.0,"GOOGL":5.5,"META":7.0,"AMZN":3.0,
+      "NFLX":5.5,"TSLA":10.0,"CRM":9.0,"ADBE":13.0,"UBER":4.0,"SPOT":4.5,
+      "JPM":3.0,"BAC":3.0,"GS":1.8,"BRKB":1.5,"LLY":14.0,"UNH":0.9,
+      "MRK":4.5,"XOM":1.0,"CVX":1.0,"NKE":3.0
+    };
+    var psMeanMultiple = PS_MEAN[sym] || 5.0;
+    var psVal = ov.ps > 0 && price > 0
+      ? cap((price / ov.ps) * psMeanMultiple)
+      : 0;
+    const ps = psVal;
     const ltgRate = ov.ltG > 0 ? ov.ltG : grCapped * 100;
     const psg     = ltgRate > 0 ? Math.min(price / ltgRate, maxVal) : 0;
     const pegVal  = ov.peg > 0 ? Math.min(baseEps * 15, maxVal) : 0;
@@ -1134,7 +1149,7 @@ function Detail({ sym, name, onBack }) {
     if (dcff20 > 0) vals.push({ label:"Discounted Free Cash Flow 20-year\n(DCFF-20)",   value:dcff20, color:"#d4a800" });
     if (dni20  > 0) vals.push({ label:"Discounted Net Income 20-year\n(DNI-20)",        value:dni20,  color:"#d4a800" });
     if (dcffT  > 0) vals.push({ label:"Gordon Growth Terminal Value\n(DCFF-Terminal)",  value:dcffT,  color:"#d4a800" });
-    vals.push({ label:"Mean Price to Sales\n(PS) Ratio",                value:ps,     color:"#d4a800" });
+    vals.push({ label:"Mean Price to Sales\n(P/S Ratio)",             value:ps,     color:"#d4a800" });
     vals.push({ label:"Mean Price to Earnings\n(PE) Ratio Without NRI", value:peVal,  color:"#d4a800" });
     if (pb > 0)     vals.push({ label:"Mean Price to Book\n(PB) Ratio",                        value:pb,     color:"#d4a800" });
     if (psg > 0)    vals.push({ label:"Price to Sales Growth\n(PSG) Ratio",                    value:psg,    color:"#c03030" });
