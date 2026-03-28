@@ -2343,9 +2343,14 @@ function Detail({ sym, name, onBack }) {
                                     "JPM":3.0,"BAC":3.0,"GS":1.8,"BRKB":1.5,"LLY":14.0,"UNH":0.9,
                                     "MRK":4.5,"XOM":1.0,"CVX":1.0,"NKE":3.0
                                   };
-                                  if (!ov || !ov.ps || ov.ps <= 0 || !price || price <= 0) return null;
+                                  if (!ov || !ov.ps || ov.ps <= 0) return null;
                                   var psMeanLocal   = PS_MEAN_LOCAL[sym] || 5.0;
-                                  var revPerShLocal = price / ov.ps;
+                                  var revPerShLocal = ov.ps > 0 ? price / ov.ps : 0;
+                                  setDebugLog(function(prev) { return prev.concat([{
+                                    time: new Date().toISOString(),
+                                    label: "PS Breakdown debug",
+                                    data: { ovPs: ov.ps, price: price, psMeanLocal: psMeanLocal, revPerShLocal: revPerShLocal }
+                                  }]); });
                                   return (
                                     <BdSection title="Mean P/S Ratio Breakdown">
                                       <BdRow label="Current Price"                  val={"$" + price.toFixed(2)} />
