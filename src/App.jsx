@@ -2096,7 +2096,6 @@ function Detail({ sym, name, onBack }) {
                           {/* Calculation Breakdowns */}
                           {ov && (function() {
                             var DISC   = 0.10;
-                            setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "IIFE START debug", data: { ov_ps: ov ? ov.ps : null, sym: sym } }]); });
                             var PS_MEAN = {
                               "NVDA":25.7,"AMD":7.5,"INTC":2.8,"QCOM":4.5,"AVGO":11.0,"TXN":7.5,
                               "MU":4.0,"AAPL":6.5,"MSFT":11.0,"GOOGL":5.5,"META":7.0,"AMZN":3.0,
@@ -2198,11 +2197,6 @@ function Detail({ sym, name, onBack }) {
                             var psMeanBD     = PS_MEAN_BD[sym] || 5.0;
                             var psRevPerShare = ov.ps > 0 ? price / ov.ps : 0;
                             var psFairVal    = psRevPerShare * psMeanBD;
-                            setDebugLog(function(prev) { return prev.concat([{
-                              time: new Date().toISOString(),
-                              label: "PS vars debug",
-                              data: { ovPs: ov ? ov.ps : null, price: price, psMeanBD: psMeanBD, psRevPerShare: psRevPerShare, psFairVal: psFairVal, sym: sym }
-                            }]); });
                             // Use operating cash flow (before capex) as base
                             var ocf    = ov.ocfRaw > 0 ? ov.ocfRaw : ov.fcfRaw;
 
