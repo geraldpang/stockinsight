@@ -2082,6 +2082,20 @@ function Detail({ sym, name, onBack }) {
                                 if (sfCash !== null)  { cash = sfCash; }
                               }
                             }
+                            // Get Net Income from SimFin if Yahoo niRaw is 0
+                            var niBase = ov.niRaw > 0 ? ov.niRaw : 0;
+                            if (!niBase && sfBal && sfBal.income && Array.isArray(sfBal.income) && sfBal.income[0]) {
+                              var sfIncStmt = sfBal.income[0].statements && sfBal.income[0].statements[0];
+                              if (sfIncStmt && sfIncStmt.columns && sfIncStmt.data && sfIncStmt.data.length > 0) {
+                                var sfIncCols = sfIncStmt.columns;
+                                var sfIncRow  = sfIncStmt.data[sfIncStmt.data.length - 1];
+                                function sfGetInc(n) { var ci = sfIncCols.indexOf(n); return (ci !== -1 && sfIncRow[ci] !== null) ? sfIncRow[ci] : null; }
+                                var sfNI = sfGetInc("Net Income") || sfGetInc("Net Income Available to Common Shareholders");
+                                if (sfNI && sfNI > 0) niBase = sfNI;
+                              }
+                            }
+                            var niSource = niBase === ov.niRaw ? "Yahoo" : "SimFin";
+
                             // Priority 2: estimate from P/B ratio if still missing
                             if (!debt && ov.de > 0 && ov.pbRatio > 0 && price > 0 && shares > 0) {
                               var bvPerShare  = price / ov.pbRatio;
@@ -2114,7 +2128,7 @@ function Detail({ sym, name, onBack }) {
                             }
 
                             var dcf20Res   = ocf       > 0 && shares > 0 ? calcPerShare(ocf)        : null;
-                            var dcff20Res  = ov.niRaw  > 0 && shares > 0 ? calcPerShare(ov.niRaw)   : null;
+                            var dcff20Res  = niBase    > 0 && shares > 0 ? calcPerShare(niBase)     : null;
                             var eps20Res   = baseEps   > 0 && shares > 0 ? calcPerShare(baseEps * shares) : null;
 
                             function BdRow(props) {
@@ -2166,12 +2180,12 @@ function Detail({ sym, name, onBack }) {
                                 {/* DCFF-20 */}
                                 {dcff20Res && (
                                   <BdSection title="DCFF-20 Breakdown">
-                                    <BdRow label="Net Income"           val={fmtM(ov.niRaw)} />
+                                    <BdRow label={"Net Income (" + niSource + ")"}   val={fmtM(niBase)} />
                                     <BdRow label={"Total Debt" + (debtIsEst ? " (est.)" : " (SimFin)")} val={fmtM(debt)} />
                                     <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
                                     <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label="Growth Y1-5"          val={(g1*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y6-10"         val={(g2*100).toFixed(1) + "%"} />
+                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagr > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y6-10 (50% of Y1-5)"     val={(g2*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y11-20"        val="4%" />
                                     <BdRow label="Discount Rate"        val="10%" />
                                     <BdDivider />
