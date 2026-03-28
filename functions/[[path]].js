@@ -1,4677 +1,551 @@
-import { useState, useEffect } from "react";
+export async function onRequest(context) {
+  const url    = new URL(context.request.url);
+  const target = url.searchParams.get("url");
+  const UA     = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-const FONT = "'Inter', system-ui, sans-serif";
-const LIME = "#c8f000";
-const BG   = "#0e0e0c";
+  async function getYahooCrumb(sym) {
+    var quoteUrl = sym ? "https://finance.yahoo.com/quote/" + sym + "/" : "https://finance.yahoo.com/";
+    const homeRes = await fetch(quoteUrl, {
+      headers: {
+        "User-Agent":      UA,
+        "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      redirect: "follow",
+    });
+    const rawCookie = homeRes.headers.get("set-cookie") || "";
+    const cookies   = rawCookie.split(/,(?=[^ ].*?=)/).map(c => c.split(";")[0].trim()).join("; ");
+    const crumbRes  = await fetch("https://query1.finance.yahoo.com/v1/test/getcrumb", {
+      headers: {
+        "User-Agent": UA,
+        "Accept":     "*/*",
+        "Cookie":     cookies,
+        "Referer":    "https://finance.yahoo.com/",
+      },
+    });
+    const crumb = (await crumbRes.text()).trim();
+    return { crumb, cookies };
+  }
 
-const NAMES = {
-  AAPL:"Apple Inc.",         MSFT:"Microsoft Corporation", GOOGL:"Alphabet Inc.",
-  AMZN:"Amazon.com Inc.",    META:"Meta Platforms Inc.",   NVDA:"NVIDIA Corporation",
-  TSLA:"Tesla Inc.",         NFLX:"Netflix Inc.",          AMD:"Advanced Micro Devices",
-  INTC:"Intel Corporation",  CRM:"Salesforce Inc.",        ADBE:"Adobe Inc.",
-  JPM:"JPMorgan Chase",      BAC:"Bank of America",        GS:"Goldman Sachs",
-  XOM:"Exxon Mobil",         CVX:"Chevron Corporation",    LLY:"Eli Lilly",
-  UNH:"UnitedHealth Group",  MRK:"Merck and Co.",          UBER:"Uber Technologies",
-  SPOT:"Spotify Technology", NKE:"NIKE Inc.",              AVGO:"Broadcom Inc.",
-  QCOM:"Qualcomm",           TXN:"Texas Instruments",      MU:"Micron Technology",
-  BRKB:"Berkshire Hathaway B",
-};
+  function fmtAmt(v) {
+    if (v == null || v === 0) return "-";
+    var a = Math.abs(v);
+    if (a >= 1e12) return (v < 0 ? "-$" : "$") + (a / 1e12).toFixed(2) + "T";
+    if (a >= 1e9)  return (v < 0 ? "-$" : "$") + (a / 1e9).toFixed(1)  + "B";
+    if (a >= 1e6)  return (v < 0 ? "-$" : "$") + (a / 1e6).toFixed(0)  + "M";
+    return (v < 0 ? "-$" : "$") + a.toFixed(2);
+  }
 
-var FREE_TICKERS  = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
-var CACHE_VERSION = "v1";
+  try {
 
-const qCache  = {};
-const ovCache = {};
-
-// Proxy runs on same domain (nervousgeek.com/proxy) - no CORS issues
-async function yfetch(url) {
-  var r    = await fetch("/proxy?url=" + encodeURIComponent(url));
-  var text = await r.text();
-  return JSON.parse(text);
-}
-
-async function getQuote(sym) {
-  if (qCache[sym]) return qCache[sym];
-  var ySym = sym === "BRKB" ? "BRK-B" : sym;
-  var d    = await yfetch("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=1d");
-  var meta = d && d.chart && d.chart.result && d.chart.result[0] && d.chart.result[0].meta;
-  if (!meta) return null;
-  var price  = meta.regularMarketPrice || 0;
-  var prev   = meta.chartPreviousClose || meta.previousClose || price;
-  var change = parseFloat((price - prev).toFixed(2));
-  var pct    = prev > 0 ? parseFloat(((change / prev) * 100).toFixed(2)) : 0;
-  var out = {
-    price, change, pct,
-    open: String(meta.regularMarketOpen    || "-"),
-    high: String(meta.regularMarketDayHigh || "-"),
-    low:  String(meta.regularMarketDayLow  || "-"),
-    vol:  meta.regularMarketVolume ? meta.regularMarketVolume.toLocaleString() : "-",
-  };
-  qCache[sym] = out;
-  return out;
-}
-
-async function getOverview(sym) {
-  if (ovCache[sym]) return ovCache[sym];
-  var ySym = sym === "BRKB" ? "BRK-B" : sym;
-  var d   = await yfetch(
-    "https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + ySym +
-    "?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile,earningsTrend,recommendationTrend,upgradeDowngradeHistory,balanceSheetHistory,balanceSheetHistoryQuarterly,earningsHistory,calendarEvents,majorHoldersBreakdown,institutionOwnership,insiderTransactions,secFilings"
-  );
-  var res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
-  if (!res) return null;
-  var sd = res.summaryDetail        || {};
-  var ks = res.defaultKeyStatistics || {};
-  var fd = res.financialData        || {};
-  var ap = res.assetProfile         || {};
-  var mc = (sd.marketCap && sd.marketCap.raw) || 0;
-  var mcStr = mc >= 1e12 ? "$" + (mc/1e12).toFixed(2) + "T"
-            : mc >= 1e9  ? "$" + (mc/1e9).toFixed(1)  + "B"
-            : mc >= 1e6  ? "$" + (mc/1e6).toFixed(0)  + "M" : "-";
-  // EPS growth from earningsTrend
-  var ltG = 0;   // +5yr analyst estimate
-  var ltG1Y = 0; // +1yr analyst estimate
-  (function() {
-    var et = res.earningsTrend;
-    if (et && et.trend) {
-      for (var i = 0; i < et.trend.length; i++) {
-        var t = et.trend[i];
-        if (t.period === "+5y" && t.growth && t.growth.raw) ltG   = t.growth.raw * 100;
-        if (t.period === "+1y" && t.growth && t.growth.raw) ltG1Y = t.growth.raw * 100;
+    // Only handle specific API routes -- pass everything else to the React app
+    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache", "/simfin"];
+    var isApiRoute  = false;
+    for (var ri = 0; ri < knownRoutes.length; ri++) {
+      if (url.pathname === knownRoutes[ri] || url.pathname.startsWith(knownRoutes[ri] + "?")) {
+        isApiRoute = true;
+        break;
       }
     }
-    if (!ltG) ltG = ((fd.revenueGrowth && fd.revenueGrowth.raw) || 0) * 100;
-  })();
-  // Free Cash Flow formatting
-  var fcfRaw = (fd.freeCashflow && fd.freeCashflow.raw) || 0;
-  var fcfStr = fcfRaw >= 1e12 ? "$" + (fcfRaw/1e12).toFixed(2) + "T"
-             : fcfRaw >= 1e9  ? "$" + (fcfRaw/1e9).toFixed(1)  + "B"
-             : fcfRaw >= 1e6  ? "$" + (fcfRaw/1e6).toFixed(0)  + "M"
-             : fcfRaw < 0     ? "-$" + Math.abs(fcfRaw/1e6).toFixed(0) + "M" : "-";
-  var out = {
-    exchange:     ap.exchange || sd.exchange || "NASDAQ",
-    marketCap:    mcStr,
-    // Valuation
-    pe:           (sd.trailingPE && sd.trailingPE.raw)   || 0,
-    fpe:          (sd.forwardPE  && sd.forwardPE.raw)    || 0,
-    peg:          (ks.pegRatio   && ks.pegRatio.raw)     || 0,
-    ps:           (ks.priceToSalesTrailing12Months && ks.priceToSalesTrailing12Months.raw) || 0,
-    evEbitda:     (ks.enterpriseToEbitda && ks.enterpriseToEbitda.raw) || 0,
-    pFcf:         (ks.priceToFreeCashflows && ks.priceToFreeCashflows.raw) || 0,
-    epsG:         ((fd.earningsGrowth && fd.earningsGrowth.raw) || 0) * 100,
-    ltG,
-    ltG1Y,
-    divY:         ((sd.dividendYield  && sd.dividendYield.raw)  || 0) * 100,
-    // Financial Health
-    grossMargin:  ((fd.grossMargins    && fd.grossMargins.raw)    || 0) * 100,
-    netMargin:    ((fd.profitMargins   && fd.profitMargins.raw)   || 0) * 100,
-    opMargin:     ((fd.operatingMargins && fd.operatingMargins.raw) || 0) * 100,
-    roe:          ((fd.returnOnEquity && fd.returnOnEquity.raw) || 0) * 100,
-    roic:         ((fd.returnOnAssets && fd.returnOnAssets.raw) || 0) * 100,
-    de:           ((fd.debtToEquity && fd.debtToEquity.raw) || 0) / 100,
-    currentRatio: (fd.currentRatio && fd.currentRatio.raw) || 0,
-    fcf:          fcfStr,
-    // Financial Health extras
-    netIncome:    (function() {
-      var n = (fd.netIncomeToCommon && fd.netIncomeToCommon.raw) || 0;
-      return n >= 1e12 ? "$" + (n/1e12).toFixed(2) + "T"
-           : n >= 1e9  ? "$" + (n/1e9).toFixed(1)  + "B"
-           : n >= 1e6  ? "$" + (n/1e6).toFixed(0)  + "M"
-           : n < 0     ? "-$" + Math.abs(n/1e9).toFixed(1) + "B" : "-";
-    })(),
-    quickRatio:   (fd.quickRatio && fd.quickRatio.raw) || 0,
-    revenue:      (function() {
-      var r = (fd.totalRevenue && fd.totalRevenue.raw) || 0;
-      return r >= 1e12 ? "$" + (r/1e12).toFixed(2) + "T"
-           : r >= 1e9  ? "$" + (r/1e9).toFixed(1)  + "B"
-           : r >= 1e6  ? "$" + (r/1e6).toFixed(0)  + "M" : "-";
-    })(),
-    revGrowth:    ((fd.revenueGrowth && fd.revenueGrowth.raw) || 0) * 100,
-    // Growth & Profile
-    beta:         (sd.beta && sd.beta.raw) || 0,
-    pb:           (ks.priceToBook && ks.priceToBook.raw) || 0,
-    // For DCF calcs
-    hi52:             (sd.fiftyTwoWeekHigh && sd.fiftyTwoWeekHigh.raw) || 0,
-    lo52:             (sd.fiftyTwoWeekLow  && sd.fiftyTwoWeekLow.raw)  || 0,
-    sharesOut:        (ks.sharesOutstanding && ks.sharesOutstanding.raw) || 0,
-    fcfRaw:           (fd.freeCashflow && fd.freeCashflow.raw) || 0,
-    ocfRaw:           (fd.operatingCashflow && fd.operatingCashflow.raw) || 0,
-    niRaw:            (fd.netIncomeToCommon && fd.netIncomeToCommon.raw)
-                       || (fd.netIncome && fd.netIncome.raw)
-                       || 0,
-    // Business profile from Yahoo assetProfile
-    bizSummary:       ap.longBusinessSummary || "",
-    industry:         ap.industry || "",
-    sector:           ap.sector || "",
-    country:          ap.country || "",
-    employees:        ap.fullTimeEmployees || 0,
-    website:          ap.website || "",
-  };
-  // ---- Additional data modules ----
-  var rt  = res.recommendationTrend || {};
-  var udh = res.upgradeDowngradeHistory || {};
-  var bsh  = res.balanceSheetHistory || {};
-  var bshq = res.balanceSheetHistoryQuarterly || {};
-  var eh  = res.earningsHistory || {};
-  var ce  = res.calendarEvents || {};
-
-  // Recommendation trend (most recent period)
-  var rtTrend = (rt.trend && rt.trend[0]) || {};
-  out.recBuy        = rtTrend.strongBuy  ? (rtTrend.strongBuy  + (rtTrend.buy  || 0)) : 0;
-  out.recHold       = rtTrend.hold       || 0;
-  out.recSell       = rtTrend.strongSell ? (rtTrend.strongSell + (rtTrend.sell || 0)) : 0;
-  out.recPeriod     = rtTrend.period     || "";
-
-  // Upgrades/downgrades (last 5)
-  var udhList = (udh.history || []).slice(0, 5);
-  out.upgrades = udhList.map(function(u) {
-    return { firm: u.firm, action: u.action, from: u.fromGrade, to: u.toGrade, date: u.epochGradeDate ? new Date(u.epochGradeDate * 1000).toISOString().slice(0,10) : "" };
-  });
-
-  // Try defaultKeyStatistics for debt (more reliable)
-  var ksTotalDebt = (ks.totalDebt && ks.totalDebt.raw) || null;
-  var fdTotalCash = (fd.totalCash && fd.totalCash.raw) || null;
-
-  // Balance sheet: try annual first, then quarterly
-  var bs0  = (bsh.balanceSheetStatements  && bsh.balanceSheetStatements[0])  || {};
-  var bsq0 = (bshq.balanceSheetStatements && bshq.balanceSheetStatements[0]) || {};
-
-  // Cash: annual -> quarterly -> financialData
-  out.cash = (bs0.cashAndCashEquivalents  && bs0.cashAndCashEquivalents.raw)
-          || (bs0.cashAndShortTermInvestments && bs0.cashAndShortTermInvestments.raw)
-          || (bs0.cash && bs0.cash.raw)
-          || (bsq0.cashAndCashEquivalents && bsq0.cashAndCashEquivalents.raw)
-          || (bsq0.cashAndShortTermInvestments && bsq0.cashAndShortTermInvestments.raw)
-          || (bsq0.cash && bsq0.cash.raw)
-          || fdTotalCash
-          || 0;
-
-  // Total debt: annual -> ks -> quarterly -> 0 (not null -- show $0M not -)
-  out.totalDebt = (bs0.totalDebt && bs0.totalDebt.raw)
-               || ksTotalDebt
-               || (bs0.longTermDebt && bs0.longTermDebt.raw
-                   ? (bs0.longTermDebt.raw + ((bs0.shortLongTermDebt && bs0.shortLongTermDebt.raw) || 0))
-                   : null)
-               || (bsq0.totalDebt && bsq0.totalDebt.raw)
-               || (bsq0.longTermDebt && bsq0.longTermDebt.raw
-                   ? (bsq0.longTermDebt.raw + ((bsq0.shortLongTermDebt && bsq0.shortLongTermDebt.raw) || 0))
-                   : null)
-               || null; // calculated below from D/E ratio if still null
-  out.totalAssets  = bs0.totalAssets             ? bs0.totalAssets.raw             : null;
-  out.bookValue = (bs0.totalStockholderEquity  && bs0.totalStockholderEquity.raw)
-               || (bsq0.totalStockholderEquity && bsq0.totalStockholderEquity.raw)
-               || (bs0.totalEquityGrossMinorityInterest && bs0.totalEquityGrossMinorityInterest.raw)
-               || (bsq0.totalEquityGrossMinorityInterest && bsq0.totalEquityGrossMinorityInterest.raw)
-               // Fallback: ks.bookValue - try as total first, then per-share * shares
-               || (ks.bookValue && ks.bookValue.raw
-                   ? (ks.bookValue.raw > 1e9  // if > $1B, it's total equity
-                      ? ks.bookValue.raw
-                      : (ks.sharesOutstanding && ks.sharesOutstanding.raw
-                         ? ks.bookValue.raw * ks.sharesOutstanding.raw
-                         : null))
-                   : null)
-               || null;
-  out.bsDate       = bs0.endDate                 ? bs0.endDate.fmt                 : "";
-  // Extra fallback: derive book value from P/B ratio if still null
-  // bookValue per share = ks.bookValue.raw (already tried above)
-  // We store pb for later use in Detail where we have price
-  out.pbRatio = (ks.priceToBook && ks.priceToBook.raw) || 0;
-
-  // Store raw diagnostic values before D/E fallback
-  out._debtDiag = {
-    bs0_totalDebt:      bs0.totalDebt      ? bs0.totalDebt.raw      : null,
-    bs0_longTermDebt:   bs0.longTermDebt   ? bs0.longTermDebt.raw   : null,
-    bs0_shortDebt:      bs0.shortLongTermDebt ? bs0.shortLongTermDebt.raw : null,
-    bsq0_totalDebt:     bsq0.totalDebt     ? bsq0.totalDebt.raw     : null,
-    bsq0_longTermDebt:  bsq0.longTermDebt  ? bsq0.longTermDebt.raw  : null,
-    ksTotalDebt:        ksTotalDebt,
-    de:                 out.de,
-    bookValue:          out.bookValue,
-    totalDebtBeforeDe:  out.totalDebt,
-  };
-  // Fallback: calculate total debt from D/E ratio x book value if not found in balance sheet
-  if (!out.totalDebt && out.de > 0 && out.bookValue && out.bookValue > 0) {
-    out.totalDebt = out.de * out.bookValue;
-    out.totalDebtSource = "de_x_equity";
-  } else if (out.totalDebt === null || out.totalDebt === undefined) {
-    out.totalDebt = 0;
-    out.totalDebtSource = "default_zero";
-  } else {
-    out.totalDebtSource = "balance_sheet";
-  }
-
-  // Earnings history (last 4 quarters)
-  var ehList = (eh.history || []).slice().reverse().slice(0,4);
-  out.earningsQ = ehList.map(function(e) {
-    return {
-      date:     e.quarter         ? e.quarter.fmt         : "",
-      actual:   e.epsActual       ? e.epsActual.raw       : null,
-      estimate: e.epsEstimate     ? e.epsEstimate.raw     : null,
-      surprise: e.epsDifference   ? e.epsDifference.raw  : null,
-      surprisePct: e.surprisePercent ? e.surprisePercent.raw : null,
-    };
-  });
-
-  // Next earnings date
-  var earnings = ce.earnings || {};
-  var earningsDate = earnings.earningsDate && earnings.earningsDate[0] ? earnings.earningsDate[0].fmt : null;
-  out.nextEarnings = earningsDate;
-
-  // ---- Analyst targets & short interest from defaultKeyStatistics ----
-  out.targetHigh   = (ks.targetHighPrice  && ks.targetHighPrice.raw)  || 0;
-  out.targetLow    = (ks.targetLowPrice   && ks.targetLowPrice.raw)   || 0;
-  out.targetMean   = (ks.targetMeanPrice  && ks.targetMeanPrice.raw)  || 0;
-  out.targetMedian = (ks.targetMedianPrice && ks.targetMedianPrice.raw) || 0;
-  out.numAnalysts  = (ks.numberOfAnalystOpinions && ks.numberOfAnalystOpinions.raw) || 0;
-  out.recKey       = (ks.recommendationKey) || "";
-  out.shortRatio   = (ks.shortRatio        && ks.shortRatio.raw)       || 0;
-  out.shortPct     = (ks.shortPercentOfFloat && ks.shortPercentOfFloat.raw) || 0;
-  out.payoutRatio  = (ks.payoutRatio       && ks.payoutRatio.raw)      || 0;
-  out.bookValuePS  = (ks.bookValue         && ks.bookValue.raw)        || 0;
-  out.lastFYEnd    = (ks.lastFiscalYearEnd && ks.lastFiscalYearEnd.fmt) || "";
-  out.nextFYEnd    = (ks.nextFiscalYearEnd && ks.nextFiscalYearEnd.fmt) || "";
-  out.mostRecentQ  = (ks.mostRecentQuarter && ks.mostRecentQuarter.fmt) || "";
-
-  // ---- Major holders ----
-  var mh = res.majorHoldersBreakdown || {};
-  out.insiderPct       = (mh.insidersPercentHeld     && mh.insidersPercentHeld.raw)     || 0;
-  out.institutionPct   = (mh.institutionsPercentHeld && mh.institutionsPercentHeld.raw) || 0;
-  out.floatPct         = (mh.institutionsFloatPercentHeld && mh.institutionsFloatPercentHeld.raw) || 0;
-
-  // ---- Top institutional holders ----
-  var io = res.institutionOwnership || {};
-  out.topHolders = ((io.ownershipList) || []).slice(0, 5).map(function(h) {
-    return {
-      name:  h.organization || "",
-      pct:   h.pctHeld      ? (h.pctHeld.raw * 100).toFixed(2) + "%" : "-",
-      shares: h.position    ? h.position.raw.toLocaleString() : "-",
-      value:  h.value       ? "$" + (h.value.raw / 1e9).toFixed(2) + "B" : "-",
-      date:   h.reportDate  ? h.reportDate.fmt : "",
-    };
-  });
-
-  // ---- Insider transactions (last 5) ----
-  var it = res.insiderTransactions || {};
-  out.insiderTx = ((it.transactions) || []).slice(0, 5).map(function(t) {
-    return {
-      name:   t.filerName     || "",
-      title:  t.filerRelation || "",
-      action: t.transactionText || "",
-      shares: t.shares        ? t.shares.raw : null,
-      value:  t.value         ? t.value.raw  : null,
-      date:   t.startDate     ? t.startDate.fmt : "",
-    };
-  });
-
-  // ---- SEC Filings (last 5) ----
-  var sf = res.secFilings || {};
-  out.secFilings = ((sf.filings) || []).slice(0, 5).map(function(f) {
-    return {
-      date:  f.date  || "",
-      type:  f.type  || "",
-      title: f.title || "",
-      url:   f.edgarUrl || "",
-    };
-  });
-
-  ovCache[sym] = out;
-  return out;
-}
-
-function fmt2(n) { return n != null ? n.toFixed(2) : "-"; }
-function fpct(n) { return n ? n.toFixed(2) + "%" : "-"; }
-
-// -- Valuation bar ------------------------------------------------------------
-function VBar({ label, value, maxV, color, bold }) {
-  if (!value || !maxV) return null;
-  const w = Math.min(value / maxV * 100, 100);
-  return (
-    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5 }}>
-      <div style={{ width:200, fontSize:11, color:bold?"#222":"#888", textAlign:"right", lineHeight:1.3, whiteSpace:"pre-line", flexShrink:0 }}>
-        {label}
-      </div>
-      <div style={{ flex:1, height:17, background:"#e8e4dc", borderRadius:2, overflow:"hidden" }}>
-        <div style={{ width:w + "%", height:"100%", background:color }} />
-      </div>
-      <span style={{ width:58, textAlign:"right", fontSize:11, fontWeight:700, color:bold?"#1a6a2a":"#333" }}>
-        {value.toFixed(2)}
-      </span>
-    </div>
-  );
-}
-
-// -- Detail page --------------------------------------------------------------
-
-// Parse AI Insight structured response
-function parseAiInsight(text) {
-  if (!text) return null;
-  function vd(v) {
-    if (!v) return 3;
-    var vl = v.toLowerCase();
-    if (vl.indexOf("strong buy")  >= 0) return 5;
-    if (vl.indexOf("buy")         >= 0) return 4;
-    if (vl.indexOf("strong avoid")>= 0) return 1;
-    if (vl.indexOf("avoid")       >= 0) return 2;
-    return 3;
-  }
-  function m(re) { var r = text.match(re); return r ? r[1].trim() : null; }
-  function clean(s){ return s ? s.replace(/\*\*/g,"").replace(/\*/g,"").trim() : s; }
-  var verdict = clean(m(/Overall Verdict:\s*(.+)/));
-  return {
-    body:        text,
-    verdict:     verdict,
-    dots:        vd(verdict),
-    confidence:  clean(m(/Confidence:\s*(.+)/)),
-    horizon:     clean(m(/Horizon:\s*(.+)/)),
-    risk:        clean(m(/Key Risk:\s*(.+)/)),
-    opportunity: clean(m(/Key Opportunity:\s*(.+)/)),
-    summary:     clean(m(/AI Insight Summary[^:]*:\s*([\s\S]+)/)),
-    fundScore:   m(/Fundamental:\s*([\d.]+)\/5/) ? parseFloat(m(/Fundamental:\s*([\d.]+)\/5/)) : null,
-    techScore:   m(/Technical:\s*([\d.]+)\/5/)   ? parseFloat(m(/Technical:\s*([\d.]+)\/5/))   : null,
-    sentScore:   m(/Sentiment:\s*([\d.]+)\/5/)   ? parseFloat(m(/Sentiment:\s*([\d.]+)\/5/))   : null,
-  };
-}
-
-function Detail({ sym, name, onBack }) {
-  const [__err, set__err] = useState(null);
-
-  const [navInput,  setNavInput]  = useState("");
-  const [navFocus,  setNavFocus]  = useState(false);
-  const [q,        setQ]        = useState(null);
-  const [ov,       setOv]       = useState(null);
-  const [epsHistory, setEpsHistory] = useState(null);
-  const [epsError,   setEpsError]   = useState(false);
-  const [msg, setMsg] = useState("Loading...");
-  const [insightTab,    setInsightTab]    = useState("business");
-  const [insightCache,  setInsightCache]  = useState({});
-  const [insightLoading,setInsightLoading]= useState(false);
-  const [parsedInsights,setParsedInsights]= useState({});
-  const [addlInfo,      setAddlInfo]      = useState(null);
-  const [addlLoading,   setAddlLoading]   = useState(false);
-  const [massiveInfo,   setMassiveInfo]   = useState(null);
-  const [debugLog,      setDebugLog]      = useState([]);
-  const [adminCfg,      setAdminCfg]      = useState(null);
-  const [adminStats,    setAdminStats]    = useState({});
-
-  function parseAndStoreInsight(tabId, text) {
-    if (!text) return;
-    var result = {};
-    if (tabId === "aiinsight") {
-      result = parseAiInsight(text) || {};
-    } else if (tabId === "moat") {
-      // v1.13 Option C: compute weighted score from individual driver scores
-      // Weights based on Dorsey/Morningstar moat durability research:
-      // Switching Costs 25%, Network Effects 25%, Intangible Assets 20%,
-      // Cost Advantage 15%, Ecosystem Lock-in 10%, Efficient Scale 5%
-      var driverWeights = {
-        "Switching Costs":   0.25,
-        "Network Effects":   0.25,
-        "Intangible Assets": 0.20,
-        "Cost Advantage":    0.15,
-        "Ecosystem Lock-in": 0.10,
-        "Efficient Scale":   0.05
-      };
-      var weightedSum = 0;
-      var weightUsed = 0;
-      var driverNames = Object.keys(driverWeights);
-      for (var di = 0; di < driverNames.length; di++) {
-        var dName = driverNames[di];
-        var dMatch = text.match(new RegExp(dName + "[^0-9]*([1-5])/5"));
-        if (dMatch) {
-          var dScore = parseInt(dMatch[1], 10);
-          weightedSum += dScore * driverWeights[dName];
-          weightUsed  += driverWeights[dName];
-        }
-      }
-      // If at least half the drivers parsed, use weighted score; else fall back to AI rating
-      var score;
-      if (weightUsed >= 0.5) {
-        score = Math.round(weightedSum / weightUsed);
-        score = Math.max(1, Math.min(5, score));
-      } else {
-        var mFallback = text.match(/Economic Moat Rating[^0-9]*([0-9])/);
-        score = mFallback ? parseInt(mFallback[1], 10) : 0;
-        if (!score) {
-          if (text.indexOf("Wide") !== -1) score = 4;
-          else if (text.indexOf("Narrow") !== -1) score = 3;
-          else score = 1;
-        }
-      }
-      var expIdx = text.indexOf("Explanation");
-      var explanation = expIdx !== -1 ? text.substring(expIdx).replace(/^Explanation[^:]*:\s*/, "").split("\n")[0].trim() : "";
-      result = {
-        score: score,
-        classification: score >= 4 ? "Wide" : score >= 3 ? "Narrow" : "None",
-        explanation: explanation,
-      };
-    } else if (tabId === "financial") {
-      var mc = text.match(/Financial Strength Classification[^:]*:\s*(.+)/);
-      var cls = mc ? mc[1].trim().split(/[\s,]/)[0] : null;
-      if (!cls) {
-        if (text.indexOf("Strong") !== -1) cls = "Strong";
-        else if (text.indexOf("Moderate") !== -1) cls = "Moderate";
-        else cls = "Weak";
-      }
-      var score2 = cls && cls.toLowerCase().includes("strong") ? 4 : cls && cls.toLowerCase().includes("moderate") ? 3 : 2;
-      var rsn = null; var _clsIdx = text.indexOf("Financial Strength Classification"); if (_clsIdx !== -1) { var _lines = text.substring(_clsIdx).split("\n").filter(function(l){ return l.trim().length > 0; }); rsn = _lines.length > 1 ? [null, _lines[1]] : null; }
-      result = {
-        classification: cls,
-        score: score2,
-        reasoning: rsn ? rsn[1].trim() : "",
-      };
-    } else if (tabId === "technical") {
-      var tr = text.match(/Technical Rating[^:]*:\s*(.+)/);
-      var et = text.match(/Entry Timing[^:]*:\s*(.+)/);
-      var rating = tr ? tr[1].trim() : null;
-      if (!rating) {
-        if (text.indexOf("Strong Bullish") !== -1) rating = "Strong Bullish";
-        else if (text.indexOf("Bullish") !== -1) rating = "Bullish";
-        else if (text.indexOf("Strong Bearish") !== -1) rating = "Strong Bearish";
-        else if (text.indexOf("Bearish") !== -1) rating = "Bearish";
-        else rating = "Neutral";
-      }
-      var tscore = rating.toLowerCase().includes("strong bullish") ? 5 : rating.toLowerCase().includes("bullish") ? 4 : rating.toLowerCase().includes("neutral") ? 3 : rating.toLowerCase().includes("strong bearish") ? 1 : 2;
-      result = {
-        rating: rating,
-        score: tscore,
-        entry: et ? et[1].trim() : null,
-      };
+    if (!isApiRoute) {
+      return context.next();
     }
-    setParsedInsights(function(prev) {
-      var next = Object.assign({}, prev);
-      next[tabId] = result;
-      return next;
-    });
-  }
 
-  useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    if (context.request.method === "OPTIONS") {
+      return new Response(null, {
+        headers: {
+          "Access-Control-Allow-Origin":  "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      });
+    }
 
-    getQuote(sym).then(function(res) {
-      if (res) { setQ(res); setMsg(""); }
-      else setMsg("Could not load quote for " + sym + ". Yahoo Finance may be unavailable.");
-    }).catch(function() {
-      setMsg("Network error loading quote for " + sym + ".");
-    });
 
-    getOverview(sym).then(function(res) {
-      if (res) {
-        setOv(res);
-        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary OK", data: { modules: "summaryDetail,financialData,assetProfile,earningsTrend,recommendationTrend,upgradeDowngradeHistory,balanceSheetHistory,earningsHistory,calendarEvents", recBuy: res.recBuy, recHold: res.recHold, recSell: res.recSell, earningsQ: (res.earningsQ || []).length, nextEarnings: res.nextEarnings, cash: res.cash, totalDebt: res.totalDebt, totalDebtSource: res.totalDebtSource, debtDiag: res._debtDiag, fcfRaw: res.fcfRaw, ocfRaw: res.ocfRaw, niRaw: res.niRaw, sharesOut: res.sharesOut, ltG: res.ltG, ltG1Y: res.ltG1Y } }]); });
-      } else {
-        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary returned null" }]); });
+    // -------------------------------------------------------------------------
+    // /massive?sym=AAPL -- Massive.com news + ticker ref + dividends + splits
+    // Requires MASSIVE_KEY env var in Cloudflare Pages
+    // -------------------------------------------------------------------------
+    if (url.pathname === "/massive") {
+      var sym        = (url.searchParams.get("sym") || "").toUpperCase().trim();
+      if (sym === "BRKB") sym = "BRK-B";
+      var massiveKey = context.env.MASSIVE_KEY;
+      if (!sym) return new Response(JSON.stringify({ error: "Missing sym" }), { status:400, headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
+      if (!massiveKey) return new Response(JSON.stringify({ error: "MASSIVE_KEY not configured" }), { status:500, headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
+
+      var BASE = "https://api.polygon.io";
+      var HDR  = { "User-Agent": UA };
+
+      // Date helpers
+      var today     = new Date();
+      var toDate    = today.toISOString().slice(0,10);
+      var fromDate  = new Date(today.getTime() - 730 * 86400000).toISOString().slice(0,10);
+      var from1yr   = new Date(today.getTime() - 365 * 86400000).toISOString().slice(0,10);
+
+      // Group A: fast indicators needed for Signal + Reversal (no 10-K, reduced aggs)
+      var from30d  = new Date(today.getTime() - 60 * 86400000).toISOString().slice(0,10);
+      var fastResults = await Promise.all([
+        fetch(BASE + "/v2/aggs/ticker/" + sym + "/range/1/day/" + from30d + "/" + toDate + "?adjusted=true&sort=desc&limit=60&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v2/snapshot/locale/us/markets/stocks/tickers/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=day&adjusted=true&window=50&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=day&adjusted=true&window=200&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/ema/" + sym + "?timespan=day&adjusted=true&window=20&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/rsi/" + sym + "?timespan=day&adjusted=true&window=14&series_type=close&order=desc&limit=10&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/macd/" + sym + "?timespan=day&adjusted=true&short_window=12&long_window=26&signal_window=9&series_type=close&order=desc&limit=10&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v2/last/trade/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=week&adjusted=true&window=10&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=week&adjusted=true&window=40&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+      ]);
+
+      // Group B: slow reference data (news, dividends, 10-K) - fire in parallel, don't await
+      var slowPromise = Promise.all([
+        fetch(BASE + "/v2/reference/news?ticker=" + sym + "&limit=10&order=desc&sort=published_utc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/vX/reference/financials/ratios?ticker=" + sym + "&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/vX/reference/financials/balance-sheets?ticker=" + sym + "&period=annual&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/vX/reference/tickers/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v3/reference/dividends?ticker=" + sym + "&limit=10&order=desc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/v3/reference/splits?ticker=" + sym + "&order=desc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/stocks/filings/10-K/vX/sections?ticker=" + sym + "&section=business&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/stocks/filings/10-K/vX/sections?ticker=" + sym + "&section=risk_factors&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+      ]);
+
+      var aggsData      = fastResults[0];
+      var snapData      = fastResults[1];
+      var sma50Data     = fastResults[2];
+      var sma200Data    = fastResults[3];
+      var ema20Data     = fastResults[4];
+      var rsiData       = fastResults[5];
+      var macdData      = fastResults[6];
+      var lastTradeData = fastResults[7];
+      var wsma10Data    = fastResults[8];
+      var wsma40Data    = fastResults[9];
+
+      // Await slow group now (by the time fast group finished, slow is likely done too)
+      var slowResults  = await slowPromise;
+      var newsData     = slowResults[0];
+      var ratiosData   = slowResults[1];
+      var bsData       = slowResults[2];
+      var tickerData   = slowResults[3];
+      var dividendData = slowResults[4];
+      var splitsData   = slowResults[5];
+      var tenKBizData  = slowResults[6];
+      var tenKRiskData = slowResults[7];
+
+      function indVal(d) {
+        return d && d.results && d.results.values && d.results.values[0] ? d.results.values[0].value : null;
+      }
+      function indHistory(d) {
+        if (!d || !d.results || !d.results.values) return [];
+        return d.results.values.map(function(v) { return v.value != null ? v.value : null; });
+      }
+      function macdVals(d) {
+        if (!d || !d.results || !d.results.values || !d.results.values[0]) return null;
+        var v = d.results.values[0];
+        return { macd: v.value, signal: v.signal, histogram: v.histogram };
+      }
+      function macdHistory(d) {
+        if (!d || !d.results || !d.results.values) return [];
+        return d.results.values.map(function(v) { return { macd: v.value, signal: v.signal, histogram: v.histogram }; });
       }
 
-      // Auto-generate all 4 AI insight tabs in parallel
-      // v1.13 Option B: use resolved res (not ov state) so financial context is always populated
-      var _ovSnap = res || null;
-      var _moatFinCtx = (function() {
-        if (!_ovSnap) return "";
-        var lines = [];
-        if (_ovSnap.grossMargin > 0)   lines.push("Gross margin: " + _ovSnap.grossMargin.toFixed(1) + "%");
-        if (_ovSnap.opMargin > 0)      lines.push("Operating margin: " + _ovSnap.opMargin.toFixed(1) + "%");
-        if (_ovSnap.revGrowth !== 0)   lines.push("Revenue growth YoY: " + _ovSnap.revGrowth.toFixed(1) + "%");
-        if (_ovSnap.beta > 0)          lines.push("Beta: " + _ovSnap.beta.toFixed(2));
-        if (_ovSnap.recBuy > 0 || _ovSnap.recHold > 0 || _ovSnap.recSell > 0)
-          lines.push("Analyst consensus: " + _ovSnap.recBuy + " buy / " + _ovSnap.recHold + " hold / " + _ovSnap.recSell + " sell");
-        if (_ovSnap.fcfRaw && _ovSnap.sharesOut > 0) {
-          var _fcfM = (_ovSnap.fcfRaw / 1e6).toFixed(0);
-          lines.push("Free cash flow: $" + _fcfM + "M");
-        }
-        if (lines.length === 0) return "";
-        return "\n\nFinancial context (use these figures to ground your scores, do not contradict them):\n" + lines.join("\n");
-      })();
-      var aiTabs = ["moat", "financial", "aiinsight"];
+      var snap = snapData && snapData.ticker ? snapData.ticker : null;
 
-      // Load KV config fresh, then run tab fetches
-      fetch("/cache?action=config")
-        .then(function(r) { return r.json(); })
-        .then(function(cfgData) {
-          if (cfgData && Array.isArray(cfgData.value)) {
-            window.__adminCfg = cfgData.value;
-          } else if (!window.__adminCfg) {
-            window.__adminCfg = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
-          }
-          runAiTabs();
-        })
-        .catch(function() {
-          if (!window.__adminCfg) {
-            window.__adminCfg = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
-          }
-          runAiTabs();
+      return new Response(JSON.stringify({
+        news:      newsData     && newsData.results     ? newsData.results     : [],
+        ratios:    ratiosData   && ratiosData.results   ? ratiosData.results[0] : null,
+        balSheet:  bsData       && bsData.results       ? bsData.results[0]     : null,
+        ticker:    tickerData   && tickerData.results   ? tickerData.results   : null,
+        dividends: dividendData && dividendData.results ? dividendData.results : [],
+        splits:    splitsData   && splitsData.results   ? splitsData.results   : [],
+        // Raw financials for debt/cash/equity - pass through for debug, parse in frontend
+        financials: financialsData && financialsData.results && financialsData.results[0]
+          ? financialsData.results[0].financials
+          : null,
+        aggs:      aggsData     && aggsData.results     ? aggsData.results.slice(0, 30) : [],
+        snapshot: snap ? {
+          open:      snap.day  ? snap.day.o  : null,
+          high:      snap.day  ? snap.day.h  : null,
+          low:       snap.day  ? snap.day.l  : null,
+          close:     snap.day  ? snap.day.c  : null,
+          volume:    snap.day  ? snap.day.v  : null,
+          vwap:      snap.day  ? snap.day.vw : null,
+          prevClose: snap.prevDay ? snap.prevDay.c : null,
+          change:    snap.todaysChangePerc != null ? snap.todaysChangePerc : null,
+        } : null,
+        indicators: {
+          sma50:       indVal(sma50Data),
+          sma200:      indVal(sma200Data),
+          ema20:       indVal(ema20Data),
+          rsi14:       indVal(rsiData),
+          rsiHistory:  indHistory(rsiData),
+          macd:        macdVals(macdData),
+          macdHistory: macdHistory(macdData),
+          wsma10:      indVal(wsma10Data),
+          wsma40:      indVal(wsma40Data),
+        },
+        tenK: {
+          business:    tenKBizData  && tenKBizData.results  && tenKBizData.results[0]  ? tenKBizData.results[0].text   : null,
+          riskFactors: tenKRiskData && tenKRiskData.results && tenKRiskData.results[0] ? tenKRiskData.results[0].text  : null,
+          filingDate:  tenKBizData  && tenKBizData.results  && tenKBizData.results[0]  ? tenKBizData.results[0].filing_date : null,
+        },
+        lastTrade: lastTradeData && lastTradeData.results ? {
+          price:  lastTradeData.results.p,
+          size:   lastTradeData.results.s,
+          time:   lastTradeData.results.t,
+        } : null,
+        _debug: {
+          newsCount:    newsData     && newsData.results     ? newsData.results.length    : 0,
+          aggsCount:    aggsData     && aggsData.results     ? aggsData.results.length    : 0,
+          snapshotOk:   snap != null,
+          sma50:        indVal(sma50Data),
+          rsi14:        indVal(rsiData),
+          newsStatus:   newsData  ? (newsData.status  || "ok") : "null",
+          snapStatus:   snapData  ? (snapData.status  || "ok") : "null",
+          aggsStatus:   aggsData  ? (aggsData.status  || "ok") : "null",
+          indStatus:    rsiData   ? (rsiData.status   || "ok") : "null",
+        },
+      }), { headers: {"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
+    }
+
+
+    // -------------------------------------------------------------------------
+    // /cache  -- Cloudflare KV cache read/write for AI insights
+    // GET  /cache?sym=NVDA&tab=moat        -> read from KV
+    // POST /cache?sym=NVDA&tab=moat        -> write to KV (body = insight text)
+    // GET  /cache?action=config            -> read live_tickers config
+    // POST /cache?action=config            -> write live_tickers config (body = JSON array)
+    // -------------------------------------------------------------------------
+    if (url.pathname === "/cache") {
+      var CACHE = context.env.CACHE;
+      if (!CACHE) {
+        return new Response(JSON.stringify({ error: "CACHE KV not bound" }), {
+          status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
+      }
 
-      function runAiTabs() {
-      setInsightLoading(true);
-      aiTabs.forEach(function(tabId) {
-      var prompts = {
-        moat: "You are a professional equity research analyst. Analyze the economic moat of " + sym + " (" + (NAMES[sym]||sym) + ") using only well-known business fundamentals and observable financial indicators. Do not fabricate statistics or unsupported claims. Most companies do not have strong moats - scores of 4 or 5 should be rare." + _moatFinCtx + "\n\nReturn results in EXACTLY this format:\n\nNetwork Effects: X/5\nAssessment Criteria: The product or platform becomes more valuable as more users join.\nResult: One sentence explaining the score.\n\nSwitching Costs: X/5\nAssessment Criteria: Customers face difficulty, cost, or disruption when changing to competitors.\nResult: One sentence explaining the score.\n\nCost Advantage: X/5\nAssessment Criteria: The company can operate at lower cost or higher efficiency than competitors.\nResult: One sentence explaining the score.\n\nIntangible Assets: X/5\nAssessment Criteria: Brand, patents, intellectual property, regulatory licenses, or proprietary technology.\nResult: One sentence explaining the score.\n\nEfficient Scale: X/5\nAssessment Criteria: The market only supports a few profitable players due to high barriers to entry.\nResult: One sentence explaining the score.\n\nEcosystem Lock-in: X/5\nAssessment Criteria: Customers rely on multiple integrated products or services within the company ecosystem.\nResult: One sentence explaining the score.\n\nEconomic Moat Rating: X / 5\n\nExplanation (maximum 100 words): Summarize the main competitive advantages. Focus only on the most important moat drivers. Only assign 4-5 if advantages are clear, durable, and supported by financial performance.",
-        financial: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), assess Financial Strength across these 7 dimensions in concise paragraphs: 1. Revenue Growth Trend 2. Gross Margin Stability 3. Operating Margin Trend 4. Free Cash Flow Consistency 5. Debt Level 6. Share Dilution or Buyback Discipline 7. Earnings Predictability. End with: Financial Strength Classification: Strong / Moderate / Weak and one sentence of reasoning.",
-        technical: "You are a professional technical analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), provide a technical analysis covering: Trend (50-day MA, 200-day MA, direction), Momentum (RSI condition, MACD condition), Support and Resistance zones, Volume analysis (confirms move? accumulation or distribution?), Chart Patterns (breakout / consolidation / reversal / double bottom / head and shoulders / flag/pennant / no clear pattern). End with: Technical Rating: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish and Entry Timing View: Good Entry / Wait for Pullback / Breakout Watch / Avoid for Now. Be specific with price levels where possible.",
-        aiinsight: "You are a senior investment analyst. For " + sym + " (" + (NAMES[sym]||sym) + "), provide an AI Insight in EXACTLY this format:\\n\\nFundamental: X/5\\nResult: One sentence.\\n\\nTechnical: X/5\\nResult: One sentence.\\n\\nSentiment: X/5\\nResult: One sentence.\\n\\nOverall Verdict: Buy / Hold / Avoid / Strong Buy / Strong Avoid\\nConfidence: Low / Medium / High\\nHorizon: Short-term (1-3m) / Medium-term (3-12m) / Long-term (12m+)\\n\\nKey Risk: One sentence on the most important downside risk.\\nKey Opportunity: One sentence on the most important upside catalyst.\\n\\nAI Insight Summary (max 80 words): Concise investment conclusion."
-      };
-      // Check KV config: is this ticker in LIVE or CACHED mode?
-      var _kvCfg = window.__adminCfg || null;
-      var _isLiveMode = !_kvCfg || _kvCfg.indexOf(sym) !== -1;
+      var action = url.searchParams.get("action") || "";
+      var sym    = (url.searchParams.get("sym") || "").toUpperCase().trim();
+      var tab    = (url.searchParams.get("tab") || "").toLowerCase().trim();
 
-      function _callClaude(onResult) {
-        fetch("/anthropic", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "claude-haiku-4-5-20251001",
-            max_tokens: 900,
-            messages: [{ role: "user", content: prompts[tabId] }]
-          })
-        }).then(function(r) { return r.json(); })
-          .then(function(data) {
-            var text = data && data.content && data.content[0] && data.content[0].text;
-            onResult(text || "Analysis unavailable.");
-          }).catch(function() {
-            onResult("Analysis unavailable. Please try again.");
+      // ── Config: read/write live_tickers list ──────────────────────────────
+      if (action === "config") {
+        if (context.request.method === "POST") {
+          var cfgBody = await context.request.text();
+          await CACHE.put("config:live_tickers", cfgBody, { expirationTtl: 60 * 60 * 24 * 365 });
+          return new Response(JSON.stringify({ ok: true }), {
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
           });
-      }
-
-      function _storeResult(text) {
-        setInsightCache(function(prev) {
-          var next = Object.assign({}, prev);
-          next[tabId] = text;
-          parseAndStoreInsight(tabId, next[tabId]);
-          return next;
-        });
-        setInsightLoading(false);
-      }
-
-      if (_isLiveMode) {
-        // LIVE: call Claude directly, no caching
-        _callClaude(function(text) {
-          if (!window.__cacheStatus) window.__cacheStatus = {};
-          window.__cacheStatus[sym + ":" + tabId] = "live";
-          _storeResult(text);
-        });
-      } else {
-        // CACHED: try KV first
-        fetch("/cache?sym=" + sym + "&tab=" + tabId)
-          .then(function(r) { return r.json(); })
-          .then(function(d) {
-            if (d && d.hit && d.value) {
-              // Cache hit -- use stored result
-              if (!window.__cacheStatus) window.__cacheStatus = {};
-              window.__cacheStatus[sym + ":" + tabId] = "hit";
-              // Update admin stats with cachedAt from response
-              setAdminStats(function(prev) {
-                var next = Object.assign({}, prev);
-                next["insight:" + sym + ":" + tabId] = { cachedAt: d.cachedAt || null, size: d.value ? d.value.length : 0, exists: true };
-                return next;
-              });
-              setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache HIT: " + sym + ":" + tabId, data: { cachedAt: d.cachedAt || "none", size: d.value ? d.value.length : 0 } }]); });
-              _storeResult(d.value);
-            } else {
-              // Cache miss -- call Claude then write to KV
-              if (!window.__cacheStatus) window.__cacheStatus = {};
-              window.__cacheStatus[sym + ":" + tabId] = "miss";
-              setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache MISS: " + sym + ":" + tabId + " -- calling Claude (no KV entry)" }]); });
-              _callClaude(function(text) {
-                window.__cacheStatus[sym + ":" + tabId] = "written";
-                _storeResult(text);
-                // Write to KV cache
-                fetch("/cache?sym=" + sym + "&tab=" + tabId, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: text,
-                }).then(function(r) { return r.json(); })
-                  .then(function(wr) {
-                    setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache WRITE: " + sym + ":" + tabId + " -- " + (wr.ok ? "OK cachedAt=" + (wr.cachedAt || "?") : "FAIL"), data: wr }]); });
-                    // Update admin stats with write response
-                    setAdminStats(function(prev) {
-                      var next = Object.assign({}, prev);
-                      next["insight:" + sym + ":" + tabId] = { cachedAt: wr.cachedAt || null, size: text ? text.length : 0, exists: true };
-                      return next;
-                    });
-                  }).catch(function() {});
-              });
-            }
-          }).catch(function() {
-            // KV read failed -- fall back to Claude
-            _callClaude(function(text) { _storeResult(text); });
-          });
-      }
-    }); // end aiTabs.forEach
-      } // end runAiTabs
-    }).catch(function(e) {
-      setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Yahoo quoteSummary error", data: { error: String(e) } }]); });
-    });
-
-    // Fetch 10-year historical financials via Claude Haiku (GAAP figures)
-    (function() {
-      var currentYear = new Date().getFullYear();
-      var years = [];
-      for (var y = currentYear - 1; y >= currentYear - 10; y--) years.push(y);
-      fetch("/eps?sym=" + sym)
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-          if (d && d.ok && d.rows && d.rows.length > 0) {
-            setEpsHistory(d.rows.slice(0, 10));
-            setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "EPS history: Polygon " + d.rows.length + " years (split-adjusted)", data: { splits: d.splits, eps: d.rows.map(function(r){ return r.year + ": $" + r.eps.toFixed(2) + (r.adjFactor !== 1 ? " (adj " + r.adjFactor + "x from $" + r.epsRaw.toFixed(2) + ")" : ""); }) } }]); });
-          } else {
-            // Fallback: Claude Haiku AI-estimated EPS
-            setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "EPS Polygon failed, falling back to Claude Haiku", data: d }]); });
-            fetch("/anthropic", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                model: "claude-haiku-4-5-20251001",
-                max_tokens: 1000,
-                messages: [{ role: "user", content: "Return ONLY a valid JSON array, no markdown. For " + sym + " (" + (NAMES[sym]||sym) + "), provide annual EPS for the last 10 fiscal years. Each item: {year:number, eps:number (GAAP diluted EPS)}. Use null for unknown. Actual reported figures only." }]
-              })
-            }).then(function(r) { return r.json(); })
-              .then(function(d2) {
-                var text = d2 && d2.content && d2.content[0] && d2.content[0].text;
-                if (!text) { setEpsError(true); return; }
-                text = text.replace(/```json|```/g, "").trim();
-                try {
-                  var rows = JSON.parse(text);
-                  if (rows && rows.length > 0) {
-                    rows.sort(function(a, b) { return b.year - a.year; });
-                    setEpsHistory(rows.slice(0, 10));
-                  } else { setEpsError(true); }
-                } catch(e2) { setEpsError(true); }
-              }).catch(function() { setEpsError(true); });
-          }
-        })
-        .catch(function() { setEpsError(true); });
-    })();
-
-    // Fetch Massive.com data (news + ticker reference + dividends + splits)
-    setAddlLoading(true);
-    var debugEntries = [];
-    debugEntries.push({ time: new Date().toISOString(), label: "Fetching /massive?sym=" + sym });
-    fetch("/massive?sym=" + (sym === "BRKB" ? "BRK-B" : sym))
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        debugEntries.push({ time: new Date().toISOString(), label: "Massive response received", data: { newsCount: data && data.news ? data.news.length : 0, tickerName: data && data.ticker ? data.ticker.name : null, debug: data && data._debug } });
-        // Set massiveInfo if we got any useful data back
-        if (data && (data.news || data.ticker || data.dividends)) {
-          setMassiveInfo(data);
         } else {
-          debugEntries.push({ time: new Date().toISOString(), label: "Massive data empty or error", data: data });
-        }
-        setDebugLog(function(prev) { return prev.concat(debugEntries); });
-        setAddlLoading(false);
-      }).catch(function(e) {
-        debugEntries.push({ time: new Date().toISOString(), label: "Massive fetch failed", data: { error: e.message } });
-        setDebugLog(function(prev) { return prev.concat(debugEntries); });
-        setAddlLoading(false);
-      });
-
-  }, [sym]);
-
-  // -- Admin tab data load -----------------------------------------------------
-  useEffect(function() {
-    if (insightTab !== "admin") return;
-    var t0 = Date.now();
-    setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Admin tab -- fetching config + stats" }]); });
-    fetch("/cache?action=config")
-      .then(function(r) { return r.json(); })
-      .then(function(cfg) {
-        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Config fetched", data: cfg }]); });
-        var newCfg = (cfg && cfg.ok && Array.isArray(cfg.value)) ? cfg.value : ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
-        setAdminCfg(newCfg);
-        window.__adminCfg = newCfg;
-      })
-      .catch(function(e) {
-        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Config fetch ERROR: " + String(e) }]); });
-      });
-    fetch("/cache?action=stats")
-      .then(function(r) { return r.json(); })
-      .then(function(stats) {
-        var newStats = {};
-        if (stats && Array.isArray(stats.keys)) {
-          stats.keys.forEach(function(k) {
-            newStats[k.key] = { cachedAt: k.cachedAt, size: k.size, exists: true };
+          var cfgVal = await CACHE.get("config:live_tickers");
+          var cfgParsed = null;
+          try { cfgParsed = cfgVal ? JSON.parse(cfgVal) : []; } catch(e) { cfgParsed = []; }
+          return new Response(JSON.stringify({ ok: true, value: cfgParsed }), {
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
           });
         }
-        // Merge: preserve any entries populated by cache HITs not yet in KV stats
-        setAdminStats(function(prev) {
-          return Object.assign({}, prev, newStats);
+      }
+
+      // ── Stats: list all cached insight keys with metadata ─────────────────
+      if (action === "stats") {
+        var listed = await CACHE.list({ prefix: "insight:" });
+        // Fetch all values in parallel for speed
+        var names   = listed.keys.map(function(k) { return k.name; });
+        var fetches = names.map(function(n) { return CACHE.get(n).catch(function(){ return null; }); });
+        var vals    = await Promise.all(fetches);
+        var keys    = names.map(function(kname, ki) {
+          var kval     = vals[ki];
+          var cachedAt = null;
+          var size     = null;
+          if (kval) {
+            try {
+              var kparsed = JSON.parse(kval);
+              if (kparsed && kparsed.text) {
+                cachedAt = kparsed.cachedAt || null;
+                size     = kparsed.size || kparsed.text.length;
+              } else {
+                size = kval.length;
+              }
+            } catch(e) {
+              size = kval.length;
+            }
+          }
+          return { key: kname, cachedAt: cachedAt, size: size, exists: kval ? true : false };
         });
-        // Build per-ticker cache summary for debug log
-        var FREE_LOG = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
-        var AI_TABS_LOG = ["moat","financial","aiinsight"];
-        var summary = FREE_LOG.map(function(t) {
-          var tabs = AI_TABS_LOG.map(function(tab) {
-            var meta = newStats["insight:" + t + ":" + tab];
-            if (!meta || (!meta.exists && !meta.cachedAt)) return tab + ":NO";
-            if (!meta.cachedAt) return tab + ":EXISTS(no date)";
-            var age = Math.round((Date.now() - new Date(meta.cachedAt).getTime()) / 60000);
-            return tab + ":OK(" + (age < 60 ? age + "m" : Math.round(age/60) + "h") + ")";
-          });
-          return t + " [" + tabs.join(" ") + "]";
+        return new Response(JSON.stringify({ ok: true, keys: keys, count: keys.length }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
-        setDebugLog(function(prev) { return prev.concat([
-          { time: new Date().toISOString(), label: "Stats fetched in " + (Date.now()-t0) + "ms -- " + (stats.count || 0) + " entries" },
-          { time: new Date().toISOString(), label: "Cache status per ticker", data: summary }
-        ]); });
-      })
-      .catch(function(e) {
-        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Stats fetch ERROR: " + String(e) }]); });
+      }
+
+      // ── Require sym + tab for read/write ──────────────────────────────────
+      if (!sym || !tab) {
+        return new Response(JSON.stringify({ error: "Missing sym or tab", sym: sym, tab: tab }), {
+          status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+
+      var cacheKey = "insight:" + sym + ":" + tab;
+
+      // ── Write: store insight with metadata wrapper ────────────────────────
+      if (context.request.method === "POST") {
+        var bodyText = await context.request.text();
+        var cachedAt = new Date().toISOString();
+        var wrapped  = JSON.stringify({ text: bodyText, cachedAt: cachedAt, size: bodyText.length });
+        await CACHE.put(cacheKey, wrapped, { expirationTtl: 60 * 60 * 24 * 7 });
+        return new Response(JSON.stringify({ ok: true, key: cacheKey, cachedAt: cachedAt, size: bodyText.length }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+
+      // ── Read: unwrap metadata if present ──────────────────────────────────
+      // Delete: clear all cached insights for a ticker
+      if (context.request.method === "DELETE") {
+        var delTabs = ["moat", "financial", "aiinsight"];
+        for (var di = 0; di < delTabs.length; di++) {
+          await CACHE.delete("insight:" + sym + ":" + delTabs[di]);
+        }
+        return new Response(JSON.stringify({ ok: true, sym: sym }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+
+      var cached = await CACHE.get(cacheKey);
+      if (cached) {
+        var text     = cached;
+        var cachedAt = null;
+        var size     = cached.length;
+        try {
+          var cparsed = JSON.parse(cached);
+          if (cparsed && cparsed.text) {
+            text     = cparsed.text;
+            cachedAt = cparsed.cachedAt || null;
+            size     = cparsed.size     || cparsed.text.length;
+          }
+        } catch(e) {}
+        return new Response(JSON.stringify({ hit: true, value: text, cachedAt: cachedAt, size: size, key: cacheKey }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+      return new Response(JSON.stringify({ hit: false, key: cacheKey }), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
-  }, [insightTab]);
-
-  // -- Insight tab fetch -------------------------------------------------------
-  function fetchInsight(tabId) {
-    if (insightCache[tabId] || insightLoading) return;
-    setInsightLoading(true);
-
-    var prompts = {
-      business: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), write a concise Business Overview covering: what the company does, how it makes money, key products or services, major competitors, and overall industry position. Be analytical and factual. Use plain text paragraphs, no markdown headers.",
-
-      moat: (function() {
-        var _fc2 = (function() {
-          if (!ov) return "";
-          var _l2 = [];
-          if (ov.grossMargin > 0)   _l2.push("Gross margin: " + ov.grossMargin.toFixed(1) + "%");
-          if (ov.opMargin > 0)      _l2.push("Operating margin: " + ov.opMargin.toFixed(1) + "%");
-          if (ov.revGrowth !== 0)   _l2.push("Revenue growth YoY: " + ov.revGrowth.toFixed(1) + "%");
-          if (ov.beta > 0)          _l2.push("Beta: " + ov.beta.toFixed(2));
-          if (ov.recBuy > 0 || ov.recHold > 0 || ov.recSell > 0)
-            _l2.push("Analyst consensus: " + ov.recBuy + " buy / " + ov.recHold + " hold / " + ov.recSell + " sell");
-          if (ov.fcfRaw && ov.sharesOut > 0)
-            _l2.push("Free cash flow: $" + (ov.fcfRaw / 1e6).toFixed(0) + "M");
-          if (_l2.length === 0) return "";
-          return "\n\nFinancial context (use these figures to ground your scores, do not contradict them):\n" + _l2.join("\n");
-        })();
-        return "You are a professional equity research analyst. Analyze the economic moat of " + sym + " (" + (NAMES[sym]||sym) + ") using only well-known business fundamentals and observable financial indicators. Do not fabricate statistics or unsupported claims. Most companies do not have strong moats - scores of 4 or 5 should be rare." + _fc2 + "\n\nReturn results in EXACTLY this format:\n\nNetwork Effects: X/5\nAssessment Criteria: The product or platform becomes more valuable as more users join.\nResult: One sentence explaining the score.\n\nSwitching Costs: X/5\nAssessment Criteria: Customers face difficulty, cost, or disruption when changing to competitors.\nResult: One sentence explaining the score.\n\nCost Advantage: X/5\nAssessment Criteria: The company can operate at lower cost or higher efficiency than competitors.\nResult: One sentence explaining the score.\n\nIntangible Assets: X/5\nAssessment Criteria: Brand, patents, intellectual property, regulatory licenses, or proprietary technology.\nResult: One sentence explaining the score.\n\nEfficient Scale: X/5\nAssessment Criteria: The market only supports a few profitable players due to high barriers to entry.\nResult: One sentence explaining the score.\n\nEcosystem Lock-in: X/5\nAssessment Criteria: Customers rely on multiple integrated products or services within the company ecosystem.\nResult: One sentence explaining the score.\n\nEconomic Moat Rating: X / 5\n\nExplanation (maximum 100 words): Summarize the main competitive advantages. Focus only on the most important moat drivers. Only assign 4-5 if advantages are clear, durable, and supported by financial performance.";
-      })(),
-
-      financial: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), assess Financial Strength across these 7 dimensions in concise paragraphs: 1. Revenue Growth Trend 2. Gross Margin Stability 3. Operating Margin Trend 4. Free Cash Flow Consistency 5. Debt Level 6. Share Dilution or Buyback Discipline 7. Earnings Predictability. End with: Financial Strength Classification: Strong / Moderate / Weak and one sentence of reasoning.",
-
-      technical: "You are a professional technical analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), provide a technical analysis covering: Trend (50-day MA, 200-day MA, direction), Momentum (RSI condition, MACD condition), Support and Resistance zones, Volume analysis (confirms move? accumulation or distribution?), Chart Patterns (breakout / consolidation / reversal / double bottom / head and shoulders / flag/pennant / no clear pattern). End with: Technical Rating: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish and Entry Timing View: Good Entry / Wait for Pullback / Breakout Watch / Avoid for Now. Be specific with price levels where possible."
-    };
-
-    fetch("/anthropic", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 900,
-        messages: [{ role: "user", content: prompts[tabId] }]
-      })
-    }).then(function(r) { return r.json(); })
-      .then(function(data) {
-        var text = data && data.content && data.content[0] && data.content[0].text;
-        setInsightCache(function(prev) {
-          var next = {};
-          Object.keys(prev).forEach(function(k) { next[k] = prev[k]; });
-          next[tabId] = text || "Analysis unavailable.";
-          return next;
-        });
-        setInsightLoading(false);
-      }).catch(function() {
-        setInsightCache(function(prev) {
-          var next = {};
-          Object.keys(prev).forEach(function(k) { next[k] = prev[k]; });
-          next[tabId] = "Analysis unavailable. Please try again.";
-          return next;
-        });
-        setInsightLoading(false);
-      });
-  }
-
-    const price = q ? q.price : 0;
-  const up    = q ? q.pct >= 0 : true;
-  const sign  = up ? "+" : "";
-  const chg   = q ? sign + q.change.toFixed(2) + " (" + sign + q.pct.toFixed(2) + "%)" : "-";
-
-  const pe  = ov ? ov.pe  : 0;
-  const fpe = ov ? ov.fpe : 0;
-  const eps = (pe > 0 && price > 0) ? price / pe : 0;
-  const gr  = Math.max(ov ? (ov.epsG || 5) : 5, 2) / 100;
-
-  // v1.13 Option A: moat classification derived from AI weighted score, not PE ratio
-  var _aiMoat  = parsedInsights["moat"] || {};
-  const moat   = _aiMoat.classification || "-";
-  const moatBg = moat === "Wide" ? "#1a6a1a" : moat === "Narrow" ? "#b88000" : "#444";
-  const moatFg = (moat === "Wide" || moat === "Narrow") ? "#fff" : "#888";
-
-  function calcDCF(eps0, growthRate, terminalRate, wacc, years) {
-    var total = 0, fcf = eps0;
-    for (var y = 1; y <= years; y++) {
-      fcf = fcf * (1 + (y <= 10 ? growthRate : terminalRate));
-      total += fcf / Math.pow(1 + wacc, y);
     }
-    return total;
-  }
 
-  // --- Improved base values ---
-  // 1) Previous year EPS from historical data (most accurate base)
-  var baseEps = eps; // fallback to TTM EPS derived from PE
-  if (epsHistory && epsHistory.length > 0) {
-    var prevYearRow = epsHistory[0]; // already sorted newest first
-    if (prevYearRow && prevYearRow.eps && prevYearRow.eps > 0) {
-      baseEps = prevYearRow.eps;
-    }
-  }
+    // ── /simfin — fetch data from SimFin API ────────────────────────────────
+    if (url.pathname === "/simfin") {
+      var sfSym = (url.searchParams.get("sym") || "").toUpperCase().trim();
+      var sfKey = context.env.SIMFIN_KEY;
+      if (!sfSym || !sfKey) {
+        return new Response(JSON.stringify({ error: "Missing sym or SIMFIN_KEY" }), {
+          status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+      var sfBase  = "https://backend.simfin.com/api/v3";
+      var sfHdr   = { "Authorization": "api-key " + sfKey, "Accept": "application/json" };
+      var sfStart = "2013-01-01";
+      var sfDiag  = { sym: sfSym, keyPresent: !!sfKey, keyPrefix: sfKey ? sfKey.slice(0,6) + "..." : "MISSING" };
 
-  // 2) Historical 5-year average EPS growth rate
-  var histGrowthRate = gr; // fallback
-  var histCagrYears  = 0;  // how many years used in CAGR
-  if (epsHistory && epsHistory.length >= 2) {
-    var sorted = epsHistory.slice().sort(function(a, b) { return b.year - a.year; });
-    var epsNewest = sorted[0].eps;
-    // Try longest CAGR first (7yr, 6yr, 5yr, 4yr, 3yr, 2yr)
-    var tryYears = [9, 8, 7, 6, 5, 4, 3, 2];
-    for (var ti = 0; ti < tryYears.length; ti++) {
-      var n = tryYears[ti];
-      if (sorted.length > n) {
-        var epsOldest = sorted[n].eps;
-        if (epsNewest > 0 && epsOldest > 0) {
-          var cagr = Math.pow(epsNewest / epsOldest, 1 / n) - 1;
-          histGrowthRate = Math.max(Math.min(cagr, 0.60), -0.20); // cap -20% to 60%
-          histCagrYears  = n;
-          break;
+      async function sfFetch(statement) {
+        var sfUrl = sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=" + statement + "&period=fy&start=" + sfStart;
+        sfDiag["url_" + statement] = sfUrl.replace(sfKey, "***");
+        try {
+          var resp = await fetch(sfUrl, { headers: sfHdr });
+          sfDiag["status_" + statement] = resp.status;
+          sfDiag["contentType_" + statement] = resp.headers.get("content-type") || "unknown";
+          var txt = await resp.text();
+          sfDiag["rawLen_" + statement] = txt.length;
+          sfDiag["rawPreview_" + statement] = txt.slice(0, 150);
+          try {
+            return JSON.parse(txt);
+          } catch(e) {
+            return { error: "JSON parse failed", raw: txt.slice(0, 300), status: resp.status };
+          }
+        } catch(e) {
+          sfDiag["fetchError_" + statement] = String(e);
+          return { error: "Fetch failed: " + String(e) };
         }
       }
-    }
-    // Fallback: average of YoY rates
-    if (histCagrYears === 0) {
-      var growthRates = [];
-      for (var i = 0; i < Math.min(sorted.length - 1, 5); i++) {
-        var curr = sorted[i].eps, prev = sorted[i + 1].eps;
-        if (prev > 0 && curr > 0) growthRates.push((curr - prev) / prev);
+
+      try {
+        // Parallel calls - START plan allows 5 req/sec
+        var sfPair   = await Promise.all([ sfFetch("bs"), sfFetch("pl") ]);
+        var sfBalance = sfPair[0];
+        var sfIncome  = sfPair[1];
+        return new Response(JSON.stringify({
+          ok: true,
+          sym: sfSym,
+          income:  sfIncome,
+          balance: sfBalance,
+          diag:    sfDiag,
+        }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      } catch(e) {
+        return new Response(JSON.stringify({ error: String(e), diag: sfDiag }), {
+          status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
       }
-      if (growthRates.length > 0) {
-        var avgG = growthRates.reduce(function(s, v) { return s + v; }, 0) / growthRates.length;
-        histGrowthRate = Math.max(Math.min(avgG, 0.60), -0.20);
-        histCagrYears  = growthRates.length;
-      }
     }
-  }
 
-  // 3) Beta-adjusted WACC: risk-free 4.5% + beta x 5.5%
-  var beta = ov ? (ov.beta || 1.0) : 1.0;
-  var WACC_ADJ = Math.min(Math.max(0.045 + beta * 0.055, 0.06), 0.18); // clamp 6%-18%
+    // ── /eps  — 10yr annual EPS from Polygon financials ────────────────────
+    if (url.pathname === "/eps") {
+      var epsSym = (url.searchParams.get("sym") || "").toUpperCase().trim();
+      var massiveKey2 = context.env.MASSIVE_KEY;
+      if (!epsSym || !massiveKey2) {
+        return new Response(JSON.stringify({ error: "Missing sym or MASSIVE_KEY" }), {
+          status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+      try {
+        // Fetch EPS history and split history in parallel
+        var epsAndSplits = await Promise.all([
+          fetch("https://api.polygon.io/vX/reference/financials?ticker=" + epsSym + "&timeframe=annual&limit=10&apiKey=" + massiveKey2, { headers: { "User-Agent": UA } }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+          fetch("https://api.polygon.io/v3/reference/splits?ticker=" + epsSym + "&order=desc&apiKey=" + massiveKey2, { headers: { "User-Agent": UA } }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        ]);
+        var pfData    = epsAndSplits[0];
+        var splitData = epsAndSplits[1];
 
-  // 4) Real FCF per share = freeCashflow / sharesOutstanding
-  var fcfPerShare = 0;
-  if (ov && ov.fcfRaw && ov.sharesOut > 0) {
-    fcfPerShare = ov.fcfRaw / ov.sharesOut;
-  } else if (baseEps > 0) {
-    fcfPerShare = baseEps * 0.85; // fallback
-  }
-
-  // 5) Real Net Income per share = netIncomeToCommon / sharesOutstanding
-  var niPerShare = 0;
-  if (ov && ov.niRaw && ov.sharesOut > 0) {
-    niPerShare = ov.niRaw / ov.sharesOut;
-  } else if (baseEps > 0) {
-    niPerShare = baseEps * 0.90; // fallback
-  }
-
-  // Initial oracle estimate (overridden below once vals are built)
-  var oracle = (baseEps > 0 && pe > 0)
-    ? calcDCF(baseEps, histGrowthRate, 0.04, WACC_ADJ, 10).toFixed(2)
-    : (price > 0 ? price.toFixed(2) : "-");
-
-  // Build valuation rows
-  const vals = [];
-  if (ov && baseEps > 0 && price > 0) {
-    const termGrowth = 0.04;
-    const grCapped   = Math.min(histGrowthRate, 0.25);
-    const maxVal     = price * 3;
-    const cap        = function(v) { return Math.min(v, maxVal); };
-
-    const dcf20  = cap(calcDCF(baseEps,   grCapped, termGrowth, WACC_ADJ, 20));
-    const dcff20 = fcfPerShare > 0 ? cap(calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 20)) : 0;
-    const dni20  = niPerShare  > 0 ? cap(calcDCF(niPerShare,  grCapped, termGrowth, WACC_ADJ, 20)) : 0;
-    const dcffT  = fcfPerShare > 0 ? cap(
-      calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 20) -
-      calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 10)
-    ) : 0;
-    const peVal   = cap(fpe > 0 ? baseEps * fpe : baseEps * pe);
-    const pb      = ov.hi52 > 0 ? (ov.hi52 + ov.lo52) / 2 : 0;
-    const ps      = cap(peVal * Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0));
-    const ltgRate = ov.ltG > 0 ? ov.ltG : grCapped * 100;
-    const psg     = ltgRate > 0 ? Math.min(price / ltgRate, maxVal) : 0;
-    const pegVal  = ov.peg > 0 ? Math.min(baseEps * 15, maxVal) : 0;
-
-    vals.push({ label:"Discounted Cash Flow 20-year\n(DCF-20)",         value:dcf20,  color:"#d4a800" });
-    if (dcff20 > 0) vals.push({ label:"Discounted Free Cash Flow 20-year\n(DCFF-20)",   value:dcff20, color:"#d4a800" });
-    if (dni20  > 0) vals.push({ label:"Discounted Net Income 20-year\n(DNI-20)",        value:dni20,  color:"#d4a800" });
-    if (dcffT  > 0) vals.push({ label:"DCF Free Cash Flow Terminal\n(DCFF-Terminal)",   value:dcffT,  color:"#d4a800" });
-    vals.push({ label:"Mean Price to Sales\n(PS) Ratio",                value:ps,     color:"#d4a800" });
-    vals.push({ label:"Mean Price to Earnings\n(PE) Ratio Without NRI", value:peVal,  color:"#d4a800" });
-    if (pb > 0)     vals.push({ label:"Mean Price to Book\n(PB) Ratio",                        value:pb,     color:"#d4a800" });
-    if (psg > 0)    vals.push({ label:"Price to Sales Growth\n(PSG) Ratio",                    value:psg,    color:"#c03030" });
-    if (pegVal > 0) vals.push({ label:"Price to Earnings Growth\n(PEG) Ratio Without NRI",     value:pegVal, color:"#c03030" });
-
-    const oracleAvg = vals.reduce(function(sum, v) { return sum + v.value; }, 0) / vals.length;
-    oracle = oracleAvg.toFixed(2);
-    vals.push({ label:"IntrinsicValue(TM)", value:oracleAvg, color:"#1a8a3a", bold:true });
-  }
-
-  const maxV = vals.length
-    ? Math.max.apply(null, vals.map(function(v) { return v.value; })) * 1.08
-    : price * 1.5 || 100;
-
-  const valRows = ov ? [
-    ["P/E Ratio (TTM)",         pe>0?fmt2(pe):"-",            "Price / Sales (TTM)",      ov.ps>0?fmt2(ov.ps):"-"],
-    ["Forward P/E (Next Year)", fpe>0?fmt2(fpe):"-",          "EV / EBITDA",              ov.evEbitda>0?fmt2(ov.evEbitda):"-"],
-    ["PEG Ratio",               ov.peg>0?fmt2(ov.peg):"-",   "Price / Free Cash Flow",   ov.pFcf>0?fmt2(ov.pFcf):"-"],
-    ["Price / Book (P/B)",      ov.pb>0?fmt2(ov.pb):"-",     "Dividend Yield (TTM)",     ov.divY>0?fpct(ov.divY):"-"],
-  ] : [];
-
-  const healthRows = ov ? [
-    ["Gross Margin",        ov.grossMargin?fpct(ov.grossMargin):"-", "Return on Equity",    ov.roe>0?fpct(ov.roe):"-"],
-    ["Operating Margin",    ov.opMargin?fpct(ov.opMargin):"-",      "Current Ratio",       ov.currentRatio>0?fmt2(ov.currentRatio):"-"],
-    ["Net Profit Margin",   ov.netMargin?fpct(ov.netMargin):"-",     "Quick Ratio",         ov.quickRatio>0?fmt2(ov.quickRatio):"-"],
-    ["Free Cash Flow",      ov.fcf||"-",                              "Total Debt / Equity", ov.de>0?fmt2(ov.de):"-"],
-    ["Net Income (TTM)",    ov.netIncome||"-",                        "Revenue Growth YoY",  ov.revGrowth?fpct(ov.revGrowth):"-"],
-    ["Revenue (TTM)",       ov.revenue||"-",                          "",                    ""],
-  ] : [];
-
-  const growthRows = ov ? [
-    ["EPS Growth (TTM)",          ov.epsG?fpct(ov.epsG):"-",   "Revenue Growth YoY",      ov.revGrowth?fpct(ov.revGrowth):"-"],
-    ["LT EPS Growth (5yr Est.)",  ov.ltG?fpct(ov.ltG):"-",     "Beta",                    ov.beta>0?fmt2(ov.beta):"-"],
-    ["Market Capitalization",     ov.marketCap||"-",            "Dividend Yield (TTM)",    ov.divY>0?fpct(ov.divY):"-"],
-  ] : [];
-
-  return (
-    <div style={{ minHeight:"100vh", background:"#f5f2ec", fontFamily:FONT }}>
-
-      {/* Nav */}
-      {(function() {
-        var allStocks2 = Object.keys(NAMES).map(function(k){ return {symbol:k, name:NAMES[k]}; });
-        var navSugg = (navInput.length > 0 && navFocus)
-          ? allStocks2.filter(function(s){ return s.symbol.toLowerCase().startsWith(navInput.toLowerCase()) || s.name.toLowerCase().includes(navInput.toLowerCase()); }).slice(0,6)
-          : [];
-        function navGo(s) {
-          var ticker = (s || navInput).toUpperCase().trim();
-          if (!ticker) return;
-          setNavInput("");
-          setNavFocus(false);
-          window.location.hash = ticker;
+        // Build cumulative split adjustment factor per date
+        // Each split: for dates BEFORE execution_date, multiply EPS by split_from/split_to
+        var splits = [];
+        if (splitData && splitData.results) {
+          for (var si = 0; si < splitData.results.length; si++) {
+            var sp = splitData.results[si];
+            if (sp.execution_date && sp.split_from && sp.split_to) {
+              splits.push({ date: sp.execution_date, factor: sp.split_from / sp.split_to });
+            }
+          }
         }
-        var SearchPill = (
-          <div style={{ position:"relative", width:280, flexShrink:0 }}>
-            <div style={{ display:"flex", alignItems:"center", background:"#fff", borderRadius:22, padding:"5px 12px", gap:8, border: navFocus ? "2px solid #1a1a14" : "2px solid transparent" }}>
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
-                <circle cx="6.5" cy="6.5" r="5" stroke="#bbb" strokeWidth="1.5"/>
-                <path d="M10.5 10.5L14 14" stroke="#bbb" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-              <input
-                value={navInput}
-                onChange={function(e){ setNavInput(e.target.value); }}
-                onFocus={function(){ setNavFocus(true); }}
-                onBlur={function(){ setTimeout(function(){ setNavFocus(false); }, 180); }}
-                onKeyDown={function(e){ if(e.key==="Enter") navGo(); }}
-                placeholder="Search ticker or company..."
-                style={{ flex:1, border:"none", outline:"none", background:"transparent", fontSize:12, color:"#333", fontFamily:FONT }}
-              />
-              {navInput && <span onClick={function(){ setNavInput(""); }} style={{ cursor:"pointer", color:"#bbb", fontSize:15, lineHeight:1, flexShrink:0 }}>{String.fromCharCode(0xD7)}</span>}
-            </div>
-            {navSugg.length > 0 && (
-              <div style={{ position:"absolute", top:"calc(100% + 5px)", left:0, right:0, background:"#1c1c1e", border:"0.5px solid #333", borderRadius:10, zIndex:200, overflow:"hidden" }}>
-                {navSugg.map(function(s) {
-                  return (
-                    <div key={s.symbol}
-                      onMouseDown={function(e){ e.preventDefault(); navGo(s.symbol); }}
-                      style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", cursor:"pointer", borderBottom:"0.5px solid #222" }}
-                      onMouseEnter={function(e){ e.currentTarget.style.background="#252525"; }}
-                      onMouseLeave={function(e){ e.currentTarget.style.background="transparent"; }}>
-                      <span style={{ fontSize:10, fontWeight:700, color:"#1a1a14", background:"#c8f000", padding:"2px 7px", borderRadius:4, minWidth:40, textAlign:"center" }}>{s.symbol}</span>
-                      <span style={{ fontSize:12, color:"#aaa" }}>{s.name}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-        return (
-          <div>
-            {/* Desktop nav: 1 row - Back / Logo / centred search / Live badge */}
-            <style>{"              .nav-desktop { display:flex; }              .nav-mobile  { display:none; }              @media (max-width:600px) {                .nav-desktop { display:none; }                .nav-mobile  { display:block; }              }            "}</style>
 
-            {/* DESKTOP */}
-            {/* Nav mirrors the 400px / 1fr body grid so search aligns with the right panel */}
-            <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"flex", alignItems:"center", gap:0 }}>
-              {/* Logo + ticker */}
-              <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-                <span style={{ fontWeight:800, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap" }}>nervousgeek.com</span>
-                <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
-              </div>
-              {/* Spacer */}
-              <div style={{ flex:1 }}></div>
-              {/* Search + Back on far right */}
-              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                {SearchPill}
-                <button onClick={onBack} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"5px 12px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:600, whiteSpace:"nowrap" }}>
-                  Back
-                </button>
-              </div>
-            </div>
-
-            {/* MOBILE */}
-            <div className="nav-mobile" style={{ background:"#c8f000", padding:"8px 14px 7px" }}>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:7 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <span style={{ fontWeight:800, fontSize:14, color:"#1a1a14" }}>nervousgeek.com</span>
-                  <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
-                </div>
-                <button onClick={onBack} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"4px 10px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:11, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
-                  Back
-                </button>
-
-              </div>
-              {/* Full-width white search on row 2 */}
-              <div style={{ position:"relative" }}>
-                <div style={{ display:"flex", alignItems:"center", background:"#fff", borderRadius:20, padding:"7px 12px", gap:8, border: navFocus ? "2px solid #1a1a14" : "2px solid transparent" }}>
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
-                    <circle cx="6.5" cy="6.5" r="5" stroke="#bbb" strokeWidth="1.5"/>
-                    <path d="M10.5 10.5L14 14" stroke="#bbb" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                  <input
-                    value={navInput}
-                    onChange={function(e){ setNavInput(e.target.value); }}
-                    onFocus={function(){ setNavFocus(true); }}
-                    onBlur={function(){ setTimeout(function(){ setNavFocus(false); }, 180); }}
-                    onKeyDown={function(e){ if(e.key==="Enter") navGo(); }}
-                    placeholder="Search company or ticker..."
-                    style={{ flex:1, border:"none", outline:"none", background:"transparent", fontSize:13, color:"#333", fontFamily:FONT }}
-                  />
-                  {navInput && <span onClick={function(){ setNavInput(""); }} style={{ cursor:"pointer", color:"#bbb", fontSize:15, lineHeight:1 }}>{String.fromCharCode(0xD7)}</span>}
-                </div>
-                {navSugg.length > 0 && (
-                  <div style={{ position:"absolute", top:"calc(100% + 5px)", left:0, right:0, background:"#1c1c1e", border:"0.5px solid #333", borderRadius:10, zIndex:200, overflow:"hidden" }}>
-                    {navSugg.map(function(s) {
-                      return (
-                        <div key={s.symbol}
-                          onMouseDown={function(e){ e.preventDefault(); navGo(s.symbol); }}
-                          style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", cursor:"pointer", borderBottom:"0.5px solid #222" }}
-                          onMouseEnter={function(e){ e.currentTarget.style.background="#252525"; }}
-                          onMouseLeave={function(e){ e.currentTarget.style.background="transparent"; }}>
-                          <span style={{ fontSize:10, fontWeight:700, color:"#1a1a14", background:"#c8f000", padding:"2px 7px", borderRadius:4, minWidth:40, textAlign:"center" }}>{s.symbol}</span>
-                          <span style={{ fontSize:12, color:"#aaa" }}>{s.name}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {msg && (
-        <div style={{
-          background: msg.startsWith("Error") ? "#fff0f0" : "#f0f7ff",
-          border: "1px solid " + (msg.startsWith("Error") ? "#ffaaaa" : "#aaccff"),
-          margin:"10px 20px", padding:"9px 14px", borderRadius:8, fontSize:13,
-          color: msg.startsWith("Error") ? "#990000" : "#003388",
-        }}>
-          {msg}
-        </div>
-      )}
-
-      {/* Body grid */}
-      <div style={{ display:"grid", gridTemplateColumns:"400px 1fr" }}>
-
-        {/* LEFT PANEL */}
-        <div style={{ padding:"24px 20px", borderRight:"1px solid #111", background:"#1c1c1e" }}>
-
-          <h2 style={{ fontSize:21, fontWeight:900, color:"#f0ede6", margin:"0 0 3px" }}>({sym}) {name}</h2>
-          <div style={{ fontSize:13, color:"#555", marginBottom:14 }}>{ov ? ov.exchange : "NASDAQ"}</div>
-
-
-
-          {/* Price */}
-          {price > 0 ? (
-            <div style={{ marginBottom:16 }}>
-              <div>
-                <span style={{ fontSize:38, fontWeight:900, color:"#f0ede6", letterSpacing:"-1px" }}>
-                  {price.toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 })}
-                </span>
-                <span style={{ fontSize:13, color:"#555", marginLeft:8 }}>USD</span>
-                <span style={{ fontSize:14, fontWeight:700, marginLeft:10, color:up?"#2a8a2a":"#c03030" }}>{chg}</span>
-              </div>
-              <div style={{ fontSize:12, color:"#555" }}>Next Earnings Date: <span style={{ color:"#888" }}>{ov && ov.nextEarnings ? ov.nextEarnings : "-"}</span></div>
-            </div>
-          ) : (
-            <div style={{ color:"#aaa", fontSize:14, marginBottom:16 }}>Loading price...</div>
-          )}
-
-          {/* Analysis Summary -- 2x2 grid */}
-          {(function() {
-            function pillColor(text) {
-              if (!text) return { bg:"#f5f2ec", fg:"#888", border:"#ddd", dot:"#7abd00", dotEmpty:"#2a5020" };
-              var v = (text+"").toLowerCase().replace(/[^a-z ]/g,"").trim();
-              if (v.includes("strong buy") || v === "buy" || v.startsWith("buy") || v.includes("wide") || v.includes("strong bullish") || v === "strong" || v.startsWith("strong"))
-                return { bg:"#EAF3DE", fg:"#2a7a2a", border:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" };
-              if (v.includes("strong avoid"))
-                return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#e05050", dotEmpty:"#4a2020" };
-              if (v.includes("avoid"))
-                return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#e05050", dotEmpty:"#4a2020" };
-              if (v.includes("narrow") || v.includes("moderate") || v.includes("bullish"))
-                return { bg:"#f0f7e6", fg:"#2a7a2a", border:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" };
-              if (v.includes("neutral") || v.includes("fairly") || v === "hold" || v.startsWith("hold"))
-                return { bg:"#FAEEDA", fg:"#b88000", border:"#d4a800", dot:"#EF9F27", dotEmpty:"#4a3810" };
-              if (v.includes("none") || v.includes("weak") || v.includes("bearish") || v.includes("overvalued"))
-                return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#e05050", dotEmpty:"#4a2020" };
-              return { bg:"#f5f2ec", fg:"#555", border:"#ccc", dot:"#7abd00", dotEmpty:"#2a5020" };
+        function getAdjFactor(fiscalYearEndDate) {
+          // For each split that happened AFTER this fiscal year end, apply the adjustment
+          var factor = 1;
+          for (var fi = 0; fi < splits.length; fi++) {
+            if (splits[fi].date > fiscalYearEndDate) {
+              factor = factor * splits[fi].factor;
             }
-            function Dots(props) {
-              var dots = [];
-              for (var d = 1; d <= 5; d++) {
-                dots.push(
-                  <span key={d} style={{ display:"inline-block", width:7, height:7, borderRadius:"50%", background: d <= props.score ? props.filled : props.empty, marginRight:2 }} />
-                );
-              }
-              return <span style={{ display:"inline-flex", alignItems:"center" }}>{dots}</span>;
+          }
+          return factor;
+        }
+
+        var rows = [];
+        if (pfData && pfData.results) {
+          for (var pi = 0; pi < pfData.results.length; pi++) {
+            var r = pfData.results[pi];
+            var ic = r.financials && r.financials.income_statement;
+            if (!ic) continue;
+            var epsBasic   = ic.basic_earnings_per_share   && ic.basic_earnings_per_share.value;
+            var epsDiluted = ic.diluted_earnings_per_share && ic.diluted_earnings_per_share.value;
+            var eps = epsDiluted || epsBasic || null;
+            var rev = ic.revenues && ic.revenues.value;
+            var ni  = ic.net_income_loss && ic.net_income_loss.value;
+            var yr  = r.fiscal_year ? parseInt(r.fiscal_year) : null;
+            var endDate = r.end_date || (yr + "-12-31");
+            if (yr && eps !== null) {
+              var adj = getAdjFactor(endDate);
+              rows.push({ year: yr, eps: eps * adj, epsRaw: eps, adjFactor: adj, endDate: endDate,
+                          revenue: rev ? "$" + (rev/1e9).toFixed(1) + "B" : null,
+                          netIncome: ni ? "$" + (ni/1e9).toFixed(1) + "B" : null });
             }
-            // Read directly from parsedInsights -- single source of truth
-            var moatParsed  = parsedInsights["moat"]      || {};
-            var finParsed   = parsedInsights["financial"]  || {};
-            var moatRating  = moatParsed.classification || null;
-            var moatScore   = moatParsed.score          || 0;
-            var finRating   = finParsed.classification  || null;
-            var finScore    = finParsed.score           || 0;
-
-            var ivLabel       = vals.length > 0 ? (parseFloat(oracle) > price ? "Undervalued" : "Overvalued") : null;
-            var ivColors      = ivLabel ? pillColor(ivLabel) : pillColor(null);
-            var moatColors    = moatRating  ? pillColor(moatRating)  : pillColor(null);
-            var finColors     = finRating   ? pillColor(finRating)   : pillColor(null);
-            function darkify(c) {
-              var bg = c.bg;
-              if (bg === "#EAF3DE" || bg === "#f0f7e6") return Object.assign({}, c, { bg:"#1e2a1e", border:"#2a5020", fg:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" });
-              if (bg === "#FAEEDA") return Object.assign({}, c, { bg:"#2a2010", border:"#4a3810", fg:"#EF9F27", dot:"#EF9F27", dotEmpty:"#4a3810" });
-              if (bg === "#FCEBEB") return Object.assign({}, c, { bg:"#2a1e1e", border:"#4a2020", fg:"#e05050", dot:"#e05050", dotEmpty:"#4a2020" });
-              return Object.assign({}, c, { bg:"#222", border:"#333", fg:"#555", dot:"#444", dotEmpty:"#333" });
-            }
-            function Card(props) {
-              var c = darkify(props.colors);
-              var loading = !props.value;
-              var isSpinning = props.loading === true;
-              return (
-                <div style={{ padding:"10px 12px", background: loading ? "#222" : c.bg, border:"0.5px solid " + (loading ? "#333" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1 }}>
-                  <div style={{ fontSize:10, color: loading ? "#aaa" : c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>{props.label}</div>
-                  <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
-                    <div>
-                      <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                        {isSpinning
-                          ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                              <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite", flexShrink:0 }}></div>
-                              <span style={{ fontSize:10, color:"#555", fontWeight:600 }}>Loading...</span>
-                            </div>
-                          : <span style={{ fontSize:14, fontWeight:700, color: loading ? "#555" : c.fg }}>{loading ? "..." : props.value}</span>
-                        }
-                      </div>
-                      {!loading && props.sublabel && (
-                        <div style={{ fontSize:10, fontWeight:600, color:c.fg, marginTop:2, opacity:0.85 }}>{props.sublabel}</div>
-                      )}
-                    </div>
-                    {!loading && props.score > 0 && (
-                      <Dots score={props.score} filled={c.dot} empty={c.dotEmpty} />
-                    )}
-                  </div>
-                </div>
-              );
-            }
-            //  Star rating computed inline (before JSX return) 
-            var _aiP2 = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null;
-            var _aiD2 = _aiP2 ? (_aiP2.dots||0) : 0;
-            var _msD2 = (typeof window.__msDots!=="undefined") ? window.__msDots : 0;
-            var _ivD2 = ivLabel==="Undervalued"?5:ivLabel==="Overvalued"?2:0;
-            var _ind2 = massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
-            var _mcdH = _ind2?(_ind2.macdHistory||[]):[];
-            var _rsiH = _ind2?(_ind2.rsiHistory||[]):[];
-            var _mcdT = (function(){if(_mcdH.length<3)return false;var h0=_mcdH[0]&&_mcdH[0].histogram,h1=_mcdH[1]&&_mcdH[1].histogram,h2=_mcdH[2]&&_mcdH[2].histogram;return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2;})();
-            var _wCrs = _ind2&&_ind2.wsma10&&_ind2.wsma40?(_ind2.wsma10<_ind2.wsma40&&Math.abs(_ind2.wsma10-_ind2.wsma40)/_ind2.wsma40<0.05):false;
-            var _rBas = _rsiH.length>=3?_rsiH.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;}):false;
-            var _lBas = (ov||{}).lo52>0&&price>0&&_ind2&&_ind2.rsi14!=null?((price-(ov||{}).lo52)/Math.max(((ov||{}).hi52-(ov||{}).lo52),1)<0.20&&_ind2.rsi14>20&&_ind2.rsi14<45):false;
-            var _revC = [_mcdT,_wCrs,_rBas,_lBas].filter(Boolean).length;
-            function _toStar(d){return d>=4?1:d===3?0.5:0;}
-            var _core = [moatScore,finScore,_ivD2,_msD2,_aiD2].filter(function(d){return d>0;}).reduce(function(s,d){return s+_toStar(d);},0);
-            var _bonus= _revC>=3?1:_revC>=1?0.5:0;
-            var _star = Math.round(Math.min(5,_core+_bonus)*2)/2;
-            var _lbl  = _star>=4.5?"Exceptional":_star>=4?"Strong Buy":_star>=3.5?"Buy":_star>=3?"Hold":_star>=2?"Caution":"Avoid";
-            var _col  = _star>=4?"#1a6a1a":_star>=3?"#b88000":"#c03030";
-            function _StarRow(rating){
-              var spans=[];
-              for(var i=1;i<=5;i++){
-                var d=rating-(i-1);
-                spans.push(<span key={i} style={{fontSize:20,color:d>=0.5?"#f5a623":"#d8d3ca",opacity:d>=0.5&&d<1?0.5:1,lineHeight:1,display:"inline-block"}}>{d>=0.5?String.fromCharCode(9733):String.fromCharCode(9734)}</span>);
-              }
-              return spans;
-            }
-
-            return (
-              <div style={{ marginBottom:16 }}>
-                {_star>0&&(
-                  <div>
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-                      <span style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em" }}>Analysis Rating</span>
-                      <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                        <span style={{ display:"inline-flex" }}>{_StarRow(_star)}</span>
-                        <span style={{ fontSize:12, fontWeight:500, color:_col }}>{_lbl}{String.fromCharCode(0xA0)}{String.fromCharCode(0xA0)}{_star.toFixed(1)}{String.fromCharCode(0xA0)}/{String.fromCharCode(0xA0)}5.0</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div style={{ borderTop:"1px solid #2c2c2e", margin:"10px 0 16px" }}></div>
-                <div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:600, marginBottom:7 }}>Analysis Summary</div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
-                  <Card label="Economic Moat"    value={moatRating}  score={moatScore}  colors={moatColors}    loading={!moatRating && insightLoading} />
-                  {(function(){ window.__moatDots=moatScore; window.__finDots=finScore; return null; })()}
-                  <Card label="Financial Strength" value={finRating}  score={finScore}   colors={finColors}     loading={!finRating && insightLoading} />
-                  {(function(){
-                    var ivVal = vals.length > 0 ? "$" + oracle : null;
-                    var ivScore = ivLabel==="Undervalued"?5:ivLabel==="Overvalued"?2:0;
-                    var c = ivVal ? ivColors : pillColor(null);
-                    var loading = !ivVal;
-                    var ovLoading = !ov;
-                    return (
-                      <div style={{ padding:"10px 12px", background:loading?"#252525":darkify(c).bg, border:"0.5px solid "+(loading?"#333":darkify(c).border), borderRadius:8, opacity:loading?0.6:1 }}>
-                        <div style={{ fontSize:10, color:loading?"#aaa":c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>Intrinsic Value</div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                            {loading && ovLoading
-                              ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                                  <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite", flexShrink:0 }}></div>
-                                  <span style={{ fontSize:10, color:"#555", fontWeight:600 }}>Loading...</span>
-                                </div>
-                              : <span style={{ fontSize:14, fontWeight:700, color:loading?"#ccc":c.fg }}>{loading?"...":ivVal}</span>
-                            }
-                          </div>
-                          {!loading && <Dots score={ivScore} filled={c.dot} empty={c.dotEmpty} />}
-                        </div>
-                        {!loading && ivLabel && <div style={{ fontSize:10, color:c.fg, marginTop:3, opacity:0.85 }}>{ivLabel}</div>}
-                      </div>
-                    );
-                  })()}
-                  {(function() {
-                    var ind2 = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
-                    var agg2 = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
-                    var p2   = q ? q.price : 0;
-                    var hi2  = ov ? ov.hi52 : 0; var lo2 = ov ? ov.lo52 : 0;
-                    var pos2 = (hi2 - lo2) > 0 ? (p2 - lo2) / (hi2 - lo2) : 0.5;
-                    var vol5b  = agg2.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(agg2.slice(0,5).length,1);
-                    var vol20b = agg2.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(agg2.slice(0,20).length,1);
-                    var vr2 = vol20b > 0 ? vol5b/vol20b : 1;
-                    if (!ind2 || !p2) return <Card label="Market Signal" value={null} score={0} colors={pillColor(null)} loading={addlLoading} />;
-                    function sc2(key) {
-                      var wsmaG = ind2.wsma10 && ind2.wsma40 ? (ind2.wsma10-ind2.wsma40)/ind2.wsma40*100 : 0;
-                      var s200g = ind2.sma200 ? (p2-ind2.sma200)/ind2.sma200*100 : 0;
-                      var crsG  = ind2.sma50 && ind2.sma200 ? (ind2.sma50-ind2.sma200)/ind2.sma200*100 : 0;
-                      var ema2g = ind2.ema20 ? (p2-ind2.ema20)/ind2.ema20*100 : 0;
-                      var r2 = ind2.rsi14; var h2 = ind2.macd ? ind2.macd.histogram : null;
-                      if (key==="wsma")   return !ind2.wsma10||!ind2.wsma40?3:wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
-                      if (key==="sma200") return !ind2.sma200?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
-                      if (key==="cross")  return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
-                      if (key==="pos52")  return pos2>0.80?5:pos2>0.55?4:pos2>0.35?3:pos2>0.15?2:1;
-                      if (key==="rsi")    return !r2?3:(r2>=50&&r2<=75)?5:(r2>=40&&r2<50)?4:(r2>=30&&r2<40||r2>75)?3:(r2>=20&&r2<30)?2:1;
-                      if (key==="macd")   return !h2?3:h2>0.05?5:h2>0?4:h2>-0.05?3:h2>-0.5?2:1;
-                      if (key==="ema20")  return !ind2.ema20?3:ema2g>5?5:ema2g>1?4:ema2g>-5?3:ema2g>-15?2:1;
-                      if (key==="vol")    return vr2>1.4?5:vr2>1.1?4:vr2>0.9?3:vr2>0.7?2:1;
-                      return 3;
-                    }
-                    var W2={wsma:25,sma200:15,cross:10,pos52:5,rsi:20,macd:15,ema20:5,vol:5};
-                    var keys2=["wsma","sma200","cross","pos52","rsi","macd","ema20","vol"];
-                    var base2=0; keys2.forEach(function(k){base2+=(sc2(k)/5)*W2[k];});
-                    base2=Math.round(base2);
-                    var macdH2=ind2&&ind2.macdHistory||[]; var mT2=macdH2.length>=3&&macdH2[0]&&macdH2[1]&&macdH2[2]&&macdH2[0].histogram<0&&macdH2[0].histogram>macdH2[1].histogram&&macdH2[1].histogram>macdH2[2].histogram;
-                    var rsiH2=ind2&&ind2.rsiHistory||[]; var rsiB2=rsiH2.length>=3&&rsiH2.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;});
-                    var lb2=pos2<0.20&&ind2.rsi14!=null&&ind2.rsi14>20&&ind2.rsi14<45;
-                    var rev2=[mT2,rsiB2,lb2].filter(Boolean).length;
-                    var bonus2=base2<50?Math.min(rev2*4,12):0;
-                    var final2=Math.min(base2+bonus2,base2<50?49:100);
-                    var vl2=final2>=70?"Strong Bullish":final2>=55?"Bullish":final2>=40?"Neutral":final2>=25?"Bearish":"Strong Bearish";
-                    var showRW=rev2>=2&&final2<50;
-                    var sigLabel2=vl2+(showRW?" + Reversal Watch":"")+" ("+final2+")";
-                    var msDots=final2>=70?5:final2>=55?4:final2>=40?3:final2>=25?2:1;
-                    // Store for star rating access
-                    if (typeof window.__msDots === "undefined" || window.__msDots !== msDots) window.__msDots = msDots;
-                    if (typeof window.__msScore === "undefined" || window.__msScore !== final2) window.__msScore = final2;
-                    return <Card label="Market Signal" value={sigLabel2} score={msDots} sublabel={null} colors={pillColor(vl2)} />;
-                  })()}
-
-                  {(function() {
-                    var aiP = null; try { aiP = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null; } catch(e) { aiP = null; }
-                    if (!aiP || !aiP.verdict) return <Card label="AI Insight" value={insightLoading?"Loading...":"-"} score={0} colors={pillColor(null)} loading={insightLoading} />;
-                    var vl = aiP.verdict;
-                    var aiDots = aiP.dots || 3;
-                    var vlc = vl ? vl.toLowerCase().replace(/[^a-z ]/g,"").trim() : "";
-                    var aiC = (vlc==="strong buy"||vlc==="buy")
-                            ? {bg:"#1e2a1e",border:"#2a5020",fg:"#7abd00",dot:"#7abd00",dotEmpty:"#2a5020"}
-                            : vlc==="hold"
-                            ? {bg:"#2a2010",border:"#4a3810",fg:"#EF9F27",dot:"#EF9F27",dotEmpty:"#4a3810"}
-                            : (vlc==="avoid"||vlc==="strong avoid")
-                            ? {bg:"#2a1e1e",border:"#4a2020",fg:"#e05050",dot:"#e05050",dotEmpty:"#4a2020"}
-                            : {bg:"#222",   border:"#333",   fg:"#555",   dot:"#444",   dotEmpty:"#333"};
-                    return (function(){
-                      return (
-                        <div style={{ padding:"10px 12px", background:aiC.bg, border:"0.5px solid "+aiC.border, borderRadius:8 }}>
-                          <div style={{ fontSize:10, color:aiC.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>AI Insight</div>
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                            <div style={{ fontSize:14, fontWeight:700, color:aiC.fg }}>{vl}</div>
-                            <Dots score={aiDots} filled={aiC.dot} empty={aiC.dotEmpty} />
-                          </div>
-                          {aiP.confidence && <div style={{ fontSize:10, color:aiC.fg, marginTop:3, opacity:0.85 }}>Conf: {aiP.confidence}</div>}
-                        </div>
-                      );
-                    })();
-                  })()}                  
-                </div>
-                  {/* Reversal Detector */}
-                  {(function() {
-                    var ind3      = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
-                    var aggs3     = massiveInfo && massiveInfo.aggs        ? massiveInfo.aggs        : [];
-                    var price3    = q ? q.price : 0;
-                    var ov3       = ov || {};
-                    var hi3       = ov3.hi52 || 0; var lo3 = ov3.lo52 || 0;
-                    var pos3      = (hi3>0&&hi3-lo3) > 0 ? (price3-lo3)/(hi3-lo3) : 0.5;
-                    var rsiH3     = ind3 ? (ind3.rsiHistory  || []) : [];
-                    var macdH3    = ind3 ? (ind3.macdHistory || []) : [];
-
-                    // Reversal signal detection
-                    var rsiDiv3 = (function() {
-                      if (!ind3 || rsiH3.length < 10 || aggs3.length < 10) return false;
-                      var rPL = Math.min.apply(null, aggs3.slice(0,5).map(function(a){return a.l||0;}));
-                      var pPL = Math.min.apply(null, aggs3.slice(5,10).map(function(a){return a.l||0;}));
-                      var rRL = Math.min.apply(null, rsiH3.slice(0,5));
-                      var pRL = Math.min.apply(null, rsiH3.slice(5,10));
-                      return rPL < pPL && rRL > pRL;
-                    })();
-                    var macdTurn3 = (function() {
-                      if (macdH3.length < 3) return false;
-                      var h0=macdH3[0]&&macdH3[0].histogram, h1=macdH3[1]&&macdH3[1].histogram, h2=macdH3[2]&&macdH3[2].histogram;
-                      return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2;
-                    })();
-                    var weeklyCross3 = ind3&&ind3.wsma10&&ind3.wsma40 ? (ind3.wsma10<ind3.wsma40&&Math.abs(ind3.wsma10-ind3.wsma40)/ind3.wsma40<0.05) : false;
-                    var rsiBase3     = rsiH3.length>=3 ? rsiH3.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;}) : false;
-                    var lowBase3     = pos3<0.20&&ind3&&ind3.rsi14!=null&&ind3.rsi14>20&&ind3.rsi14<45;
-
-                    var revArr3   = [rsiDiv3, macdTurn3, weeklyCross3, rsiBase3, lowBase3];
-                    var revCount3 = revArr3.filter(Boolean).length;
-
-                    var isNone   = revCount3 === 0;
-                    var isEarly  = revCount3 === 1;
-                    var isWatch  = revCount3 >= 2 && revCount3 <= 3;
-                    var isStrong = revCount3 >= 4;
-
-                    var bg3, border3, label3Col, pulse3, verdict3, dotFilled3, dotEmpty3, sub3;
-                    if (isNone) {
-                      bg3="#222";    border3="#333";
-                      label3Col="#555"; pulse3=null; verdict3=null;
-                      dotFilled3="#444"; dotEmpty3="#2a2a2a"; sub3=null;
-                    } else if (isEarly) {
-                      bg3="#2a2010"; border3="#4a3810";
-                      label3Col="#EF9F27"; pulse3="#EF9F27"; verdict3="Early Signal";
-                      dotFilled3="#EF9F27"; dotEmpty3="#4a3810";
-                      sub3=null;
-                    } else if (isWatch) {
-                      bg3="#1e2a1e"; border3="#2a5020";
-                      label3Col="#7abd00"; pulse3="#7abd00"; verdict3="Reversal Watch";
-                      dotFilled3="#7abd00"; dotEmpty3="#2a5020";
-                      sub3=null;
-                    } else {
-                      bg3="#1e2a1e"; border3="#2a5020";
-                      label3Col="#7abd00"; pulse3="#7abd00"; verdict3="Strong Reversal";
-                      dotFilled3="#7abd00"; dotEmpty3="#2a5020";
-                      sub3=null;
-                    }
-
-                    var sigNames3 = ["RSI Divergence","MACD Turning","Weekly SMA Cross","RSI Base","52-Wk Low Base"];
-                    var activeNames3 = sigNames3.filter(function(_,i){ return revArr3[i]; });
-                    if (!isNone) sub3 = activeNames3.join(" | ");
-
-                    return (
-                      <div style={{ marginTop:12 }}>
-                        <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em", marginTop:16, marginBottom:6 }}>Reversal Indicator</div>
-                        {!massiveInfo
-                          ? <div style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 12px", background:"#222", borderRadius:8, border:"0.5px solid #333" }}>
-                              <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite", flexShrink:0 }}></div>
-                              <span style={{ fontSize:10, color:"#555", fontWeight:600 }}>Loading...</span>
-                            </div>
-                          : <div style={{ padding:"9px 12px", background:bg3, borderRadius:8, border:"0.5px solid "+border3 }}>
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                              {pulse3 && <span style={{ width:7, height:7, borderRadius:"50%", background:pulse3, flexShrink:0, display:"inline-block" }} />}
-                              <span style={{ fontSize:10, fontWeight:600, color:label3Col, textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Indicator</span>
-                            </div>
-                            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                              <span style={{ display:"inline-flex", gap:3 }}>
-                                {[1,2,3,4,5].map(function(i) {
-                                  return <span key={i} style={{ width:8, height:8, borderRadius:"50%", background:i<=revCount3?dotFilled3:dotEmpty3, display:"inline-block" }} />;
-                                })}
-                              </span>
-                              <span style={{ fontSize:11, fontWeight:600, color:label3Col, background:isNone?"#1c1c1c":dotFilled3+"22", padding:"2px 10px", borderRadius:20, border:"0.5px solid "+border3 }}>
-                                {verdict3 || "No signals"}
-                              </span>
-                            </div>
-                          </div>
-                          {!isNone && (
-                            <div style={{ marginTop:6, paddingTop:6, borderTop:"0.5px solid "+border3+"44", display:"flex", flexWrap:"wrap", gap:4 }}>
-                              {sigNames3.map(function(name, i) {
-                                var active = revArr3[i];
-                                return (
-                                  <span key={i} style={{
-                                    fontSize:10, fontWeight:500,
-                                    color:active?label3Col:"#444", fontWeight:active?500:400,
-                                    background:active?dotFilled3+"22":"transparent",
-                                    border:"0.5px solid "+(active?dotFilled3+"88":"#333"),
-                                    padding:"2px 7px", borderRadius:10,
-                                    textDecoration:active?"none":"none",
-                                    opacity:active?1:0.5,
-                                  }}>
-                                    {active && <span style={{marginRight:3}}>{String.fromCharCode(0x2713)}</span>}{name}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                        }
-                      </div>
-                    );
-                  })()}
-              </div>
-            );
-          })()}
-
-          {/* Analysis Rating */}
-          {(function() {
-            // Gather scores from all available sources -- recompute locally
-            var mP2    = parsedInsights["moat"]      || {};
-            var fP2    = parsedInsights["financial"]  || {};
-            var ms2    = (typeof window.__moatDots !== 'undefined') ? window.__moatDots : (mP2.score||0);
-            var fs2    = (typeof window.__finDots  !== 'undefined') ? window.__finDots  : (fP2.score||0);
-
-            // IV dots: Undervalued=5, Overvalued=2, null=0
-            var price2x2 = q ? q.price : 0;
-            var oracle2  = (function() {
-              var ov2x = ov || {};
-              var vals2x = [];
-              var eps0x = ov2x.epsForward || ov2x.epsTTM || 0;
-              if (eps0x > 0) {
-                var g = Math.min(ov2x.ltGrowth || 0.08, 0.25);
-                var d = 0.09;
-                var total = 0; var fcf = eps0x;
-                for (var y = 1; y <= 10; y++) { fcf *= (1+g); total += fcf/Math.pow(1+d,y); }
-                total += fcf*12/Math.pow(1+d,10);
-                vals2x.push(Math.round(total*10)/10);
-              }
-              return vals2x.length > 0 ? vals2x[0] : 0;
-            })();
-            var ivD2 = oracle2 > 0 ? (oracle2 > price2x2 ? 5 : 2) : 0;
-
-            // Market Signal dots: read from insightCache via signal score
-            // We need to recompute from ind2 -- use ov and massiveInfo
-            var ind2x = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
-            var aggs2x = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
-            var price2x = q ? q.price : 0;
-            var vol5x  = aggs2x.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs2x.slice(0,5).length,1);
-            var vol20x = aggs2x.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs2x.slice(0,20).length,1);
-            var hi52x  = (ov||{}).hi52||0; var lo52x = (ov||{}).lo52||0;
-            var pos52x = (hi52x-lo52x)>0?(price2x-lo52x)/(hi52x-lo52x):0.5;
-            // Simple market signal proxy from available indicators
-            var rsi2x  = ind2x ? ind2x.rsi14 : null;
-            var sma50x = ind2x ? ind2x.sma50 : null;
-            var sma200x= ind2x ? ind2x.sma200: null;
-            var msProxy = 0; var msCount = 0;
-            if (sma50x&&sma200x&&price2x) { msProxy += price2x>sma200x?1:0; msCount++; }
-            if (sma50x&&sma200x) { msProxy += sma50x>sma200x?1:0; msCount++; }
-            if (rsi2x!=null) { msProxy += rsi2x>=50&&rsi2x<=75?1:rsi2x>=40?0.5:0; msCount++; }
-            var msScore2 = msCount>0 ? Math.round((msProxy/msCount)*4)+1 : 3;
-            var msD2 = (typeof window.__msDots !== "undefined") ? window.__msDots : Math.max(1,Math.min(5,msScore2));
-
-            // AI Insight dots
-            var aiP2  = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null;
-            var aiD2  = aiP2 ? (aiP2.dots||3) : 0;
-
-            // Reversal bonus dots
-            var ind3x = ind2x;
-            var rsiH3x = ind3x?(ind3x.rsiHistory||[]):[];
-            var macdH3x= ind3x?(ind3x.macdHistory||[]):[];
-            var ov3x   = ov||{};
-            var hi3x   = ov3x.hi52||0; var lo3x=ov3x.lo52||0;
-            var pos3x  = (hi3x>0&&hi3x-lo3x>0)?(price2x-lo3x)/(hi3x-lo3x):0.5;
-            var macdTx = (function(){
-              if(macdH3x.length<3) return false;
-              var h0=macdH3x[0]&&macdH3x[0].histogram,h1=macdH3x[1]&&macdH3x[1].histogram,h2=macdH3x[2]&&macdH3x[2].histogram;
-              return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2;
-            })();
-            var wCross = ind3x&&ind3x.wsma10&&ind3x.wsma40?(ind3x.wsma10<ind3x.wsma40&&Math.abs(ind3x.wsma10-ind3x.wsma40)/ind3x.wsma40<0.05):false;
-            var rBase  = rsiH3x.length>=3?rsiH3x.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;}):false;
-            var lBase  = pos3x<0.20&&ind3x&&ind3x.rsi14!=null&&ind3x.rsi14>20&&ind3x.rsi14<45;
-            var revC2  = [macdTx,wCross,rBase,lBase].filter(Boolean).length;
-            var revD2  = revC2>=4?5:revC2>=2?3:0;
-
-            //  Star calculation 
-            // Core inputs (each contributes up to 1 star): moat, financial, IV, marketSignal, AI
-            // Reversal is bonus (up to 1 star)
-            // Core: each signal = 1 star (4-5 dots), 0.5 star (3 dots), 0 (1-2 dots)
-            function toStar(dots) {
-              if (dots>=4) return 1;
-              if (dots===3) return 0.5;
-              return 0;
-            }
-            // Sum stars directly  max 5 core signals = max 5 stars
-            var coreInputs = [ms2, fs2, ivD2, msD2, aiD2].filter(function(d){return d>0;});
-            var coreStars  = coreInputs.reduce(function(s,d){return s+toStar(d);}, 0);
-
-            // Reversal bonus: 1-2 signals = +0.5, 3-5 signals = +1.0
-            var bonusStar  = revC2>=3 ? 1 : revC2>=1 ? 0.5 : 0;
-            var rawStars   = Math.min(5, coreStars + bonusStar);
-            // Round to nearest 0.5
-            var starRating = Math.round(rawStars * 2) / 2;
-
-            // Render star display
-            function StarDisplay(props) {
-              var stars = [];
-              for (var i=1; i<=5; i++) {
-                var diff = props.rating - (i-1);
-                var fill = diff>=1?"full":diff>=0.5?"half":"empty";
-                stars.push(
-                  <span key={i} style={{fontSize:22,lineHeight:1,color:fill==="empty"?"#ddd":"#f5a623",display:"inline-block",marginRight:1,opacity:fill==="half"?0.5:1}}>
-                    {fill==="empty"?String.fromCharCode(9734):String.fromCharCode(9733)}
-                  </span>
-                );
-              }
-              return <span>{stars}</span>;
-            }
-
-            var ratingLabel = starRating>=4.5?"Exceptional":starRating>=4?"Strong Buy":starRating>=3.5?"Buy":starRating>=3?"Hold":starRating>=2?"Caution":"Avoid";
-            var ratingCol   = starRating>=4?"#1a6a1a":starRating>=3?"#b88000":"#c03030";
-            var ratingBg    = starRating>=4?"#EAF3DE":starRating>=3?"#FAEEDA":"#FCEBEB";
-            var ratingBd    = starRating>=4?"#7abd00":starRating>=3?"#d4a800":"#e08080";
-
-            // Store rating for display above Analysis Summary
-            window.__starRating  = starRating;
-            window.__ratingLabel = ratingLabel;
-            window.__ratingCol   = ratingCol;
-            return null;
-          })()}
-
-          <div style={{ borderTop:"1px solid #2c2c2e", margin:"12px 0" }}></div>
-          {/* Valuation Section */}
-          <div style={{ background:"#252525", border:"1px solid #2c2c2e", borderRadius:12, padding:"16px", marginBottom:12 }}>
-            <div style={{ fontSize:12, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Valuation</div>
-            {valRows.length > 0 ? (
-              <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                <tbody>
-                  {valRows.map(function(row, i) {
-                    return (
-                      <tr key={i} style={{ borderBottom:i < valRows.length-1 ? "1px solid #2c2c2e" : "none" }}>
-                        <td style={{ padding:"6px 0", fontSize:11, color:"#888", width:"34%", lineHeight:1.4 }}>{row[0]}</td>
-                        <td style={{ padding:"6px 8px", fontSize:13, fontWeight:700, color:"#ddd", width:"16%" }}>{row[1]}</td>
-                        <td style={{ padding:"6px 0", fontSize:11, color:"#555", width:"34%", lineHeight:1.4 }}>{row[2]}</td>
-                        <td style={{ padding:"6px 0", fontSize:13, fontWeight:700, color:"#ddd", width:"16%", textAlign:"right" }}>{row[3]}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : (
-              <div style={{ color:"#aaa", fontSize:13, textAlign:"center", padding:"12px 0" }}>
-                {msg ? "Unavailable" : "Loading..."}
-              </div>
-            )}
-          </div>
-
-          {/* Financial Health Section */}
-          <div style={{ background:"#252525", border:"1px solid #2c2c2e", borderRadius:12, padding:"16px", marginBottom:12 }}>
-            <div style={{ fontSize:12, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Financial Health</div>
-            {healthRows.length > 0 ? (
-              <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                <tbody>
-                  {healthRows.map(function(row, i) {
-                    return (
-                      <tr key={i} style={{ borderBottom:i < healthRows.length-1 ? "1px solid #2c2c2e" : "none" }}>
-                        <td style={{ padding:"6px 0", fontSize:11, color:"#888", width:"34%", lineHeight:1.4 }}>{row[0]}</td>
-                        <td style={{ padding:"6px 8px", fontSize:13, fontWeight:700, color:"#ddd", width:"16%" }}>{row[1]}</td>
-                        <td style={{ padding:"6px 0", fontSize:11, color:"#555", width:"34%", lineHeight:1.4 }}>{row[2]}</td>
-                        <td style={{ padding:"6px 0", fontSize:13, fontWeight:700, color:"#ddd", width:"16%", textAlign:"right" }}>{row[3]}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : (
-              <div style={{ color:"#aaa", fontSize:13, textAlign:"center", padding:"12px 0" }}>
-                {msg ? "Unavailable" : "Loading..."}
-              </div>
-            )}
-          </div>
-
-          {/* Growth & Profile Section */}
-          <div style={{ background:"#252525", border:"1px solid #2c2c2e", borderRadius:12, padding:"16px" }}>
-            <div style={{ fontSize:12, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Growth & Profile</div>
-            {growthRows.length > 0 ? (
-              <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                <tbody>
-                  {growthRows.map(function(row, i) {
-                    return (
-                      <tr key={i} style={{ borderBottom:i < growthRows.length-1 ? "1px solid #2c2c2e" : "none" }}>
-                        <td style={{ padding:"6px 0", fontSize:11, color:"#888", width:"34%", lineHeight:1.4 }}>{row[0]}</td>
-                        <td style={{ padding:"6px 8px", fontSize:13, fontWeight:700, color:"#ddd", width:"16%" }}>{row[1]}</td>
-                        <td style={{ padding:"6px 0", fontSize:11, color:"#555", width:"34%", lineHeight:1.4 }}>{row[2]}</td>
-                        <td style={{ padding:"6px 0", fontSize:13, fontWeight:700, color:"#ddd", width:"16%", textAlign:"right" }}>{row[3]}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : (
-              <div style={{ color:"#aaa", fontSize:13, textAlign:"center", padding:"12px 0" }}>
-                {msg ? "Unavailable" : "Loading..."}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* RIGHT PANEL */}
-        <div style={{ padding:"24px", background:"#fff" }}>
-
-          {/* TradingView Chart */}
-          <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden", marginBottom:20 }}>
-            <div style={{ background:"#faf8f4", borderBottom:"1px solid #e0dbd0", padding:"8px 14px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <span style={{ fontSize:12, fontWeight:600, color:"#444" }}>
-                {name} . Daily . {ov ? ov.exchange : "NASDAQ"}
-              </span>
-              {q && (
-                <span style={{ fontSize:11, color:"#999" }}>
-                  O{q.open} H{q.high} L{q.low}{" "}
-                  <span style={{ color:up?"#2a8a2a":"#c03030" }}>C{price.toFixed(2)} {chg}</span>
-                </span>
-              )}
-            </div>
-            <iframe
-              key={sym}
-              src={"https://s.tradingview.com/widgetembed/?frameElementId=tv_chart&symbol=" + (sym==="BRKB"?"BRK.B":sym) + "&interval=D&theme=light&style=1&timezone=Etc%2FUTC&withdateranges=1&hide_side_toolbar=0&allow_symbol_change=0&save_image=0"}
-              style={{ width:"100%", height:300, border:"none", display:"block" }}
-              title="TradingView Chart"
-            />
-            <div style={{ background:"#faf8f4", borderTop:"1px solid #e0dbd0", padding:"6px 14px", display:"flex", gap:16 }}>
-              {["1Y","3Y","5Y"].map(function(p) {
-                return <span key={p} style={{ fontSize:12, color:"#444", cursor:"pointer", fontWeight:600 }}>{p}</span>;
-              })}
-            </div>
-          </div>
-
-          {/* 5-Tab Insight Panel */}
-          {(function() {
-            var TABS = [
-              { id:"business",  label:"Business Overview" },
-              { id:"moat",      label:"Economic MOAT" },
-              { id:"intrinsic", label:"Intrinsic Value" },
-              { id:"financial", label:"Financial Strength" },
-              { id:"signal",    label:"Market Signal" },
-              { id:"aiinsight", label:"AI Insight" },
-              { id:"addlinfo",  label:"Additional Information" },
-              { id:"debug",     label:"Debug" },
-              { id:"admin",     label:"Admin" },
-            ];
-
-            function handleTab(id) {
-              setInsightTab(id);
-            }
-
-            // Parse new structured moat format with scores
-            function parseMoat(text) {
-              if (!text) return null;
-              var drivers = [
-                "Network Effects","Switching Costs","Cost Advantage",
-                "Intangible Assets","Efficient Scale","Ecosystem Lock-in"
-              ];
-              var result = [];
-              drivers.forEach(function(drv) {
-                var drvIdx = text.indexOf(drv);
-                if (drvIdx === -1) return;
-                var nextDrv = drivers[drivers.indexOf(drv) + 1];
-                var block = nextDrv ? text.substring(drvIdx, text.indexOf(nextDrv)) : text.substring(drvIdx);
-                var scoreMatch = block.match(/([0-9])\/5/);
-                var lines = block.split("\n");
-                var resultLine = "";
-                for (var li = 0; li < lines.length; li++) {
-                  if (lines[li].indexOf("Result:") !== -1) {
-                    resultLine = lines[li].replace(/^.*Result:\s*/, "").trim();
-                    break;
-                  }
-                }
-                if (scoreMatch) {
-                  result.push({
-                    label: drv,
-                    score: parseInt(scoreMatch[1], 10),
-                    body: resultLine
-                  });
-                }
-              });
-              var ratingMatch = text.match(/Economic Moat Rating:\s*([0-9])\s*\/\s*5/);
-              var expIdx = text.indexOf("Explanation");
-              var explanation = expIdx !== -1 ? text.substring(expIdx).replace(/^Explanation[^:]*:\s*/, "").trim() : null;
-              var rating = ratingMatch ? parseInt(ratingMatch[1], 10) : null;
-              return {
-                sections: result,
-                rating: rating,
-                explanation: explanation,
-                classification: rating != null ? (rating >= 4 ? "Wide" : rating >= 3 ? "Narrow" : "None") : null,
-              };
-            }
-
-            // Parse technical into structured sections
-
-            function parseTechnical(text) {
-              if (!text) return null;
-              var ratingMatch = text.match(/Technical Rating[^:]*:\s*(.+)/);
-              var entryMatch  = text.match(/Entry Timing[^:]*:\s*(.+)/);
-              return {
-                body:   text,
-                rating: ratingMatch ? ratingMatch[1].trim() : null,
-                entry:  entryMatch  ? entryMatch[1].trim()  : null,
-              };
-            }
-
-            // Parse financial strength
-            function parseFinancial(text) {
-              if (!text) return null;
-              var classMatch = text.match(/Financial Strength Classification[^:]*:\s*(.+)/);
-              var classification = classMatch ? classMatch[1].trim() : null;
-              if (!classification) {
-                if (text.indexOf("Strong") !== -1) classification = "Strong";
-                else if (text.indexOf("Moderate") !== -1) classification = "Moderate";
-                else if (text.indexOf("Weak") !== -1) classification = "Weak";
-              }
-              return { body: text, classification: classification };
-            }
-
-            function ratingColor(val) {
-              if (!val) return "#888";
-              var v = val.toLowerCase();
-              if (v.includes("wide") || v.includes("strong") || v.includes("good entry")) return "#1a6a1a";
-              if (v.includes("narrow") || v.includes("bullish") || v.includes("breakout")) return "#2a8a2a";
-              if (v.includes("neutral") || v.includes("moderate") || v.includes("pullback") || v.includes("fairly")) return "#b88000";
-              if (v.includes("none") || v.includes("bearish") || v.includes("avoid") || v.includes("weak")) return "#c03030";
-              return "#555";
-            }
-
-            var tabContent = insightCache[insightTab];
-            var _noFetch   = ["business","addlinfo","debug","signal","admin"];
-            var isLoading  = !tabContent && _noFetch.indexOf(insightTab) === -1;           return (
-              <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden" }}>
-
-                {/* Tab bar */}
-                <div style={{ display:"flex", background:"#faf8f4", borderBottom:"1px solid #e0dbd0", overflowX:"auto" }}>
-                  {TABS.map(function(tab) {
-                    var active = insightTab === tab.id;
-                    return (
-                      <button key={tab.id} onClick={function() { handleTab(tab.id); }} style={{
-                        flex:"0 0 auto", padding:"11px 16px", border:"none", background:"transparent",
-                        cursor:"pointer", fontSize:12, fontWeight: active ? 700 : 500,
-                        color: active ? "#111" : "#888",
-                        borderBottom: active ? "2px solid #111" : "2px solid transparent",
-                        fontFamily:FONT, whiteSpace:"nowrap",
-                      }}>
-                        {tab.id === "intrinsic" ? null : (
-                          <span style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background: active ? LIME : "#ccc", marginRight:5, verticalAlign:"middle" }} />
-                        )}
-                        {tab.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Cache status strip */}
-                {(function() {
-                  var _cs = window.__cacheStatus && window.__cacheStatus[sym + ":" + insightTab];
-                  if (!_cs) return null;
-                  var _cfg = {
-                    hit:     { bg:"#1e2a1e", border:"#2a5020", dot:"#7abd00", label:"Served from cache", icon:"" },
-                    written: { bg:"#1e2a1e", border:"#2a5020", dot:"#7abd00", label:"Cached and saved", icon:"" },
-                    miss:    { bg:"#2a2010", border:"#4a3810", dot:"#EF9F27", label:"Cache miss -- calling Claude", icon:"" },
-                    live:    { bg:"#111",    border:"#222",     dot:"#555",    label:"Live -- Claude generated", icon:"" },
-                  }[_cs] || null;
-                  if (!_cfg) return null;
-                  return (
-                    <div style={{ padding:"5px 16px", background:_cfg.bg, borderBottom:"1px solid " + _cfg.border, display:"flex", alignItems:"center", gap:7 }}>
-                      <div style={{ width:7, height:7, borderRadius:"50%", background:_cfg.dot, flexShrink:0 }}></div>
-                      <span style={{ fontSize:10, fontWeight:600, color:_cfg.dot, textTransform:"uppercase", letterSpacing:"0.08em" }}>{_cfg.label}</span>
-                      {_cs === "hit" && <span style={{ fontSize:10, color:"#2a5020", marginLeft:"auto" }}>{"No Claude call -- $0.00"}</span>}
-                      {_cs === "live" && <span style={{ fontSize:10, color:"#444", marginLeft:"auto" }}>{"~$0.03 per visit"}</span>}
-                    </div>
-                  );
-                })()}
-
-                {/* Tab content */}
-                <div style={{ padding:"20px 22px", background:"#fff" }}>
-
-                  {/* Intrinsic Value tab - show existing valuation chart */}
-                  {insightTab === "intrinsic" && (
-                    <div>
-                      {vals.length > 0 && (function() {
-                        var iv = parseFloat(oracle);
-                        var isUnder = iv > price;
-                        var pct = price > 0 ? Math.round(Math.abs(iv - price) / price * 100) : 0;
-                        return (
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background: isUnder ? "#e6f4e6" : "#fff0f0", borderRadius:8, marginBottom:16, border:"0.5px solid " + (isUnder ? "#7abd00" : "#e08080") }}>
-                            <div>
-                              <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Intrinsic Value</div>
-                              <div style={{ fontSize:15, fontWeight:700, color: isUnder ? "#1a6a1a" : "#c03030" }}>{isUnder ? "Undervalued" : "Overvalued"} by {pct}%</div>
-                              <div style={{ fontSize:11, color:"#555", marginTop:2 }}>Est. fair value ${oracle} vs current ${price.toFixed(2)}</div>
-                            </div>
-                            <div style={{ fontSize:22, fontWeight:900, color: isUnder ? "#1a6a1a" : "#c03030" }}>${oracle}</div>
-                          </div>
-                        );
-                      })()}
-                      <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:14 }}>
-                        <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>
-                          Summary
-                        </span>
-                      </div>
-                      {vals.length > 0 ? (
-                        <div>
-                          <div style={{ textAlign:"right", marginBottom:8 }}>
-                            <span style={{ fontSize:11, color:"#aaa" }}>IntrinsicValue(TM) {oracle}</span>
-                          </div>
-                          {vals.map(function(v, i) {
-                            return <VBar key={i} label={v.label} value={v.value} maxV={maxV} color={v.color} bold={v.bold} />;
-                          })}
-                          <div style={{ marginTop:10, paddingTop:8, borderTop:"1px solid #e0dbd0", textAlign:"right" }}>
-                            <span style={{ fontSize:11, color:"#aaa" }}>Stock price: ${price.toFixed(2)}</span>
-                          </div>
-
-                          {/* Calculation Breakdowns */}
-                          {ov && (function() {
-                            var DISC   = 0.10;
-                            // Y1-5: 5-yr historical EPS CAGR, Y6-10: +5yr analyst estimate
-                            // Y1-5: longest available historical EPS CAGR (up to 9yr)
-                            // Y6-10: half of Y1-5
-                            var g1Pct  = histCagrYears >= 2
-                                           ? Math.min(Math.max(histGrowthRate * 100, 0), 50)
-                                           : (ov.ltG1Y > 0 ? Math.min(ov.ltG1Y, 50) : Math.min(histGrowthRate * 100, 50));
-                            var g2Pct  = g1Pct * 0.50;
-                            var g1     = g1Pct / 100;
-                            var g2     = g2Pct / 100;
-                            var g3     = 0.04;
-                            var debt   = ov.totalDebt || 0;
-                            var cash   = ov.cash      || 0;
-                            var shares = ov.sharesOut  || 0;
-                            // Track whether debt is estimated
-                            var debtIsEst = false;
-                            // Priority 1: SimFin balance sheet (most accurate)
-                            // Uses most recent FY row (parseCompact sorts newest first)
-                            var sfBal = window.__simfinData && window.__simfinData[sym];
-                            if (sfBal && sfBal.balance && Array.isArray(sfBal.balance) && sfBal.balance[0]) {
-                              var sfStmt = sfBal.balance[0].statements && sfBal.balance[0].statements[0];
-                              var sfCols = sfStmt ? sfStmt.columns : null;
-                              var sfData = sfStmt ? sfStmt.data    : null;
-                              // Take the LAST row (SimFin returns oldest first)
-                              var sfRow0 = sfData && sfData.length > 0 ? sfData[sfData.length - 1] : null;
-                              if (sfRow0 && sfCols) {
-                                function sfGet(name) {
-                                  var ci = sfCols.indexOf(name);
-                                  return (ci !== -1 && sfRow0[ci] !== null) ? sfRow0[ci] : null;
-                                }
-                                // Total Debt = Short Term Debt + Long Term Debt
-                                var sfLTD  = sfGet("Long Term Debt")  || 0;
-                                var sfSTD  = sfGet("Short Term Debt") || 0;
-                                var sfTotalDebt = sfLTD + sfSTD;
-                                // Cash = full cash including short term investments
-                                var sfCash = sfGet("Cash, Cash Equivalents & Short Term Investments")
-                                          || sfGet("Cash & Cash Equivalents");
-                                if (sfTotalDebt > 0) { debt = sfTotalDebt; debtIsEst = false; }
-                                if (sfCash !== null)  { cash = sfCash; }
-                              }
-                            }
-                            // Priority 2: estimate from P/B ratio if still missing
-                            if (!debt && ov.de > 0 && ov.pbRatio > 0 && price > 0 && shares > 0) {
-                              var bvPerShare  = price / ov.pbRatio;
-                              var totalEquity = bvPerShare * shares;
-                              debt            = ov.de * totalEquity;
-                              debtIsEst       = true;
-                            } else if (!debt && ov.totalDebt) {
-                              debt = ov.totalDebt;
-                              debtIsEst = true;
-                            }
-                            var usePE  = fpe > 0 ? fpe : pe;
-                            // Use operating cash flow (before capex) as base
-                            var ocf    = ov.ocfRaw > 0 ? ov.ocfRaw : ov.fcfRaw;
-
-                            function fmtM(v) { return v !== null && v !== undefined ? "$" + (v/1e6).toFixed(0) + "M" : "-"; }
-                            function calcEV(fcf0, gr1, gr2, gr3) {
-                              var ev = 0, f = fcf0;
-                              for (var y = 1; y <= 20; y++) {
-                                var g = y <= 5 ? gr1 : y <= 10 ? gr2 : gr3;
-                                f = f * (1 + g);
-                                ev += f / Math.pow(1 + DISC, y);
-                              }
-                              return ev;
-                            }
-                            function calcPerShare(fcf0) {
-                              if (!fcf0 || !shares) return null;
-                              var ev     = calcEV(fcf0, g1, g2, g3);
-                              var equity = ev - debt + cash;
-                              return { ev: ev, equity: equity, perShare: equity / shares };
-                            }
-
-                            var dcf20Res   = ocf       > 0 && shares > 0 ? calcPerShare(ocf)        : null;
-                            var dcff20Res  = ov.niRaw  > 0 && shares > 0 ? calcPerShare(ov.niRaw)   : null;
-                            var eps20Res   = baseEps   > 0 && shares > 0 ? calcPerShare(baseEps * shares) : null;
-
-                            function BdRow(props) {
-                              return (
-                                <div style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom: props.last ? "none" : "0.5px solid #e8e4de" }}>
-                                  <span style={{ fontSize:11, color: props.bold ? "#333" : "#888" }}>{props.label}</span>
-                                  <span style={{ fontSize:11, color: props.highlight ? "#1a6a1a" : "#333", fontWeight: props.bold || props.highlight ? 700 : 600 }}>{props.val}</span>
-                                </div>
-                              );
-                            }
-                            function BdDivider() {
-                              return <div style={{ borderTop:"1px solid #c8c0b0", margin:"6px 0" }}></div>;
-                            }
-                            function BdSection(props) {
-                              return (
-                                <div style={{ marginBottom:12, background:"#f8f6f2", borderRadius:8, border:"0.5px solid #e0dbd0", overflow:"hidden" }}>
-                                  <div style={{ padding:"7px 12px", background:"#ede9e1", borderBottom:"0.5px solid #e0dbd0", fontSize:11, fontWeight:700, color:"#555" }}>
-                                    {props.title}
-                                  </div>
-                                  <div style={{ padding:"6px 12px" }}>{props.children}</div>
-                                </div>
-                              );
-                            }
-
-                            return (
-                              <div style={{ marginTop:20, borderTop:"2px solid #e0dbd0", paddingTop:14 }}>
-                                <div style={{ fontSize:12, fontWeight:700, color:"#111", marginBottom:12 }}>Calculation Details</div>
-
-                                {/* DCF-20 */}
-                                {dcf20Res && (
-                                  <BdSection title="DCF-20 Breakdown">
-                                    <BdRow label="Operating Cash Flow"  val={fmtM(ocf)} />
-                                    <BdRow label={"Total Debt" + (debtIsEst ? " (est.)" : " (SimFin)")} val={fmtM(debt)} />
-                                    <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
-                                    <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr hist EPS CAGR)" : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y6-10 (50% of Y1-5)"      val={(g2*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y11-20"        val="4%" />
-                                    <BdRow label="Discount Rate"        val="10%" />
-                                    <BdDivider />
-                                    <BdRow label="Enterprise Value"     val={"$" + (dcf20Res.ev/1e6).toFixed(0) + "M"} />
-                                    <BdRow label="- Debt + Cash"        val={"$" + ((cash - debt)/1e6).toFixed(0) + "M"} />
-                                    <BdRow label="/ Shares"             val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdDivider />
-                                    <BdRow label="= Intrinsic Value"    val={"$" + (dcf20Res.perShare).toFixed(2)} bold={true} highlight={true} last={true} />
-                                  </BdSection>
-                                )}
-
-                                {/* DCFF-20 */}
-                                {dcff20Res && (
-                                  <BdSection title="DCFF-20 Breakdown">
-                                    <BdRow label="Net Income"           val={fmtM(ov.niRaw)} />
-                                    <BdRow label={"Total Debt" + (debtIsEst ? " (est.)" : " (SimFin)")} val={fmtM(debt)} />
-                                    <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
-                                    <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label="Growth Y1-5"          val={(g1*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y6-10"         val={(g2*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y11-20"        val="4%" />
-                                    <BdRow label="Discount Rate"        val="10%" />
-                                    <BdDivider />
-                                    <BdRow label="Enterprise Value"     val={"$" + (dcff20Res.ev/1e6).toFixed(0) + "M"} />
-                                    <BdRow label="- Debt + Cash"        val={"$" + ((cash - debt)/1e6).toFixed(0) + "M"} />
-                                    <BdRow label="/ Shares"             val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdDivider />
-                                    <BdRow label="= Intrinsic Value"    val={"$" + (dcff20Res.perShare).toFixed(2)} bold={true} highlight={true} last={true} />
-                                  </BdSection>
-                                )}
-
-                                {/* PE */}
-                                {baseEps > 0 && usePE > 0 && (
-                                  <BdSection title="PE Breakdown">
-                                    <BdRow label="EPS (Base)"           val={"$" + baseEps.toFixed(2)} />
-                                    <BdRow label={fpe > 0 ? "Forward P/E" : "Trailing P/E"} val={usePE.toFixed(1) + "x"} />
-                                    <BdDivider />
-                                    <BdRow label="= Intrinsic Value"    val={"$" + (baseEps * usePE).toFixed(2)} bold={true} highlight={true} last={true} />
-                                  </BdSection>
-                                )}
-
-                                {/* PS */}
-                                {ov.ps > 0 && baseEps > 0 && (
-                                  <BdSection title="PS Breakdown">
-                                    <BdRow label="PE Value"             val={"$" + (baseEps * usePE).toFixed(2)} />
-                                    <BdRow label="ROIC adjustment"      val={(Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0) * 100).toFixed(0) + "%"} />
-                                    <BdDivider />
-                                    <BdRow label="= Intrinsic Value"    val={"$" + (baseEps * usePE * Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0)).toFixed(2)} bold={true} highlight={true} last={true} />
-                                  </BdSection>
-                                )}
-
-                              </div>
-                            );
-                          })()}
-
-                        </div>
-                      ) : (
-                        <div style={{ textAlign:"center", padding:"28px 0", color:"#aaa", fontSize:13 }}>
-                          {msg ? "Data unavailable" : "Loading valuation data..."}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* AI-powered tabs */}
-                  {insightTab !== "intrinsic" && (
-                    <div>
-                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && insightTab !== "aiinsight" && insightTab !== "admin" && (
-                        <div style={{ textAlign:"center", padding:"40px 0" }}>
-                          <div style={{ fontSize:12, color:"#888", marginBottom:14 }}>Generating {insightTab} analysis for {sym}...</div>
-                          <div style={{ display:"inline-block", width:26, height:26, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
-                          <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
-                        </div>
-                      )}
-
-                      {/* Business Overview - sourced from Yahoo Finance assetProfile */}
-                      {insightTab === "business" && (
-                        <div>
-                          {ov && ov.bizSummary ? (
-                            <div>
-                              {/* Profile chips */}
-                              <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:16 }}>
-                                {ov.sector && (
-                                  <span style={{ padding:"3px 10px", background:"#f0f7e6", border:"1px solid #c8f000", borderRadius:20, fontSize:11, fontWeight:600, color:"#3a6000" }}>
-                                    {ov.sector}
-                                  </span>
-                                )}
-                                {ov.industry && (
-                                  <span style={{ padding:"3px 10px", background:"#f5f2ec", border:"1px solid #d0c8b8", borderRadius:20, fontSize:11, fontWeight:600, color:"#555" }}>
-                                    {ov.industry}
-                                  </span>
-                                )}
-                                {ov.country && (
-                                  <span style={{ padding:"3px 10px", background:"#f5f2ec", border:"1px solid #d0c8b8", borderRadius:20, fontSize:11, fontWeight:600, color:"#555" }}>
-                                    {ov.country}
-                                  </span>
-                                )}
-                                {ov.employees > 0 && (
-                                  <span style={{ padding:"3px 10px", background:"#f5f2ec", border:"1px solid #d0c8b8", borderRadius:20, fontSize:11, fontWeight:600, color:"#555" }}>
-                                    {ov.employees.toLocaleString()} employees
-                                  </span>
-                                )}
-                              </div>
-                              {/* Business description */}
-                              <p style={{ fontSize:13, color:"#333", lineHeight:1.85, margin:"0 0 16px 0" }}>
-                                {ov.bizSummary}
-                              </p>
-                              {/* Key stats row */}
-                              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:12 }}>
-                                {[
-                                  { label:"Market Cap",       value: ov.marketCap },
-                                  { label:"Revenue (TTM)",    value: ov.revenue },
-                                  { label:"Net Income (TTM)", value: ov.netIncome },
-                                  { label:"Gross Margin",     value: ov.grossMargin ? ov.grossMargin.toFixed(1)+"%" : "-" },
-                                  { label:"Operating Margin", value: ov.opMargin ? ov.opMargin.toFixed(1)+"%" : "-" },
-                                  { label:"Free Cash Flow",   value: ov.fcf },
-                                ].map(function(item, i) {
-                                  return (
-                                    <div key={i} style={{ background:"#f5f2ec", borderRadius:8, padding:"10px 12px" }}>
-                                      <div style={{ fontSize:10, color:"#999", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:3 }}>{item.label}</div>
-                                      <div style={{ fontSize:14, fontWeight:700, color:"#111" }}>{item.value || "-"}</div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              {/* Website link */}
-                              {ov.website && (
-                                <a href={ov.website} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:"#888", textDecoration:"none" }}>
-                                  {ov.website}
-                                </a>
-                              )}
-                              <div style={{ fontSize:10, color:"#ccc", marginTop:10 }}>Business description sourced from Yahoo Finance</div>
-                            </div>
-                          ) : (
-                            <div style={{ textAlign:"center", padding:"40px 0", color:"#aaa", fontSize:13 }}>
-                              {ov ? "Business description unavailable for this symbol." : "Loading company data..."}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Economic MOAT */}
-                      {insightTab === "moat" && tabContent && (function() {
-                        var parsed = parseMoat(tabContent);
-                        if (!parsed || parsed.sections.length === 0) {
-                          return <div style={{ fontSize:13, color:"#333", lineHeight:1.8 }}>{tabContent}</div>;
-                        }
-                        function scoreColor(s) {
-                          if (s >= 4) return "#1a6a1a";
-                          if (s >= 3) return "#2a7a2a";
-                          if (s >= 2) return "#b88000";
-                          return "#c03030";
-                        }
-                        function scoreLabel(s) {
-                          if (s >= 4) return "Strong";
-                          if (s >= 3) return "Moderate";
-                          if (s >= 2) return "Limited";
-                          return "Weak";
-                        }
-                        function DotBar(props) {
-                          var dots = [];
-                          for (var d = 1; d <= 5; d++) {
-                            dots.push(
-                              <span key={d} style={{
-                                display:"inline-block", width:8, height:8, borderRadius:"50%",
-                                background: d <= props.score ? scoreColor(props.score) : "#ddd",
-                                marginRight:3,
-                              }} />
-                            );
-                          }
-                          return (
-                            <span style={{ display:"inline-flex", alignItems:"center", gap:0 }}>
-                              {dots}
-                              <span style={{ fontSize:10, color:scoreColor(props.score), fontWeight:600, marginLeft:5 }}>{scoreLabel(props.score)}</span>
-                            </span>
-                          );
-                        }
-                        var pi = parsedInsights["moat"] || {};
-                        return (
-                          <div>
-                            {pi.classification && (
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background: pi.score >= 4 ? "#e6f4e6" : pi.score >= 3 ? "#f0f7e6" : "#fff0f0", borderRadius:8, marginBottom:16, border:"0.5px solid " + (pi.score >= 4 ? "#7abd00" : pi.score >= 3 ? "#9ab800" : "#e08080") }}>
-                                <div>
-                                  <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Economic Moat Rating</div>
-                                  <div style={{ fontSize:15, fontWeight:700, color: pi.score >= 4 ? "#1a6a1a" : pi.score >= 3 ? "#2a7a2a" : "#c03030" }}>{pi.classification}</div>
-                                  {pi.explanation ? <div style={{ fontSize:11, color:"#555", marginTop:2, maxWidth:400 }}>{pi.explanation}</div> : null}
-                                </div>
-                                <DotBar score={pi.score} />
-                              </div>
-                            )}
-                            {parsed.sections.map(function(sec, i) {
-                              return (
-                                <div key={i} style={{ marginBottom:12, paddingBottom:12, borderBottom: i < parsed.sections.length-1 ? "1px solid #f0ede6" : "none" }}>
-                                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
-                                    <div style={{ fontSize:12, fontWeight:700, color:"#111" }}>{sec.label}</div>
-                                    <DotBar score={sec.score} />
-                                  </div>
-                                  <div style={{ fontSize:12, color:"#666", lineHeight:1.6 }}>{sec.body}</div>
-                                </div>
-                              );
-                            })}
-                            {parsed.rating != null && (
-                              <div style={{ marginTop:14, padding:"12px 16px", background:"#f5f2ec", borderRadius:10 }}>
-                                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: parsed.explanation ? 8 : 0 }}>
-                                  <div>
-                                    <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Economic Moat Rating</div>
-                                    <div style={{ fontSize:14, fontWeight:700, color:scoreColor(parsed.rating) }}>{parsed.classification}</div>
-                                  </div>
-                                  <DotBar score={parsed.rating} />
-                                </div>
-                                {parsed.explanation && (
-                                  <div style={{ fontSize:12, color:"#555", lineHeight:1.7, borderTop:"1px solid #e0dbd0", paddingTop:8 }}>{parsed.explanation}</div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-
-                      {/* Financial Strength */}
-                      {insightTab === "financial" && tabContent && (function() {
-                        var parsed = parseFinancial(tabContent);
-                        function fsColor(c) {
-                          if (!c) return "#888";
-                          var v = c.toLowerCase();
-                          if (v.includes("strong")) return "#1a6a1a";
-                          if (v.includes("moderate")) return "#b88000";
-                          return "#c03030";
-                        }
-                        function fsScore(c) {
-                          if (!c) return 0;
-                          var v = c.toLowerCase();
-                          if (v.includes("strong")) return 4;
-                          if (v.includes("moderate")) return 3;
-                          return 2;
-                        }
-                        function DotBar(props) {
-                          var dots = [];
-                          for (var d = 1; d <= 5; d++) {
-                            dots.push(
-                              <span key={d} style={{
-                                display:"inline-block", width:8, height:8, borderRadius:"50%",
-                                background: d <= props.score ? fsColor(props.label) : "#ddd",
-                                marginRight:3,
-                              }} />
-                            );
-                          }
-                          return <span style={{ display:"inline-flex", alignItems:"center" }}>{dots}</span>;
-                        }
-                        var piF = parsedInsights["financial"] || {};
-                        return (
-                          <div>
-                            {piF.classification && (
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background: piF.score >= 4 ? "#e6f4e6" : piF.score >= 3 ? "#fdf8e6" : "#fff0f0", borderRadius:8, marginBottom:16, border:"0.5px solid " + (piF.score >= 4 ? "#7abd00" : piF.score >= 3 ? "#d4a800" : "#e08080") }}>
-                                <div>
-                                  <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Financial Strength</div>
-                                  <div style={{ fontSize:15, fontWeight:700, color:fsColor(piF.classification) }}>{piF.classification}</div>
-                                </div>
-                                <DotBar score={fsScore(piF.classification)} label={piF.classification} />
-                              </div>
-                            )}
-                            <div style={{ fontSize:13, color:"#333", lineHeight:1.8, marginBottom:14 }}>
-                              {parsed.body.replace(/Financial Strength Classification:.+/, "").trim()}
-                            </div>
-                            {parsed.classification && (
-                              <div style={{ padding:"12px 16px", background:"#f5f2ec", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                                <div>
-                                  <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Financial Strength</div>
-                                  <div style={{ fontSize:14, fontWeight:700, color:fsColor(parsed.classification) }}>{parsed.classification}</div>
-                                </div>
-                                <DotBar score={fsScore(parsed.classification)} label={parsed.classification} />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-
-                      {/* Technical Analysis */}
-                      {insightTab === "technical" && (function() {
-                        var ind  = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
-                        var aggs = massiveInfo && massiveInfo.aggs        ? massiveInfo.aggs        : [];
-                        var price = q ? q.price : 0;
-                        var hi52  = ov ? ov.hi52 : 0;
-                        var lo52  = ov ? ov.lo52 : 0;
-                        var rng52 = hi52 - lo52;
-                        var pos52 = rng52 > 0 ? (price - lo52) / rng52 : 0.5;
-
-                        // ---- reversal detection helpers (need history arrays) ----
-                        var rsiHist  = ind ? (ind.rsiHistory  || []) : [];
-                        var macdHist = ind ? (ind.macdHistory || []) : [];
-
-                        function detectRsiDivergence() {
-                          if (rsiHist.length < 10 || aggs.length < 10) return false;
-                          var rPriceLow = Math.min.apply(null, aggs.slice(0,5).map(function(a){return a.l;}));
-                          var pPriceLow = Math.min.apply(null, aggs.slice(5,10).map(function(a){return a.l;}));
-                          var rRsiLow   = Math.min.apply(null, rsiHist.slice(0,5));
-                          var pRsiLow   = Math.min.apply(null, rsiHist.slice(5,10));
-                          return rPriceLow < pPriceLow && rRsiLow > pRsiLow;
-                        }
-                        function detectMacdTurning() {
-                          if (macdHist.length < 3) return false;
-                          var h0 = macdHist[0] && macdHist[0].histogram;
-                          var h1 = macdHist[1] && macdHist[1].histogram;
-                          var h2 = macdHist[2] && macdHist[2].histogram;
-                          return h0 != null && h1 != null && h2 != null && h0 < 0 && h0 > h1 && h1 > h2;
-                        }
-                        function detectWeeklyCross() {
-                          if (!ind || !ind.wsma10 || !ind.wsma40) return false;
-                          var gap = Math.abs(ind.wsma10 - ind.wsma40) / ind.wsma40;
-                          return ind.wsma10 < ind.wsma40 && gap < 0.05;
-                        }
-                        function detectRsiBase() {
-                          if (rsiHist.length < 3) return false;
-                          return rsiHist.slice(0,5).every(function(v){ return v != null && v >= 28 && v <= 52; });
-                        }
-                        function detect52wkBase() {
-                          return pos52 < 0.20 && ind && ind.rsi14 != null && ind.rsi14 > 20 && ind.rsi14 < 45;
-                        }
-
-                        var macdTurning  = detectMacdTurning();
-                        var rsiDivergence = detectRsiDivergence();
-                        var weeklyCross  = detectWeeklyCross();
-                        var rsiBase      = detectRsiBase();
-                        var lowBase      = detect52wkBase();
-                        var revSignals   = [
-                          { label:"RSI Divergence",         active:rsiDivergence, note:"Price new low but RSI higher low" },
-                          { label:"MACD Histogram Turning", active:macdTurning,   note:"Histogram negative but rising 3+ sessions" },
-                          { label:"Weekly SMA Cross Ahead", active:weeklyCross,   note:"WSMA10 within 5% of WSMA40" },
-                          { label:"RSI Base Forming",       active:rsiBase,       note:"RSI stabilising in 28-52 range" },
-                          { label:"52-Wk Low Base",         active:lowBase,       note:"Price in bottom 20% of range, RSI steadying" },
-                        ];
-                        var revCount = revSignals.filter(function(r){ return r.active; }).length;
-
-                        // ---- volume ratio from aggs ----
-                        var vol5  = aggs.slice(0,5).reduce(function(s,a){ return s + (a.v||0); }, 0) / Math.max(aggs.slice(0,5).length,1);
-                        var vol20 = aggs.slice(0,20).reduce(function(s,a){ return s + (a.v||0); }, 0) / Math.max(aggs.slice(0,20).length,1);
-                        var volRatio = vol20 > 0 ? vol5 / vol20 : 1;
-
-                        // ---- score each signal (1-5 scale, weekly/monthly relaxed thresholds) ----
-                        function sigScore(key) {
-                          if (!ind || !price) return 3;
-                          var p = price, r = ind.rsi14, h = ind.macd ? ind.macd.histogram : null;
-                          var wsmaGap, s200gap, crossGap, ema20gap, pct;
-                          if (key === "wsma") {
-                            if (!ind.wsma10 || !ind.wsma40) return 3;
-                            wsmaGap = (ind.wsma10 - ind.wsma40) / ind.wsma40 * 100;
-                            return wsmaGap > 5 ? 5 : wsmaGap > 1 ? 4 : wsmaGap > -1 ? 3 : wsmaGap > -5 ? 2 : 1;
-                          }
-                          if (key === "sma200") {
-                            if (!ind.sma200) return 3;
-                            s200gap = (p - ind.sma200) / ind.sma200 * 100;
-                            return s200gap > 10 ? 5 : s200gap > 2 ? 4 : s200gap > -10 ? 3 : s200gap > -20 ? 2 : 1;
-                          }
-                          if (key === "cross") {
-                            if (!ind.sma50 || !ind.sma200) return 3;
-                            crossGap = (ind.sma50 - ind.sma200) / ind.sma200 * 100;
-                            return crossGap > 10 ? 5 : crossGap > 1 ? 4 : crossGap > -1 ? 3 : crossGap > -10 ? 2 : 1;
-                          }
-                          if (key === "pos52") {
-                            return pos52 > 0.80 ? 5 : pos52 > 0.55 ? 4 : pos52 > 0.35 ? 3 : pos52 > 0.15 ? 2 : 1;
-                          }
-                          if (key === "rsi") {
-                            if (r == null) return 3;
-                            return (r >= 50 && r <= 75) ? 5 : (r >= 40 && r < 50) ? 4 : (r >= 30 && r < 40) || r > 75 ? 3 : (r >= 20 && r < 30) ? 2 : 1;
-                          }
-                          if (key === "macd") {
-                            if (h == null) return 3;
-                            if (h > 0.05) return 5;
-                            if (h > 0)    return 4;
-                            if (h > -0.05 || macdTurning) return 3;
-                            if (h > -0.50) return 2;
-                            return 1;
-                          }
-                          if (key === "ema20") {
-                            if (!ind.ema20) return 3;
-                            ema20gap = (p - ind.ema20) / ind.ema20 * 100;
-                            return ema20gap > 5 ? 5 : ema20gap > 1 ? 4 : ema20gap > -5 ? 3 : ema20gap > -15 ? 2 : 1;
-                          }
-                          if (key === "vol") {
-                            return volRatio > 1.4 ? 5 : volRatio > 1.1 ? 4 : volRatio > 0.9 ? 3 : volRatio > 0.7 ? 2 : 1;
-                          }
-                          return 3;
-                        }
-
-                        var W = { wsma:25, sma200:15, cross:10, pos52:5, rsi:20, macd:15, ema20:5, vol:5 };
-                        var trendKeys    = ["wsma","sma200","cross","pos52"];
-                        var momentumKeys = ["rsi","macd","ema20","vol"];
-                        var allKeys      = trendKeys.concat(momentumKeys);
-
-                        var scores = {};
-                        allKeys.forEach(function(k){ scores[k] = sigScore(k); });
-
-                        var baseRaw = 0;
-                        allKeys.forEach(function(k){ baseRaw += (scores[k]/5) * W[k]; });
-                        var base   = Math.round(baseRaw);
-                        var bonusPer = 4;
-                        var bonusRaw = revCount * bonusPer;
-                        var bonus    = base < 50 ? Math.min(bonusRaw, 12) : 0;
-                        var finalScore = Math.min(base + bonus, base < 50 ? 49 : 100);
-
-                        var trendRaw = trendKeys.reduce(function(s,k){ return s + scores[k]; }, 0);
-                        var momRaw   = momentumKeys.reduce(function(s,k){ return s + scores[k]; }, 0);
-                        var trendScore = Math.round((trendRaw / (trendKeys.length * 5)) * 100);
-                        var momScore   = Math.round((momRaw   / (momentumKeys.length * 5)) * 100);
-
-                        var showRevWatch = revCount >= 2 && finalScore < 50;
-
-                        function getVerdict(s) {
-                          return s >= 70 ? "Strong Bullish" : s >= 55 ? "Bullish" : s >= 40 ? "Neutral" : s >= 25 ? "Bearish" : "Strong Bearish";
-                        }
-                        var verdict = getVerdict(finalScore);
-
-                        var vColMap = { "Strong Bullish":"#1a6a1a", "Bullish":"#2a7a2a", "Neutral":"#b88000", "Bearish":"#c03030", "Strong Bearish":"#8b0000" };
-                        var vBgMap  = { "Strong Bullish":"#EAF3DE", "Bullish":"#EAF3DE",  "Neutral":"#FAEEDA",  "Bearish":"#FCEBEB",  "Strong Bearish":"#FCEBEB" };
-                        var vDotMap = { "Strong Bullish":5, "Bullish":4, "Neutral":3, "Bearish":2, "Strong Bearish":1 };
-                        var vCol = vColMap[verdict]; var vBg = vBgMap[verdict]; var vDot = vDotMap[verdict];
-
-                        var scoreColMap = { 5:"#1a6a1a", 4:"#2a7a2a", 3:"#b88000", 2:"#c03030", 1:"#8b0000" };
-                        var scoreEmMap  = { 5:"#c8e8c0", 4:"#c8e8c0", 3:"#faeeda", 2:"#f5c0c0", 1:"#f5c0c0" };
-                        var scoreLbMap  = { 5:"Strong Bullish", 4:"Bullish", 3:"Neutral", 2:"Bearish", 1:"Strong Bearish" };
-
-                        function Dots(props) {
-                          var col = scoreColMap[props.score] || "#b88000";
-                          var em  = scoreEmMap[props.score]  || "#faeeda";
-                          var d = [];
-                          for (var i = 1; i <= 5; i++) {
-                            d.push(<span key={i} style={{ display:"inline-block", width:props.sz||8, height:props.sz||8, borderRadius:"50%", background: i <= props.score ? col : em, marginRight:2 }} />);
-                          }
-                          return <span style={{ display:"inline-flex", alignItems:"center" }}>{d}</span>;
-                        }
-
-                        var SIGNALS = [
-                          { key:"wsma",  cat:"Trend",    w:25, label:"Weekly SMA10 vs 40",  val: ind && ind.wsma10 && ind.wsma40 ? "$" + ind.wsma10.toFixed(2) + " vs $" + ind.wsma40.toFixed(2) : "-",        note:"Primary signal" },
-                          { key:"sma200",cat:"Trend",    w:15, label:"Price vs SMA 200",    val: ind && ind.sma200 ? "$" + price.toFixed(2) + " vs $" + ind.sma200.toFixed(2) : "-",                             note:"Long-term trend" },
-                          { key:"cross", cat:"Trend",    w:10, label:"Golden/Death Cross",  val: ind && ind.sma50 && ind.sma200 ? (ind.sma50 > ind.sma200 ? "Golden Cross" : "Death Cross") + " ($" + (ind.sma50||0).toFixed(2) + " vs $" + (ind.sma200||0).toFixed(2) + ")" : "-", note:"Regime" },
-                          { key:"pos52", cat:"Trend",    w:5,  label:"52-Week Position",    val: hi52 > 0 ? (pos52*100).toFixed(0) + "% of range ($" + lo52.toFixed(2) + " - $" + hi52.toFixed(2) + ")" : "-", note:"Relative strength" },
-                          { key:"rsi",   cat:"Momentum", w:20, label:"RSI (14-day)",        val: ind && ind.rsi14 != null ? ind.rsi14.toFixed(1) : "-",                                                           note:"Best momentum" },
-                          { key:"macd",  cat:"Momentum", w:15, label:"MACD Histogram",      val: ind && ind.macd && ind.macd.histogram != null ? ind.macd.histogram.toFixed(4) + (macdTurning ? " (turning)" : "") : "-", note:"Reversal detection" },
-                          { key:"ema20", cat:"Momentum", w:5,  label:"Price vs EMA 20",     val: ind && ind.ema20 ? "$" + price.toFixed(2) + " vs $" + ind.ema20.toFixed(2) : "-",                               note:"Near-term" },
-                          { key:"vol",   cat:"Momentum", w:5,  label:"Volume Ratio 5/20d",  val: aggs.length > 0 ? volRatio.toFixed(2) + "x avg volume" : "-",                                                   note:"New signal" },
-                        ];
-
-                        var trendSigs = SIGNALS.filter(function(s){ return s.cat === "Trend"; });
-                        var momSigs   = SIGNALS.filter(function(s){ return s.cat === "Momentum"; });
-
-                        // ---- if we have no Massive data, show AI-only fallback ----
-                        var hasMassive = ind && price > 0;
-
-                        // ---- AI section (from Haiku) ----
-                        var parsed = parseTechnical(tabContent);
-                        var aiRating = parsed ? parsed.rating : null;
-                        var aiEntry  = parsed ? parsed.entry  : null;
-                        var aiBody   = parsed ? parsed.body   : tabContent;
-                        var aiRatingColors = { "Strong Bullish":["#1a6a1a","#EAF3DE","#7abd00"], "Bullish":["#2a7a2a","#EAF3DE","#9ab800"], "Neutral":["#b88000","#FAEEDA","#d4a800"], "Bearish":["#c03030","#FCEBEB","#e08080"], "Strong Bearish":["#8b0000","#FCEBEB","#c03030"] };
-                        var aiColors = aiRating && aiRatingColors[aiRating] ? aiRatingColors[aiRating] : ["#888","#f5f5f5","#ccc"];
-                        var aiDotScore = aiRating === "Strong Bullish" ? 5 : aiRating === "Bullish" ? 4 : aiRating === "Neutral" ? 3 : aiRating === "Bearish" ? 2 : aiRating === "Strong Bearish" ? 1 : 3;
-
-                        return (
-                          <div>
-                            {/* AI verdict banner */}
-                            {aiRating && (
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:aiColors[1], borderRadius:8, marginBottom:14, border:"0.5px solid " + aiColors[2] }}>
-                                <div>
-                                  <div style={{ fontSize:10, color:aiColors[0], fontWeight:600, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Technical Rating (AI)</div>
-                                  <div style={{ fontSize:15, fontWeight:700, color:aiColors[0] }}>{aiRating}</div>
-                                  {aiEntry && <div style={{ fontSize:11, color:"#555", marginTop:2 }}>Entry: {aiEntry}</div>}
-                                </div>
-                                <Dots score={aiDotScore} sz={8} />
-                              </div>
-                            )}
-
-                            {/* AI narrative */}
-                            {aiBody && (
-                              <div style={{ fontSize:13, color:"#333", lineHeight:1.85, marginBottom:16 }}>
-                                {aiBody.split("Technical Rating:")[0].split("Entry Timing:")[0].trim()}
-                              </div>
-                            )}
-
-                            {/* Market Signal block */}
-                            {hasMassive ? (
-                              <div style={{ border:"0.5px solid #e0dbd0", borderRadius:10, overflow:"hidden", marginBottom:4 }}>
-                                <div style={{ padding:"7px 14px", background:"#1a1a14", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                                  <span style={{ fontSize:11, fontWeight:700, color:"#c8f000", textTransform:"uppercase", letterSpacing:"0.07em" }}>Market Signal</span>
-                                  <span style={{ fontSize:10, color:"#7abd00" }}>Weekly/monthly horizon / Massive.com</span>
-                                </div>
-                                <div style={{ padding:"14px 16px", background:"#fff" }}>
-
-                                  {/* Overall score row */}
-                                  <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", background:vBg, borderRadius:9, border:"0.5px solid " + vCol, marginBottom:14 }}>
-                                    <div style={{ width:56, height:56, borderRadius:9, background:vCol, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", flexShrink:0 }}>
-                                      <span style={{ fontSize:21, fontWeight:900, color:"#fff", lineHeight:1 }}>{finalScore}</span>
-                                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.65)" }}>/100</span>
-                                    </div>
-                                    <div style={{ flex:1 }}>
-                                      <div style={{ fontSize:10, color:vCol, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:2 }}>Overall Signal</div>
-                                      <div style={{ fontSize:17, fontWeight:900, color:vCol, marginBottom:4 }}>{verdict}</div>
-                                      {showRevWatch && (
-                                        <div style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10, fontWeight:700, color:"#633806", background:"#FAEEDA", padding:"2px 8px", borderRadius:10, border:"0.5px solid #EF9F27" }}>
-                                          <span style={{ width:6, height:6, borderRadius:"50%", background:"#BA7517", display:"inline-block" }} />
-                                          Reversal Watch {String.fromCharCode(0x2014)} {revCount} signals
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div style={{ display:"flex", gap:7, flexShrink:0 }}>
-                                      <div style={{ textAlign:"center", padding:"5px 10px", background:"rgba(255,255,255,0.45)", borderRadius:7 }}>
-                                        <div style={{ fontSize:9, color:vCol }}>Trend</div>
-                                        <div style={{ fontSize:15, fontWeight:700, color:vCol }}>{trendScore}</div>
-                                      </div>
-                                      <div style={{ textAlign:"center", padding:"5px 10px", background:"rgba(255,255,255,0.45)", borderRadius:7 }}>
-                                        <div style={{ fontSize:9, color:vCol }}>Momentum</div>
-                                        <div style={{ fontSize:15, fontWeight:700, color:vCol }}>{momScore}</div>
-                                      </div>
-                                    </div>
-                                    <Dots score={vDot} sz={9} />
-                                  </div>
-
-                                  {/* Trend signals */}
-                                  <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:8 }}>
-                                    Trend {"&"} Price Action <span style={{ fontWeight:400, color:"#bbb" }}>55%</span>
-                                  </div>
-                                  {trendSigs.map(function(sig) {
-                                    var sc = scores[sig.key];
-                                    var col = scoreColMap[sc]; var lbl = scoreLbMap[sc];
-                                    var pts = Math.round((sc/5)*sig.w);
-                                    return (
-                                      <div key={sig.key} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 0", borderBottom:"0.5px solid #f5f2ec" }}>
-                                        <div style={{ flex:1, minWidth:0 }}>
-                                          <div style={{ fontSize:11, fontWeight:700, color:"#111", marginBottom:1 }}>{sig.label}</div>
-                                          <div style={{ fontSize:10, color:"#999" }}>{sig.val}</div>
-                                        </div>
-                                        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:2, flexShrink:0 }}>
-                                          <Dots score={sc} sz={7} />
-                                          <span style={{ fontSize:9, fontWeight:600, color:col }}>{lbl}</span>
-                                          <span style={{ fontSize:9, color:"#bbb" }}>{pts}/{sig.w}pts</span>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-
-                                  {/* Momentum signals */}
-                                  <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:8, marginTop:14, paddingTop:12, borderTop:"0.5px solid #f0ede6" }}>
-                                    Momentum <span style={{ fontWeight:400, color:"#bbb" }}>45%</span>
-                                  </div>
-                                  {momSigs.map(function(sig) {
-                                    var sc = scores[sig.key];
-                                    var col = scoreColMap[sc]; var lbl = scoreLbMap[sc];
-                                    var pts = Math.round((sc/5)*sig.w);
-                                    var isNew = sig.key === "vol";
-                                    return (
-                                      <div key={sig.key} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 0", borderBottom:"0.5px solid #f5f2ec" }}>
-                                        <div style={{ flex:1, minWidth:0 }}>
-                                          <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:1 }}>
-                                            <span style={{ fontSize:11, fontWeight:700, color:"#111" }}>{sig.label}</span>
-                                            {isNew && <span style={{ fontSize:9, fontWeight:600, color:"#0C447C", background:"#E6F1FB", padding:"1px 5px", borderRadius:5 }}>new</span>}
-                                          </div>
-                                          <div style={{ fontSize:10, color:"#999" }}>{sig.val}</div>
-                                        </div>
-                                        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:2, flexShrink:0 }}>
-                                          <Dots score={sc} sz={7} />
-                                          <span style={{ fontSize:9, fontWeight:600, color:col }}>{lbl}</span>
-                                          <span style={{ fontSize:9, color:"#bbb" }}>{pts}/{sig.w}pts</span>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-
-                                  {/* Reversal Detection */}
-                                  <div style={{ marginTop:14, paddingTop:12, borderTop:"0.5px solid #f0ede6" }}>
-                                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:9 }}>
-                                      <div style={{ fontSize:10, fontWeight:700, color:"#854F0B", textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Detection</div>
-                                      {revCount > 0
-                                        ? <div style={{ fontSize:10, color:"#633806", background:"#FAEEDA", padding:"2px 9px", borderRadius:8, border:"0.5px solid #EF9F27", fontWeight:600 }}>{revCount} active {String.fromCharCode(0x2014)} total bonus <span style={{ color:"#1a6a1a" }}>+{bonus}pts</span></div>
-                                        : <div style={{ fontSize:10, color:"#bbb" }}>0 active {String.fromCharCode(0x2014)} 0 pts</div>
-                                      }
-                                    </div>
-
-                                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:10 }}>
-                                      {revSignals.map(function(rv, i) {
-                                        var pts = rv.active ? bonusPer : 0;
-                                        return (
-                                          <div key={i} style={{ display:"flex", alignItems:"center", gap:7, padding:"7px 9px", background: rv.active ? "#FAEEDA" : "#fafaf8", borderRadius:7, border:"0.5px solid " + (rv.active ? "#EF9F27" : "#e8e4dc") }}>
-                                            <div style={{ width:17, height:17, borderRadius:"50%", background: rv.active ? "#BA7517" : "#d0ccc5", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                                              <span style={{ fontSize:9, fontWeight:700, color:"#fff" }}>{rv.active ? "!" : "-"}</span>
-                                            </div>
-                                            <div style={{ flex:1, minWidth:0 }}>
-                                              <div style={{ fontSize:10, fontWeight: rv.active ? 700 : 400, color: rv.active ? "#412402" : "#aaa" }}>{rv.label}</div>
-                                              <div style={{ fontSize:9, color: rv.active ? "#633806" : "#bbb" }}>{rv.note}</div>
-                                            </div>
-                                            <div style={{ flexShrink:0 }}>
-                                              {rv.active
-                                                ? <span style={{ fontSize:10, fontWeight:700, color:"#27500A", background:"#EAF3DE", padding:"2px 7px", borderRadius:6, border:"0.5px solid #7abd00" }}>+{pts}pts</span>
-                                                : <span style={{ fontSize:10, color:"#ccc" }}>0pts</span>
-                                              }
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-
-                                    {/* Calculation strip */}
-                                    <div style={{ padding:"9px 12px", background:"#f9f7f4", borderRadius:8, border:"0.5px solid #e8e4dc" }}>
-                                      <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-                                        <div style={{ padding:"3px 9px", background:vBg, borderRadius:5, border:"0.5px solid " + vCol, fontSize:11, fontWeight:600, color:vCol }}>Base {base}</div>
-                                        <span style={{ fontSize:11, color:"#bbb" }}>+</span>
-                                        <div style={{ padding:"3px 9px", background: bonus > 0 ? "#EAF3DE" : "#f5f5f5", borderRadius:5, border:"0.5px solid " + (bonus > 0 ? "#7abd00" : "#ddd"), fontSize:11, fontWeight:600, color: bonus > 0 ? "#27500A" : "#bbb" }}>Bonus +{bonus}</div>
-                                        <span style={{ fontSize:11, color:"#bbb" }}>=</span>
-                                        <div style={{ padding:"3px 10px", background:vCol, borderRadius:5, fontSize:12, fontWeight:700, color:"#fff" }}>{finalScore}/100 {verdict}</div>
-                                        {base >= 50 && bonus === 0 && <span style={{ fontSize:10, color:"#aaa" }}>(bonus only when base {"<"} 50)</span>}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                </div>
-                              </div>
-                            ) : (
-                              <div style={{ padding:"12px 14px", background:"#fafaf8", borderRadius:8, border:"0.5px solid #e8e4dc", marginBottom:4, fontSize:12, color:"#aaa" }}>
-                                Market Signal unavailable {String.fromCharCode(0x2014)} requires Massive.com data.
-                              </div>
-                            )}
-
-                            {/* AI badges */}
-                            {(aiRating || aiEntry) && (
-                              <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
-                                {aiRating && (
-                                  <div style={{ flex:1, minWidth:160, padding:"10px 14px", background: vBg.replace ? aiColors[1] : "#f5f5f5", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                                    <div>
-                                      <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>AI Technical Rating</div>
-                                      <div style={{ fontSize:13, fontWeight:700, color:aiColors[0] }}>{aiRating}</div>
-                                    </div>
-                                    <Dots score={aiDotScore} sz={7} />
-                                  </div>
-                                )}
-                                {aiEntry && (
-                                  <div style={{ flex:1, minWidth:160, padding:"10px 14px", background:"#f9f7f4", borderRadius:10 }}>
-                                    <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Entry Timing</div>
-                                    <div style={{ fontSize:13, fontWeight:700, color:"#555" }}>{aiEntry}</div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            <div style={{ marginTop:10, fontSize:11, color:"#bbb" }}>
-                              Market Signal uses Massive.com real-time data. AI analysis by Claude Haiku. Not financial advice.
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-
-                    </div>
-                  )}
-
-                  {/* AI Insight Tab */}
-                  {insightTab === "aiinsight" && (function() {
-                    var parsed    = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null;
-                    var ov2       = ov || {};
-                    var massInf   = massiveInfo || {};
-                    var ind2      = massInf.indicators || {};
-                    var price2    = q ? q.price : 0;
-                    var aggs2     = massInf.aggs || [];
-                    var news2     = massInf.news || [];
-
-                    // ---- dot renderer ----
-                    function DI(props) {
-                      var map = {5:{c:"#1a6a1a",e:"#c8e8c0"},4:{c:"#2a7a2a",e:"#c8e8c0"},3:{c:"#b88000",e:"#faeeda"},2:{c:"#c03030",e:"#f5c0c0"},1:{c:"#8b0000",e:"#f5c0c0"}};
-                      var s = Math.max(1,Math.min(5,Math.round(parseFloat(props.score)||3)));
-                      var cc = map[s]; var d = [];
-                      for (var i=1;i<=5;i++) d.push(<span key={i} style={{display:"inline-block",width:props.sz||8,height:props.sz||8,borderRadius:"50%",background:i<=s?cc.c:cc.e,marginRight:2}}/>);
-                      return <span style={{display:"inline-flex",alignItems:"center"}}>{d}</span>;
-                    }
-
-                    // ---- verdict colour helpers ----
-                    function vCol(v){
-                      if (!v) return "#b88000";
-                      var vl=(v+"").trim().toLowerCase();
-                      if(vl==="strong buy")   return "#1a6a1a";
-                      if(vl==="buy")          return "#2a7a2a";
-                      if(vl==="hold")         return "#b88000";
-                      if(vl==="avoid")        return "#c03030";
-                      if(vl==="strong avoid") return "#8b0000";
-                      return "#b88000";
-                    }
-                    function vBg(v){
-                      if (!v) return "#FAEEDA";
-                      var vl=(v+"").trim().toLowerCase();
-                      if(vl==="strong buy"||vl==="buy") return "#EAF3DE";
-                      if(vl==="hold")                   return "#FAEEDA";
-                      return "#FCEBEB";
-                    }
-                    function vBd(v){
-                      if (!v) return "#d4a800";
-                      var vl=(v+"").trim().toLowerCase();
-                      if(vl==="strong buy") return "#7abd00";
-                      if(vl==="buy")        return "#97C459";
-                      if(vl==="hold")       return "#d4a800";
-                      if(vl==="avoid")      return "#e08080";
-                      return "#c03030";
-                    }
-
-                    // ---- free data signals ----
-                    // Analyst momentum from upgradeDowngradeHistory
-                    var upgHist = ov2.upgradeDowngradeHistory || [];
-                    var recent90 = upgHist.filter(function(h){ return h.epochGradeDate && (Date.now()/1000 - h.epochGradeDate) < 90*86400; });
-                    var upgrades   = recent90.filter(function(h){ return h.action && h.action.toLowerCase().includes("upgr"); }).length;
-                    var downgrades = recent90.filter(function(h){ return h.action && h.action.toLowerCase().includes("downgr"); }).length;
-                    var analystNet = upgrades - downgrades;
-                    var analystDir = analystNet > 0 ? "Upgrading" : analystNet < 0 ? "Downgrading" : "Neutral";
-                    var analystDots = analystNet > 2 ? 5 : analystNet > 0 ? 4 : analystNet === 0 ? 3 : analystNet > -3 ? 2 : 1;
-
-                    // Insider net direction
-                    var insiderTx = ov2.insiderTx || [];
-                    var iBuys  = insiderTx.filter(function(t){ return t.action && t.action.toLowerCase().includes("buy"); }).length;
-                    var iSells = insiderTx.filter(function(t){ return t.action && !t.action.toLowerCase().includes("buy"); }).length;
-                    var insiderDir = iBuys > iSells ? "Net Buying" : iBuys < iSells ? "Net Selling" : "Neutral";
-                    var insiderDots = iBuys > iSells ? 5 : iBuys === iSells ? 3 : 2;
-                    var insiderVal = insiderTx.reduce(function(s,t){ var v = t.value; return s + (typeof v === "number" ? v : 0); }, 0);
-
-                    // Earnings streak
-                    var earningsQ = ov2.earningsQ || [];
-                    var streak = 0;
-                    for (var ei=0; ei<earningsQ.length; ei++) {
-                      if (earningsQ[ei].actual != null && earningsQ[ei].estimate != null && earningsQ[ei].actual > earningsQ[ei].estimate) streak++;
-                      else break;
-                    }
-
-                    // Short squeeze score (0-100)
-                    var shortPct   = ov2.shortPct   || 0;
-                    var shortRatio = ov2.shortRatio  || 0;
-                    var sqScore    = Math.min(100, Math.round((shortPct * 100 * 0.5) + (shortRatio * 5)));
-
-                    // Institutional trend
-                    var instPct = ov2.institutionPct ? (ov2.institutionPct * 100).toFixed(1) : null;
-
-                    // News sentiment count
-                    var newsPos = 0, newsNeg = 0, newsNeu = 0;
-                    news2.slice(0,10).forEach(function(n) {
-                      var ins = n.insights || [];
-                      ins.forEach(function(i) {
-                        if (i.sentiment === "positive") newsPos++;
-                        else if (i.sentiment === "negative") newsNeg++;
-                        else newsNeu++;
-                      });
-                    });
-                    var totalSent = newsPos + newsNeg + newsNeu;
-                    var newsDir = totalSent > 0 ? (newsPos/totalSent > 0.6 ? "Bullish" : newsNeg/totalSent > 0.5 ? "Bearish" : "Neutral") : "Neutral";
-                    var newsDots = newsDir === "Bullish" ? 4 : newsDir === "Bearish" ? 2 : 3;
-
-                    // Volume ratio
-                    var vol5  = aggs2.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs2.slice(0,5).length,1);
-                    var vol20 = aggs2.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs2.slice(0,20).length,1);
-                    var volRatio2 = vol20 > 0 ? vol5/vol20 : 1;
-
-                    // Bollinger Bands from aggs
-                    var bbPeriod = 20;
-                    var bbData = aggs2.slice(0,bbPeriod).map(function(a){return a.c||0;}).reverse();
-                    var bbMid = bbData.length >= bbPeriod ? bbData.reduce(function(s,v){return s+v;},0)/bbPeriod : 0;
-                    var bbStd = bbData.length >= bbPeriod ? Math.sqrt(bbData.reduce(function(s,v){return s+Math.pow(v-bbMid,2);},0)/bbPeriod) : 0;
-                    var bbUpper = bbMid + 2*bbStd;
-                    var bbLower = bbMid - 2*bbStd;
-
-                    // Fibonacci from 52wk
-                    var hi52 = ov2.hi52 || 0; var lo52 = ov2.lo52 || 0;
-                    var fibRange = hi52 - lo52;
-                    var fib382 = fibRange > 0 ? Math.round(hi52 - fibRange*0.382) : 0;
-                    var fib500 = fibRange > 0 ? Math.round(hi52 - fibRange*0.500) : 0;
-                    var fib618 = fibRange > 0 ? Math.round(hi52 - fibRange*0.618) : 0;
-
-                    return (
-                      <div>
-                        {/* == D: DATA SIGNALS == */}
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8}}>
-                            <span style={{width:20,height:20,borderRadius:"50%",background:"#1a6a1a",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>D</span>
-                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>Data Signals</span>
-                            <span style={{fontSize:9,fontWeight:600,color:"#1a6a1a",background:"#EAF3DE",padding:"1px 7px",borderRadius:7,border:"0.5px solid #7abd0040"}}>Free -- no AI cost</span>
-                          </div>
-                          <span style={{fontSize:10,color:"#bbb"}}>$0.00000/visit</span>
-                        </div>
-
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:8}}>
-                          {[
-                            { label:"Analyst Momentum", val:analystDir, sub:upgrades+" upgrades, "+downgrades+" downgrades (90d)", dots:analystDots, col:analystDots>=4?"#1a6a1a":analystDots===3?"#b88000":"#c03030", bg:analystDots>=4?"#EAF3DE":analystDots===3?"#FAEEDA":"#FCEBEB" },
-                            { label:"Insider Activity",  val:insiderDir, sub:iBuys+" buys, "+iSells+" sells last 90d"+(insiderVal!==0?" | $"+(Math.abs(insiderVal)/1e6).toFixed(1)+"M":""), dots:insiderDots, col:insiderDots>=4?"#1a6a1a":insiderDots===3?"#b88000":"#c03030", bg:insiderDots>=4?"#EAF3DE":insiderDots===3?"#FAEEDA":"#FCEBEB" },
-                            { label:"Earnings Streak",   val:streak+" Consecutive Beats", sub:earningsQ.slice(0,streak).map(function(e,i){return "Q"+(i+1);}).join(", "), dots:streak>=5?5:streak>=3?4:streak>=2?3:streak>=1?2:1, col:streak>=3?"#1a6a1a":streak>=1?"#b88000":"#c03030", bg:streak>=3?"#EAF3DE":streak>=1?"#FAEEDA":"#FCEBEB" },
-                            { label:"Short Squeeze Score", val:(sqScore<30?"Low":sqScore<60?"Medium":"High")+" -- "+sqScore+"/100", sub:"Float "+(shortPct*100).toFixed(1)+"% -- Ratio "+shortRatio.toFixed(1)+" days", dots:sqScore<30?3:sqScore<60?2:1, col:sqScore<30?"#b88000":"#c03030", bg:sqScore<30?"#FAEEDA":"#FCEBEB" },
-                            { label:"News Sentiment",     val:newsDir, sub:newsPos+" positive, "+newsNeu+" neutral, "+newsNeg+" negative", dots:newsDots, col:newsDots>=4?"#1a6a1a":newsDots===3?"#b88000":"#c03030", bg:newsDots>=4?"#EAF3DE":newsDots===3?"#FAEEDA":"#FCEBEB" },
-                            { label:"Institutional Trend", val:instPct?""+instPct+"% held":"No data", sub:"Volume ratio "+volRatio2.toFixed(2)+"x 20-day avg", dots:3, col:"#b88000", bg:"#FAEEDA" },
-                          ].map(function(card,i){
-                            return (
-                              <div key={i} style={{background:"var(--color-background-secondary)",borderRadius:8,padding:"9px 11px"}}>
-                                <div style={{fontSize:9,color:"#999",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>{card.label}</div>
-                                <div style={{fontSize:12,fontWeight:700,color:card.col,marginBottom:3}}>{card.val}</div>
-                                <div style={{fontSize:10,color:"#aaa",marginBottom:4}}>{card.sub}</div>
-                                <DI score={card.dots} sz={7} />
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Analyst consensus */}
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:10}}>
-                          {[
-                            { label:"Analyst Consensus", val:ov2.recKey?ov2.recKey.toUpperCase():"N/A", sub:(ov2.numAnalysts||0)+" analysts -- Target $"+(ov2.targetMean?ov2.targetMean.toFixed(2):"N/A"), dotScore: ov2.recKey&&ov2.recKey.toLowerCase().includes("buy")?4:ov2.recKey&&ov2.recKey.toLowerCase().includes("sell")?2:3 },
-                            { label:"Short Interest",    val:(shortPct*100).toFixed(1)+"% float", sub:"Ratio "+shortRatio.toFixed(1)+" days to cover", dotScore:shortPct>0.15?1:shortPct>0.08?2:3 },
-                            { label:"Dividend / Buyback", val:ov2.divYield&&ov2.divYield>0?((ov2.divYield*100).toFixed(2)+"% yield"):"No Dividend", sub:ov2.payoutRatio&&ov2.payoutRatio>0?"Payout "+(ov2.payoutRatio*100).toFixed(0)+"%":"Capital return via buybacks", dotScore:3 },
-                          ].map(function(card,i){
-                            return (
-                              <div key={i} style={{background:"#EAF3DE",borderRadius:8,padding:"9px 11px",border:"0.5px solid #7abd00"}}>
-                                <div style={{fontSize:9,color:"#27500A",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>{card.label}</div>
-                                <div style={{fontSize:12,fontWeight:700,color:"#1a6a1a",marginBottom:3}}>{card.val}</div>
-                                <div style={{fontSize:10,color:"#3B6D11",marginBottom:4}}>{card.sub}</div>
-                                <DI score={card.dotScore} sz={7} />
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Sector relative performance */}
-                        <div style={{marginBottom:10,padding:"9px 12px",background:"var(--color-background-secondary)",borderRadius:8,fontSize:11,color:"#555"}}>
-                          <div style={{fontSize:9,color:"#999",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Technical indicators</div>
-                          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
-                            {[
-                              {label:"Bollinger Upper", val:bbUpper>0?"$"+bbUpper.toFixed(2):"-"},
-                              {label:"Bollinger Mid",   val:bbMid>0?"$"+bbMid.toFixed(2):"-"},
-                              {label:"Bollinger Lower", val:bbLower>0?"$"+bbLower.toFixed(2):"-"},
-                              {label:"Fib 38.2%",       val:fib382>0?"$"+fib382:"-"},
-                              {label:"Fib 50.0%",       val:fib500>0?"$"+fib500:"-"},
-                              {label:"Fib 61.8%",       val:fib618>0?"$"+fib618:"-"},
-                              {label:"Vol Ratio 5/20d", val:volRatio2.toFixed(2)+"x"},
-                              {label:"52-wk range",     val:hi52>0?"$"+lo52.toFixed(2)+" - $"+hi52.toFixed(2):"-"},
-                            ].map(function(item,i){
-                              return (
-                                <div key={i} style={{background:"var(--color-background-primary)",borderRadius:6,padding:"6px 8px"}}>
-                                  <div style={{fontSize:9,color:"#aaa",marginBottom:2}}>{item.label}</div>
-                                  <div style={{fontSize:11,fontWeight:700,color:"#111"}}>{item.val}</div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
-
-                        {/* == 2: EARNINGS QUALITY == */}
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8}}>
-                            <span style={{width:20,height:20,borderRadius:"50%",background:"#3B6D11",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>2</span>
-                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>Earnings Quality</span>
-                            <span style={{fontSize:9,fontWeight:600,color:"#3B6D11",background:"#EAF3DE",padding:"1px 7px",borderRadius:7}}>Auto-generated</span>
-                          </div>
-                          <span style={{fontSize:10,color:"#bbb"}}>$0.00300/visit</span>
-                        </div>
-
-                        {insightCache["aiinsight"] && parsed ? (
-                          <div>
-                            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:8}}>
-                              {(earningsQ||[]).slice(0,4).map(function(eq,i){
-                                var beat = eq.actual != null && eq.estimate != null && eq.actual > eq.estimate;
-                                var pct  = eq.actual && eq.estimate && eq.estimate !== 0 ? ((eq.actual-eq.estimate)/Math.abs(eq.estimate)*100).toFixed(1) : null;
-                                return (
-                                  <div key={i} style={{background:beat?"#EAF3DE":"#FCEBEB",borderRadius:6,padding:"7px 8px",textAlign:"center",border:"0.5px solid "+(beat?"#7abd00":"#e08080")}}>
-                                    <div style={{fontSize:9,color:"#aaa",marginBottom:2}}>{eq.date||("Q"+(i+1))}</div>
-                                    <div style={{fontSize:12,fontWeight:700,color:beat?"#1a6a1a":"#c03030"}}>{eq.actual!=null?"$"+eq.actual.toFixed(2):"-"}</div>
-                                    <div style={{fontSize:9,color:"#aaa"}}>est {eq.estimate!=null?"$"+eq.estimate.toFixed(2):"-"}</div>
-                                    {pct && <div style={{fontSize:11,fontWeight:700,color:beat?"#1a6a1a":"#c03030",marginTop:2}}>{beat?"+":""}{pct}%</div>}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ) : null}
-
-                        <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
-
-                        {/* == 3: MARKET SENTIMENT == */}
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8}}>
-                            <span style={{width:20,height:20,borderRadius:"50%",background:"#185FA5",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>3</span>
-                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>Market Sentiment</span>
-                            <span style={{fontSize:9,fontWeight:600,color:"#185FA5",background:"#E6F1FB",padding:"1px 7px",borderRadius:7}}>Auto-generated</span>
-                          </div>
-                          <span style={{fontSize:10,color:"#bbb"}}>$0.00300/visit</span>
-                        </div>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:8}}>
-                          {[
-                            {label:"News Sentiment",    val:newsDir,   sub:newsPos+" pos / "+newsNeu+" neu / "+newsNeg+" neg", dots:newsDots,    col:newsDots>=4?"#1a6a1a":"#b88000", bg:newsDots>=4?"#EAF3DE":"#FAEEDA", bd:newsDots>=4?"#7abd00":"#d4a800"},
-                            {label:"Analyst Consensus", val:ov2.recKey?ov2.recKey.toUpperCase():"N/A", sub:(ov2.numAnalysts||0)+" analysts -- Target $"+(ov2.targetMean?ov2.targetMean.toFixed(2):"N/A"), dots:ov2.recKey&&ov2.recKey.toLowerCase().includes("buy")?4:3, col:"#1a6a1a",bg:"#EAF3DE",bd:"#7abd00"},
-                            {label:"Short Interest",    val:(shortPct*100).toFixed(1)+"% float", sub:"Ratio "+shortRatio.toFixed(1)+" days", dots:shortPct>0.10?2:3, col:shortPct>0.10?"#c03030":"#b88000", bg:shortPct>0.10?"#FCEBEB":"#FAEEDA", bd:shortPct>0.10?"#e08080":"#d4a800"},
-                          ].map(function(card,i){
-                            return (
-                              <div key={i} style={{background:card.bg,borderRadius:8,padding:"9px 11px",border:"0.5px solid "+card.bd}}>
-                                <div style={{fontSize:9,color:card.col,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>{card.label}</div>
-                                <div style={{fontSize:12,fontWeight:700,color:card.col,marginBottom:2}}>{card.val}</div>
-                                <div style={{fontSize:10,color:card.col,opacity:0.8,marginBottom:4}}>{card.sub}</div>
-                                <DI score={card.dots} sz={7} />
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {/* Recent news headlines */}
-                        {news2.slice(0,4).map(function(n,i){
-                          var sentArr = n.insights||[];
-                          var sent    = sentArr.length>0 ? sentArr[0].sentiment : "neutral";
-                          var sentCol = sent==="positive"?"#1a6a1a":sent==="negative"?"#c03030":"#b88000";
-                          var sentBg  = sent==="positive"?"#EAF3DE":sent==="negative"?"#FCEBEB":"#FAEEDA";
-                          return (
-                            <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:"var(--color-background-secondary)",borderRadius:6,marginBottom:4}}>
-                              <span style={{fontSize:10,fontWeight:600,color:sentCol,background:sentBg,padding:"1px 6px",borderRadius:5,flexShrink:0,textTransform:"capitalize"}}>{sent}</span>
-                              <div style={{flex:1,fontSize:11,color:"#333",lineHeight:1.4}}>{n.title||n.headline}</div>
-                              <span style={{fontSize:10,color:"#bbb",flexShrink:0}}>{n.published_utc ? new Date(n.published_utc).toLocaleDateString() : ""}</span>
-                            </div>
-                          );
-                        })}
-
-                        <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
-
-                        {/* == 4: ANALYSIS TECHNICAL NOTE == */}
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8}}>
-                            <span style={{width:20,height:20,borderRadius:"50%",background:"#0C447C",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>4</span>
-                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>Analysis Technical Note</span>
-                            <span style={{fontSize:9,fontWeight:600,color:"#0C447C",background:"#E6F1FB",padding:"1px 7px",borderRadius:7}}>Auto-generated</span>
-                          </div>
-                          <span style={{fontSize:10,color:"#bbb"}}>$0.00600/visit</span>
-                        </div>
-                        {insightCache["aiinsight"] && parsed ? (
-                          <div style={{fontSize:12,color:"#333",lineHeight:1.85,padding:"10px 12px",background:"var(--color-background-secondary)",borderRadius:8}}>
-                            {parsed.techScore != null && (
-                              <div style={{marginBottom:8}}>
-                                <strong style={{fontWeight:700}}>Technical Rating: </strong>
-                                <DI score={Math.round(parsed.techScore)} sz={8} />
-                                <span style={{fontSize:11,color:"#555",marginLeft:6}}>{parsed.techScore}/5</span>
-                              </div>
-                            )}
-                            {ind2.sma50&&price2>0&&<span><strong style={{fontWeight:700}}>SMA50:</strong> ${(ind2.sma50).toFixed(2)} ({price2>ind2.sma50?"above":"below"}) {String.fromCharCode(0xA0)}</span>}
-                            {ind2.sma200&&price2>0&&<span><strong style={{fontWeight:700}}>SMA200:</strong> ${(ind2.sma200).toFixed(2)} ({price2>ind2.sma200?"above":"below"}) {String.fromCharCode(0xA0)}</span>}
-                            {ind2.rsi14!=null&&<span><strong style={{fontWeight:700}}>RSI:</strong> {ind2.rsi14!=null?ind2.rsi14.toFixed(1):"-"} {String.fromCharCode(0xA0)}</span>}
-                            {ind2.macd&&ind2.macd.histogram!=null&&<span><strong style={{fontWeight:700}}>MACD Hist:</strong> {ind2.macd&&ind2.macd.histogram!=null?ind2.macd.histogram.toFixed(4):"-"} {String.fromCharCode(0xA0)}</span>}
-                            {bbMid>0&&<span><strong style={{fontWeight:700}}>BB:</strong> {bbMid>0?"$"+bbLower.toFixed(2)+" / $"+bbMid.toFixed(2)+" / $"+bbUpper.toFixed(2):"-"} {String.fromCharCode(0xA0)}</span>}
-                            {fib382>0&&<span><strong style={{fontWeight:700}}>Fib:</strong> 38.2%=${fib382} / 50%=${fib500} / 61.8%=${fib618}</span>}
-                          </div>
-                        ) : <div style={{color:"#aaa",fontSize:12}}>Technical data will appear after AI Insight generates.</div>}
-
-                        <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
-
-                        {/* == 1: 10-K ON-DEMAND == */}
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8}}>
-                            <span style={{width:20,height:20,borderRadius:"50%",background:"#854F0B",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>1</span>
-                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>10-K Analysis + Risk Assessment</span>
-                            <span style={{fontSize:9,fontWeight:600,color:"#633806",background:"#FAEEDA",padding:"1px 7px",borderRadius:7,border:"0.5px solid #EF9F2740"}}>On-demand</span>
-                          </div>
-                          <span style={{fontSize:10,color:"#bbb"}}>$0.02380 when clicked</span>
-                        </div>
-                        {massiveInfo && massiveInfo.tenK && (massiveInfo.tenK.business || massiveInfo.tenK.riskFactors) ? (function() {
-                          var cacheKey = "tenk_full_" + sym;
-                          var cached   = insightCache[cacheKey];
-                          if (!cached) {
-                            return (
-                              <div style={{padding:"14px 16px",background:"var(--color-background-secondary)",borderRadius:8,border:"0.5px solid var(--color-border-tertiary)",textAlign:"center"}}>
-                                <div style={{fontSize:11,color:"#555",marginBottom:10,lineHeight:1.6}}>Reads 10-K Business section + Risk Factors. Business quality, moat evidence, management signals, top 5 risks rated Low/Medium/High, Buffett-style verdict.</div>
-                                <button onClick={function() {
-                                  setInsightCache(function(prev){ var n=Object.assign({},prev); n[cacheKey]="loading"; return n; });
-                                  var bizText  = (massiveInfo.tenK.business||"").slice(0,2000);
-                                  var riskText = (massiveInfo.tenK.riskFactors||"").slice(0,1500);
-                                  fetch("/anthropic",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:1100,messages:[{role:"user",content:"You are a senior investment analyst. For "+sym+", analyse this 10-K filing covering TWO areas:\n\nPART A - 10-K ANALYSIS: Business quality, competitive moat evidence, management quality signals, financial health indicators, Buffett verdict (buy/hold/avoid).\n\nPART B - RISK ASSESSMENT: List top 3-5 risks. For each: name, category (Regulatory/Competitive/Macro/Execution/Financial), severity (Low/Medium/High), one-sentence explanation.\n\nBUSINESS:\n"+bizText+"\n\nRISK FACTORS:\n"+riskText}]})})
-                                    .then(function(r){return r.json();})
-                                    .then(function(d){
-                                      var text=d&&d.content&&d.content[0]&&d.content[0].text;
-                                      setInsightCache(function(prev){var n=Object.assign({},prev);n[cacheKey]=text||"Analysis unavailable.";return n;});
-                                    }).catch(function(){
-                                      setInsightCache(function(prev){var n=Object.assign({},prev);n[cacheKey]="Analysis failed.";return n;});
-                                    });
-                                }} style={{padding:"8px 20px",background:"#111",color:"#c8f000",border:"none",borderRadius:6,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:FONT}}>
-                                  Generate 10-K Analysis + Risk Assessment
-                                </button>
-                                <div style={{fontSize:10,color:"#bbb",marginTop:6}}>Requires 10-K data from Massive.com</div>
-                              </div>
-                            );
-                          }
-                          if (cached === "loading") return (
-                            <div style={{textAlign:"center",padding:"20px 0"}}>
-                              <div style={{fontSize:12,color:"#888",marginBottom:10}}>Generating 10-K analysis...</div>
-                              <div style={{display:"inline-block",width:22,height:22,border:"3px solid #e0dbd0",borderTop:"3px solid "+LIME,borderRadius:"50%",animation:"spin 0.8s linear infinite"}} />
-                            </div>
-                          );
-                          return (
-                            <div style={{fontSize:12,color:"#333",lineHeight:1.85,padding:"12px 14px",background:"#FAEEDA",borderRadius:8,borderLeft:"3px solid #EF9F27"}}>
-                              {cached}
-                            </div>
-                          );
-                        })() : <div style={{color:"#aaa",fontSize:12,padding:"10px 14px",background:"var(--color-background-secondary)",borderRadius:8}}>10-K data unavailable. Requires Massive.com Starter plan.</div>}
-
-                        <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
-
-                        {/* == AI: AI INSIGHT == */}
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8}}>
-                            <span style={{width:20,height:20,borderRadius:"50%",background:"#1a1a14",border:"1px solid #c8f000",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#c8f000",flexShrink:0}}>AI</span>
-                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>AI Insight</span>
-                            <span style={{fontSize:9,fontWeight:600,color:"#27500A",background:"#EAF3DE",padding:"1px 7px",borderRadius:7}}>Auto-generated</span>
-                          </div>
-                          <span style={{fontSize:10,color:"#bbb"}}>$0.00200/visit</span>
-                        </div>
-
-                        {insightCache["aiinsight"] && parsed ? (
-                          <div>
-                            {/* Overall verdict card */}
-                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:vBg(parsed.verdict),borderRadius:10,border:"0.5px solid "+vBd(parsed.verdict),marginBottom:10}}>
-                              <div>
-                                <div style={{fontSize:10,color:vCol(parsed.verdict),fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:3}}>AI Insight -- {sym}</div>
-                                <div style={{fontSize:20,fontWeight:900,color:vCol(parsed.verdict)}}>{parsed.verdict||"Hold"}</div>
-                                <div style={{fontSize:11,color:vCol(parsed.verdict),opacity:0.8,marginTop:2}}>
-                                  {parsed.confidence&&"Confidence: "+parsed.confidence}
-                                  {parsed.confidence&&parsed.horizon&&" / "}
-                                  {parsed.horizon&&"Horizon: "+parsed.horizon}
-                                </div>
-                              </div>
-                              <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5}}>
-                                <DI score={parsed.dots} sz={11} />
-                                <div style={{fontSize:10,color:vCol(parsed.verdict),opacity:0.7}}>{parsed.dots} of 5</div>
-                              </div>
-                            </div>
-
-                            {/* 3 sub-dimension scores */}
-                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:10}}>
-                              {[
-                                {label:"Fundamental", score:parsed.fundScore||3},
-                                {label:"Technical",   score:parsed.techScore||3},
-                                {label:"Sentiment",   score:parsed.sentScore||3},
-                              ].map(function(dim,i){
-                                var dc={5:{c:"#1a6a1a",e:"#c8e8c0",l:"Strong"},4:{c:"#2a7a2a",e:"#c8e8c0",l:"Bullish"},3:{c:"#b88000",e:"#faeeda",l:"Neutral"},2:{c:"#c03030",e:"#f5c0c0",l:"Bearish"},1:{c:"#8b0000",e:"#f5c0c0",l:"Weak"}};
-                                var sc=Math.max(1,Math.min(5,Math.round(dim.score)));
-                                return (
-                                  <div key={i} style={{background:sc>=4?"#EAF3DE":sc===3?"#FAEEDA":"#FCEBEB",borderRadius:8,padding:"9px 12px",textAlign:"center",border:"0.5px solid "+(sc>=4?"#7abd00":sc===3?"#d4a800":"#e08080")}}>
-                                    <div style={{fontSize:10,color:dc[sc]?dc[sc].c:"#b88000",opacity:0.8,marginBottom:3}}>{dim.label}</div>
-                                    <div style={{fontSize:13,fontWeight:700,color:dc[sc]?dc[sc].c:"#b88000",marginBottom:5}}>{dc[sc]?dc[sc].l:"Neutral"}</div>
-                                    <DI score={sc} sz={7} />
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            {/* Risk / Opportunity */}
-                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
-                              <div style={{padding:"10px 12px",background:"#FCEBEB",borderRadius:8,border:"0.5px solid #e08080"}}>
-                                <div style={{fontSize:9,color:"#c03030",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Key Risk</div>
-                                <div style={{fontSize:11,color:"#791F1F",lineHeight:1.65}}>{parsed.risk||"See full analysis above."}</div>
-                              </div>
-                              <div style={{padding:"10px 12px",background:"#EAF3DE",borderRadius:8,border:"0.5px solid #7abd00"}}>
-                                <div style={{fontSize:9,color:"#1a6a1a",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Key Opportunity</div>
-                                <div style={{fontSize:11,color:"#173404",lineHeight:1.65}}>{parsed.opportunity||"See full analysis above."}</div>
-                              </div>
-                            </div>
-
-                            {/* Summary narrative */}
-                            <div style={{padding:"12px 14px",background:"#1a1a14",borderRadius:8,borderLeft:"3px solid #c8f000"}}>
-                              <div style={{fontSize:9,color:"#c8f000",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>AI Insight Summary</div>
-                              <div style={{fontSize:12,color:"#aac4e8",lineHeight:1.85}}>{parsed.summary||insightCache["aiinsight"]}</div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div style={{color:"#aaa",fontSize:12,textAlign:"center",padding:"20px 0"}}>AI Insight is generating...</div>
-                        )}
-
-                        <div style={{marginTop:10,fontSize:11,color:"#bbb"}}>
-                          AI analysis by Claude Haiku. Data from Yahoo Finance + Massive.com. Not financial advice.
-                        </div>
-                        }
-                      </div>
-                    );
-                  })()}
-
-                  {/* Additional Information Tab */}
-                  {insightTab === "addlinfo" && (function() {
-                    function fmtB(v) {
-                      if (v == null) return "-";
-                      var a = Math.abs(v);
-                      var s = a >= 1e12 ? "$" + (a/1e12).toFixed(2) + "T"
-                            : a >= 1e9  ? "$" + (a/1e9).toFixed(1)  + "B"
-                            : a >= 1e6  ? "$" + (a/1e6).toFixed(0)  + "M" : "$" + a.toFixed(0);
-                      return v < 0 ? "-" + s : s;
-                    }
-                    var SectionTitle = function(props) {
-                      return (
-                        <div style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10, marginTop: props.top ? 0 : 20, paddingTop: props.top ? 0 : 16, borderTop: props.top ? "none" : "1px solid #f0ede6", display:"flex", alignItems:"center", gap:6 }}>
-                          <span style={{ display:"inline-block", width:3, height:14, background: props.massive ? "#0066ff" : "#c8f000", borderRadius:2 }} />
-                          {props.children}
-                          <span style={{ fontSize:9, fontWeight:500, background: props.massive ? "#e6f0ff" : "#f0f7e0", color: props.massive ? "#0044cc" : "#3a6000", padding:"1px 6px", borderRadius:10 }}>{props.massive ? "Massive.com" : "Yahoo Finance"}</span>
-                        </div>
-                      );
-                    };
-                    return (
-                      <div style={{ fontSize:13 }}>
-
-                        {/* YAHOO SECTION */}
-                        <SectionTitle top={true}>Analyst Recommendations</SectionTitle>
-                        {ov && (ov.recBuy > 0 || ov.recHold > 0 || ov.recSell > 0) ? (
-                          <div>
-                            <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-                              {[["Buy", ov.recBuy, "#1a6a1a", "#e6f4e6"], ["Hold", ov.recHold, "#b88000", "#fdf8e6"], ["Sell", ov.recSell, "#c03030", "#fff0f0"]].map(function(r) {
-                                return r[1] > 0 ? (
-                                  <div key={r[0]} style={{ flex:1, textAlign:"center", padding:"10px 8px", background:r[3], borderRadius:8 }}>
-                                    <div style={{ fontSize:20, fontWeight:700, color:r[2] }}>{r[1]}</div>
-                                    <div style={{ fontSize:10, color:r[2], fontWeight:600, textTransform:"uppercase" }}>{r[0]}</div>
-                                  </div>
-                                ) : null;
-                              })}
-                            </div>
-                            {ov.recPeriod && <div style={{ fontSize:11, color:"#aaa" }}>Period: {ov.recPeriod}</div>}
-                          </div>
-                        ) : <div style={{ color:"#aaa" }}>No analyst data available.</div>}
-
-                        <SectionTitle>Recent Analyst Actions</SectionTitle>
-                        {ov && ov.upgrades && ov.upgrades.length > 0 ? (
-                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                            <thead>
-                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
-                                {["Date","Firm","Action","From","To"].map(function(h) {
-                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600 }}>{h}</td>;
-                                })}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {ov.upgrades.map(function(u, i) {
-                                var ac = (u.action||"").toLowerCase();
-                                var col = ac.includes("up") ? "#1a6a1a" : ac.includes("down") ? "#c03030" : "#888";
-                                return (
-                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
-                                    <td style={{ padding:"5px 8px", color:"#888" }}>{u.date}</td>
-                                    <td style={{ padding:"5px 8px", fontWeight:600 }}>{u.firm}</td>
-                                    <td style={{ padding:"5px 8px", color:col, fontWeight:600, textTransform:"capitalize" }}>{u.action}</td>
-                                    <td style={{ padding:"5px 8px", color:"#aaa" }}>{u.from || "-"}</td>
-                                    <td style={{ padding:"5px 8px", color:"#333", fontWeight:600 }}>{u.to || "-"}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        ) : <div style={{ color:"#aaa" }}>No recent analyst actions.</div>}
-
-                        <SectionTitle>Analyst Price Targets</SectionTitle>
-                        {ov && ov.targetMean > 0 ? (
-                          <div>
-                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:7, marginBottom:8 }}>
-                              {[
-                                ["Mean Target",   "$" + ov.targetMean.toFixed(2),   ov.targetMean   > (q ? q.price : 0) ? "#1a6a1a" : "#c03030"],
-                                ["High Target",   "$" + ov.targetHigh.toFixed(2),   "#1a6a1a"],
-                                ["Low Target",    "$" + ov.targetLow.toFixed(2),    "#c03030"],
-                                ["Median Target", "$" + ov.targetMedian.toFixed(2), "#b88000"],
-                              ].map(function(row, i) {
-                                return (
-                                  <div key={i} style={{ background:"#f9f7f4", borderRadius:8, padding:"8px 10px", textAlign:"center" }}>
-                                    <div style={{ fontSize:10, color:"#999", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
-                                    <div style={{ fontSize:15, fontWeight:700, color:row[2] }}>{row[1]}</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            <div style={{ fontSize:11, color:"#aaa" }}>
-                              {ov.numAnalysts > 0 ? ov.numAnalysts + " analysts" : ""}{ov.recKey ? " | Consensus: " + ov.recKey.toUpperCase() : ""}
-                            </div>
-                          </div>
-                        ) : <div style={{ color:"#aaa" }}>Analyst targets unavailable.</div>}
-
-                        <SectionTitle>Short Interest & Ownership</SectionTitle>
-                        {ov ? (
-                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:7, marginBottom:8 }}>
-                            {[
-                              ["Short Ratio",       ov.shortRatio   > 0 ? ov.shortRatio.toFixed(2) + " days" : "-"],
-                              ["Short % of Float",  ov.shortPct     > 0 ? (ov.shortPct * 100).toFixed(2) + "%" : "-"],
-                              ["Insider Owned",     ov.insiderPct   > 0 ? (ov.insiderPct * 100).toFixed(2) + "%" : "-"],
-                              ["Institution Owned", ov.institutionPct > 0 ? (ov.institutionPct * 100).toFixed(2) + "%" : "-"],
-                              ["Payout Ratio",      ov.payoutRatio  > 0 ? (ov.payoutRatio * 100).toFixed(2) + "%" : "-"],
-                              ["Book Value / Share", ov.bookValuePS  > 0 ? "$" + ov.bookValuePS.toFixed(2) : "-"],
-                            ].map(function(row, i) {
-                              return (
-                                <div key={i} style={{ background:"#f9f7f4", borderRadius:8, padding:"8px 10px" }}>
-                                  <div style={{ fontSize:10, color:"#999", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
-                                  <div style={{ fontSize:13, fontWeight:700, color:"#111" }}>{row[1]}</div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : <div style={{ color:"#aaa" }}>Ownership data unavailable.</div>}
-
-                        <SectionTitle>Top Institutional Holders</SectionTitle>
-                        {ov && ov.topHolders && ov.topHolders.length > 0 ? (
-                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                            <thead>
-                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
-                                {["Institution","% Held","Shares","Value","Date"].map(function(h) {
-                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600 }}>{h}</td>;
-                                })}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {ov.topHolders.map(function(h, i) {
-                                return (
-                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
-                                    <td style={{ padding:"5px 8px", fontWeight:600 }}>{h.name}</td>
-                                    <td style={{ padding:"5px 8px", color:"#1a6a1a", fontWeight:600 }}>{h.pct}</td>
-                                    <td style={{ padding:"5px 8px", color:"#888" }}>{h.shares}</td>
-                                    <td style={{ padding:"5px 8px", color:"#555" }}>{h.value}</td>
-                                    <td style={{ padding:"5px 8px", color:"#aaa" }}>{h.date}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        ) : <div style={{ color:"#aaa" }}>Institutional holder data unavailable.</div>}
-
-                        <SectionTitle>Insider Transactions</SectionTitle>
-                        {ov && ov.insiderTx && ov.insiderTx.length > 0 ? (
-                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                            <thead>
-                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
-                                {["Date","Name","Title","Transaction","Shares","Value"].map(function(h) {
-                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600 }}>{h}</td>;
-                                })}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {ov.insiderTx.map(function(t, i) {
-                                var isBuy = t.action && t.action.toLowerCase().includes("buy");
-                                return (
-                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
-                                    <td style={{ padding:"5px 8px", color:"#888" }}>{t.date}</td>
-                                    <td style={{ padding:"5px 8px", fontWeight:600 }}>{t.name}</td>
-                                    <td style={{ padding:"5px 8px", color:"#888", fontSize:11 }}>{t.title}</td>
-                                    <td style={{ padding:"5px 8px", color: isBuy ? "#1a6a1a" : "#c03030", fontWeight:600 }}>{t.action}</td>
-                                    <td style={{ padding:"5px 8px", textAlign:"right" }}>{t.shares ? t.shares.toLocaleString() : "-"}</td>
-                                    <td style={{ padding:"5px 8px", textAlign:"right" }}>{t.value ? "$" + (t.value/1e6).toFixed(1) + "M" : "-"}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        ) : <div style={{ color:"#aaa" }}>Insider transaction data unavailable.</div>}
-
-                        <SectionTitle>Recent SEC Filings</SectionTitle>
-                        {ov && ov.secFilings && ov.secFilings.length > 0 ? (
-                          <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-                            {ov.secFilings.map(function(f, i) {
-                              return (
-                                <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 10px", background:"#f9f7f4", borderRadius:6 }}>
-                                  <span style={{ background:"#111", color:"#c8f000", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:4, flexShrink:0 }}>{f.type}</span>
-                                  <span style={{ fontSize:12, color:"#555", flex:1 }}>{f.date}</span>
-                                  {f.url ? <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:"#0044cc" }}>View Filing</a> : null}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : <div style={{ color:"#aaa" }}>SEC filing data unavailable.</div>}
-
-                        <SectionTitle>Earnings Track Record (Last 4 Quarters)</SectionTitle>
-                        {ov && ov.earningsQ && ov.earningsQ.length > 0 ? (
-                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                            <thead>
-                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
-                                {["Quarter","Actual EPS","Est. EPS","Surprise","Surprise %"].map(function(h) {
-                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600, textAlign: h==="Quarter" ? "left" : "right" }}>{h}</td>;
-                                })}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {ov.earningsQ.map(function(q, i) {
-                                var beat = q.surprise > 0;
-                                return (
-                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
-                                    <td style={{ padding:"5px 8px", fontWeight:600 }}>{q.date}</td>
-                                    <td style={{ padding:"5px 8px", textAlign:"right", fontWeight:700, color: beat ? "#1a6a1a" : "#c03030" }}>{q.actual != null ? "$" + q.actual.toFixed(2) : "-"}</td>
-                                    <td style={{ padding:"5px 8px", textAlign:"right", color:"#888" }}>{q.estimate != null ? "$" + q.estimate.toFixed(2) : "-"}</td>
-                                    <td style={{ padding:"5px 8px", textAlign:"right", color: beat ? "#1a6a1a" : "#c03030" }}>{q.surprise != null ? (beat ? "+" : "") + "$" + q.surprise.toFixed(2) : "-"}</td>
-                                    <td style={{ padding:"5px 8px", textAlign:"right", fontWeight:600, color: beat ? "#1a6a1a" : "#c03030" }}>{q.surprisePct != null ? (beat ? "+" : "") + q.surprisePct.toFixed(1) + "%" : "-"}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        ) : <div style={{ color:"#aaa" }}>Earnings history unavailable.</div>}
-
-                        <SectionTitle>Key Financial Metrics</SectionTitle>
-                        {ov ? (
-                          <div>
-                            {[
-                              { group: "Valuation", rows: [
-                                ["P/E Ratio (TTM)",          ov.pe        > 0  ? ov.pe.toFixed(2)        : "-"],
-                                ["Forward P/E",              ov.fpe       > 0  ? ov.fpe.toFixed(2)       : "-"],
-                                ["PEG Ratio",                ov.peg       > 0  ? ov.peg.toFixed(2)       : "-"],
-                                ["Price / Sales (TTM)",      ov.ps        > 0  ? ov.ps.toFixed(2)        : "-"],
-                                ["Price / Book",             ov.pb        > 0  ? ov.pb.toFixed(2)        : "-"],
-                                ["EV / EBITDA",              ov.evEbitda  > 0  ? ov.evEbitda.toFixed(2)  : "-"],
-                                ["Price / FCF",              ov.pFcf      > 0  ? ov.pFcf.toFixed(2)      : "-"],
-                                ["Dividend Yield",           ov.divY      > 0  ? ov.divY.toFixed(2) + "%" : "-"],
-                              ]},
-                              { group: "Profitability", rows: [
-                                ["Gross Margin",             ov.grossMargin  ? ov.grossMargin.toFixed(2)  + "%" : "-"],
-                                ["Operating Margin",         ov.opMargin     ? ov.opMargin.toFixed(2)     + "%" : "-"],
-                                ["Net Profit Margin",        ov.netMargin    ? ov.netMargin.toFixed(2)    + "%" : "-"],
-                                ["Return on Equity (ROE)",   ov.roe          ? ov.roe.toFixed(2)          + "%" : "-"],
-                                ["Return on Assets (ROA)",   ov.roic         ? ov.roic.toFixed(2)         + "%" : "-"],
-                              ]},
-                              { group: "Growth", rows: [
-                                ["EPS Growth (TTM)",         ov.epsG      ? ov.epsG.toFixed(2)      + "%" : "-"],
-                                ["Revenue Growth YoY",       ov.revGrowth ? ov.revGrowth.toFixed(2) + "%" : "-"],
-                                ["LT EPS Growth (5yr Est.)", ov.ltG       ? ov.ltG.toFixed(2)       + "%" : "-"],
-                              ]},
-                              { group: "Financial Health", rows: [
-                                ["Current Ratio",            ov.currentRatio > 0 ? ov.currentRatio.toFixed(2) : "-"],
-                                ["Quick Ratio",              ov.quickRatio   > 0 ? ov.quickRatio.toFixed(2)   : "-"],
-                                ["Debt / Equity",            ov.de           > 0 ? ov.de.toFixed(2)           : "-"],
-                                ["Free Cash Flow",           ov.fcf          || "-"],
-                                ["Net Income (TTM)",         ov.netIncome    || "-"],
-                                ["Revenue (TTM)",            ov.revenue      || "-"],
-                              ]},
-                              { group: "Market Data", rows: [
-                                ["Market Cap",               ov.marketCap || "-"],
-                                ["Beta",                     ov.beta > 0 ? ov.beta.toFixed(2) : "-"],
-                                ["52-Week High",             ov.hi52 > 0 ? "$" + ov.hi52.toFixed(2) : "-"],
-                                ["52-Week Low",              ov.lo52 > 0 ? "$" + ov.lo52.toFixed(2) : "-"],
-                                ["Shares Outstanding",       ov.sharesOut > 0 ? (ov.sharesOut / 1e9).toFixed(3) + "B" : "-"],
-                              ]},
-                            ].map(function(section, si) {
-                              return (
-                                <div key={si} style={{ marginBottom:16 }}>
-                                  <div style={{ fontSize:10, fontWeight:700, color:"#c8f000", background:"#1a1a14", padding:"3px 8px", borderRadius:4, display:"inline-block", marginBottom:8, letterSpacing:"0.06em" }}>{section.group}</div>
-                                  <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                                    <tbody>
-                                      {section.rows.map(function(row, ri) {
-                                        return (
-                                          <tr key={ri} style={{ borderBottom:"1px solid #f5f2ec" }}>
-                                            <td style={{ padding:"5px 8px", fontSize:12, color:"#888", width:"55%" }}>{row[0]}</td>
-                                            <td style={{ padding:"5px 8px", fontSize:13, fontWeight:600, color:"#111", textAlign:"right" }}>{row[1]}</td>
-                                          </tr>
-                                        );
-                                      })}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : <div style={{ color:"#aaa" }}>Financial data loading...</div>}
-
-                        {/* MASSIVE SECTION */}
-                        <SectionTitle massive={true}>Market Snapshot</SectionTitle>
-                        {addlLoading ? (
-                          <div style={{ color:"#aaa", fontSize:12 }}>Loading...</div>
-                        ) : massiveInfo && massiveInfo.snapshot ? (function() {
-                          var s = massiveInfo.snapshot;
-                          var up = s.change >= 0;
-                          return (
-                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:7, marginBottom:4 }}>
-                              {[
-                                ["Open",       s.open      != null ? "$" + s.open.toFixed(2)      : "-"],
-                                ["High",       s.high      != null ? "$" + s.high.toFixed(2)      : "-"],
-                                ["Low",        s.low       != null ? "$" + s.low.toFixed(2)       : "-"],
-                                ["Close",      s.close     != null ? "$" + s.close.toFixed(2)     : "-"],
-                                ["VWAP",       s.vwap      != null ? "$" + s.vwap.toFixed(2)      : "-"],
-                                ["Volume",     s.volume    != null ? s.volume.toLocaleString()     : "-"],
-                                ["Prev Close", s.prevClose != null ? "$" + s.prevClose.toFixed(2) : "-"],
-                                ["Change %",   s.change    != null ? (up ? "+" : "") + s.change.toFixed(2) + "%" : "-"],
-                              ].map(function(row, i) {
-                                var isChange = row[0] === "Change %";
-                                return (
-                                  <div key={i} style={{ background:"#f0f3ff", borderRadius:8, padding:"8px 10px" }}>
-                                    <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
-                                    <div style={{ fontSize:13, fontWeight:700, color: isChange ? (up ? "#1a6a1a" : "#c03030") : "#111" }}>{row[1]}</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        })() : <div style={{ color:"#aaa" }}>Snapshot unavailable.</div>}
-
-                        <SectionTitle massive={true}>Technical Indicators</SectionTitle>
-                        {addlLoading ? (
-                          <div style={{ color:"#aaa", fontSize:12 }}>Loading...</div>
-                        ) : massiveInfo && massiveInfo.indicators ? (function() {
-                          var ind = massiveInfo.indicators;
-                          var price = q ? q.price : 0;
-                          function vsPrice(v) {
-                            if (!v || !price) return "";
-                            return price > v ? " (price above)" : " (price below)";
-                          }
-                          var macd = ind.macd;
-                          return (
-                            <div>
-                              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7, marginBottom:8 }}>
-                                {[
-                                  ["SMA 50-day",    ind.sma50   != null ? "$" + ind.sma50.toFixed(2)   + vsPrice(ind.sma50)   : "-"],
-                                  ["SMA 200-day",   ind.sma200  != null ? "$" + ind.sma200.toFixed(2)  + vsPrice(ind.sma200)  : "-"],
-                                  ["EMA 20-day",    ind.ema20   != null ? "$" + ind.ema20.toFixed(2)   + vsPrice(ind.ema20)   : "-"],
-                                  ["Weekly SMA 10", ind.wsma10  != null ? "$" + ind.wsma10.toFixed(2)  + vsPrice(ind.wsma10)  : "-"],
-                                  ["Weekly SMA 40", ind.wsma40  != null ? "$" + ind.wsma40.toFixed(2)  + vsPrice(ind.wsma40)  : "-"],
-                                  ["RSI (14)",      ind.rsi14   != null ? ind.rsi14.toFixed(2) + (ind.rsi14 > 70 ? " -- Overbought" : ind.rsi14 < 30 ? " -- Oversold" : " -- Neutral") : "-"],
-                                ].map(function(row, i) {
-                                  var isRsi = row[0].includes("RSI");
-                                  var rsiColor = isRsi && ind.rsi14 != null ? (ind.rsi14 > 70 ? "#c03030" : ind.rsi14 < 30 ? "#1a6a1a" : "#b88000") : "#111";
-                                  return (
-                                    <div key={i} style={{ background:"#f0f3ff", borderRadius:8, padding:"8px 10px" }}>
-                                      <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
-                                      <div style={{ fontSize:12, fontWeight:700, color: isRsi ? rsiColor : "#111" }}>{row[1]}</div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              {macd && (
-                                <div style={{ background:"#f0f3ff", borderRadius:8, padding:"10px 12px" }}>
-                                  <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:6 }}>MACD (12/26/9)</div>
-                                  <div style={{ display:"flex", gap:16 }}>
-                                    {[
-                                      ["MACD Line",  macd.macd      != null ? macd.macd.toFixed(4)      : "-"],
-                                      ["Signal",     macd.signal    != null ? macd.signal.toFixed(4)    : "-"],
-                                      ["Histogram",  macd.histogram != null ? macd.histogram.toFixed(4) : "-"],
-                                    ].map(function(r, i) {
-                                      var isHist = r[0] === "Histogram";
-                                      var histColor = isHist && macd.histogram != null ? (macd.histogram > 0 ? "#1a6a1a" : "#c03030") : "#111";
-                                      return (
-                                        <div key={i}>
-                                          <div style={{ fontSize:10, color:"#888" }}>{r[0]}</div>
-                                          <div style={{ fontSize:13, fontWeight:700, color: isHist ? histColor : "#111" }}>{r[1]}</div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })() : <div style={{ color:"#aaa" }}>Technical indicators unavailable.</div>}
-
-                        <SectionTitle massive={true}>Last Trade</SectionTitle>
-                        {massiveInfo && massiveInfo.lastTrade ? (function() {
-                          var lt = massiveInfo.lastTrade;
-                          var tradeTime = lt.time ? new Date(lt.time).toLocaleTimeString() : "-";
-                          return (
-                            <div style={{ display:"flex", gap:10 }}>
-                              {[
-                                ["Price",  lt.price != null ? "$" + lt.price.toFixed(2) : "-"],
-                                ["Size",   lt.size  != null ? lt.size.toLocaleString() + " shares" : "-"],
-                                ["Time",   tradeTime],
-                              ].map(function(row, i) {
-                                return (
-                                  <div key={i} style={{ flex:1, background:"#f0f3ff", borderRadius:8, padding:"8px 10px" }}>
-                                    <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
-                                    <div style={{ fontSize:13, fontWeight:700, color:"#111" }}>{row[1]}</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        })() : addlLoading ? null : <div style={{ color:"#aaa" }}>Last trade unavailable.</div>}
-
-                        <SectionTitle massive={true}>Price History (Last 30 Days)</SectionTitle>
-                        {massiveInfo && massiveInfo.aggs && massiveInfo.aggs.length > 0 ? (
-                          <div style={{ overflowX:"auto" }}>
-                            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                              <thead>
-                                <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
-                                  {["Date","Open","High","Low","Close","Volume","VWAP"].map(function(h) {
-                                    return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600, textAlign: h==="Date" ? "left" : "right" }}>{h}</td>;
-                                  })}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {massiveInfo.aggs.map(function(bar, i) {
-                                  var date = new Date(bar.t).toISOString().slice(0,10);
-                                  var up   = bar.c >= bar.o;
-                                  return (
-                                    <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
-                                      <td style={{ padding:"4px 8px", fontWeight:600 }}>{date}</td>
-                                      <td style={{ padding:"4px 8px", textAlign:"right", color:"#888" }}>${bar.o.toFixed(2)}</td>
-                                      <td style={{ padding:"4px 8px", textAlign:"right", color:"#1a6a1a" }}>${bar.h.toFixed(2)}</td>
-                                      <td style={{ padding:"4px 8px", textAlign:"right", color:"#c03030" }}>${bar.l.toFixed(2)}</td>
-                                      <td style={{ padding:"4px 8px", textAlign:"right", fontWeight:700, color: up ? "#1a6a1a" : "#c03030" }}>${bar.c.toFixed(2)}</td>
-                                      <td style={{ padding:"4px 8px", textAlign:"right", color:"#888" }}>{(bar.v / 1e6).toFixed(1)}M</td>
-                                      <td style={{ padding:"4px 8px", textAlign:"right", color:"#555" }}>{bar.vw ? "$" + bar.vw.toFixed(2) : "-"}</td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        ) : addlLoading ? <div style={{ color:"#aaa", fontSize:12 }}>Loading price history...</div> : <div style={{ color:"#aaa" }}>Price history unavailable.</div>}
-
-                        <SectionTitle massive={true}>Company News</SectionTitle>
-                        {addlLoading ? (
-                          <div style={{ color:"#aaa", fontSize:12 }}>Loading Massive.com data...</div>
-                        ) : massiveInfo && massiveInfo.news && massiveInfo.news.length > 0 ? (
-                          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                            {massiveInfo.news.map(function(article, i) {
-                              var daysAgo = article.published_utc ? Math.floor((Date.now() - new Date(article.published_utc).getTime()) / 86400000) : null;
-                              return (
-                                <div key={i} style={{ padding:"10px 12px", background:"#f9f7f4", borderRadius:8, borderLeft:"3px solid #0066ff" }}>
-                                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
-                                    <a href={article.article_url} target="_blank" rel="noopener noreferrer" style={{ fontSize:13, fontWeight:600, color:"#111", textDecoration:"none", lineHeight:1.4, flex:1 }}>
-                                      {article.title}
-                                    </a>
-                                    {article.image_url && (
-                                      <img src={article.image_url} alt="" style={{ width:60, height:40, objectFit:"cover", borderRadius:4, flexShrink:0 }} />
-                                    )}
-                                  </div>
-                                  <div style={{ display:"flex", gap:8, marginTop:5, fontSize:10, color:"#aaa" }}>
-                                    <span style={{ fontWeight:600, color:"#0044cc" }}>{article.publisher && article.publisher.name}</span>
-                                    <span>{daysAgo === 0 ? "Today" : daysAgo === 1 ? "Yesterday" : daysAgo + "d ago"}</span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : <div style={{ color:"#aaa" }}>News unavailable. Check MASSIVE_KEY in Cloudflare.</div>}
-
-                        <SectionTitle massive={true}>Company Reference</SectionTitle>
-                        {massiveInfo && massiveInfo.ticker ? (function() {
-                          var t = massiveInfo.ticker;
-                          return (
-                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                              {[
-                                ["Listed",         t.list_date || "-"],
-                                ["SIC Industry",   t.sic_description || "-"],
-                                ["Shares Outstanding", t.share_class_shares_outstanding ? (t.share_class_shares_outstanding / 1e6).toFixed(0) + "M" : "-"],
-                                ["Primary Exchange", t.primary_exchange || "-"],
-                              ].map(function(row, i) {
-                                return (
-                                  <div key={i} style={{ background:"#f0f3ff", borderRadius:8, padding:"8px 12px" }}>
-                                    <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
-                                    <div style={{ fontSize:13, fontWeight:600, color:"#111" }}>{row[1]}</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        })() : addlLoading ? null : <div style={{ color:"#aaa" }}>Company reference unavailable.</div>}
-
-                        <SectionTitle massive={true}>Dividends</SectionTitle>
-                        {massiveInfo && massiveInfo.dividends && massiveInfo.dividends.length > 0 ? (
-                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                            <thead>
-                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
-                                {["Ex-Date","Pay Date","Amount","Frequency"].map(function(h) {
-                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600 }}>{h}</td>;
-                                })}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {massiveInfo.dividends.slice(0,6).map(function(d, i) {
-                                return (
-                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
-                                    <td style={{ padding:"5px 8px" }}>{d.ex_dividend_date || "-"}</td>
-                                    <td style={{ padding:"5px 8px", color:"#888" }}>{d.pay_date || "-"}</td>
-                                    <td style={{ padding:"5px 8px", fontWeight:700, color:"#1a6a1a" }}>${d.cash_amount ? d.cash_amount.toFixed(4) : "-"}</td>
-                                    <td style={{ padding:"5px 8px", color:"#888", textTransform:"capitalize" }}>{d.frequency === 4 ? "Quarterly" : d.frequency === 2 ? "Semi-annual" : d.frequency === 1 ? "Annual" : "-"}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        ) : addlLoading ? null : <div style={{ color:"#aaa" }}>No dividend history found.</div>}
-
-                        <SectionTitle massive={true}>10-K Risk Factors (Latest Filing)</SectionTitle>
-                        {addlLoading ? (
-                          <div style={{ color:"#aaa", fontSize:12 }}>Loading...</div>
-                        ) : massiveInfo && massiveInfo.tenK && massiveInfo.tenK.riskFactors ? (
-                          <div>
-                            {massiveInfo.tenK.filingDate && <div style={{ fontSize:11, color:"#aaa", marginBottom:8 }}>Filing date: {massiveInfo.tenK.filingDate}</div>}
-                            <div style={{ fontSize:12, color:"#333", lineHeight:1.8, maxHeight:400, overflowY:"auto", padding:"10px 12px", background:"#f9f7f4", borderRadius:8, whiteSpace:"pre-wrap" }}>
-                              {massiveInfo.tenK.riskFactors.slice(0, 3000)}{massiveInfo.tenK.riskFactors.length > 3000 ? "..." : ""}
-                            </div>
-                          </div>
-                        ) : <div style={{ color:"#aaa" }}>Risk factors unavailable. Requires Massive.com Stocks Starter plan.</div>}
-
-                        <SectionTitle massive={true}>10-K Buffett Analysis (AI Summary)</SectionTitle>
-                        {addlLoading ? (
-                          <div style={{ color:"#aaa", fontSize:12 }}>Loading...</div>
-                        ) : massiveInfo && massiveInfo.tenK && (massiveInfo.tenK.business || massiveInfo.tenK.riskFactors) ? (function() {
-                          var [buffettSummary, setBuffettSummary] = [null, null];
-                          // Use insightCache for buffett summary
-                          var cacheKey = "buffett_" + sym;
-                          var cached = insightCache[cacheKey];
-                          if (!cached) {
-                            return (
-                              <div>
-                                <div style={{ fontSize:12, color:"#555", marginBottom:10 }}>Analyse this 10-K filing from a Warren Buffett perspective -- looking for durable competitive advantages, predictable earnings, strong management, and fair value.</div>
-                                <button onClick={function() {
-                                  setInsightCache(function(prev) {
-                                    var next = Object.assign({}, prev);
-                                    next[cacheKey] = "loading";
-                                    return next;
-                                  });
-                                  var bizText   = (massiveInfo.tenK.business    || "").slice(0, 2000);
-                                  var riskText  = (massiveInfo.tenK.riskFactors || "").slice(0, 1500);
-                                  fetch("/anthropic", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                      model: "claude-haiku-4-5-20251001",
-                                      max_tokens: 900,
-                                      messages: [{ role: "user", content: "You are Warren Buffett analysing a 10-K. For " + sym + ", analyse: 1. Business Quality 2. Competitive Moat 3. Management Quality 4. Financial Strength 5. Key Risks 6. Buffett Verdict (buy/hold/avoid and why). Be concise.\n\nBUSINESS SECTION:\n" + bizText + "\n\nRISK FACTORS:\n" + riskText }]
-                                    })
-                                  }).then(function(r) { return r.json(); })
-                                    .then(function(d) {
-                                      var text = d && d.content && d.content[0] && d.content[0].text;
-                                      setInsightCache(function(prev) {
-                                        var next = Object.assign({}, prev);
-                                        next[cacheKey] = text || "Analysis unavailable.";
-                                        return next;
-                                      });
-                                    }).catch(function() {
-                                      setInsightCache(function(prev) {
-                                        var next = Object.assign({}, prev);
-                                        next[cacheKey] = "Analysis failed. Please try again.";
-                                        return next;
-                                      });
-                                    });
-                                }} style={{ padding:"8px 18px", background:"#111", color:"#c8f000", border:"none", borderRadius:6, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
-                                  Generate Buffett Analysis
-                                </button>
-                              </div>
-                            );
-                          }
-                          if (cached === "loading") {
-                            return (
-                              <div style={{ textAlign:"center", padding:"20px 0" }}>
-                                <div style={{ fontSize:12, color:"#888", marginBottom:10 }}>Generating Buffett-style analysis...</div>
-                                <div style={{ display:"inline-block", width:22, height:22, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
-                              </div>
-                            );
-                          }
-                          return (
-                            <div style={{ fontSize:13, color:"#333", lineHeight:1.85, padding:"12px 14px", background:"#f9f7f4", borderRadius:8, borderLeft:"3px solid #c8f000" }}>
-                              {cached}
-                            </div>
-                          );
-                        })() : <div style={{ color:"#aaa" }}>10-K data required. Available with Massive.com Stocks Starter plan.</div>}
-
-                        <SectionTitle massive={true}>Stock Splits</SectionTitle>
-                        {massiveInfo && massiveInfo.splits && massiveInfo.splits.length > 0 ? (
-                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                            <thead>
-                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
-                                {["Date","Split Ratio"].map(function(h) {
-                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600 }}>{h}</td>;
-                                })}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {massiveInfo.splits.map(function(s, i) {
-                                return (
-                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
-                                    <td style={{ padding:"5px 8px", fontWeight:600 }}>{s.execution_date}</td>
-                                    <td style={{ padding:"5px 8px" }}>{s.split_to} for {s.split_from}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        ) : addlLoading ? null : <div style={{ color:"#aaa" }}>No stock split history found.</div>}
-
-                        {/* SimFin Data Explorer */}
-                        {(function() {
-                        if (!window.__simfinData) window.__simfinData = {};
-                        if (!window.__simfinLoading) window.__simfinLoading = {};
-                        var sfKey = sym;
-                        var sfData    = window.__simfinData[sfKey];
-                        var sfLoading = window.__simfinLoading[sfKey];
-
-                        if (!sfData && !sfLoading) {
-                          window.__simfinLoading[sfKey] = true;
-                          fetch("/simfin?sym=" + sym)
-                            .then(function(r) { return r.text(); })
-                            .then(function(txt) {
-                              var d;
-                              try { d = JSON.parse(txt); }
-                              catch(e) { d = { error: "Worker returned non-JSON. First 300 chars: " + txt.slice(0, 300) }; }
-                              window.__simfinData[sfKey]    = d;
-                              window.__simfinLoading[sfKey] = false;
-                              // Log SimFin result to Debug tab
-                              var sfBsCols = d.balance && Array.isArray(d.balance) && d.balance[0] && d.balance[0].statements ? d.balance[0].statements[0].columns : [];
-                              var sfPlCols = d.income  && Array.isArray(d.income)  && d.income[0]  && d.income[0].statements  ? d.income[0].statements[0].columns   : [];
-                              setDebugLog(function(prev) { return prev.concat([
-                                {
-                                  time:  new Date().toISOString(),
-                                  label: "SimFin fetch complete -- " + (d.ok ? "OK" : "ERROR: " + (d.error || "unknown")),
-                                  data:  {
-                                    status_pl: d.diag ? d.diag.status_pl : null,
-                                    status_bs: d.diag ? d.diag.status_bs : null,
-                                    incomeRows:  sfPlCols.length > 0 ? d.income[0].statements[0].data.length + " rows" : (d.income && d.income.error ? "ERROR: " + (d.income.error || d.income.message) : "no data"),
-                                    balanceRows: sfBsCols.length > 0 ? d.balance[0].statements[0].data.length + " rows" : (d.balance && d.balance.error ? "ERROR: " + d.balance.error : "no data"),
-                                  }
-                                },
-                                {
-                                  time:  new Date().toISOString(),
-                                  label: "SimFin BS columns (" + sfBsCols.length + " total)",
-                                  data:  sfBsCols
-                                },
-                                {
-                                  time:  new Date().toISOString(),
-                                  label: "SimFin PL columns (" + sfPlCols.length + " total)",
-                                  data:  sfPlCols
-                                },
-                                {
-                                  time:  new Date().toISOString(),
-                                  label: "SimFin BS latest row (most recent year)",
-                                  data:  sfBsCols.length > 0 ? (function() {
-                                    var rows = d.balance[0].statements[0].data;
-                                    // SimFin returns oldest first - take last row for most recent
-                                    var row = rows[rows.length - 1];
-                                    var obj = {};
-                                    sfBsCols.forEach(function(k, i) { obj[k] = row[i]; });
-                                    return obj;
-                                  })() : "no data"
-                                }
-                              ]); });
-                              setInsightTab("addlinfo");
-                            })
-                            .catch(function(e) {
-                              var errMsg = "Fetch failed: " + String(e);
-                              window.__simfinData[sfKey]    = { error: errMsg };
-                              window.__simfinLoading[sfKey] = false;
-                              setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "SimFin fetch FAILED", data: { error: errMsg } }]); });
-                              setInsightTab("addlinfo");
-                            });
-                        }
-
-                        return (
-                          <div style={{ marginTop:24, borderTop:"2px solid #e0dbd0", paddingTop:16 }}>
-                            <div style={{ fontSize:13, fontWeight:700, color:"#111", marginBottom:12 }}>SimFin Data Explorer</div>
-                            {sfLoading && !sfData && (
-                              <div style={{ display:"flex", alignItems:"center", gap:8, color:"#aaa", fontSize:12 }}>
-                                <div style={{ width:14, height:14, border:"2px solid #e0dbd0", borderTop:"2px solid #c8f000", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}></div>
-                                Loading SimFin data...
-                              </div>
-                            )}
-                            {sfData && sfData.error && (
-                              <div style={{ fontSize:12, color:"#c03030", background:"#fff0f0", padding:"8px 12px", borderRadius:6, border:"0.5px solid #e08080" }}>
-                                SimFin error: {sfData.error}
-                              </div>
-                            )}
-                            {sfData && sfData.ok && (function() {
-                              function parseCompact(stmt) {
-                                if (!stmt || typeof stmt !== "object") return null;
-                                if (!Array.isArray(stmt)) return null; // error object
-                                if (stmt.length === 0) return null;
-                                var company = stmt[0];
-                                if (!company) return null;
-                                var stmtArr = company.statements;
-                                var s = (stmtArr && stmtArr.length > 0) ? stmtArr[0] : company;
-                                if (!s || !s.columns || !s.data) return null;
-                                var cols = s.columns;
-                                return s.data.map(function(row) {
-                                  var obj = {};
-                                  cols.forEach(function(col, ci) { obj[col] = row[ci]; });
-                                  return obj;
-                                }).filter(function(row) {
-                                  return row["Fiscal Period"] === "FY" || !row["Fiscal Period"];
-                                }).sort(function(a, b) {
-                                  return (b["Fiscal Year"] || 0) - (a["Fiscal Year"] || 0);
-                                });
-                              }
-
-                              function fmtV(v) {
-                                if (v == null || v === "") return "-";
-                                if (typeof v === "number") {
-                                  var a = Math.abs(v);
-                                  if (a >= 1e9)  return (v < 0 ? "-" : "") + "$" + (a/1e9).toFixed(2) + "B";
-                                  if (a >= 1e6)  return (v < 0 ? "-" : "") + "$" + (a/1e6).toFixed(0) + "M";
-                                  if (a >= 1000) return (v < 0 ? "-" : "") + "$" + (a/1000).toFixed(0) + "K";
-                                  return String(parseFloat(v.toFixed(3)));
-                                }
-                                return String(v);
-                              }
-
-                              var income  = parseCompact(sfData.income);
-                              var balance = parseCompact(sfData.balance);
-
-                              var SKIP = { "Fiscal Year":1, "Fiscal Period":1, "Report Date":1, "Publish Date":1, "Restated":1, "Source":1, "TTM":1, "Value Check":1, "Data Model":1, "Currency":1, "SimFinId":1 };
-
-                              // Key income fields to highlight
-                              var incomeKey = ["Revenue", "Gross Profit", "Operating Income (Loss)", "Net Income", "Earnings Per Share, Diluted", "Earnings Per Share, Basic"];
-                              var incomeFields = (income && income.length > 0 && income[0]) ? incomeKey.filter(function(k) { return income[0][k] !== undefined; }) : [];
-                              // All remaining income fields
-                              var incomeAll = (income && income.length > 0 && income[0]) ? Object.keys(income[0]).filter(function(k) { return !SKIP[k] && incomeKey.indexOf(k) === -1; }) : [];
-
-                              // Key balance fields
-                              var balanceKey = ["Cash, Cash Equivalents & Short Term Investments", "Total Assets", "Long Term Debt", "Short Term Debt", "Total Liabilities", "Total Equity", "Shares (Common)"];
-                              var balanceFields = (balance && balance.length > 0 && balance[0]) ? balanceKey.filter(function(k) { return balance[0][k] !== undefined; }) : [];
-                              var balanceAll = (balance && balance.length > 0 && balance[0]) ? Object.keys(balance[0]).filter(function(k) { return !SKIP[k] && balanceKey.indexOf(k) === -1; }) : [];
-
-                              function SfTable(props) {
-                                if (!props.rows || props.rows.length === 0 || props.fields.length === 0) return null;
-                                var years = props.rows.slice(0, 8); // show up to 8 years
-                                return (
-                                  <div style={{ marginBottom:20 }}>
-                                    <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6 }}>{props.title}</div>
-                                    <div style={{ overflowX:"auto" }}>
-                                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-                                        <thead>
-                                          <tr style={{ background:"#f0ede8" }}>
-                                            <th style={{ padding:"5px 10px", textAlign:"left", color:"#555", fontWeight:600, borderBottom:"1px solid #e0dbd0", minWidth:200, whiteSpace:"nowrap" }}>Field</th>
-                                            {years.map(function(r, ri) {
-                                              return <th key={ri} style={{ padding:"5px 8px", textAlign:"right", color:"#555", fontWeight:600, borderBottom:"1px solid #e0dbd0", whiteSpace:"nowrap" }}>{r["Fiscal Year"] || ("Y" + ri)}</th>;
-                                            })}
-                                          </tr>
-                                        </thead>
-                                        <tbody>
-                                          {props.fields.map(function(field, fi) {
-                                            return (
-                                              <tr key={fi} style={{ borderBottom:"0.5px solid #f0ede8", background: fi % 2 === 0 ? "#fff" : "#faf8f5" }}>
-                                                <td style={{ padding:"4px 10px", color: props.highlight && props.highlight[field] ? "#111" : "#666", fontWeight: props.highlight && props.highlight[field] ? 600 : 400, whiteSpace:"nowrap" }}>{field}</td>
-                                                {years.map(function(r, ri) {
-                                                  return <td key={ri} style={{ padding:"4px 8px", textAlign:"right", color:"#333", fontWeight: props.highlight && props.highlight[field] ? 600 : 400 }}>{fmtV(r[field])}</td>;
-                                                })}
-                                              </tr>
-                                            );
-                                          })}
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                  </div>
-                                );
-                              }
-
-                              var incHighlight = {};
-                              incomeKey.forEach(function(k){ incHighlight[k] = true; });
-                              var balHighlight = {};
-                              balanceKey.forEach(function(k){ balHighlight[k] = true; });
-
-                              return (
-                                <div>
-                                  {income && income.error && (
-                                    <div style={{ fontSize:12, color:"#c03030", background:"#fff0f0", padding:"8px 12px", borderRadius:6, border:"0.5px solid #e08080", marginBottom:8 }}>
-                                      SimFin Income: {income.error}{income.status === "429" ? " -- quota resets daily" : ""}
-                                    </div>
-                                  )}
-                                  {balance && balance.error && (
-                                    <div style={{ fontSize:12, color:"#c03030", background:"#fff0f0", padding:"8px 12px", borderRadius:6, border:"0.5px solid #e08080", marginBottom:8 }}>
-                                      SimFin Balance: {balance.error}{balance.status === "429" ? " -- quota resets daily" : ""}
-                                    </div>
-                                  )}
-                                  <SfTable title="Income Statement" rows={income} fields={incomeFields.concat(incomeAll)} highlight={incHighlight} />
-                                  <SfTable title="Balance Sheet" rows={balance} fields={balanceFields.concat(balanceAll)} highlight={balHighlight} />
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        );
-                        })()}
-
-                      </div>
-                    );
-                  })()}
-
-                </div>
-                  {/* Market Signal Tab */}
-                  {insightTab === "signal" && (function() {
-                    // Market Signal tab -- uses revised 8-signal scoring (weekly/monthly horizon)
-                    // Same methodology as Technical Analysis scoring block
-                    var ind   = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
-                    var aggs  = massiveInfo && massiveInfo.aggs        ? massiveInfo.aggs        : [];
-                    var price = q ? q.price : 0;
-                    var hi52  = ov ? ov.hi52 : 0;
-                    var lo52  = ov ? ov.lo52 : 0;
-                    var rng52 = hi52 - lo52;
-                    var pos52 = rng52 > 0 ? (price - lo52) / rng52 : 0.5;
-
-                    var rsiHist  = ind ? (ind.rsiHistory  || []) : [];
-                    var macdHist = ind ? (ind.macdHistory || []) : [];
-
-                    var vol5  = aggs.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs.slice(0,5).length,1);
-                    var vol20 = aggs.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs.slice(0,20).length,1);
-                    var volRatio = vol20 > 0 ? vol5/vol20 : 1;
-
-                    function detectMacdTurning2() {
-                      if (macdHist.length < 3) return false;
-                      var h0=macdHist[0]&&macdHist[0].histogram, h1=macdHist[1]&&macdHist[1].histogram, h2=macdHist[2]&&macdHist[2].histogram;
-                      return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2;
-                    }
-                    function detectRsiDivergence2() {
-                      if (rsiHist.length<10||aggs.length<10) return false;
-                      var rPL=Math.min.apply(null,aggs.slice(0,5).map(function(a){return a.l;}));
-                      var pPL=Math.min.apply(null,aggs.slice(5,10).map(function(a){return a.l;}));
-                      var rRL=Math.min.apply(null,rsiHist.slice(0,5));
-                      var pRL=Math.min.apply(null,rsiHist.slice(5,10));
-                      return rPL<pPL&&rRL>pRL;
-                    }
-                    function detectWeeklyCross2()  { if(!ind||!ind.wsma10||!ind.wsma40) return false; return ind.wsma10<ind.wsma40&&Math.abs(ind.wsma10-ind.wsma40)/ind.wsma40<0.05; }
-                    function detectRsiBase2()       { if(rsiHist.length<3) return false; return rsiHist.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;}); }
-                    function detect52wkBase2()      { return pos52<0.20&&ind&&ind.rsi14!=null&&ind.rsi14>20&&ind.rsi14<45; }
-
-                    var macdTurning2   = detectMacdTurning2();
-                    var revSignals2    = [
-                      { label:"RSI Divergence",         active:detectRsiDivergence2(), note:"Price new low but RSI higher low" },
-                      { label:"MACD Histogram Turning", active:macdTurning2,           note:"Histogram negative but rising 3+ sessions" },
-                      { label:"Weekly SMA Cross Ahead", active:detectWeeklyCross2(),   note:"WSMA10 within 5% of WSMA40" },
-                      { label:"RSI Base Forming",       active:detectRsiBase2(),       note:"RSI stabilising in 28-52 range" },
-                      { label:"52-Wk Low Base",         active:detect52wkBase2(),      note:"Price in bottom 20% of range, RSI steadying" },
-                    ];
-                    var revCount2   = revSignals2.filter(function(r){return r.active;}).length;
-                    var bonusPer2   = 4;
-
-                    var W2 = { wsma:25, sma200:15, cross:10, pos52:5, rsi:20, macd:15, ema20:5, vol:5 };
-                    var trendKeys2    = ["wsma","sma200","cross","pos52"];
-                    var momentumKeys2 = ["rsi","macd","ema20","vol"];
-
-                    function sigScore2(key) {
-                      if (!ind || !price) return 3;
-                      var p=price, r=ind.rsi14, h=ind.macd?ind.macd.histogram:null;
-                      var g;
-                      if (key==="wsma")   { if(!ind.wsma10||!ind.wsma40) return 3; g=(ind.wsma10-ind.wsma40)/ind.wsma40*100; return g>5?5:g>1?4:g>-1?3:g>-5?2:1; }
-                      if (key==="sma200") { if(!ind.sma200) return 3; g=(p-ind.sma200)/ind.sma200*100; return g>10?5:g>2?4:g>-10?3:g>-20?2:1; }
-                      if (key==="cross")  { if(!ind.sma50||!ind.sma200) return 3; g=(ind.sma50-ind.sma200)/ind.sma200*100; return g>10?5:g>1?4:g>-1?3:g>-10?2:1; }
-                      if (key==="pos52")  { return pos52>0.80?5:pos52>0.55?4:pos52>0.35?3:pos52>0.15?2:1; }
-                      if (key==="rsi")    { if(r==null) return 3; return (r>=50&&r<=75)?5:(r>=40&&r<50)?4:(r>=30&&r<40||r>75)?3:(r>=20&&r<30)?2:1; }
-                      if (key==="macd")   { if(h==null) return 3; if(h>0.05) return 5; if(h>0) return 4; if(h>-0.05||macdTurning2) return 3; if(h>-0.50) return 2; return 1; }
-                      if (key==="ema20")  { if(!ind.ema20) return 3; g=(p-ind.ema20)/ind.ema20*100; return g>5?5:g>1?4:g>-5?3:g>-15?2:1; }
-                      if (key==="vol")    { return volRatio>1.4?5:volRatio>1.1?4:volRatio>0.9?3:volRatio>0.7?2:1; }
-                      return 3;
-                    }
-
-                    var scores2 = {}; trendKeys2.concat(momentumKeys2).forEach(function(k){ scores2[k]=sigScore2(k); });
-                    var base2=0; Object.keys(W2).forEach(function(k){base2+=(scores2[k]/5)*W2[k];}); base2=Math.round(base2);
-                    var bonus2 = base2<50?Math.min(revCount2*bonusPer2,12):0;
-                    var final2 = Math.min(base2+bonus2, base2<50?49:100);
-                    var tScore2 = Math.round((trendKeys2.reduce(function(s,k){return s+scores2[k];},0)/(trendKeys2.length*5))*100);
-                    var mScore2 = Math.round((momentumKeys2.reduce(function(s,k){return s+scores2[k];},0)/(momentumKeys2.length*5))*100);
-                    var showRW2 = revCount2>=2&&final2<50;
-
-                    function getVerdict2(s){return s>=70?"Strong Bullish":s>=55?"Bullish":s>=40?"Neutral":s>=25?"Bearish":"Strong Bearish";}
-                    var verdict2=getVerdict2(final2);
-                    var vColMap2={"Strong Bullish":"#1a6a1a","Bullish":"#2a7a2a","Neutral":"#b88000","Bearish":"#c03030","Strong Bearish":"#8b0000"};
-                    var vBgMap2 ={"Strong Bullish":"#EAF3DE","Bullish":"#EAF3DE","Neutral":"#FAEEDA","Bearish":"#FCEBEB","Strong Bearish":"#FCEBEB"};
-                    var vDotMap2={"Strong Bullish":5,"Bullish":4,"Neutral":3,"Bearish":2,"Strong Bearish":1};
-                    var vCol2=vColMap2[verdict2]; var vBg2=vBgMap2[verdict2]; var vDot2=vDotMap2[verdict2];
-                    var scColMap2={5:"#1a6a1a",4:"#2a7a2a",3:"#b88000",2:"#c03030",1:"#8b0000"};
-                    var scEmMap2 ={5:"#c8e8c0",4:"#c8e8c0",3:"#faeeda",2:"#f5c0c0",1:"#f5c0c0"};
-                    var scLbMap2 ={5:"Strong Bullish",4:"Bullish",3:"Neutral",2:"Bearish",1:"Strong Bearish"};
-
-                    function Dots2(props) {
-                      var col=scColMap2[props.score]||"#b88000", em=scEmMap2[props.score]||"#faeeda", d=[];
-                      for(var i=1;i<=5;i++) d.push(<span key={i} style={{display:"inline-block",width:props.sz||8,height:props.sz||8,borderRadius:"50%",background:i<=props.score?col:em,marginRight:2}}/>);
-                      return <span style={{display:"inline-flex",alignItems:"center"}}>{d}</span>;
-                    }
-
-                    if (!ind || !price) return (
-                      <div style={{textAlign:"center",padding:"40px 0",color:"#aaa"}}>
-                        {addlLoading?"Loading market signal data...":"Market signal data unavailable. Massive.com data required."}
-                      </div>
-                    );
-
-                    var SIGS2 = [
-                      {key:"wsma", cat:"Trend",    w:25, label:"Weekly SMA10 vs 40", val:ind.wsma10&&ind.wsma40?"$"+ind.wsma10.toFixed(2)+" vs $"+ind.wsma40.toFixed(2):"-"},
-                      {key:"sma200",cat:"Trend",   w:15, label:"Price vs SMA 200",   val:ind.sma200?"$"+price.toFixed(2)+" vs $"+ind.sma200.toFixed(2):"-"},
-                      {key:"cross",cat:"Trend",    w:10, label:"Golden/Death Cross", val:ind.sma50&&ind.sma200?(ind.sma50>ind.sma200?"Golden":"Death")+" ($"+ind.sma50.toFixed(2)+" vs $"+ind.sma200.toFixed(2)+")":"-"},
-                      {key:"pos52",cat:"Trend",    w:5,  label:"52-Week Position",   val:hi52>0?(pos52*100).toFixed(0)+"% of range":"-"},
-                      {key:"rsi",  cat:"Momentum", w:20, label:"RSI (14-day)",       val:ind.rsi14!=null?ind.rsi14.toFixed(1):"-"},
-                      {key:"macd", cat:"Momentum", w:15, label:"MACD Histogram",     val:ind.macd&&ind.macd.histogram!=null?ind.macd.histogram.toFixed(4)+(macdTurning2?" (turning)":""):"-"},
-                      {key:"ema20",cat:"Momentum", w:5,  label:"Price vs EMA 20",    val:ind.ema20?"$"+price.toFixed(2)+" vs $"+ind.ema20.toFixed(2):"-"},
-                      {key:"vol",  cat:"Momentum", w:5,  label:"Volume Ratio 5/20d", val:aggs.length>0?volRatio.toFixed(2)+"x avg volume":"-"},
-                    ];
-
-                    return (
-                      <div>
-                        {/* Overall verdict */}
-                        <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:vBg2,borderRadius:9,border:"0.5px solid "+vCol2,marginBottom:16}}>
-                          <div style={{width:58,height:58,borderRadius:9,background:vCol2,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",flexShrink:0}}>
-                            <span style={{fontSize:22,fontWeight:900,color:"#fff",lineHeight:1}}>{final2}</span>
-                            <span style={{fontSize:9,color:"rgba(255,255,255,0.65)"}}>/100</span>
-                          </div>
-                          <div style={{flex:1}}>
-                            <div style={{fontSize:10,color:vCol2,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:2}}>Market Signal -- {sym}</div>
-                            <div style={{fontSize:18,fontWeight:900,color:vCol2,marginBottom:4}}>{verdict2}</div>
-                            {showRW2&&<div style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,color:"#633806",background:"#FAEEDA",padding:"2px 8px",borderRadius:10,border:"0.5px solid #EF9F27"}}>
-                              <span style={{width:6,height:6,borderRadius:"50%",background:"#BA7517",display:"inline-block"}}/>
-                              Reversal Watch -- {revCount2} signals
-                            </div>}
-                          </div>
-                          <div style={{display:"flex",gap:7,flexShrink:0}}>
-                            <div style={{textAlign:"center",padding:"5px 10px",background:"rgba(255,255,255,0.45)",borderRadius:7}}>
-                              <div style={{fontSize:9,color:vCol2}}>Trend</div>
-                              <div style={{fontSize:15,fontWeight:700,color:vCol2}}>{tScore2}</div>
-                            </div>
-                            <div style={{textAlign:"center",padding:"5px 10px",background:"rgba(255,255,255,0.45)",borderRadius:7}}>
-                              <div style={{fontSize:9,color:vCol2}}>Momentum</div>
-                              <div style={{fontSize:15,fontWeight:700,color:vCol2}}>{mScore2}</div>
-                            </div>
-                          </div>
-                          <Dots2 score={vDot2} sz={10}/>
-                        </div>
-
-                        {/* Trend signals */}
-                        <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Trend {"&"} Price Action <span style={{fontWeight:400,color:"#bbb"}}>55%</span></div>
-                        {SIGS2.filter(function(s){return s.cat==="Trend";}).map(function(sig){
-                          var sc=scores2[sig.key],col=scColMap2[sc],lbl=scLbMap2[sc],pts=Math.round((sc/5)*sig.w);
-                          return (<div key={sig.key} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"0.5px solid #f5f2ec"}}>
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontSize:11,fontWeight:700,color:"#111",marginBottom:1}}>{sig.label}</div>
-                              <div style={{fontSize:10,color:"#999"}}>{sig.val}</div>
-                            </div>
-                            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}}>
-                              <Dots2 score={sc} sz={7}/>
-                              <span style={{fontSize:9,fontWeight:600,color:col}}>{lbl}</span>
-                              <span style={{fontSize:9,color:"#bbb"}}>{pts}/{sig.w}pts</span>
-                            </div>
-                          </div>);
-                        })}
-
-                        {/* Momentum signals */}
-                        <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,marginTop:14,paddingTop:12,borderTop:"0.5px solid #f0ede6"}}>Momentum <span style={{fontWeight:400,color:"#bbb"}}>45%</span></div>
-                        {SIGS2.filter(function(s){return s.cat==="Momentum";}).map(function(sig){
-                          var sc=scores2[sig.key],col=scColMap2[sc],lbl=scLbMap2[sc],pts=Math.round((sc/5)*sig.w);
-                          return (<div key={sig.key} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"0.5px solid #f5f2ec"}}>
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:1}}>
-                                <span style={{fontSize:11,fontWeight:700,color:"#111"}}>{sig.label}</span>
-                                {sig.key==="vol"&&<span style={{fontSize:9,fontWeight:600,color:"#0C447C",background:"#E6F1FB",padding:"1px 5px",borderRadius:5}}>new</span>}
-                              </div>
-                              <div style={{fontSize:10,color:"#999"}}>{sig.val}</div>
-                            </div>
-                            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}}>
-                              <Dots2 score={sc} sz={7}/>
-                              <span style={{fontSize:9,fontWeight:600,color:col}}>{lbl}</span>
-                              <span style={{fontSize:9,color:"#bbb"}}>{pts}/{sig.w}pts</span>
-                            </div>
-                          </div>);
-                        })}
-
-                        {/* Reversal Detection */}
-                        <div style={{marginTop:14,paddingTop:12,borderTop:"0.5px solid #f0ede6"}}>
-                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:9}}>
-                            <div style={{fontSize:10,fontWeight:700,color:"#854F0B",textTransform:"uppercase",letterSpacing:"0.07em"}}>Reversal Detection</div>
-                            {revCount2>0
-                              ?<div style={{fontSize:10,color:"#633806",background:"#FAEEDA",padding:"2px 9px",borderRadius:8,border:"0.5px solid #EF9F27",fontWeight:600}}>{revCount2} active -- total bonus <span style={{color:"#1a6a1a"}}>+{bonus2}pts</span></div>
-                              :<div style={{fontSize:10,color:"#bbb"}}>0 active -- 0 pts</div>
-                            }
-                          </div>
-                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:10}}>
-                            {revSignals2.map(function(rv,i){
-                              var pts=rv.active?bonusPer2:0;
-                              return (<div key={i} style={{display:"flex",alignItems:"center",gap:7,padding:"7px 9px",background:rv.active?"#FAEEDA":"#fafaf8",borderRadius:7,border:"0.5px solid "+(rv.active?"#EF9F27":"#e8e4dc")}}>
-                                <div style={{width:17,height:17,borderRadius:"50%",background:rv.active?"#BA7517":"#d0ccc5",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                                  <span style={{fontSize:9,fontWeight:700,color:"#fff"}}>{rv.active?"!":"-"}</span>
-                                </div>
-                                <div style={{flex:1,minWidth:0}}>
-                                  <div style={{fontSize:10,fontWeight:rv.active?700:400,color:rv.active?"#412402":"#aaa"}}>{rv.label}</div>
-                                  <div style={{fontSize:9,color:rv.active?"#633806":"#bbb"}}>{rv.note}</div>
-                                </div>
-                                <div style={{flexShrink:0}}>
-                                  {rv.active?<span style={{fontSize:10,fontWeight:700,color:"#27500A",background:"#EAF3DE",padding:"2px 7px",borderRadius:6,border:"0.5px solid #7abd00"}}>+{pts}pts</span>:<span style={{fontSize:10,color:"#ccc"}}>0pts</span>}
-                                </div>
-                              </div>);
-                            })}
-                          </div>
-                          {/* Calculation strip */}
-                          <div style={{padding:"9px 12px",background:"#f9f7f4",borderRadius:8,border:"0.5px solid #e8e4dc"}}>
-                            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                              <div style={{padding:"3px 9px",background:vBg2,borderRadius:5,border:"0.5px solid "+vCol2,fontSize:11,fontWeight:600,color:vCol2}}>Base {base2}</div>
-                              <span style={{fontSize:11,color:"#bbb"}}>+</span>
-                              <div style={{padding:"3px 9px",background:bonus2>0?"#EAF3DE":"#f5f5f5",borderRadius:5,border:"0.5px solid "+(bonus2>0?"#7abd00":"#ddd"),fontSize:11,fontWeight:600,color:bonus2>0?"#27500A":"#bbb"}}>Bonus +{bonus2}</div>
-                              <span style={{fontSize:11,color:"#bbb"}}>=</span>
-                              <div style={{padding:"3px 10px",background:vCol2,borderRadius:5,fontSize:12,fontWeight:700,color:"#fff"}}>{final2}/100 {verdict2}</div>
-                              {base2>=50&&<span style={{fontSize:10,color:"#aaa"}}>(bonus only when base {"<"} 50)</span>}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div style={{marginTop:10,fontSize:11,color:"#bbb"}}>
-                          Powered by Massive.com real-time data. Weekly/monthly horizon. Not financial advice.
-                        </div>
-                        }
-                      </div>
-                    );
-                  })()}
-
-                  {/* Debug Tab */}
-                  {insightTab === "debug" && (function() {
-                    var envChecks = [
-                      { key: "ANTHROPIC_KEY", note: "Required for AI tabs (Moat, Financial, Technical)" },
-                      { key: "MASSIVE_KEY",   note: "Required for Company News, Reference, Dividends, Splits" },
-                      { key: "FINNHUB_KEY",   note: "Optional - not currently used" },
-                      { key: "FMP_KEY",       note: "Optional - Financial Modeling Prep" },
-                      { key: "AV_KEY",        note: "Optional - Alpha Vantage" },
-                    ];
-                    return (
-                      <div style={{ fontSize:12 }}>
-                        <div style={{ fontSize:13, fontWeight:700, color:"#111", marginBottom:12 }}>Debug Panel -- {sym}</div>
-
-                        {/* API Endpoint Status */}
-                        <div style={{ fontWeight:700, color:"#555", fontSize:11, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>Quick Links -- test in browser</div>
-                        <div style={{ display:"flex", flexDirection:"column", gap:5, marginBottom:16 }}>
-                          {[
-                            { label: "Yahoo Quote",       url: "/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + sym + "?interval=1d&range=1d") },
-                            { label: "Yahoo quoteSummary",url: "/proxy?url=" + encodeURIComponent("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym + "?modules=summaryDetail,financialData") },
-                            { label: "Massive /massive",  url: "/massive?sym=" + sym },
-                            { label: "Anthropic /anthropic (POST)", url: null },
-                          ].map(function(item, i) {
-                            return (
-                              <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", background:"#f5f2ec", borderRadius:6 }}>
-                                <span style={{ fontSize:11, fontWeight:600, color:"#555", width:180, flexShrink:0 }}>{item.label}</span>
-                                {item.url ? (
-                                  <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:"#0044cc", wordBreak:"break-all" }}>{item.url}</a>
-                                ) : (
-                                  <span style={{ fontSize:11, color:"#aaa" }}>POST only -- use browser DevTools</span>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Cloudflare Env Vars */}
-                        <div style={{ fontWeight:700, color:"#555", fontSize:11, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>Cloudflare Environment Variables</div>
-                        <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:16 }}>
-                          <thead>
-                            <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
-                              {["Variable","Purpose","Check"].map(function(h) { return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600, fontSize:11 }}>{h}</td>; })}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {envChecks.map(function(e, i) {
-                              return (
-                                <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
-                                  <td style={{ padding:"5px 8px", fontWeight:700, fontFamily:"monospace", color:"#111" }}>{e.key}</td>
-                                  <td style={{ padding:"5px 8px", color:"#888" }}>{e.note}</td>
-                                  <td style={{ padding:"5px 8px" }}>
-                                    <a href={"https://nervousgeek.com/massive?sym=" + sym} target="_blank" rel="noopener noreferrer" style={{ fontSize:10, color:"#0044cc" }}>
-                                      {e.key === "MASSIVE_KEY" ? "Test ->" : ""}
-                                    </a>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-
-                        {/* State Snapshot */}
-                        <div style={{ fontWeight:700, color:"#555", fontSize:11, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>Current State</div>
-                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:16 }}>
-                          {[
-                            ["Quote loaded",      q ? "YES" : "NO",       q ? "#1a6a1a" : "#c03030"],
-                            ["Overview loaded",   ov ? "YES" : "NO",      ov ? "#1a6a1a" : "#c03030"],
-                            ["EPS History",       epsHistory ? epsHistory.length + " rows" : "null", epsHistory ? "#1a6a1a" : "#c03030"],
-                            ["Massive data",      massiveInfo ? "YES (news:" + (massiveInfo.news ? massiveInfo.news.length : 0) + ")" : "null", massiveInfo ? "#1a6a1a" : "#c03030"],
-                            ["Moat insight",      insightCache["moat"]     ? "YES" : "pending", insightCache["moat"]     ? "#1a6a1a" : "#888"],
-                            ["Financial insight", insightCache["financial"] ? "YES" : "pending", insightCache["financial"] ? "#1a6a1a" : "#888"],
-                            ["Technical insight", insightCache["technical"] ? "YES" : "pending", insightCache["technical"] ? "#1a6a1a" : "#888"],
-                            ["Addl loading",      addlLoading ? "YES" : "NO", addlLoading ? "#b88000" : "#1a6a1a"],
-                          ].map(function(row, i) {
-                            return (
-                              <div key={i} style={{ padding:"6px 10px", background:"#f9f7f4", borderRadius:6, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                                <span style={{ color:"#888", fontSize:11 }}>{row[0]}</span>
-                                <span style={{ fontWeight:700, fontSize:12, color:row[2] }}>{row[1]}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Event Log */}
-                        <div style={{ fontWeight:700, color:"#555", fontSize:11, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>Event Log</div>
-                        {debugLog.length === 0 ? (
-                          <div style={{ color:"#aaa", fontSize:12 }}>No events logged yet. Switch to another tab and come back.</div>
-                        ) : (
-                          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                            {debugLog.map(function(entry, i) {
-                              return (
-                                <div key={i} style={{ background:"#1a1a14", borderRadius:6, padding:"8px 12px" }}>
-                                  <div style={{ fontSize:10, color:"#7abd00", marginBottom:4 }}>{entry.time} -- {entry.label}</div>
-                                  {entry.data && (
-                                    <pre style={{ fontSize:10, color:"#c8f000", margin:0, whiteSpace:"pre-wrap", wordBreak:"break-all", maxHeight:200, overflowY:"auto" }}>{JSON.stringify(entry.data, null, 2)}</pre>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        <div style={{ marginTop:14, padding:"8px 12px", background:"#fff8e6", borderRadius:6, fontSize:11, color:"#854F0B" }}>
-                          Remove or hide this tab before going to production.
-                        </div>
-                        }
-                      </div>
-                    );
-                  })()}
-
-            {insightTab === "admin" && (function() {
-              var FREE = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
-              var AI_TABS = ["moat","financial","aiinsight"];
-              var NAMES_SHORT = { NVDA:"NVIDIA", AAPL:"Apple", MSFT:"Microsoft", AMZN:"Amazon", GOOGL:"Alphabet", AVGO:"Broadcom", META:"Meta", TSLA:"Tesla", LLY:"Eli Lilly", BRKB:"Berkshire B" };
-
-              var liveSet  = adminCfg  || FREE.slice();
-              var statsMap = adminStats || {};
-
-              function fmtAge(iso) {
-                if (!iso) return null;
-                var diff = Date.now() - new Date(iso).getTime();
-                var mins = Math.floor(diff / 60000);
-                var hrs  = Math.floor(mins / 60);
-                var days = Math.floor(hrs / 24);
-                if (days > 0) return days + "d ago";
-                if (hrs > 0)  return hrs + "h ago";
-                if (mins > 0) return mins + "m ago";
-                return "just now";
-              }
-              function fmtDate(iso) {
-                if (!iso) return null;
-                var d = new Date(iso);
-                return d.toLocaleDateString("en-AU", { day:"2-digit", month:"short", year:"numeric" }) + " " + d.toLocaleTimeString("en-AU", { hour:"2-digit", minute:"2-digit" });
-              }
-
-              return (
-                <div style={{ padding:"20px 24px" }}>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-                    <div>
-                      <div style={{ fontSize:13, fontWeight:700, color:"#f0ede6" }}>Cache Manager</div>
-                      <div style={{ fontSize:11, color:"#555", marginTop:3 }}>Toggle live or cached per ticker. Cached serves stored AI result at no cost.</div>
-                    </div>
-                    <button
-                      onClick={function() {
-                        window.__adminCfgLoaded = false;
-                        setAdminCfg(null);
-                        setAdminStats({});
-                      }}
-                      style={{ fontSize:11, color:"#c8f000", background:"none", border:"1px solid #2a5020", borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:FONT }}>
-                      {String.fromCharCode(0x21BA) + " Refresh"}
-                    </button>
-                  </div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                    {FREE.map(function(t) {
-                      var isLive = liveSet.indexOf(t) !== -1;
-                      var cachedTabs = AI_TABS.filter(function(tab) { var m = statsMap["insight:" + t + ":" + tab]; return !!(m && (m.exists || m.cachedAt)); });
-                      var latestDate   = null;
-                      var hasOldFormat = false;
-                      AI_TABS.forEach(function(tab) {
-                        var meta = statsMap["insight:" + t + ":" + tab];
-                        if (meta && meta.cachedAt) {
-                          if (!latestDate || new Date(meta.cachedAt) > new Date(latestDate)) { latestDate = meta.cachedAt; }
-                        } else if (meta && meta.exists) {
-                          hasOldFormat = true;
-                        }
-                      });
-                      return (
-                        <div key={t} style={{ background:"#1c1c1e", border:"1px solid " + (isLive ? "#2a3a14" : "#2c2c26"), borderRadius:10, padding:"12px 16px" }}>
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                              <div>
-                                <span style={{ fontSize:13, fontWeight:800, color:"#f0ede6" }}>{t}</span>
-                                <span style={{ fontSize:11, color:"#555", marginLeft:8 }}>{NAMES_SHORT[t] || t}</span>
-                              </div>
-                              {cachedTabs.length === AI_TABS.length && <span style={{ fontSize:9, fontWeight:700, color:"#7abd00", background:"#1e2a1e", border:"1px solid #2a5020", borderRadius:4, padding:"2px 6px" }}>FULL CACHE</span>}
-                              {cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length && <span style={{ fontSize:9, fontWeight:700, color:"#EF9F27", background:"#2a2010", border:"1px solid #4a3810", borderRadius:4, padding:"2px 6px" }}>PARTIAL</span>}
-                              {cachedTabs.length === 0 && !isLive && <span style={{ fontSize:9, fontWeight:700, color:"#e05050", background:"#2a1e1e", border:"1px solid #4a2020", borderRadius:4, padding:"2px 6px" }}>NO CACHE</span>}
-                            </div>
-                            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                              <span style={{ fontSize:11, color: isLive ? "#c8f000" : "#555", fontWeight:700 }}>{isLive ? "LIVE" : "CACHED"}</span>
-                              <div
-                                onClick={function() {
-                                  var nowLive = liveSet.indexOf(t) !== -1;
-                                  var newCfg  = nowLive ? liveSet.filter(function(x){ return x !== t; }) : liveSet.concat([t]);
-                                  window.__adminCfg = newCfg;
-                                  fetch("/cache?action=config", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newCfg) })
-                                    .then(function(r){ return r.json(); })
-                                    .then(function(d){ if (d.ok) { setAdminCfg(newCfg); } });
-                                }}
-                                style={{ width:40, height:22, borderRadius:11, background: isLive ? "#c8f000" : "#333", position:"relative", cursor:"pointer", border: isLive ? "none" : "1px solid #444" }}>
-                                <div style={{ position:"absolute", top:3, left: isLive ? 20 : 3, width:16, height:16, borderRadius:"50%", background: isLive ? "#0e0e0c" : "#666" }}></div>
-                              </div>
-                              {!isLive && (
-                                <button
-                                  onClick={function() {
-                                    if (!window.confirm("Clear cache for " + t + "? Next visitor will trigger a fresh Claude call.")) return;
-                                    fetch("/cache?sym=" + t + "&tab=moat", { method:"DELETE" })
-                                      .then(function() {
-                                        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache CLEARED: " + t }]); });
-                                        setAdminStats(function(prev) {
-                                          var next = Object.assign({}, prev);
-                                          delete next["insight:" + t + ":moat"];
-                                          delete next["insight:" + t + ":financial"];
-                                          delete next["insight:" + t + ":aiinsight"];
-                                          return next;
-                                        });
-                                      });
-                                  }}
-                                  style={{ fontSize:10, color:"#e05050", background:"none", border:"1px solid #4a2020", borderRadius:6, padding:"3px 8px", cursor:"pointer", fontFamily:FONT, whiteSpace:"nowrap" }}>
-                                  Clear
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          {(latestDate || hasOldFormat) && (
-                            <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #252525", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                              <div style={{ display:"flex", gap:5 }}>
-                                {cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length && AI_TABS.map(function(tab) {
-                                  var hit = !!(statsMap["insight:" + t + ":" + tab] && statsMap["insight:" + t + ":" + tab].cachedAt);
-                                  return (
-                                    <span key={tab} style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:4, color: hit ? "#7abd00" : "#444", background: hit ? "#1e2a1e" : "#181818", border:"1px solid " + (hit ? "#2a5020" : "#252525") }}>
-                                      {tab === "aiinsight" ? "AI" : tab.charAt(0).toUpperCase() + tab.slice(1)}{hit ? " " + String.fromCharCode(0x2713) : " " + String.fromCharCode(0x2013)}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                              <span style={{ fontSize:10, color:"#555" }}>{latestDate ? "Last cached: " + fmtDate(latestDate) + " (" + fmtAge(latestDate) + ")" : "Cached (visit ticker to update date)"}</span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div style={{ marginTop:16, padding:"10px 14px", background:"#1a1a10", border:"1px solid #2c2c14", borderRadius:8, fontSize:11, color:"#7abd00", lineHeight:1.7 }}>
-                    {"Live = Claude runs on every visit (" + String.fromCharCode(0x7E) + "$0.03/visit)." + String.fromCharCode(0xA0) + "Cached = stored result served free for 7 days."}
-                  </div>
-                </div>
-              );
-            })()}
-
-
-              </div>
-            );
-          })()}
-
-        </div>
-      </div>
-      {/* Sticky disclaimer footer */}
-      <div style={{
-        position:"fixed", bottom:0, left:0, right:0, zIndex:100,
-        background:"#111",
-        borderTop:"1px solid #333",
-      }}>
-        {/* Expandable full disclaimer -- slides up above the bar */}
-        <div id="disc-full"
-          onClick={function(){ var d=document.getElementById("disc-full"); if(d) d.style.display="none"; var t=document.getElementById("disc-tap"); if(t) t.innerText="tap to read"; }}
-          style={{
-            display:"block",
-            maxHeight:"50vh",
-            overflowY:"auto",
-            padding:"14px 20px",
-            borderBottom:"0.5px solid #333",
-            background:"#111",
-            cursor:"pointer",
-          }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-            <span style={{ fontSize:11, fontWeight:600, color:"#F05A1A", textTransform:"uppercase", letterSpacing:"0.06em" }}>Disclaimer</span>
-            <button
-              onClick={function(){ var d=document.getElementById("disc-full"); if(d) d.style.display="none"; var t=document.getElementById("disc-tap"); if(t) t.innerText="tap to read"; }}
-              style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#666", lineHeight:1, padding:"0 2px" }}>
-              {String.fromCharCode(0xD7)}
-            </button>
-          </div>
-          <div style={{ fontSize:11, color:"#aaa", lineHeight:1.8 }}>
-            nervousgeek.com is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). {String.fromCharCode(0xA9)} nervousgeek.com 2026.
-          </div>
-        </div>
-        {/* Slim always-visible bar */}
-        <div
-          style={{ padding:"7px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}
-          onClick={function(){
-            var d=document.getElementById("disc-full");
-            var t=document.getElementById("disc-tap");
-            if(d){
-              var open=d.style.display!=="none";
-              d.style.display=open?"none":"block";
-              if(t) t.innerText=open?"tap to read":"tap to close";
-            }
-          }}
-        >
-          <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-            <div style={{ width:14, height:14, borderRadius:"50%", background:"#222", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
-                <circle cx="6" cy="6" r="5" stroke="#c8f000" strokeWidth="1.2"/>
-                <path d="M6 5v4M6 3.5v.5" stroke="#c8f000" strokeWidth="1.2" strokeLinecap="round"/>
-              </svg>
-            </div>
-            <span style={{ fontSize:10, fontWeight:600, color:"#c8f000", textTransform:"uppercase", letterSpacing:"0.06em" }}>General information only -- not financial advice</span>
-          </div>
-          <span id="disc-tap" style={{ fontSize:10, color:"#555" }}>tap to read</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-// -- Paywall card -------------------------------------------------------------
-function PaywallCard({ sym, name, onBack }) {
-  var ORANGE = "#F05A1A";
-  return (
-    <div style={{ minHeight:"100vh", background:"#0e0e0c", fontFamily:FONT, display:"flex", flexDirection:"column" }}>
-      <nav style={{ height:52, padding:"0 24px", display:"flex", alignItems:"center", gap:12, background:LIME }}>
-        <button
-          onClick={onBack}
-          style={{ background:"none", border:"none", cursor:"pointer", color:"#0e0e0c", fontWeight:800, fontSize:13, fontFamily:FONT, display:"flex", alignItems:"center", gap:6, padding:0 }}>
-          {"< Back"}
-        </button>
-        <span style={{ fontWeight:800, fontSize:15, color:"#0e0e0c" }}>nervousgeek.com</span>
-      </nav>
-      <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
-        <div style={{ maxWidth:480, width:"100%", background:"#1c1c1e", border:"1px solid #2c2c26", borderRadius:20, padding:"48px 40px", textAlign:"center" }}>
-          <div style={{ width:64, height:64, borderRadius:"50%", background:"#2a2010", border:"2px solid #4a3810", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 24px" }}>
-            <span style={{ fontSize:28 }}>{String.fromCharCode(0x1F512)}</span>
-          </div>
-          <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"#2a2010", border:"1px solid #4a3810", borderRadius:8, padding:"6px 16px", marginBottom:20 }}>
-            <span style={{ fontWeight:900, fontSize:14, color:"#EF9F27" }}>{sym}</span>
-            <span style={{ fontSize:13, color:"#a09a8a" }}>{name}</span>
-          </div>
-          <div style={{ fontSize:22, fontWeight:800, color:"#f0ede6", marginBottom:12, lineHeight:1.3 }}>
-            Members Only
-          </div>
-          <div style={{ fontSize:14, color:"#a09a8a", lineHeight:1.7, marginBottom:32 }}>
-            {"Full AI insights for " + sym + " are available to members."}
-            <br />
-            {"10 stocks are free " + String.fromCharCode(0x2014) + " including NVDA, AAPL, TSLA, MSFT and more."}
-          </div>
-          <div style={{ marginBottom:32 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:"#6a6460", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:10 }}>Free tickers</div>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
-              {FREE_TICKERS.map(function(t) {
-                return (
-                  <span key={t} style={{ padding:"4px 12px", borderRadius:20, background:"#1e2a1e", border:"1px solid #2a5020", fontSize:12, fontWeight:700, color:"#7abd00" }}>{t}</span>
-                );
-              })}
-            </div>
-          </div>
-          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-            <button
-              onClick={function() {
-                var email = window.prompt("Enter your email to register interest:");
-                if (email && email.indexOf("@") > 0) {
-                  window.alert("Thanks! We" + String.fromCharCode(0x2019) + "ll be in touch at " + email + " when membership opens.");
-                }
-              }}
-              style={{ width:"100%", padding:"14px", borderRadius:50, border:"none", background:ORANGE, color:"#fff", fontWeight:800, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
-              Register Interest
-            </button>
-            <button
-              onClick={onBack}
-              style={{ width:"100%", padding:"14px", borderRadius:50, border:"1px solid #2c2c26", background:"transparent", color:"#a09a8a", fontWeight:700, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
-              {"Back to free stocks"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// -- Landing page -------------------------------------------------------------
-export default function App() {
-  const [input,   setInput]   = useState("");
-  const [focused, setFocused] = useState(false);
-
-  function getHash() {
-    var h = window.location.hash.replace("#", "").toUpperCase().trim();
-    return h || null;
-  }
-  const [hashSym, setHashSym] = useState(getHash);
-
-  useEffect(function() {
-    var onHash = function() { setHashSym(getHash()); };
-    window.addEventListener("hashchange", onHash);
-    return function() { window.removeEventListener("hashchange", onHash); };
-  }, []);
-
-  useEffect(function() {
-    document.title = "nervousgeek.com";
-  }, []);
-
-  function go(sym) {
-    var s = (sym || input).toUpperCase().trim();
-    if (!s) return;
-    setFocused(false);
-    window.location.hash = s;
-  }
-
-  if (hashSym) {
-    var _onBack = function() { window.location.hash = ""; };
-    if (FREE_TICKERS.indexOf(hashSym) === -1) {
-      return (
-        <PaywallCard
-          sym={hashSym}
-          name={NAMES[hashSym]}
-          onBack={_onBack}
-        />
-      );
+          }
+        }
+        rows.sort(function(a, b) { return b.year - a.year; });
+        return new Response(JSON.stringify({ ok: true, rows: rows, splits: splits, source: "polygon" }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      } catch(e) {
+        return new Response(JSON.stringify({ error: String(e), source: "polygon" }), {
+          status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
     }
-    return (
-      <Detail
-        sym={hashSym}
-        name={NAMES[hashSym] || hashSym}
-        onBack={_onBack}
-      />
-    );
+
+    if (url.pathname === "/anthropic") {
+      const anthropicKey = context.env.ANTHROPIC_KEY;
+      if (!anthropicKey) {
+        return new Response(JSON.stringify({ error: "ANTHROPIC_KEY not configured" }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+      const body = await context.request.text();
+      const res  = await fetch("https://api.anthropic.com/v1/messages", {
+        method:  "POST",
+        headers: {
+          "Content-Type":      "application/json",
+          "x-api-key":         anthropicKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body,
+      });
+      const data = await res.text();
+      return new Response(data, {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
+    if (!target) return new Response("Missing url", { status: 400 });
+
+    if (target.includes("financialmodelingprep.com")) {
+      const fmpKey = context.env.FMP_KEY;
+      if (!fmpKey) return new Response(JSON.stringify({ error: "FMP_KEY not configured" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+      const sep = target.includes("?") ? "&" : "?";
+      const res = await fetch(target + sep + "apikey=" + fmpKey, { headers: { "User-Agent": UA } });
+      return new Response(await res.text(), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
+    if (target.includes("alphavantage.co")) {
+      const avKey = context.env.AV_KEY;
+      if (!avKey) return new Response(JSON.stringify({ error: "AV_KEY not configured" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+      const sep = target.includes("?") ? "&" : "?";
+      const res = await fetch(target + sep + "apikey=" + avKey, { headers: { "User-Agent": UA } });
+      return new Response(await res.text(), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
+    if (target.includes("quoteSummary") || target.includes("fundamentals-timeseries")) {
+      var symForCrumb = target ? (target.match(/[?&/]([A-Z]{1,5})[?&/]/) || [])[1] || null : null;
+      const { crumb, cookies } = await getYahooCrumb(symForCrumb);
+      if (!crumb || crumb.includes("{")) {
+        return new Response(JSON.stringify({ error: "Could not obtain Yahoo crumb" }), {
+          status: 502,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+      const sep      = target.includes("?") ? "&" : "?";
+      const finalUrl = target + sep + "crumb=" + encodeURIComponent(crumb);
+      const dataRes  = await fetch(finalUrl, {
+        headers: {
+          "User-Agent": UA,
+          "Accept":     "application/json",
+          "Cookie":     cookies,
+          "Referer":    "https://finance.yahoo.com/",
+        },
+      });
+      return new Response(await dataRes.text(), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
+    const res = await fetch(target, {
+      headers: { "User-Agent": UA, "Accept": "application/json", "Referer": "https://finance.yahoo.com/" },
+    });
+    return new Response(await res.text(), {
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    });
+
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    });
   }
-
-  const allStocks = Object.keys(NAMES).map(function(k) { return { symbol:k, name:NAMES[k] }; });
-  const sugg = (input.length > 0 && focused)
-    ? allStocks.filter(function(s) {
-        return s.symbol.toLowerCase().startsWith(input.toLowerCase()) ||
-               s.name.toLowerCase().includes(input.toLowerCase());
-      }).slice(0, 6)
-    : [];
-
-
-  return (
-    <div style={{ minHeight:"100vh", background:BG, fontFamily:FONT, position:"relative", overflow:"hidden" }}>
-
-      {/* Top glow */}
-      <div style={{
-        position:"fixed", inset:0, zIndex:0, pointerEvents:"none",
-        background:"radial-gradient(ellipse 70% 50% at 50% -10%,rgba(200,240,0,0.07) 0%,transparent 70%)",
-      }} />
-
-      {/* Nav */}
-      <nav style={{ position:"relative", zIndex:10, padding:"0 32px", height:52, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <svg width="24" height="24" viewBox="0 0 110 110">
-            <path d="M55 10 L96 33 L96 77 L55 100 L14 77 L14 33 Z" fill="none" stroke={LIME} strokeWidth="3"/>
-            <circle cx="36" cy="52" r="18" fill="#0e0e0c" stroke={LIME} strokeWidth="3"/>
-            <circle cx="74" cy="52" r="18" fill="#0e0e0c" stroke={LIME} strokeWidth="3"/>
-            <circle cx="36" cy="52" r="6" fill={LIME}/>
-            <circle cx="74" cy="52" r="6" fill={LIME}/>
-            <line x1="48" y1="76" x2="62" y2="76" stroke={LIME} strokeWidth="3" strokeLinecap="round"/>
-          </svg>
-          <span style={{ fontSize:17, fontWeight:900, letterSpacing:0 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-        </div>
-        <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(200,240,0,0.08)", border:"1px solid rgba(200,240,0,0.25)", borderRadius:20, padding:"5px 16px" }}>
-          <span style={{ width:6, height:6, borderRadius:"50%", background:LIME, display:"inline-block" }} />
-          <span style={{ fontSize:11, fontWeight:600, color:LIME }}>Live Market Data</span>
-        </div>
-      </nav>
-
-      {/* Hero */}
-      <div style={{ position:"relative", zIndex:5, display:"flex", flexDirection:"column", alignItems:"center", paddingTop:70, paddingBottom:80 }}>
-
-        {/* Headline */}
-        <div style={{ textAlign:"center", marginBottom:16 }}>
-          <div style={{ fontSize:42, fontWeight:900, color:"#ffffff", letterSpacing:"-1.5px" }}>Know more.</div>
-          <div style={{ fontSize:42, fontWeight:900, color:LIME, letterSpacing:"-1.5px" }}>Fear less.</div>
-        </div>
-
-        <p style={{ fontSize:14, color:"#a09a8a", textAlign:"center", maxWidth:500, lineHeight:1.75, margin:"0 0 40px" }}>
-          {"AI-powered stock intelligence for long-term thinkers. Not a trading app. Not financial advice " + String.fromCharCode(0x2014) + " just observation to manage personal risk."}
-        </p>
-
-        {/* Search bar */}
-        <div style={{ position:"relative", width:"100%", maxWidth:540 }}>
-          <div style={{
-            display:"flex", alignItems:"center", background:"#1e1e18", borderRadius:50,
-            border:"1.5px solid " + (focused ? LIME : "#2c2c26"),
-            transition:"border-color 0.2s",
-          }}>
-            <input
-              value={input}
-              onChange={function(e) { setInput(e.target.value); }}
-              onFocus={function() { setFocused(true); }}
-              onBlur={function() { setTimeout(function() { setFocused(false); }, 180); }}
-              onKeyDown={function(e) { if (e.key === "Enter") go(); }}
-              placeholder="Enter ticker - e.g. AAPL, NVDA, TSLA"
-              style={{ flex:1, border:"none", outline:"none", fontSize:14, padding:"15px 20px", color:"#f0ede6", background:"transparent", fontFamily:FONT }}
-            />
-            <button
-              onMouseDown={function(e) { e.preventDefault(); go(); }}
-              style={{
-                margin:5, padding:"11px 24px", borderRadius:50, border:"none",
-                background:input.trim() ? LIME : "#2c2c26",
-                color:input.trim() ? "#0e0e0c" : "#6a6460",
-                fontWeight:800, fontSize:14, fontFamily:FONT,
-                cursor:input.trim() ? "pointer" : "default",
-              }}>
-              Assess Stock
-            </button>
-          </div>
-
-          {/* Suggestions dropdown */}
-          {sugg.length > 0 && (
-            <div style={{ position:"absolute", top:"calc(100% + 8px)", left:0, right:0, background:"#1e1e18", border:"1px solid #2c2c26", borderRadius:14, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", zIndex:50, overflow:"hidden" }}>
-              {sugg.map(function(s) {
-                return (
-                  <div key={s.symbol}
-                    onMouseDown={function(e) { e.preventDefault(); setInput(s.symbol); }}
-                    style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 18px", cursor:"pointer", borderBottom:"1px solid #2c2c26" }}
-                    onMouseEnter={function(e) { e.currentTarget.style.background = "rgba(200,240,0,0.10)"; }}
-                    onMouseLeave={function(e) { e.currentTarget.style.background = "transparent"; }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                      <span style={{ fontWeight:800, fontSize:12, color:BG, background:LIME, padding:"2px 8px", borderRadius:4, minWidth:48, textAlign:"center" }}>{s.symbol}</span>
-                      <span style={{ fontSize:13, color:"#a09a8a" }}>{s.name}</span>
-                    </div>
-                    <span style={{ color:"#6a6460", fontSize:12 }}>{">"}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Free tickers section */}
-        <div style={{ marginTop:32, width:"100%", maxWidth:580, textAlign:"center" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, marginBottom:16 }}>
-            <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
-            <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-              <span style={{ width:6, height:6, borderRadius:"50%", background:LIME, display:"inline-block" }}></span>
-              <span style={{ fontSize:11, fontWeight:700, color:LIME, letterSpacing:"0.12em", textTransform:"uppercase" }}>10 Free Stocks</span>
-            </div>
-            <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
-          </div>
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16 }}>
-            {FREE_TICKERS.map(function(t) {
-              return (
-                <button key={t}
-                  onClick={function() { go(t); }}
-                  style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a", cursor:"pointer", fontFamily:FONT }}
-                  onMouseEnter={function(e) { e.currentTarget.style.background=BG; e.currentTarget.style.color=LIME; e.currentTarget.style.borderColor=LIME; }}
-                  onMouseLeave={function(e) { e.currentTarget.style.background="#1a1a16"; e.currentTarget.style.color="#a09a8a"; e.currentTarget.style.borderColor="#2c2c26"; }}>
-                  {t}
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ fontSize:12, color:"#4a4a44" }}>
-            {"More stocks available with membership " + String.fromCharCode(0x2014) + " "}
-            <span style={{ color:"#6a6460", textDecoration:"underline", cursor:"pointer" }}
-              onClick={function() { go("INTC"); }}>
-              {"see what" + String.fromCharCode(0x2019) + "s coming"}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Sticky disclaimer footer */}
-      <div style={{
-        position:"fixed", bottom:0, left:0, right:0, zIndex:100,
-        background:"#111",
-        borderTop:"1px solid #333",
-      }}>
-        <div id="lp-disc-full"
-          onClick={function(){ var d=document.getElementById("lp-disc-full"); if(d) d.style.display="none"; var t=document.getElementById("lp-disc-tap"); if(t) t.innerText="tap to read"; }}
-          style={{
-            display:"block",
-            maxHeight:"50vh",
-            overflowY:"auto",
-            padding:"14px 20px",
-            borderBottom:"0.5px solid #333",
-            background:"#111",
-            cursor:"pointer",
-          }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-            <span style={{ fontSize:11, fontWeight:600, color:"#F05A1A", textTransform:"uppercase", letterSpacing:"0.06em" }}>Disclaimer</span>
-            <button
-              onClick={function(){ var d=document.getElementById("lp-disc-full"); if(d) d.style.display="none"; var t=document.getElementById("lp-disc-tap"); if(t) t.innerText="tap to read"; }}
-              style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#666", lineHeight:1, padding:"0 2px" }}>
-              {String.fromCharCode(0xD7)}
-            </button>
-          </div>
-          <div style={{ fontSize:11, color:"#aaa", lineHeight:1.8 }}>
-            nervousgeek.com is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). {String.fromCharCode(0xA9)} nervousgeek.com 2026.
-          </div>
-        </div>
-        <div
-          style={{ padding:"7px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}
-          onClick={function(){
-            var d=document.getElementById("lp-disc-full");
-            var t=document.getElementById("lp-disc-tap");
-            if(d){
-              var open=d.style.display!=="none";
-              d.style.display=open?"none":"block";
-              if(t) t.innerText=open?"tap to read":"tap to close";
-            }
-          }}>
-          <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-            <div style={{ width:14, height:14, borderRadius:"50%", background:"#222", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
-                <circle cx="6" cy="6" r="5" stroke={LIME} strokeWidth="1.2"/>
-                <path d="M6 5v4M6 3.5v.5" stroke={LIME} strokeWidth="1.2" strokeLinecap="round"/>
-              </svg>
-            </div>
-            <span style={{ fontSize:10, fontWeight:600, color:LIME, textTransform:"uppercase", letterSpacing:"0.06em" }}>General information only -- not financial advice</span>
-          </div>
-          <span id="lp-disc-tap" style={{ fontSize:10, color:"#555" }}>tap to close</span>
-        </div>
-      </div>
-    </div>
-  );
 }
