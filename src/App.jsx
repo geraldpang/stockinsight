@@ -1899,14 +1899,30 @@ function Detail({ sym, name, onBack }) {
                             var shares = ov.sharesOut  || 0;
                             // Track whether debt is estimated
                             var debtIsEst = false;
-                            // If balance sheet debt missing, estimate from P/B ratio (most accurate proxy)
+                            // Priority 1: SimFin balance sheet (most accurate)
+                            var sfBal = window.__simfinData && window.__simfinData[sym];
+                            if (sfBal && sfBal.balance && Array.isArray(sfBal.balance) && sfBal.balance[0] && sfBal.balance[0].columns) {
+                              var sfCols = sfBal.balance[0].columns;
+                              var sfRow0 = sfBal.balance[0].data && sfBal.balance[0].data[0];
+                              if (sfRow0) {
+                                function sfGet(name) {
+                                  var ci = sfCols.indexOf(name);
+                                  return ci !== -1 ? sfRow0[ci] : null;
+                                }
+                                var sfDebt = sfGet("Long Term Debt") || sfGet("Total Debt") || sfGet("Long-Term Debt");
+                                var sfCash = sfGet("Cash, Cash Equivalents & Short Term Investments") || sfGet("Cash & Cash Equivalents");
+                                if (sfDebt !== null && sfDebt !== undefined) { debt = sfDebt; debtIsEst = false; }
+                                if (sfCash !== null && sfCash !== undefined) { cash = sfCash; }
+                              }
+                            }
+                            // Priority 2: estimate from P/B ratio if still missing
                             if (!debt && ov.de > 0 && ov.pbRatio > 0 && price > 0 && shares > 0) {
                               var bvPerShare  = price / ov.pbRatio;
                               var totalEquity = bvPerShare * shares;
                               debt            = ov.de * totalEquity;
                               debtIsEst       = true;
                             } else if (!debt && ov.totalDebt) {
-                              debt = ov.totalDebt; // from D/E x ks.bookValue fallback
+                              debt = ov.totalDebt;
                               debtIsEst = true;
                             }
                             var usePE  = fpe > 0 ? fpe : pe;
@@ -3699,7 +3715,7 @@ function Detail({ sym, name, onBack }) {
                               }
 
                               var income   = parseCompact(sfData.income);
-                              var balance  = null;
+                              var balance  = parseCompact(sfData.balance);
                               var cashflow = null;
                               var derived  = null;
 
@@ -3748,8 +3764,9 @@ function Detail({ sym, name, onBack }) {
                               }
 
                               var SKIP = { "Fiscal Year":1, "Fiscal Period":1, "Report Date":1, "Publish Date":1, "Source":1, "Currency":1, "SimFinId":1 };
-                              var incomeFields = income ? Object.keys(income[0]).filter(function(k) { return !SKIP[k]; }) : [];
-                              var balanceFields = []; var cashflowFields = []; var derivedFields = [];
+                              var incomeFields  = income  ? Object.keys(income[0]).filter(function(k)  { return !SKIP[k]; }) : [];
+                              var balanceFields = balance ? Object.keys(balance[0]).filter(function(k) { return !SKIP[k]; }) : [];
+                              var cashflowFields = []; var derivedFields = [];
 
                               return (
                                 <div>
@@ -3759,7 +3776,8 @@ function Detail({ sym, name, onBack }) {
                                       {income.status === "429" && <div style={{ marginTop:4, color:"#888" }}>Quota resets daily. Try again tomorrow or upgrade SimFin plan.</div>}
                                     </div>
                                   )}
-                                  {income && !income.error && <DataSection title="Income Statement (Annual)" rows={income} fields={incomeFields} />}
+                                  {income  && !income.error  && <DataSection title="Income Statement (Annual)"  rows={income}  fields={incomeFields} />}
+                                  {balance && !balance.error && <DataSection title="Balance Sheet (Annual)"     rows={balance} fields={balanceFields} />}
                                   <div style={{ fontSize:10, color:"#aaa", marginTop:8 }}>
                                     Raw JSON: <span style={{ fontFamily:"monospace", wordBreak:"break-all" }}>{JSON.stringify(sfData).slice(0, 300)}...</span>
                                   </div>
