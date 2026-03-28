@@ -3693,7 +3693,9 @@ function Detail({ sym, name, onBack }) {
                                   time:  new Date().toISOString(),
                                   label: "SimFin BS latest row (most recent year)",
                                   data:  sfBsCols.length > 0 ? (function() {
-                                    var row = d.balance[0].statements[0].data[0];
+                                    var rows = d.balance[0].statements[0].data;
+                                    // SimFin returns oldest first - take last row for most recent
+                                    var row = rows[rows.length - 1];
                                     var obj = {};
                                     sfBsCols.forEach(function(k, i) { obj[k] = row[i]; });
                                     return obj;
