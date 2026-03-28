@@ -343,11 +343,13 @@ export async function onRequest(context) {
       }
       var sfBase  = "https://backend.simfin.com/api/v3";
       var sfHdr   = { "Authorization": "api-key " + sfKey, "Accept": "application/json" };
-      var sfStart = "2013-01-01";
       var sfDiag  = { sym: sfSym, keyPresent: !!sfKey, keyPrefix: sfKey ? sfKey.slice(0,6) + "..." : "MISSING" };
 
+      var sfStart = "2013-01-01";
       async function sfFetch(statement) {
-        var sfUrl = sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=" + statement + "&period=fy&start=" + sfStart;
+        // BS requires period=Q4 (not fy) - fy only works for pl and cf
+        var period = (statement === "bs") ? "Q4" : "fy";
+        var sfUrl = sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=" + statement + "&period=" + period + "&start=" + sfStart;
         sfDiag["url_" + statement] = sfUrl.replace(sfKey, "***");
         try {
           var resp = await fetch(sfUrl, { headers: sfHdr });
