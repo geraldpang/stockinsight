@@ -3703,12 +3703,12 @@ function Detail({ sym, name, onBack }) {
                               </div>
                             )}
                             {sfData && sfData.ok && (function() {
-                              // Parse SimFin compact format: columns array + data array of arrays
                               function parseCompact(stmt) {
-                                if (!stmt || !Array.isArray(stmt) || stmt.length === 0) return null;
+                                if (!stmt || typeof stmt !== "object") return null;
+                                if (!Array.isArray(stmt)) return null; // error object
+                                if (stmt.length === 0) return null;
                                 var company = stmt[0];
                                 if (!company) return null;
-                                // SimFin compact: data is in company.statements[0]
                                 var stmtArr = company.statements;
                                 var s = (stmtArr && stmtArr.length > 0) ? stmtArr[0] : company;
                                 if (!s || !s.columns || !s.data) return null;
@@ -3718,42 +3718,53 @@ function Detail({ sym, name, onBack }) {
                                   cols.forEach(function(col, ci) { obj[col] = row[ci]; });
                                   return obj;
                                 }).filter(function(row) {
-                                  // Only annual FY rows, exclude TTM
                                   return row["Fiscal Period"] === "FY" || !row["Fiscal Period"];
                                 }).sort(function(a, b) {
-                                  // Sort newest first
                                   return (b["Fiscal Year"] || 0) - (a["Fiscal Year"] || 0);
                                 });
                               }
-
-                              var income   = parseCompact(sfData.income);
-                              var balance  = parseCompact(sfData.balance);
-                              var cashflow = null;
-                              var derived  = null;
 
                               function fmtV(v) {
                                 if (v == null || v === "") return "-";
                                 if (typeof v === "number") {
                                   var a = Math.abs(v);
-                                  if (a >= 1e9)  return (v < 0 ? "-" : "") + "$" + (a/1e9).toFixed(2)  + "B";
-                                  if (a >= 1e6)  return (v < 0 ? "-" : "") + "$" + (a/1e6).toFixed(0)  + "M";
+                                  if (a >= 1e9)  return (v < 0 ? "-" : "") + "$" + (a/1e9).toFixed(2) + "B";
+                                  if (a >= 1e6)  return (v < 0 ? "-" : "") + "$" + (a/1e6).toFixed(0) + "M";
                                   if (a >= 1000) return (v < 0 ? "-" : "") + "$" + (a/1000).toFixed(0) + "K";
-                                  return v.toFixed(2);
+                                  return String(parseFloat(v.toFixed(3)));
                                 }
                                 return String(v);
                               }
 
-                              function DataSection(props) {
+                              var income  = parseCompact(sfData.income);
+                              var balance = parseCompact(sfData.balance);
+
+                              var SKIP = { "Fiscal Year":1, "Fiscal Period":1, "Report Date":1, "Publish Date":1, "Restated":1, "Source":1, "TTM":1, "Value Check":1, "Data Model":1, "Currency":1, "SimFinId":1 };
+
+                              // Key income fields to highlight
+                              var incomeKey = ["Revenue", "Gross Profit", "Operating Income (Loss)", "Net Income", "Earnings Per Share, Diluted", "Earnings Per Share, Basic"];
+                              var incomeFields = (income && income.length > 0 && income[0]) ? incomeKey.filter(function(k) { return income[0][k] !== undefined; }) : [];
+                              // All remaining income fields
+                              var incomeAll = (income && income.length > 0 && income[0]) ? Object.keys(income[0]).filter(function(k) { return !SKIP[k] && incomeKey.indexOf(k) === -1; }) : [];
+
+                              // Key balance fields
+                              var balanceKey = ["Cash, Cash Equivalents & Short Term Investments", "Total Assets", "Long Term Debt", "Short Term Debt", "Total Liabilities", "Total Equity", "Shares (Common)"];
+                              var balanceFields = (balance && balance.length > 0 && balance[0]) ? balanceKey.filter(function(k) { return balance[0][k] !== undefined; }) : [];
+                              var balanceAll = (balance && balance.length > 0 && balance[0]) ? Object.keys(balance[0]).filter(function(k) { return !SKIP[k] && balanceKey.indexOf(k) === -1; }) : [];
+
+                              function SfTable(props) {
+                                if (!props.rows || props.rows.length === 0 || props.fields.length === 0) return null;
+                                var years = props.rows.slice(0, 8); // show up to 8 years
                                 return (
-                                  <div style={{ marginBottom:16 }}>
+                                  <div style={{ marginBottom:20 }}>
                                     <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6 }}>{props.title}</div>
                                     <div style={{ overflowX:"auto" }}>
                                       <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
                                         <thead>
                                           <tr style={{ background:"#f0ede8" }}>
-                                            <th style={{ padding:"5px 10px", textAlign:"left", color:"#555", fontWeight:600, borderBottom:"1px solid #e0dbd0", whiteSpace:"nowrap" }}>Field</th>
-                                            {props.rows && props.rows.slice().reverse().map(function(r, ri) {
-                                              return <th key={ri} style={{ padding:"5px 10px", textAlign:"right", color:"#555", fontWeight:600, borderBottom:"1px solid #e0dbd0", whiteSpace:"nowrap" }}>{r["Fiscal Year"] || r["Report Date"] || ri}</th>;
+                                            <th style={{ padding:"5px 10px", textAlign:"left", color:"#555", fontWeight:600, borderBottom:"1px solid #e0dbd0", minWidth:200, whiteSpace:"nowrap" }}>Field</th>
+                                            {years.map(function(r, ri) {
+                                              return <th key={ri} style={{ padding:"5px 8px", textAlign:"right", color:"#555", fontWeight:600, borderBottom:"1px solid #e0dbd0", whiteSpace:"nowrap" }}>{r["Fiscal Year"] || ("Y" + ri)}</th>;
                                             })}
                                           </tr>
                                         </thead>
@@ -3761,9 +3772,9 @@ function Detail({ sym, name, onBack }) {
                                           {props.fields.map(function(field, fi) {
                                             return (
                                               <tr key={fi} style={{ borderBottom:"0.5px solid #f0ede8", background: fi % 2 === 0 ? "#fff" : "#faf8f5" }}>
-                                                <td style={{ padding:"4px 10px", color:"#555", whiteSpace:"nowrap" }}>{field}</td>
-                                                {props.rows && props.rows.slice().reverse().map(function(r, ri) {
-                                                  return <td key={ri} style={{ padding:"4px 10px", textAlign:"right", color:"#333", fontWeight:500 }}>{fmtV(r[field])}</td>;
+                                                <td style={{ padding:"4px 10px", color: props.highlight && props.highlight[field] ? "#111" : "#666", fontWeight: props.highlight && props.highlight[field] ? 600 : 400, whiteSpace:"nowrap" }}>{field}</td>
+                                                {years.map(function(r, ri) {
+                                                  return <td key={ri} style={{ padding:"4px 8px", textAlign:"right", color:"#333", fontWeight: props.highlight && props.highlight[field] ? 600 : 400 }}>{fmtV(r[field])}</td>;
                                                 })}
                                               </tr>
                                             );
@@ -3775,24 +3786,25 @@ function Detail({ sym, name, onBack }) {
                                 );
                               }
 
-                              var SKIP = { "Fiscal Year":1, "Fiscal Period":1, "Report Date":1, "Publish Date":1, "Source":1, "Currency":1, "SimFinId":1 };
-                              var incomeFields  = income  ? Object.keys(income[0]).filter(function(k)  { return !SKIP[k]; }) : [];
-                              var balanceFields = balance ? Object.keys(balance[0]).filter(function(k) { return !SKIP[k]; }) : [];
-                              var cashflowFields = []; var derivedFields = [];
+                              var incHighlight = {};
+                              incomeKey.forEach(function(k){ incHighlight[k] = true; });
+                              var balHighlight = {};
+                              balanceKey.forEach(function(k){ balHighlight[k] = true; });
 
                               return (
                                 <div>
                                   {income && income.error && (
                                     <div style={{ fontSize:12, color:"#c03030", background:"#fff0f0", padding:"8px 12px", borderRadius:6, border:"0.5px solid #e08080", marginBottom:8 }}>
-                                      SimFin API error: {income.error}{income.message ? " -- " + income.message : ""}
-                                      {income.status === "429" && <div style={{ marginTop:4, color:"#888" }}>Quota resets daily. Try again tomorrow or upgrade SimFin plan.</div>}
+                                      SimFin Income: {income.error}{income.status === "429" ? " -- quota resets daily" : ""}
                                     </div>
                                   )}
-                                  {income  && !income.error  && <DataSection title="Income Statement (Annual)"  rows={income}  fields={incomeFields} />}
-                                  {balance && !balance.error && <DataSection title="Balance Sheet (Annual)"     rows={balance} fields={balanceFields} />}
-                                  <div style={{ fontSize:10, color:"#aaa", marginTop:8 }}>
-                                    Raw JSON: <span style={{ fontFamily:"monospace", wordBreak:"break-all" }}>{JSON.stringify(sfData).slice(0, 300)}...</span>
-                                  </div>
+                                  {balance && balance.error && (
+                                    <div style={{ fontSize:12, color:"#c03030", background:"#fff0f0", padding:"8px 12px", borderRadius:6, border:"0.5px solid #e08080", marginBottom:8 }}>
+                                      SimFin Balance: {balance.error}{balance.status === "429" ? " -- quota resets daily" : ""}
+                                    </div>
+                                  )}
+                                  <SfTable title="Income Statement" rows={income} fields={incomeFields.concat(incomeAll)} highlight={incHighlight} />
+                                  <SfTable title="Balance Sheet" rows={balance} fields={balanceFields.concat(balanceAll)} highlight={balHighlight} />
                                 </div>
                               );
                             })()}
