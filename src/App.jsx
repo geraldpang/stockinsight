@@ -2335,7 +2335,17 @@ function Detail({ sym, name, onBack }) {
                                 )}
 
                                 {/* PS */}
-                                {ov.ps > 0 && (
+                                {ov.ps > 0 && (function() {
+                                  var PS_MEAN_LOCAL = {
+                                    "NVDA":25.7,"AMD":7.5,"INTC":2.8,"QCOM":4.5,"AVGO":11.0,"TXN":7.5,
+                                    "MU":4.0,"AAPL":6.5,"MSFT":11.0,"GOOGL":5.5,"META":7.0,"AMZN":3.0,
+                                    "NFLX":5.5,"TSLA":10.0,"CRM":9.0,"ADBE":13.0,"UBER":4.0,"SPOT":4.5,
+                                    "JPM":3.0,"BAC":3.0,"GS":1.8,"BRKB":1.5,"LLY":14.0,"UNH":0.9,
+                                    "MRK":4.5,"XOM":1.0,"CVX":1.0,"NKE":3.0
+                                  };
+                                  var psMeanLocal  = PS_MEAN_LOCAL[sym] || 5.0;
+                                  var revPerShLocal = price / ov.ps;
+                                  return (
                                   <BdSection title="Mean P/S Ratio Breakdown">
                                     <BdRow label="Current Price"                  val={"$" + price.toFixed(2)} />
                                     <BdRow label="Current P/S Ratio (TTM)"        val={ov.ps.toFixed(2) + "x"} />
