@@ -1900,21 +1900,28 @@ function Detail({ sym, name, onBack }) {
                             // Track whether debt is estimated
                             var debtIsEst = false;
                             // Priority 1: SimFin balance sheet (most accurate)
+                            // Uses most recent FY row (parseCompact sorts newest first)
                             var sfBal = window.__simfinData && window.__simfinData[sym];
                             if (sfBal && sfBal.balance && Array.isArray(sfBal.balance) && sfBal.balance[0]) {
                               var sfStmt = sfBal.balance[0].statements && sfBal.balance[0].statements[0];
-                              var sfCols = sfStmt ? sfStmt.columns : sfBal.balance[0].columns;
-                              var sfData = sfStmt ? sfStmt.data    : sfBal.balance[0].data;
-                              var sfRow0 = sfData && sfData[0];
-                              if (sfRow0) {
+                              var sfCols = sfStmt ? sfStmt.columns : null;
+                              var sfData = sfStmt ? sfStmt.data    : null;
+                              // Take the LAST row (SimFin returns oldest first)
+                              var sfRow0 = sfData && sfData.length > 0 ? sfData[sfData.length - 1] : null;
+                              if (sfRow0 && sfCols) {
                                 function sfGet(name) {
                                   var ci = sfCols.indexOf(name);
-                                  return ci !== -1 ? sfRow0[ci] : null;
+                                  return (ci !== -1 && sfRow0[ci] !== null) ? sfRow0[ci] : null;
                                 }
-                                var sfDebt = sfGet("Long Term Debt") || sfGet("Total Debt") || sfGet("Long-Term Debt");
-                                var sfCash = sfGet("Cash, Cash Equivalents & Short Term Investments") || sfGet("Cash & Cash Equivalents");
-                                if (sfDebt !== null && sfDebt !== undefined) { debt = sfDebt; debtIsEst = false; }
-                                if (sfCash !== null && sfCash !== undefined) { cash = sfCash; }
+                                // Total Debt = Short Term Debt + Long Term Debt
+                                var sfLTD  = sfGet("Long Term Debt")  || 0;
+                                var sfSTD  = sfGet("Short Term Debt") || 0;
+                                var sfTotalDebt = sfLTD + sfSTD;
+                                // Cash = full cash including short term investments
+                                var sfCash = sfGet("Cash, Cash Equivalents & Short Term Investments")
+                                          || sfGet("Cash & Cash Equivalents");
+                                if (sfTotalDebt > 0) { debt = sfTotalDebt; debtIsEst = false; }
+                                if (sfCash !== null)  { cash = sfCash; }
                               }
                             }
                             // Priority 2: estimate from P/B ratio if still missing
@@ -1982,7 +1989,7 @@ function Detail({ sym, name, onBack }) {
                                 {dcf20Res && (
                                   <BdSection title="DCF-20 Breakdown">
                                     <BdRow label="Operating Cash Flow"  val={fmtM(ocf)} />
-                                    <BdRow label={"Total Debt" + (debtIsEst ? " (est.)" : "")} val={fmtM(debt)} />
+                                    <BdRow label={"Total Debt" + (debtIsEst ? " (est.)" : " (SimFin)")} val={fmtM(debt)} />
                                     <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
                                     <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
                                     <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr hist EPS CAGR)" : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
@@ -2002,7 +2009,7 @@ function Detail({ sym, name, onBack }) {
                                 {dcff20Res && (
                                   <BdSection title="DCFF-20 Breakdown">
                                     <BdRow label="Net Income"           val={fmtM(ov.niRaw)} />
-                                    <BdRow label={"Total Debt" + (debtIsEst ? " (est.)" : "")} val={fmtM(debt)} />
+                                    <BdRow label={"Total Debt" + (debtIsEst ? " (est.)" : " (SimFin)")} val={fmtM(debt)} />
                                     <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
                                     <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
                                     <BdRow label="Growth Y1-5"          val={(g1*100).toFixed(1) + "%"} />
@@ -4668,3 +4675,4 @@ export default function App() {
     </div>
   );
 }
+                               
