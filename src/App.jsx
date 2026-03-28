@@ -755,7 +755,12 @@ function Detail({ sym, name, onBack }) {
               time:  new Date().toISOString(),
               label: "SimFin prefetch -- " + (d.ok ? "OK" : "FAILED: " + (d.error || JSON.stringify(d).slice(0,100))),
               data:  { status_pl: d.diag ? d.diag.status_pl : null, status_bs: d.diag ? d.diag.status_bs : null,
-                       incomeRows: sfPlData.length + " rows", balanceRows: sfBsData.length + " rows" }
+                       incomeRows: sfPlData.length + " rows", balanceRows: sfBsData.length + " rows",
+                       url_bs: d.diag ? d.diag.url_bs : null,
+                       rawPreview_bs: d.diag ? d.diag.rawPreview_bs : null,
+                       rawLen_bs: d.diag ? d.diag.rawLen_bs : null,
+                       url_pl: d.diag ? d.diag.url_pl : null,
+                       rawPreview_pl: d.diag ? d.diag.rawPreview_pl : null }
             },
             {
               time:  new Date().toISOString(),
@@ -2104,7 +2109,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label={"Total Debt" + (debtIsEst ? " (est.)" : " (SimFin)")} val={fmtM(debt)} />
                                     <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
                                     <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr hist EPS CAGR)" : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
+                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagr > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y6-10 (50% of Y1-5)"      val={(g2*100).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y11-20"        val="4%" />
                                     <BdRow label="Discount Rate"        val="10%" />
