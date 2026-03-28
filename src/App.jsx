@@ -2197,6 +2197,11 @@ function Detail({ sym, name, onBack }) {
                             var psMeanBD     = PS_MEAN_BD[sym] || 5.0;
                             var psRevPerShare = ov.ps > 0 ? price / ov.ps : 0;
                             var psFairVal    = psRevPerShare * psMeanBD;
+                            setDebugLog(function(prev) { return prev.concat([{
+                              time: new Date().toISOString(),
+                              label: "PS vars debug",
+                              data: { ovPs: ov ? ov.ps : null, price: price, psMeanBD: psMeanBD, psRevPerShare: psRevPerShare, psFairVal: psFairVal, sym: sym }
+                            }]); });
                             // Use operating cash flow (before capex) as base
                             var ocf    = ov.ocfRaw > 0 ? ov.ocfRaw : ov.fcfRaw;
 
