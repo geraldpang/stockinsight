@@ -336,6 +336,9 @@ export async function onRequest(context) {
     if (url.pathname === "/simfin") {
       var sfSym = (url.searchParams.get("sym") || "").toUpperCase().trim();
       var sfKey = context.env.SIMFIN_KEY;
+      // SimFin ticker translations (some tickers differ from standard)
+      var SF_TICKER_MAP = { "GOOGL": "GOOG", "BRKB": "BRK.B" };
+      if (SF_TICKER_MAP[sfSym]) sfSym = SF_TICKER_MAP[sfSym];
       if (!sfSym || !sfKey) {
         return new Response(JSON.stringify({ error: "Missing sym or SIMFIN_KEY" }), {
           status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
