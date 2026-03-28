@@ -712,6 +712,21 @@ function Detail({ sym, name, onBack }) {
           window.__simfinData[sym]    = d;
           window.__simfinLoading[sym] = false;
           // Build detailed log entries matching the old addlinfo tab logs
+          // Log raw structure for debugging
+          setDebugLog(function(prev) { return prev.concat([{
+            time:  new Date().toISOString(),
+            label: "SimFin raw structure check",
+            data:  {
+              balanceType:      typeof d.balance,
+              balanceIsArray:   Array.isArray(d.balance),
+              balanceLen:       Array.isArray(d.balance) ? d.balance.length : "n/a",
+              balance0keys:     d.balance && d.balance[0] ? Object.keys(d.balance[0]).join(",") : "n/a",
+              hasStatements:    d.balance && d.balance[0] && d.balance[0].statements ? "YES len=" + d.balance[0].statements.length : "NO",
+              incomeType:       typeof d.income,
+              incomeIsArray:    Array.isArray(d.income),
+              rawBalPreview:    JSON.stringify(d.balance).slice(0, 300),
+            }
+          }]); });
           var sfBsCols = d.balance && Array.isArray(d.balance) && d.balance[0] && d.balance[0].statements ? d.balance[0].statements[0].columns : [];
           var sfPlCols = d.income  && Array.isArray(d.income)  && d.income[0]  && d.income[0].statements  ? d.income[0].statements[0].columns   : [];
           var sfBsData = d.balance && Array.isArray(d.balance) && d.balance[0] && d.balance[0].statements ? d.balance[0].statements[0].data      : [];
@@ -3767,7 +3782,22 @@ function Detail({ sym, name, onBack }) {
                               window.__simfinData[sfKey]    = d;
                               window.__simfinLoading[sfKey] = false;
                               // Log SimFin result to Debug tab
-                              var sfBsCols = d.balance && Array.isArray(d.balance) && d.balance[0] && d.balance[0].statements ? d.balance[0].statements[0].columns : [];
+                              // Log raw structure for debugging
+          setDebugLog(function(prev) { return prev.concat([{
+            time:  new Date().toISOString(),
+            label: "SimFin raw structure check",
+            data:  {
+              balanceType:      typeof d.balance,
+              balanceIsArray:   Array.isArray(d.balance),
+              balanceLen:       Array.isArray(d.balance) ? d.balance.length : "n/a",
+              balance0keys:     d.balance && d.balance[0] ? Object.keys(d.balance[0]).join(",") : "n/a",
+              hasStatements:    d.balance && d.balance[0] && d.balance[0].statements ? "YES len=" + d.balance[0].statements.length : "NO",
+              incomeType:       typeof d.income,
+              incomeIsArray:    Array.isArray(d.income),
+              rawBalPreview:    JSON.stringify(d.balance).slice(0, 300),
+            }
+          }]); });
+          var sfBsCols = d.balance && Array.isArray(d.balance) && d.balance[0] && d.balance[0].statements ? d.balance[0].statements[0].columns : [];
                               var sfPlCols = d.income  && Array.isArray(d.income)  && d.income[0]  && d.income[0].statements  ? d.income[0].statements[0].columns   : [];
                               setDebugLog(function(prev) { return prev.concat([
                                 {
