@@ -1901,9 +1901,11 @@ function Detail({ sym, name, onBack }) {
                             var debtIsEst = false;
                             // Priority 1: SimFin balance sheet (most accurate)
                             var sfBal = window.__simfinData && window.__simfinData[sym];
-                            if (sfBal && sfBal.balance && Array.isArray(sfBal.balance) && sfBal.balance[0] && sfBal.balance[0].columns) {
-                              var sfCols = sfBal.balance[0].columns;
-                              var sfRow0 = sfBal.balance[0].data && sfBal.balance[0].data[0];
+                            if (sfBal && sfBal.balance && Array.isArray(sfBal.balance) && sfBal.balance[0]) {
+                              var sfStmt = sfBal.balance[0].statements && sfBal.balance[0].statements[0];
+                              var sfCols = sfStmt ? sfStmt.columns : sfBal.balance[0].columns;
+                              var sfData = sfStmt ? sfStmt.data    : sfBal.balance[0].data;
+                              var sfRow0 = sfData && sfData[0];
                               if (sfRow0) {
                                 function sfGet(name) {
                                   var ci = sfCols.indexOf(name);
@@ -3671,8 +3673,8 @@ function Detail({ sym, name, onBack }) {
                                   ok:          d.ok,
                                   error:       d.error || null,
                                   diag:        d.diag || null,
-                                  incomeRows:  d.income && Array.isArray(d.income) ? d.income[0] && d.income[0].data && d.income[0].data.length + " rows" : (d.income && d.income.error ? "ERROR: " + d.income.error : "no data"),
-                                  balanceRows: d.balance && Array.isArray(d.balance) ? d.balance[0] && d.balance[0].data && d.balance[0].data.length + " rows" : (d.balance && d.balance.error ? "ERROR: " + d.balance.error : "no data"),
+                                  incomeRows:  d.income && Array.isArray(d.income) && d.income[0] && d.income[0].statements ? d.income[0].statements[0].data.length + " rows" : (d.income && d.income.error ? "ERROR: " + (d.income.error || d.income.message) : "no data"),
+                                  balanceRows: d.balance && Array.isArray(d.balance) && d.balance[0] && d.balance[0].statements ? d.balance[0].statements[0].data.length + " rows, cols: " + d.balance[0].statements[0].columns.slice(8,15).join("|") : (d.balance && d.balance.error ? "ERROR: " + d.balance.error : "no data"),
                                 }
                               }]); });
                               setInsightTab("addlinfo");
@@ -3704,13 +3706,23 @@ function Detail({ sym, name, onBack }) {
                               // Parse SimFin compact format: columns array + data array of arrays
                               function parseCompact(stmt) {
                                 if (!stmt || !Array.isArray(stmt) || stmt.length === 0) return null;
-                                var s = stmt[0];
+                                var company = stmt[0];
+                                if (!company) return null;
+                                // SimFin compact: data is in company.statements[0]
+                                var stmtArr = company.statements;
+                                var s = (stmtArr && stmtArr.length > 0) ? stmtArr[0] : company;
                                 if (!s || !s.columns || !s.data) return null;
                                 var cols = s.columns;
                                 return s.data.map(function(row) {
                                   var obj = {};
                                   cols.forEach(function(col, ci) { obj[col] = row[ci]; });
                                   return obj;
+                                }).filter(function(row) {
+                                  // Only annual FY rows, exclude TTM
+                                  return row["Fiscal Period"] === "FY" || !row["Fiscal Period"];
+                                }).sort(function(a, b) {
+                                  // Sort newest first
+                                  return (b["Fiscal Year"] || 0) - (a["Fiscal Year"] || 0);
                                 });
                               }
 
