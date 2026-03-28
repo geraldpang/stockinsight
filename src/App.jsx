@@ -1087,7 +1087,20 @@ function Detail({ sym, name, onBack }) {
       }
     }
     const dcff20 = niBaseSum > 0 ? cap(calcDCF20Sum(niBaseSum, g1Sum, g2Sum)) : 0;
-    const dni20  = niPerShare > 0 ? cap(calcDCF(niPerShare, grCapped, termGrowth, WACC_ADJ, 20)) : 0;
+    // DNI-20: match breakdown exactly (SimFin NI / shares, 10% fixed, same growth rule)
+    var niDNISum = niBaseSum > 0 ? niBaseSum / sharesSum
+                : ov.niRaw > 0  ? ov.niRaw / sharesSum
+                : baseEps > 0   ? baseEps * 0.90 : 0;
+    function calcDNI20Sum(niPS) {
+      if (!niPS) return 0;
+      var ev = 0; var f = niPS;
+      for (var y = 1; y <= 20; y++) {
+        var g = y <= 5 ? g1Sum/100 : y <= 10 ? (g1Sum*0.5)/100 : termGrowth;
+        f *= (1 + g); ev += f / Math.pow(1.10, y);
+      }
+      return ev;
+    }
+    const dni20 = niDNISum > 0 ? cap(calcDNI20Sum(niDNISum)) : 0;
     const dcffT  = fcfPerShare > 0 ? cap(
       calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 20) -
       calcDCF(fcfPerShare, grCapped, termGrowth, WACC_ADJ, 10)
