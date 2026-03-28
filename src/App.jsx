@@ -2335,7 +2335,7 @@ function Detail({ sym, name, onBack }) {
                                 )}
 
                                 {/* PS */}
-                                {ov.ps > 0 && (function() {
+                                {(function() {
                                   var PS_MEAN_LOCAL = {
                                     "NVDA":25.7,"AMD":7.5,"INTC":2.8,"QCOM":4.5,"AVGO":11.0,"TXN":7.5,
                                     "MU":4.0,"AAPL":6.5,"MSFT":11.0,"GOOGL":5.5,"META":7.0,"AMZN":3.0,
@@ -2343,6 +2343,7 @@ function Detail({ sym, name, onBack }) {
                                     "JPM":3.0,"BAC":3.0,"GS":1.8,"BRKB":1.5,"LLY":14.0,"UNH":0.9,
                                     "MRK":4.5,"XOM":1.0,"CVX":1.0,"NKE":3.0
                                   };
+                                  if (!ov || !ov.ps || ov.ps <= 0 || !price || price <= 0) return null;
                                   var psMeanLocal   = PS_MEAN_LOCAL[sym] || 5.0;
                                   var revPerShLocal = price / ov.ps;
                                   return (
