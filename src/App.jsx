@@ -711,11 +711,52 @@ function Detail({ sym, name, onBack }) {
           try { d = JSON.parse(txt); } catch(e) { d = { error: "JSON parse failed: " + String(e), raw: txt.slice(0, 200) }; }
           window.__simfinData[sym]    = d;
           window.__simfinLoading[sym] = false;
-          setDebugLog(function(prev) { return prev.concat([{
-            time:  new Date().toISOString(),
-            label: "SimFin prefetch -- " + (d.ok ? "OK" : "FAILED: " + (d.error || JSON.stringify(d).slice(0,100))),
-            data:  d.diag ? { status_pl: d.diag.status_pl, status_bs: d.diag.status_bs } : (d.error ? d : null)
-          }]); });
+          // Build detailed log entries matching the old addlinfo tab logs
+          var sfBsCols = d.balance && Array.isArray(d.balance) && d.balance[0] && d.balance[0].statements ? d.balance[0].statements[0].columns : [];
+          var sfPlCols = d.income  && Array.isArray(d.income)  && d.income[0]  && d.income[0].statements  ? d.income[0].statements[0].columns   : [];
+          var sfBsData = d.balance && Array.isArray(d.balance) && d.balance[0] && d.balance[0].statements ? d.balance[0].statements[0].data      : [];
+          var sfPlData = d.income  && Array.isArray(d.income)  && d.income[0]  && d.income[0].statements  ? d.income[0].statements[0].data       : [];
+          // Latest BS row (last = newest since SimFin returns oldest first)
+          var sfBsLatest = sfBsData.length > 0 ? (function() {
+            var row = sfBsData[sfBsData.length - 1];
+            var obj = {};
+            sfBsCols.forEach(function(k, i) { obj[k] = row[i]; });
+            return obj;
+          })() : null;
+          var sfPlLatest = sfPlData.length > 0 ? (function() {
+            var row = sfPlData[sfPlData.length - 1];
+            var obj = {};
+            sfPlCols.forEach(function(k, i) { obj[k] = row[i]; });
+            return obj;
+          })() : null;
+          setDebugLog(function(prev) { return prev.concat([
+            {
+              time:  new Date().toISOString(),
+              label: "SimFin prefetch -- " + (d.ok ? "OK" : "FAILED: " + (d.error || JSON.stringify(d).slice(0,100))),
+              data:  { status_pl: d.diag ? d.diag.status_pl : null, status_bs: d.diag ? d.diag.status_bs : null,
+                       incomeRows: sfPlData.length + " rows", balanceRows: sfBsData.length + " rows" }
+            },
+            {
+              time:  new Date().toISOString(),
+              label: "SimFin BS columns (" + sfBsCols.length + " total)",
+              data:  sfBsCols
+            },
+            {
+              time:  new Date().toISOString(),
+              label: "SimFin PL columns (" + sfPlCols.length + " total)",
+              data:  sfPlCols
+            },
+            {
+              time:  new Date().toISOString(),
+              label: "SimFin BS latest row (most recent year)",
+              data:  sfBsLatest
+            },
+            {
+              time:  new Date().toISOString(),
+              label: "SimFin PL latest row (most recent year)",
+              data:  sfPlLatest
+            }
+          ]); });
           // Trigger re-render so DCF breakdown picks up SimFin data
           setOv(function(prev) { return prev ? Object.assign({}, prev, { _sfLoaded: Date.now() }) : prev; });
           setMassiveInfo(function(prev) { return prev ? Object.assign({}, prev, { _sfLoaded: Date.now() }) : prev; });
