@@ -687,29 +687,46 @@ function Detail({ sym, name, onBack }) {
 
     // Prefetch SimFin balance sheet + income data for DCF accuracy
     // Runs on ticker load so DCF has data even before Additional Info tab is opened
+    // Log SimFin prefetch start immediately
+    setDebugLog(function(prev) { return prev.concat([{
+      time:  new Date().toISOString(),
+      label: "SimFin prefetch -- starting for " + sym,
+      data:  null
+    }]); });
     (function() {
       if (!window.__simfinData) window.__simfinData = {};
       if (!window.__simfinLoading) window.__simfinLoading = {};
-      if (window.__simfinData[sym] || window.__simfinLoading[sym]) return; // already cached
+      if (window.__simfinLoading[sym]) {
+        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "SimFin prefetch -- already loading, skipped", data: null }]); });
+        return;
+      }
       window.__simfinLoading[sym] = true;
       fetch("/simfin?sym=" + sym)
-        .then(function(r) { return r.text(); })
+        .then(function(r) {
+          setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "SimFin prefetch -- HTTP " + r.status, data: null }]); });
+          return r.text();
+        })
         .then(function(txt) {
           var d;
-          try { d = JSON.parse(txt); } catch(e) { d = { error: String(e) }; }
+          try { d = JSON.parse(txt); } catch(e) { d = { error: "JSON parse failed: " + String(e), raw: txt.slice(0, 200) }; }
           window.__simfinData[sym]    = d;
           window.__simfinLoading[sym] = false;
-          // Log to debug
           setDebugLog(function(prev) { return prev.concat([{
             time:  new Date().toISOString(),
-            label: "SimFin prefetch -- " + (d.ok ? "OK (BS + PL loaded)" : "ERROR: " + (d.error || "unknown")),
-            data:  d.diag ? { status_pl: d.diag.status_pl, status_bs: d.diag.status_bs } : null
+            label: "SimFin prefetch -- " + (d.ok ? "OK" : "FAILED: " + (d.error || JSON.stringify(d).slice(0,100))),
+            data:  d.diag ? { status_pl: d.diag.status_pl, status_bs: d.diag.status_bs } : (d.error ? d : null)
           }]); });
           // Trigger re-render so DCF breakdown picks up SimFin data
           setOv(function(prev) { return prev ? Object.assign({}, prev, { _sfLoaded: Date.now() }) : prev; });
+          setMassiveInfo(function(prev) { return prev ? Object.assign({}, prev, { _sfLoaded: Date.now() }) : prev; });
         })
         .catch(function(e) {
           window.__simfinLoading[sym] = false;
+          setDebugLog(function(prev) { return prev.concat([{
+            time:  new Date().toISOString(),
+            label: "SimFin prefetch -- CATCH ERROR: " + String(e),
+            data:  null
+          }]); });
         });
     })();
 
