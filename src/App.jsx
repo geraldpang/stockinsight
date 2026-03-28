@@ -2186,6 +2186,17 @@ function Detail({ sym, name, onBack }) {
                               debtIsEst = true;
                             }
                             var usePE  = fpe > 0 ? fpe : pe;
+                            // PS breakdown vars (pre-computed for use in return block)
+                            var PS_MEAN_BD = {
+                              "NVDA":25.7,"AMD":7.5,"INTC":2.8,"QCOM":4.5,"AVGO":11.0,"TXN":7.5,
+                              "MU":4.0,"AAPL":6.5,"MSFT":11.0,"GOOGL":5.5,"META":7.0,"AMZN":3.0,
+                              "NFLX":5.5,"TSLA":10.0,"CRM":9.0,"ADBE":13.0,"UBER":4.0,"SPOT":4.5,
+                              "JPM":3.0,"BAC":3.0,"GS":1.8,"BRKB":1.5,"LLY":14.0,"UNH":0.9,
+                              "MRK":4.5,"XOM":1.0,"CVX":1.0,"NKE":3.0
+                            };
+                            var psMeanBD     = PS_MEAN_BD[sym] || 5.0;
+                            var psRevPerShare = ov.ps > 0 ? price / ov.ps : 0;
+                            var psFairVal    = psRevPerShare * psMeanBD;
                             // Use operating cash flow (before capex) as base
                             var ocf    = ov.ocfRaw > 0 ? ov.ocfRaw : ov.fcfRaw;
 
@@ -2335,33 +2346,16 @@ function Detail({ sym, name, onBack }) {
                                 )}
 
                                 {/* PS */}
-                                {(function() {
-                                  var PS_MEAN_LOCAL = {
-                                    "NVDA":25.7,"AMD":7.5,"INTC":2.8,"QCOM":4.5,"AVGO":11.0,"TXN":7.5,
-                                    "MU":4.0,"AAPL":6.5,"MSFT":11.0,"GOOGL":5.5,"META":7.0,"AMZN":3.0,
-                                    "NFLX":5.5,"TSLA":10.0,"CRM":9.0,"ADBE":13.0,"UBER":4.0,"SPOT":4.5,
-                                    "JPM":3.0,"BAC":3.0,"GS":1.8,"BRKB":1.5,"LLY":14.0,"UNH":0.9,
-                                    "MRK":4.5,"XOM":1.0,"CVX":1.0,"NKE":3.0
-                                  };
-                                  setDebugLog(function(prev) { return prev.concat([{
-                                    time: new Date().toISOString(),
-                                    label: "PS Breakdown debug",
-                                    data: { ov_exists: !!ov, ovPs: ov ? ov.ps : "no ov", price: price, sym: sym }
-                                  }]); });
-                                  if (!ov || !ov.ps || ov.ps <= 0) return null;
-                                  var psMeanLocal   = PS_MEAN_LOCAL[sym] || 5.0;
-                                  var revPerShLocal = ov.ps > 0 ? price / ov.ps : 0;
-                                  return (
-                                    <BdSection title="Mean P/S Ratio Breakdown">
-                                      <BdRow label="Current Price"                  val={"$" + price.toFixed(2)} />
-                                      <BdRow label="Current P/S Ratio (TTM)"        val={ov.ps.toFixed(2) + "x"} />
-                                      <BdRow label="Revenue per Share"              val={"$" + revPerShLocal.toFixed(2) + "  [price/P/S]"} />
-                                      <BdRow label="Historical Mean P/S (5yr est.)" val={psMeanLocal.toFixed(1) + "x"} />
-                                      <BdDivider />
-                                      <BdRow label="= Intrinsic Value"              val={"$" + (revPerShLocal * psMeanLocal).toFixed(2) + "  [rev/sh x mean P/S]"} bold={true} highlight={true} last={true} />
-                                    </BdSection>
-                                  );
-                                })()}
+                                {ov.ps > 0 && psRevPerShare > 0 && (
+                                  <BdSection title="Mean P/S Ratio Breakdown">
+                                    <BdRow label="Current Price"                  val={"$" + price.toFixed(2)} />
+                                    <BdRow label="Current P/S Ratio (TTM)"        val={ov.ps.toFixed(2) + "x"} />
+                                    <BdRow label="Revenue per Share"              val={"$" + psRevPerShare.toFixed(2) + "  [price/P/S]"} />
+                                    <BdRow label="Historical Mean P/S (5yr est.)" val={psMeanBD.toFixed(1) + "x"} />
+                                    <BdDivider />
+                                    <BdRow label="= Intrinsic Value"              val={"$" + psFairVal.toFixed(2) + "  [rev/sh x mean P/S]"} bold={true} highlight={true} last={true} />
+                                  </BdSection>
+                                )}
 
                               </div>
                             );
