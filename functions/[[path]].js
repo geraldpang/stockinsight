@@ -100,6 +100,8 @@ export async function onRequest(context) {
       // Group B: slow reference data (news, dividends, 10-K) - fire in parallel, don't await
       var slowPromise = Promise.all([
         fetch(BASE + "/v2/reference/news?ticker=" + sym + "&limit=10&order=desc&sort=published_utc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/vX/reference/financials/ratios?ticker=" + sym + "&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch(BASE + "/vX/reference/financials/balance-sheets?ticker=" + sym + "&period=annual&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/vX/reference/tickers/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v3/reference/dividends?ticker=" + sym + "&limit=10&order=desc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch(BASE + "/v3/reference/splits?ticker=" + sym + "&order=desc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
@@ -121,11 +123,13 @@ export async function onRequest(context) {
       // Await slow group now (by the time fast group finished, slow is likely done too)
       var slowResults  = await slowPromise;
       var newsData     = slowResults[0];
-      var tickerData   = slowResults[1];
-      var dividendData = slowResults[2];
-      var splitsData   = slowResults[3];
-      var tenKBizData  = slowResults[4];
-      var tenKRiskData = slowResults[5];
+      var ratiosData   = slowResults[1];
+      var bsData       = slowResults[2];
+      var tickerData   = slowResults[3];
+      var dividendData = slowResults[4];
+      var splitsData   = slowResults[5];
+      var tenKBizData  = slowResults[6];
+      var tenKRiskData = slowResults[7];
 
       function indVal(d) {
         return d && d.results && d.results.values && d.results.values[0] ? d.results.values[0].value : null;
@@ -148,9 +152,15 @@ export async function onRequest(context) {
 
       return new Response(JSON.stringify({
         news:      newsData     && newsData.results     ? newsData.results     : [],
+        ratios:    ratiosData   && ratiosData.results   ? ratiosData.results[0] : null,
+        balSheet:  bsData       && bsData.results       ? bsData.results[0]     : null,
         ticker:    tickerData   && tickerData.results   ? tickerData.results   : null,
         dividends: dividendData && dividendData.results ? dividendData.results : [],
         splits:    splitsData   && splitsData.results   ? splitsData.results   : [],
+        // Raw financials for debt/cash/equity - pass through for debug, parse in frontend
+        financials: financialsData && financialsData.results && financialsData.results[0]
+          ? financialsData.results[0].financials
+          : null,
         aggs:      aggsData     && aggsData.results     ? aggsData.results.slice(0, 30) : [],
         snapshot: snap ? {
           open:      snap.day  ? snap.day.o  : null,
@@ -329,26 +339,46 @@ export async function onRequest(context) {
           status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       }
-      var sfBase = "https://backend.simfin.com/api/v3";
-      var sfHdr  = { "Authorization": "api-key " + sfKey, "Accept": "application/json" };
-      // Also append api-key as query param as fallback (some SimFin endpoints need this)
-      var sfAuth = "&api-key=" + encodeURIComponent(sfKey);
+      var sfBase  = "https://backend.simfin.com/api/v3";
+      var sfHdr   = { "Authorization": "api-key " + sfKey, "Accept": "application/json" };
+      var sfStart = "2013-01-01";
+      var sfDiag  = { sym: sfSym, keyPresent: !!sfKey, keyPrefix: sfKey ? sfKey.slice(0,6) + "..." : "MISSING" };
+
+      async function sfFetch(statement) {
+        var sfUrl = sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=" + statement + "&period=fy&start=" + sfStart;
+        sfDiag["url_" + statement] = sfUrl.replace(sfKey, "***");
+        try {
+          var resp = await fetch(sfUrl, { headers: sfHdr });
+          sfDiag["status_" + statement] = resp.status;
+          sfDiag["contentType_" + statement] = resp.headers.get("content-type") || "unknown";
+          var txt = await resp.text();
+          sfDiag["rawLen_" + statement] = txt.length;
+          sfDiag["rawPreview_" + statement] = txt.slice(0, 150);
+          try {
+            return JSON.parse(txt);
+          } catch(e) {
+            return { error: "JSON parse failed", raw: txt.slice(0, 300), status: resp.status };
+          }
+        } catch(e) {
+          sfDiag["fetchError_" + statement] = String(e);
+          return { error: "Fetch failed: " + String(e) };
+        }
+      }
+
       try {
-        // Fetch in parallel: income statement, balance sheet, cash flow (annual)
-        var sfStart = "2013-01-01"; // get up to 12 years of data
-        // Single call: income statement only (EPS, revenue, net income) to conserve quota
-        var sfText = await fetch(sfBase + "/companies/statements/compact?ticker=" + sfSym + "&statements=pl&period=fy&start=" + sfStart + sfAuth, { headers: sfHdr }).then(function(r){ return r.text(); });
-        var sfIncome;
-        try { sfIncome = JSON.parse(sfText); } catch(e) { sfIncome = { error: "Parse error: " + sfText.slice(0, 200) }; }
+        // Fetch income statement (EPS, revenue, net income) + balance sheet (debt, cash, equity)
+        var sfResults = await Promise.all([ sfFetch("pl"), sfFetch("bs") ]);
         return new Response(JSON.stringify({
           ok: true,
           sym: sfSym,
-          income: sfIncome,
+          income:  sfResults[0],
+          balance: sfResults[1],
+          diag:    sfDiag,
         }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       } catch(e) {
-        return new Response(JSON.stringify({ error: String(e) }), {
+        return new Response(JSON.stringify({ error: String(e), diag: sfDiag }), {
           status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       }
