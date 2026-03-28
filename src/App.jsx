@@ -3781,7 +3781,10 @@ function Detail({ sym, name, onBack }) {
                                   cols.forEach(function(col, ci) { obj[col] = row[ci]; });
                                   return obj;
                                 }).filter(function(row) {
-                                  return row["Fiscal Period"] === "FY" || !row["Fiscal Period"];
+                                  // Exclude TTM rows; accept FY or Q4 (SimFin uses Q4 for fiscal year-end companies)
+                                  if (row["TTM"] === 1 || row["TTM"] === true) return false;
+                                  var p = row["Fiscal Period"];
+                                  return p === "FY" || p === "Q4" || !p;
                                 }).sort(function(a, b) {
                                   return (b["Fiscal Year"] || 0) - (a["Fiscal Year"] || 0);
                                 });
