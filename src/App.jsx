@@ -486,6 +486,9 @@ function Detail({ sym, name, onBack }) {
 
   useEffect(function() {
     setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    // Clear SimFin cache for this ticker so it re-fetches fresh data
+    if (window.__simfinData)   { delete window.__simfinData[sym]; }
+    if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
 
     getQuote(sym).then(function(res) {
       if (res) { setQ(res); setMsg(""); }
