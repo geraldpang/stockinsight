@@ -974,39 +974,51 @@ function Detail({ sym, name, onBack }) {
     }
   }
 
-  // 2) Historical 5-year average EPS growth rate
+  // 2) Growth rate: positive-streak CAGR capped at 25%, fallback to analyst estimates
+  // Step 1: find longest consecutive positive EPS streak from newest backwards
+  // Step 2: if streak >= 3yr, use CAGR over streak (capped 25%)
+  // Step 3: if streak < 3yr, fall back to analyst ltG (capped 25%)
+  // G2 (Y6-10): use analyst ltG1Y if available, else G1 x 50%
+  var GROWTH_CAP = 0.25;
   var histGrowthRate = gr; // fallback
-  var histCagrYears  = 0;  // how many years used in CAGR
+  var histCagrYears  = 0;
+  var histG2Rate     = 0;  // Y6-10 rate
+  var histG2Source   = ""; // for breakdown label
   if (epsHistory && epsHistory.length >= 2) {
     var sorted = epsHistory.slice().sort(function(a, b) { return b.year - a.year; });
-    var epsNewest = sorted[0].eps;
-    // Try longest CAGR first (7yr, 6yr, 5yr, 4yr, 3yr, 2yr)
-    var tryYears = [9, 8, 7, 6, 5, 4, 3, 2];
-    for (var ti = 0; ti < tryYears.length; ti++) {
-      var n = tryYears[ti];
-      if (sorted.length > n) {
-        var epsOldest = sorted[n].eps;
-        if (epsNewest > 0 && epsOldest > 0) {
-          var cagr = Math.pow(epsNewest / epsOldest, 1 / n) - 1;
-          histGrowthRate = Math.max(Math.min(cagr, 0.60), -0.20); // cap -20% to 60%
-          histCagrYears  = n;
-          break;
-        }
+    // Build consecutive positive streak from newest backwards
+    var streak = [];
+    for (var si = 0; si < sorted.length; si++) {
+      if (sorted[si].eps > 0) { streak.push(sorted[si]); }
+      else { break; }
+    }
+    if (streak.length >= 3) {
+      // CAGR over full positive streak
+      var streakNewest = streak[0].eps;
+      var streakOldest = streak[streak.length - 1].eps;
+      var streakYears  = streak.length - 1;
+      var streakCagr   = Math.pow(streakNewest / streakOldest, 1 / streakYears) - 1;
+      histGrowthRate = Math.min(streakCagr, GROWTH_CAP);
+      histCagrYears  = streakYears;
+    } else {
+      // Streak < 3yr: fall back to analyst ltG
+      if (ov && ov.ltG > 0) {
+        histGrowthRate = Math.min(ov.ltG / 100, GROWTH_CAP);
+        histCagrYears  = -1; // signals analyst source
       }
     }
-    // Fallback: average of YoY rates
-    if (histCagrYears === 0) {
-      var growthRates = [];
-      for (var i = 0; i < Math.min(sorted.length - 1, 5); i++) {
-        var curr = sorted[i].eps, prev = sorted[i + 1].eps;
-        if (prev > 0 && curr > 0) growthRates.push((curr - prev) / prev);
-      }
-      if (growthRates.length > 0) {
-        var avgG = growthRates.reduce(function(s, v) { return s + v; }, 0) / growthRates.length;
-        histGrowthRate = Math.max(Math.min(avgG, 0.60), -0.20);
-        histCagrYears  = growthRates.length;
-      }
-    }
+  } else if (ov && ov.ltG > 0) {
+    // No EPS history at all: use analyst estimate
+    histGrowthRate = Math.min(ov.ltG / 100, GROWTH_CAP);
+    histCagrYears  = -1;
+  }
+  // G2 (Y6-10): analyst ltG1Y if available, else G1 x 50%
+  if (ov && ov.ltG1Y > 0) {
+    histG2Rate   = Math.min(ov.ltG1Y / 100, GROWTH_CAP);
+    histG2Source = "analyst 1yr est.";
+  } else {
+    histG2Rate   = histGrowthRate * 0.50;
+    histG2Source = "Y1-5 x 50%";
   }
 
   // 3) Beta-adjusted WACC: risk-free 4.5% + beta x 5.5%
@@ -1036,12 +1048,13 @@ function Detail({ sym, name, onBack }) {
 
   // Build valuation rows
   // Hoist shared vars so breakdown IIFE can access them even when vals block doesn't run
-  var rawCagrSum = histCagrYears >= 2
-    ? Math.max(histGrowthRate * 100, 0)
-    : (ov && ov.ltG1Y > 0 ? ov.ltG1Y : Math.max(histGrowthRate * 100, 0));
-  var g1Sum = rawCagrSum > 50 ? rawCagrSum / 2 : rawCagrSum;
-  var g2Sum = g1Sum * 0.50;
-  var histCagrLabel = histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagrSum > 50 ? ", div 2)" : ")") : "analyst est.)";
+  // g1Sum = Y1-5 growth %; g2Sum = Y6-10 growth % -- both already capped at 25%
+  var g1Sum = histGrowthRate * 100;  // as percentage e.g. 19.0
+  var g2Sum = histG2Rate * 100;      // as percentage e.g. 13.5
+  var rawCagrSum = g1Sum;            // kept for breakdown label compatibility
+  var histCagrLabel = histCagrYears > 0
+    ? histCagrYears + "-yr positive CAGR, cap 25%)"
+    : "analyst est., cap 25%)";
   // Safe defaults for shared calc objects (null = breakdown section won't render)
   var dcf20Calc = null; var dcff20Calc = null; var dni20Calc = null; var ggCalc = null;
   var psCalcIV = price || 0; var psCalcRatio = 0; var psCalcRevPS = 0; var psCalcRevSrc = "";
@@ -2154,7 +2167,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label="Cash & ST Investments"      val={fmtM(dcf20Calc.cash)} />
                                     <BdRow label="Shares Outstanding"         val={(dcf20Calc.shares/1e6).toFixed(0) + "M"} />
                                     <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y6-10 (50% of Y1-5)" val={(g2Sum).toFixed(1) + "%"} />
+                                    <BdRow label={"Growth Y6-10 (" + histG2Source + ")"} val={(g2Sum).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y11-20"              val="4%" />
                                     <BdRow label="Discount Rate"              val="10%" />
                                     <BdDivider />
@@ -2174,7 +2187,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label="Cash & ST Investments"      val={fmtM(dcff20Calc.cash)} />
                                     <BdRow label="Shares Outstanding"         val={(dcff20Calc.shares/1e6).toFixed(0) + "M"} />
                                     <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y6-10 (50% of Y1-5)" val={(g2Sum).toFixed(1) + "%"} />
+                                    <BdRow label={"Growth Y6-10 (" + histG2Source + ")"} val={(g2Sum).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y11-20"              val="4%" />
                                     <BdRow label="Discount Rate"              val="10%" />
                                     <BdDivider />
@@ -2192,7 +2205,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label={"Net Income per Share (" + dni20Calc.niSrc + ")"} val={"$" + dni20Calc.niPerShare.toFixed(4)} />
                                     <BdRow label="Shares Outstanding"         val={(dni20Calc.shares/1e6).toFixed(0) + "M"} />
                                     <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y6-10 (50% of Y1-5)" val={(g2Sum).toFixed(1) + "%"} />
+                                    <BdRow label={"Growth Y6-10 (" + histG2Source + ")"} val={(g2Sum).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y11-20"              val="4%" />
                                     <BdRow label="Discount Rate"              val="10%" />
                                     <BdDivider />
@@ -2206,7 +2219,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label="Free Cash Flow (Yahoo)"         val={fmtM(ggCalc.fcfBase)} />
                                     <BdRow label="FCF per Share"                  val={"$" + ggCalc.fcfPS.toFixed(4)} />
                                     <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y6-10 (50% of Y1-5)"    val={(g2Sum).toFixed(1) + "%"} />
+                                    <BdRow label={"Growth Y6-10 (" + histG2Source + ")"} val={(g2Sum).toFixed(1) + "%"} />
                                     <BdRow label="Growth Y11-20"                  val="4%" />
                                     <BdRow label="Discount Rate"                  val="10%" />
                                     <BdDivider />
