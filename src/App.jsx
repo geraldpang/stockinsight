@@ -1131,8 +1131,26 @@ function Detail({ sym, name, onBack }) {
     const dcffT = ggFull > 0 ? cap(ggFull) : 0;
     const peVal   = cap(fpe > 0 ? baseEps * fpe : baseEps * pe);
     const pb      = ov.hi52 > 0 ? (ov.hi52 + ov.lo52) / 2 : 0;
-    // PS bar value = current price (Option A); breakdown IIFE holds the full SimFin-sourced detail
-    const ps = price > 0 ? cap(price) : 0;
+    // PS: compute once here, shared by both bar chart and breakdown IIFE
+    // 1) SimFin Revenue / sharesOut  2) Price / ov.ps  3) price
+    var psCalcSimfinRev = 0;
+    if (sfBalSum && sfBalSum.income && Array.isArray(sfBalSum.income) && sfBalSum.income[0]) {
+      var sfPSIncC = sfBalSum.income[0].statements && sfBalSum.income[0].statements[0];
+      if (sfPSIncC && sfPSIncC.columns && sfPSIncC.data && sfPSIncC.data.length > 0) {
+        var sfPSRIC = sfPSIncC.columns.indexOf("Revenue");
+        var sfPSRRC = sfPSIncC.data[sfPSIncC.data.length - 1];
+        if (sfPSRIC !== -1 && sfPSRRC[sfPSRIC] !== null && sfPSRRC[sfPSRIC] > 0) psCalcSimfinRev = sfPSRRC[sfPSRIC];
+      }
+    }
+    var psCalcShares  = ov.sharesOut || 1;
+    var psCalcRevPS   = psCalcSimfinRev > 0 && psCalcShares > 0
+      ? psCalcSimfinRev / psCalcShares
+      : (ov.ps > 0 && price > 0) ? price / ov.ps
+      : 0;
+    var psCalcRevSrc  = psCalcSimfinRev > 0 ? "SimFin Rev / Shares" : ov.ps > 0 ? "Price / PS" : "";
+    var psCalcIV      = psCalcRevPS > 0 && ov.ps > 0 ? cap(ov.ps * psCalcRevPS) : price > 0 ? cap(price) : 0;
+    var psCalcRatio   = ov.ps > 0 ? ov.ps : 0;
+    const ps = psCalcIV;
     const ltgRate = ov.ltG > 0 ? ov.ltG : grCapped * 100;
     const psg     = ltgRate > 0 ? Math.min(price / ltgRate, maxVal) : 0;
     const pegVal  = ov.peg > 0 ? Math.min(baseEps * 15, maxVal) : 0;
@@ -2309,47 +2327,17 @@ function Detail({ sym, name, onBack }) {
                                   );
                                 })()}
 
-                                {/* PS Breakdown - after FCF-GG */}
-                                {price > 0 && (function() {
-                                  var psRatio = ov.ps > 0 ? ov.ps : 0;
-                                  // Revenue per Share: 3-tier priority
-                                  // 1st: SimFin income statement Revenue / shares (most accurate, async)
-                                  // 2nd: Price / PS ratio (derived from Yahoo/fallback ps)
-                                  // 3rd: N/A
-                                  var sfRevRaw = 0;
-                                  var sfRevSource = "";
-                                  var sfD = window.__simfinData && window.__simfinData[sym];
-                                  if (sfD && sfD.income && Array.isArray(sfD.income) && sfD.income[0]) {
-                                    var sfIS = sfD.income[0].statements && sfD.income[0].statements[0];
-                                    if (sfIS && sfIS.columns && sfIS.data && sfIS.data.length > 0) {
-                                      var sfRCI = sfIS.columns.indexOf("Revenue");
-                                      var sfRRow = sfIS.data[sfIS.data.length - 1];
-                                      if (sfRCI !== -1 && sfRRow[sfRCI] !== null && sfRRow[sfRCI] > 0) {
-                                        sfRevRaw = sfRRow[sfRCI];
-                                        sfRevSource = "SimFin";
-                                      }
-                                    }
-                                  }
-                                  var psShares = ov.sharesOut || shares || 0;
-                                  var revPerShare = sfRevRaw > 0 && psShares > 0
-                                    ? sfRevRaw / psShares
-                                    : psRatio > 0 ? price / psRatio
-                                    : 0;
-                                  var revSource = sfRevRaw > 0 ? "SimFin Rev / Shares" : psRatio > 0 ? "Price / PS" : "";
-                                  var psIV = revPerShare > 0 && psRatio > 0
-                                    ? psRatio * revPerShare
-                                    : price;
-                                  return (
-                                    <BdSection title="Mean Price to Sales (PS) Ratio Breakdown">
-                                      <BdRow label="Current Price"                val={"$" + price.toFixed(2)} />
-                                      <BdRow label="TTM Price / Sales (PS)"       val={psRatio > 0 ? psRatio.toFixed(2) + "x" : "N/A"} />
-                                      <BdRow label={"Revenue per Share  [" + (revSource || "N/A") + "]"} val={revPerShare > 0 ? "$" + revPerShare.toFixed(4) : "N/A"} />
-                                      <BdRow label="Mean PS Ratio (TTM)"          val={psRatio > 0 ? psRatio.toFixed(2) + "x" : "N/A"} />
-                                      <BdDivider />
-                                      <BdRow label="= Intrinsic Value  [Rev/sh x PS]" val={"$" + psIV.toFixed(2)} bold={true} highlight={true} last={true} />
-                                    </BdSection>
-                                  );
-                                })()}
+                                {/* PS Breakdown - reads from psCalc* computed once in vals block above */}
+                                {price > 0 && (
+                                  <BdSection title="Mean Price to Sales (PS) Ratio Breakdown">
+                                    <BdRow label="Current Price"                                  val={"$" + price.toFixed(2)} />
+                                    <BdRow label="TTM Price / Sales (PS)"                         val={psCalcRatio > 0 ? psCalcRatio.toFixed(2) + "x" : "N/A"} />
+                                    <BdRow label={"Revenue per Share  [" + (psCalcRevSrc || "N/A") + "]"} val={psCalcRevPS > 0 ? "$" + psCalcRevPS.toFixed(4) : "N/A"} />
+                                    <BdRow label="Mean PS Ratio (TTM)"                            val={psCalcRatio > 0 ? psCalcRatio.toFixed(2) + "x" : "N/A"} />
+                                    <BdDivider />
+                                    <BdRow label="= Intrinsic Value  [Rev/sh x PS]"               val={"$" + psCalcIV.toFixed(2)} bold={true} highlight={true} last={true} />
+                                  </BdSection>
+                                )}
 
                                 {/* PE */}
                                 {baseEps > 0 && usePE > 0 && (
