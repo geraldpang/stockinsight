@@ -1493,23 +1493,23 @@ function Detail({ sym, name, onBack }) {
             var ivSublabel = null;
             if (ivOracle > 0 && price > 0) {
               if (ivIsUnder && ivPct > 20) {
-                ivLabel = "Deep Value"; ivScore = 5;
+                ivLabel = "Exceptional"; ivScore = 5;
                 ivColors = pillColor("undervalued");
               } else if (ivIsUnder && ivPct >= 5) {
                 ivLabel = "Undervalued"; ivScore = 4;
                 ivColors = pillColor("undervalued");
               } else if (ivIsUnder && ivPct >= 0) {
-                ivLabel = "Fairly Valued"; ivScore = 3;
+                ivLabel = "Fair"; ivScore = 3;
                 ivColors = pillColor("fairlyvalued");
               } else if (!ivIsUnder && ivPct <= 10) {
-                ivLabel = "Slight Premium"; ivScore = 2;
+                ivLabel = "Premium"; ivScore = 2;
                 ivColors = pillColor("overvalued");
               } else {
                 ivLabel = "Overvalued"; ivScore = 1;
                 ivColors = pillColor("overvalued");
               }
               var ivPctStr = ivPct + "% " + (ivIsUnder ? "discount" : "premium");
-              ivSublabel = ivPctStr + " " + String.fromCharCode(183) + " Value at $" + oracle;
+              ivSublabel = ivPctStr + " (Value: $" + oracle + ")";
             }
             var moatColors    = moatRating  ? pillColor(moatRating)  : pillColor(null);
             var finColors     = finRating   ? pillColor(finRating)   : pillColor(null);
