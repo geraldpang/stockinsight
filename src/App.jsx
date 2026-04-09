@@ -1149,7 +1149,6 @@ function Detail({ sym, name, onBack }) {
                fcfAt20: fGG, tv: tv, pvTv: pvTv, total: pvExp + pvTv };
     })();
     const dcffT = ggCalc ? cap(ggCalc.total) : 0;
-    const pb      = ov.hi52 > 0 ? (ov.hi52 + ov.lo52) / 2 : 0;
     // PS: compute once here, shared by both bar chart and breakdown IIFE
     // 1) SimFin Revenue / sharesOut  2) Price / ov.ps  3) price
     var psCalcSimfinRev = 0;
@@ -1177,7 +1176,6 @@ function Detail({ sym, name, onBack }) {
     if (dni20  > 0) vals.push({ label:"Discounted Net Income 20-year\n(DNI-20)",        value:dni20,  color:"#d4a800" });
     if (dcffT  > 0) vals.push({ label:"Gordon Growth Terminal Value\n(DCFF-Terminal)",  value:dcffT,  color:"#d4a800" });
     vals.push({ label:"Mean Price to Sales\n(PS) Ratio",                value:ps,     color:"#d4a800" });
-    if (pb > 0)     vals.push({ label:"Mean Price to Book\n(PB) Ratio",                        value:pb,     color:"#d4a800" });
     if (pegVal > 0) vals.push({ label:"Price to Earnings Growth\n(PEG) Ratio Without NRI",     value:pegVal, color:"#c03030" });
 
     const oracleAvg = vals.reduce(function(sum, v) { return sum + v.value; }, 0) / vals.length;
