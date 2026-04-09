@@ -974,16 +974,19 @@ function Detail({ sym, name, onBack }) {
     }
   }
 
-  // 2) Growth rate: positive-streak CAGR capped at 25%, fallback to analyst estimates
-  // Step 1: find longest consecutive positive EPS streak from newest backwards
-  // Step 2: if streak >= 3yr, use CAGR over streak (capped 25%)
-  // Step 3: if streak < 3yr, fall back to analyst ltG (capped 25%)
-  // G2 (Y6-10): use analyst ltG1Y if available, else G1 x 50%
+  // 2) Growth rate logic:
+  // Y1-5: positive-streak CAGR (primary)
+  //   -> if CAGR > 25%: fallback to analyst ltG (capped 25%)
+  //   -> if streak < 3yr: fallback to analyst ltG (capped 25%)
+  //   -> if no analyst: use capped CAGR
+  // Y6-10: analyst ltG1Y (capped 25%), fallback Y1-5 x 50%
   var GROWTH_CAP = 0.25;
-  var histGrowthRate = gr; // fallback
+  var histGrowthRate = gr; // will be overridden below
   var histCagrYears  = 0;
-  var histG2Rate     = 0;  // Y6-10 rate
-  var histG2Source   = ""; // for breakdown label
+  var histCagrRaw    = 0;  // raw uncapped streak CAGR (for reference)
+  var histG1Source   = ""; // label for Y1-5
+  var histG2Rate     = 0;
+  var histG2Source   = "";
   if (epsHistory && epsHistory.length >= 2) {
     var sorted = epsHistory.slice().sort(function(a, b) { return b.year - a.year; });
     // Build consecutive positive streak from newest backwards
@@ -993,29 +996,57 @@ function Detail({ sym, name, onBack }) {
       else { break; }
     }
     if (streak.length >= 3) {
-      // CAGR over full positive streak
       var streakNewest = streak[0].eps;
       var streakOldest = streak[streak.length - 1].eps;
       var streakYears  = streak.length - 1;
       var streakCagr   = Math.pow(streakNewest / streakOldest, 1 / streakYears) - 1;
-      histGrowthRate = Math.min(streakCagr, GROWTH_CAP);
-      histCagrYears  = streakYears;
+      histCagrRaw      = streakCagr;
+      histCagrYears    = streakYears;
+      if (streakCagr <= GROWTH_CAP) {
+        // CAGR <= 25% -- use directly
+        histGrowthRate = streakCagr;
+        histG1Source   = streakYears + "-yr positive CAGR)";
+      } else {
+        // CAGR > 25% -- fall back to analyst ltG, hard cap 25% regardless
+        if (ov && ov.ltG > 0) {
+          var analystG1  = ov.ltG / 100;
+          histGrowthRate = Math.min(analystG1, GROWTH_CAP);
+          histG1Source   = analystG1 > GROWTH_CAP
+            ? "CAGR>" + (streakCagr*100).toFixed(0) + "%, analyst>" + (analystG1*100).toFixed(0) + "%, capped 25%)"
+            : "CAGR>" + (streakCagr*100).toFixed(0) + "%, analyst est.)";
+        } else {
+          // No analyst -- hard cap
+          histGrowthRate = GROWTH_CAP;
+          histG1Source   = "CAGR capped 25%)";
+        }
+      }
     } else {
-      // Streak < 3yr: fall back to analyst ltG
+      // Streak < 3yr -- fall back to analyst ltG, hard cap 25%
       if (ov && ov.ltG > 0) {
-        histGrowthRate = Math.min(ov.ltG / 100, GROWTH_CAP);
-        histCagrYears  = -1; // signals analyst source
+        var analystG1sc  = ov.ltG / 100;
+        histGrowthRate   = Math.min(analystG1sc, GROWTH_CAP);
+        histG1Source     = analystG1sc > GROWTH_CAP
+          ? "streak<3yr, analyst capped 25%)"
+          : "streak<3yr, analyst est.)";
+        histCagrYears    = -1;
+      } else {
+        histGrowthRate = Math.min(gr, GROWTH_CAP);
+        histG1Source   = "streak<3yr, capped 25%)";
+        histCagrYears  = -1;
       }
     }
   } else if (ov && ov.ltG > 0) {
-    // No EPS history at all: use analyst estimate
-    histGrowthRate = Math.min(ov.ltG / 100, GROWTH_CAP);
-    histCagrYears  = -1;
+    // No EPS history -- analyst ltG, hard cap 25%
+    var analystG1nh  = ov.ltG / 100;
+    histGrowthRate   = Math.min(analystG1nh, GROWTH_CAP);
+    histG1Source     = analystG1nh > GROWTH_CAP ? "analyst capped 25%)" : "analyst est.)";
+    histCagrYears    = -1;
   }
-  // G2 (Y6-10): analyst ltG1Y if available, else G1 x 50%
+  // Y6-10: analyst ltG1Y if available, hard cap 25%; else Y1-5 x 50%
   if (ov && ov.ltG1Y > 0) {
-    histG2Rate   = Math.min(ov.ltG1Y / 100, GROWTH_CAP);
-    histG2Source = "analyst 1yr est.";
+    var analystG2  = ov.ltG1Y / 100;
+    histG2Rate     = Math.min(analystG2, GROWTH_CAP);
+    histG2Source   = analystG2 > GROWTH_CAP ? "analyst 1yr, capped 25%" : "analyst 1yr est.";
   } else {
     histG2Rate   = histGrowthRate * 0.50;
     histG2Source = "Y1-5 x 50%";
@@ -1052,9 +1083,7 @@ function Detail({ sym, name, onBack }) {
   var g1Sum = histGrowthRate * 100;  // as percentage e.g. 19.0
   var g2Sum = histG2Rate * 100;      // as percentage e.g. 13.5
   var rawCagrSum = g1Sum;            // kept for breakdown label compatibility
-  var histCagrLabel = histCagrYears > 0
-    ? histCagrYears + "-yr positive CAGR, cap 25%)"
-    : "analyst est., cap 25%)";
+  var histCagrLabel = histG1Source || (histCagrYears > 0 ? histCagrYears + "-yr positive CAGR)" : "analyst est.)");
   // Safe defaults for shared calc objects (null = breakdown section won't render)
   var dcf20Calc = null; var dcff20Calc = null; var dni20Calc = null; var ggCalc = null;
   var psCalcIV = price || 0; var psCalcRatio = 0; var psCalcRevPS = 0; var psCalcRevSrc = "";
