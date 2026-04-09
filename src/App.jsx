@@ -1052,10 +1052,10 @@ function Detail({ sym, name, onBack }) {
   if (ov && ov.ltG1Y > 0) {
     var analystG2  = ov.ltG1Y / 100;
     histG2Rate     = Math.min(analystG2, GROWTH_CAP);
-    histG2Source   = analystG2 > GROWTH_CAP ? "analyst 1yr, capped 25%" : "analyst 1yr est.";
+    histG2Source   = analystG2 > GROWTH_CAP ? "linear decay 25%->4%)" : "linear decay " + (histG2Rate*100).toFixed(0) + "%->4%)";
   } else {
     histG2Rate   = histGrowthRate * 0.50;
-    histG2Source = "Y1-5 x 50%";
+    histG2Source = "linear decay " + (histG2Rate*100).toFixed(0) + "%->4%)";
   }
 
   // 3) Beta-adjusted WACC: risk-free 4.5% + beta x 5.5%
@@ -1136,10 +1136,23 @@ function Detail({ sym, name, onBack }) {
     }
 
     // Helper: DCF EV over 20 years
+    // Y1-5: flat g1p
+    // Y6-10: linear decay from g2p (start) to termGrowth (end)
+    //   Y6=g2p, Y7=g2p-step, Y8=g2p-2*step, Y9=g2p-3*step, Y10=termGrowth
+    //   where step = (g2p - termGrowth) / 4
+    // Y11-20: flat termGrowth
     function calcEVSum(base, g1p, g2p) {
       var ev = 0; var f = base;
+      var decayStep = (g2p - termGrowth) / 4;
       for (var y = 1; y <= 20; y++) {
-        var g = y <= 5 ? g1p : y <= 10 ? g2p : termGrowth;
+        var g;
+        if (y <= 5) {
+          g = g1p;
+        } else if (y <= 10) {
+          g = g2p - decayStep * (y - 6);
+        } else {
+          g = termGrowth;
+        }
         f *= (1 + g); ev += f / Math.pow(1.10, y);
       }
       return ev;
@@ -1172,8 +1185,12 @@ function Detail({ sym, name, onBack }) {
     var dni20Calc = (function() {
       if (!niDNISum) return null;
       var ev = 0; var f = niDNISum;
+      var dniDecayStep = (g2r - termGrowth) / 4;
       for (var y = 1; y <= 20; y++) {
-        var g = y <= 5 ? g1r : y <= 10 ? g2r : termGrowth;
+        var g;
+        if (y <= 5) { g = g1r; }
+        else if (y <= 10) { g = g2r - dniDecayStep * (y - 6); }
+        else { g = termGrowth; }
         f *= (1 + g); ev += f / Math.pow(1.10, y);
       }
       return { niPerShare: niDNISum, niSrc: niSrcSum, shares: sharesSum, perShare: ev };
@@ -1187,8 +1204,12 @@ function Detail({ sym, name, onBack }) {
       if (!fcfBase) return null;
       var fcfPS = fcfBase / sharesSum;
       var pvExp = 0; var fGG = fcfPS;
+      var ggDecayStep = (g2r - termGrowth) / 4;
       for (var gy = 1; gy <= 20; gy++) {
-        var ggy = gy <= 5 ? g1r : gy <= 10 ? g2r : termGrowth;
+        var ggy;
+        if (gy <= 5) { ggy = g1r; }
+        else if (gy <= 10) { ggy = g2r - ggDecayStep * (gy - 6); }
+        else { ggy = termGrowth; }
         fGG *= (1 + ggy); pvExp += fGG / Math.pow(1.10, gy);
       }
       var tv   = fGG * (1 + termGrowth) / (0.10 - termGrowth);
@@ -2202,7 +2223,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label="Cash & ST Investments"      val={fmtM(dcf20Calc.cash)} />
                                     <BdRow label="Shares Outstanding"         val={(dcf20Calc.shares/1e6).toFixed(0) + "M"} />
                                     <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
-                                    <BdRow label={"Growth Y6-10 (" + histG2Source + ")"} val={(g2Sum).toFixed(1) + "%"} />
+                                    <BdRow label={"Growth Y6-10 (" + histG2Source} val={(g2Sum).toFixed(1) + "% -> 4%"} />
                                     <BdRow label="Growth Y11-20"              val="4%" />
                                     <BdRow label="Discount Rate"              val="10%" />
                                     <BdDivider />
@@ -2222,7 +2243,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label="Cash & ST Investments"      val={fmtM(dcff20Calc.cash)} />
                                     <BdRow label="Shares Outstanding"         val={(dcff20Calc.shares/1e6).toFixed(0) + "M"} />
                                     <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
-                                    <BdRow label={"Growth Y6-10 (" + histG2Source + ")"} val={(g2Sum).toFixed(1) + "%"} />
+                                    <BdRow label={"Growth Y6-10 (" + histG2Source} val={(g2Sum).toFixed(1) + "% -> 4%"} />
                                     <BdRow label="Growth Y11-20"              val="4%" />
                                     <BdRow label="Discount Rate"              val="10%" />
                                     <BdDivider />
@@ -2240,7 +2261,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label={"Net Income per Share (" + dni20Calc.niSrc + ")"} val={"$" + dni20Calc.niPerShare.toFixed(4)} />
                                     <BdRow label="Shares Outstanding"         val={(dni20Calc.shares/1e6).toFixed(0) + "M"} />
                                     <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
-                                    <BdRow label={"Growth Y6-10 (" + histG2Source + ")"} val={(g2Sum).toFixed(1) + "%"} />
+                                    <BdRow label={"Growth Y6-10 (" + histG2Source} val={(g2Sum).toFixed(1) + "% -> 4%"} />
                                     <BdRow label="Growth Y11-20"              val="4%" />
                                     <BdRow label="Discount Rate"              val="10%" />
                                     <BdDivider />
@@ -2254,7 +2275,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label="Free Cash Flow (Yahoo)"         val={fmtM(ggCalc.fcfBase)} />
                                     <BdRow label="FCF per Share"                  val={"$" + ggCalc.fcfPS.toFixed(4)} />
                                     <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
-                                    <BdRow label={"Growth Y6-10 (" + histG2Source + ")"} val={(g2Sum).toFixed(1) + "%"} />
+                                    <BdRow label={"Growth Y6-10 (" + histG2Source} val={(g2Sum).toFixed(1) + "% -> 4%"} />
                                     <BdRow label="Growth Y11-20"                  val="4%" />
                                     <BdRow label="Discount Rate"                  val="10%" />
                                     <BdDivider />
