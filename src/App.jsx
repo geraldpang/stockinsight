@@ -1219,16 +1219,16 @@ function Detail({ sym, name, onBack }) {
     const ps = psCalcIV;
     const pegVal  = ov.peg > 0 ? Math.min(baseEps * 15, maxVal) : 0;
 
-    vals.push({ label:"Discounted Cash Flow 20-year\n(DCF-20)",         value:dcf20,  color:"#d4a800" });
-    if (dcff20 > 0) vals.push({ label:"Discounted Free Cash Flow 20-year\n(DCFF-20)",   value:dcff20, color:"#d4a800" });
-    if (dni20  > 0) vals.push({ label:"Discounted Net Income 20-year\n(DNI-20)",        value:dni20,  color:"#d4a800" });
-    if (dcffT  > 0) vals.push({ label:"Gordon Growth Terminal Value\n(DCFF-Terminal)",  value:dcffT,  color:"#d4a800" });
-    vals.push({ label:"Mean Price to Sales\n(PS) Ratio",                value:ps,     color:"#d4a800" });
+    vals.push({ label:"Cash Flow Model\n(20Y)",         value:dcf20,  color:"#d4a800" });
+    if (dcff20 > 0) vals.push({ label:"Earnings Model\n(20Y)",   value:dcff20, color:"#d4a800" });
+    if (dni20  > 0) vals.push({ label:"Net Income Model\n(20Y)",        value:dni20,  color:"#d4a800" });
+    if (dcffT  > 0) vals.push({ label:"Gordon Growth Model",  value:dcffT,  color:"#d4a800" });
+    vals.push({ label:"Revenue Valuation\n(PS)",                value:ps,     color:"#d4a800" });
     if (pegVal > 0) vals.push({ label:"Price to Earnings Growth\n(PEG) Ratio Without NRI",     value:pegVal, color:"#c03030" });
 
     const oracleAvg = vals.reduce(function(sum, v) { return sum + v.value; }, 0) / vals.length;
     oracle = oracleAvg.toFixed(2);
-    vals.push({ label:"IntrinsicValue(TM)", value:oracleAvg, color:"#1a8a3a", bold:true });
+    vals.push({ label:"Intrinsic Value", value:oracleAvg, color:"#1a8a3a", bold:true });
   }
 
   const maxV = vals.length
@@ -2155,7 +2155,7 @@ function Detail({ sym, name, onBack }) {
                       {vals.length > 0 ? (
                         <div>
                           <div style={{ textAlign:"right", marginBottom:8 }}>
-                            <span style={{ fontSize:11, color:"#aaa" }}>IntrinsicValue(TM) {oracle}</span>
+                            <span style={{ fontSize:11, color:"#aaa" }}>Intrinsic Value {oracle}</span>
                           </div>
                           {vals.map(function(v, i) {
                             return <VBar key={i} label={v.label} value={v.value} maxV={maxV} color={v.color} bold={v.bold} />;
@@ -2196,7 +2196,7 @@ function Detail({ sym, name, onBack }) {
 
                                 {/* DCF-20 - reads from dcf20Calc */}
                                 {dcf20Calc && (
-                                  <BdSection title="DCF-20 Breakdown">
+                                  <BdSection title="Cash Flow Model (20Y)">
                                     <BdRow label="Operating Cash Flow"        val={fmtM(dcf20Calc.ocf)} />
                                     <BdRow label="Total Debt (SimFin)"        val={fmtM(dcf20Calc.debt)} />
                                     <BdRow label="Cash & ST Investments"      val={fmtM(dcf20Calc.cash)} />
@@ -2216,7 +2216,7 @@ function Detail({ sym, name, onBack }) {
 
                                 {/* DCFF-20 - reads from dcff20Calc */}
                                 {dcff20Calc && (
-                                  <BdSection title="DCFF-20 Breakdown">
+                                  <BdSection title="Earnings Model (20Y)">
                                     <BdRow label={"Net Income (" + dcff20Calc.niSrc + ")"}  val={fmtM(dcff20Calc.niBase)} />
                                     <BdRow label="Total Debt (SimFin)"        val={fmtM(dcff20Calc.debt)} />
                                     <BdRow label="Cash & ST Investments"      val={fmtM(dcff20Calc.cash)} />
@@ -2236,7 +2236,7 @@ function Detail({ sym, name, onBack }) {
 
                                 {/* DNI-20 - reads from dni20Calc */}
                                 {dni20Calc && (
-                                  <BdSection title="DNI-20 Breakdown">
+                                  <BdSection title="Net Income Model (20Y)">
                                     <BdRow label={"Net Income per Share (" + dni20Calc.niSrc + ")"} val={"$" + dni20Calc.niPerShare.toFixed(4)} />
                                     <BdRow label="Shares Outstanding"         val={(dni20Calc.shares/1e6).toFixed(0) + "M"} />
                                     <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
@@ -2250,7 +2250,7 @@ function Detail({ sym, name, onBack }) {
 
                                 {/* FCF-GG - reads from ggCalc */}
                                 {ggCalc && (
-                                  <BdSection title="Full Gordon Growth Breakdown (FCF-GG)">
+                                  <BdSection title="Gordon Growth Model">
                                     <BdRow label="Free Cash Flow (Yahoo)"         val={fmtM(ggCalc.fcfBase)} />
                                     <BdRow label="FCF per Share"                  val={"$" + ggCalc.fcfPS.toFixed(4)} />
                                     <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
@@ -2269,7 +2269,7 @@ function Detail({ sym, name, onBack }) {
 
                                 {/* PS Breakdown - reads from psCalc* computed once in vals block above */}
                                 {price > 0 && (
-                                  <BdSection title="Mean Price to Sales (PS) Ratio Breakdown">
+                                  <BdSection title="Revenue Valuation (PS)">
                                     <BdRow label="Current Price"                                  val={"$" + price.toFixed(2)} />
                                     <BdRow label="TTM Price / Sales (PS)"                         val={psCalcRatio > 0 ? psCalcRatio.toFixed(2) + "x" : "N/A"} />
                                     <BdRow label={"Revenue per Share  [" + (psCalcRevSrc || "N/A") + "]"} val={psCalcRevPS > 0 ? "$" + psCalcRevPS.toFixed(4) : "N/A"} />
