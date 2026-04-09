@@ -95,7 +95,13 @@ async function getOverview(sym) {
     pe:           (sd.trailingPE && sd.trailingPE.raw)   || 0,
     fpe:          (sd.forwardPE  && sd.forwardPE.raw)    || 0,
     peg:          (ks.pegRatio   && ks.pegRatio.raw)     || 0,
-    ps:           (ks.priceToSalesTrailing12Months && ks.priceToSalesTrailing12Months.raw) || 0,
+    ps:           (function() {
+      var psYahoo = (ks.priceToSalesTrailing12Months && ks.priceToSalesTrailing12Months.raw) || 0;
+      if (psYahoo > 0) return psYahoo;
+      // Fallback: derive from market cap / total revenue
+      var revRaw = (fd.totalRevenue && fd.totalRevenue.raw) || 0;
+      return (mc > 0 && revRaw > 0) ? mc / revRaw : 0;
+    })(),
     evEbitda:     (ks.enterpriseToEbitda && ks.enterpriseToEbitda.raw) || 0,
     pFcf:         (ks.priceToFreeCashflows && ks.priceToFreeCashflows.raw) || 0,
     epsG:         ((fd.earningsGrowth && fd.earningsGrowth.raw) || 0) * 100,
@@ -2309,14 +2315,39 @@ function Detail({ sym, name, onBack }) {
                                 {/* PS Breakdown - after FCF-GG */}
                                 {price > 0 && (function() {
                                   var psRatio = ov.ps > 0 ? ov.ps : 0;
-                                  var psRevPS = psRatio > 0 ? price / psRatio : 0;
-                                  var psIV    = psRevPS > 0 ? psRatio * psRevPS : price;
+                                  // Revenue per Share: 3-tier priority
+                                  // 1st: SimFin income statement Revenue / shares (most accurate, async)
+                                  // 2nd: Price / PS ratio (derived from Yahoo/fallback ps)
+                                  // 3rd: N/A
+                                  var sfRevRaw = 0;
+                                  var sfRevSource = "";
+                                  var sfD = window.__simfinData && window.__simfinData[sym];
+                                  if (sfD && sfD.income && Array.isArray(sfD.income) && sfD.income[0]) {
+                                    var sfIS = sfD.income[0].statements && sfD.income[0].statements[0];
+                                    if (sfIS && sfIS.columns && sfIS.data && sfIS.data.length > 0) {
+                                      var sfRCI = sfIS.columns.indexOf("Revenue");
+                                      var sfRRow = sfIS.data[sfIS.data.length - 1];
+                                      if (sfRCI !== -1 && sfRRow[sfRCI] !== null && sfRRow[sfRCI] > 0) {
+                                        sfRevRaw = sfRRow[sfRCI];
+                                        sfRevSource = "SimFin";
+                                      }
+                                    }
+                                  }
+                                  var psShares = ov.sharesOut || shares || 0;
+                                  var revPerShare = sfRevRaw > 0 && psShares > 0
+                                    ? sfRevRaw / psShares
+                                    : psRatio > 0 ? price / psRatio
+                                    : 0;
+                                  var revSource = sfRevRaw > 0 ? "SimFin Rev / Shares" : psRatio > 0 ? "Price / PS" : "";
+                                  var psIV = revPerShare > 0 && psRatio > 0
+                                    ? psRatio * revPerShare
+                                    : price;
                                   return (
                                     <BdSection title="Mean Price to Sales (PS) Ratio Breakdown">
-                                      <BdRow label="Current Price"                   val={"$" + price.toFixed(2)} />
-                                      <BdRow label="TTM Price / Sales (PS)"          val={psRatio > 0 ? psRatio.toFixed(2) + "x" : "N/A"} />
-                                      <BdRow label="Revenue per Share  [Price / PS]" val={psRevPS > 0 ? "$" + psRevPS.toFixed(4) : "N/A"} />
-                                      <BdRow label="Mean PS Ratio (TTM)"             val={psRatio > 0 ? psRatio.toFixed(2) + "x" : "N/A"} />
+                                      <BdRow label="Current Price"                val={"$" + price.toFixed(2)} />
+                                      <BdRow label="TTM Price / Sales (PS)"       val={psRatio > 0 ? psRatio.toFixed(2) + "x" : "N/A"} />
+                                      <BdRow label={"Revenue per Share  [" + (revSource || "N/A") + "]"} val={revPerShare > 0 ? "$" + revPerShare.toFixed(4) : "N/A"} />
+                                      <BdRow label="Mean PS Ratio (TTM)"          val={psRatio > 0 ? psRatio.toFixed(2) + "x" : "N/A"} />
                                       <BdDivider />
                                       <BdRow label="= Intrinsic Value  [Rev/sh x PS]" val={"$" + psIV.toFixed(2)} bold={true} highlight={true} last={true} />
                                     </BdSection>
