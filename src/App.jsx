@@ -1125,7 +1125,11 @@ function Detail({ sym, name, onBack }) {
     const dcffT = ggFull > 0 ? cap(ggFull) : 0;
     const peVal   = cap(fpe > 0 ? baseEps * fpe : baseEps * pe);
     const pb      = ov.hi52 > 0 ? (ov.hi52 + ov.lo52) / 2 : 0;
-    const ps      = cap(peVal * Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0));
+    // PS Intrinsic Value: Revenue per Share x current TTM PS Ratio (Option A)
+    // Revenue per Share = Price / PS Ratio (derived from Yahoo data)
+    // Intrinsic Value   = Revenue per Share x PS Ratio = Price (current market price)
+    var psRevPerShare = (ov.ps > 0 && price > 0) ? price / ov.ps : 0;
+    const ps      = psRevPerShare > 0 ? cap(ov.ps * psRevPerShare) : 0;
     const ltgRate = ov.ltG > 0 ? ov.ltG : grCapped * 100;
     const psg     = ltgRate > 0 ? Math.min(price / ltgRate, maxVal) : 0;
     const pegVal  = ov.peg > 0 ? Math.min(baseEps * 15, maxVal) : 0;
@@ -2302,6 +2306,22 @@ function Detail({ sym, name, onBack }) {
                                   );
                                 })()}
 
+                                {/* PS Breakdown - after FCF-GG */}
+                                {ov.ps > 0 && price > 0 && (function() {
+                                  var psRevPS  = price / ov.ps;
+                                  var psIV     = ov.ps * psRevPS;
+                                  return (
+                                    <BdSection title="Mean Price to Sales (PS) Ratio Breakdown">
+                                      <BdRow label="Current Price"              val={"$" + price.toFixed(2)} />
+                                      <BdRow label="TTM Price / Sales (PS)"     val={ov.ps.toFixed(2) + "x"} />
+                                      <BdRow label="Revenue per Share"          val={"$" + psRevPS.toFixed(4) + "  [Price / PS]"} />
+                                      <BdRow label="Mean PS Ratio (TTM)"        val={ov.ps.toFixed(2) + "x"} />
+                                      <BdDivider />
+                                      <BdRow label="= Intrinsic Value  [Rev/sh x PS]" val={"$" + psIV.toFixed(2)} bold={true} highlight={true} last={true} />
+                                    </BdSection>
+                                  );
+                                })()}
+
                                 {/* PE */}
                                 {baseEps > 0 && usePE > 0 && (
                                   <BdSection title="PE Breakdown">
@@ -2309,16 +2329,6 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label={fpe > 0 ? "Forward P/E" : "Trailing P/E"} val={usePE.toFixed(1) + "x"} />
                                     <BdDivider />
                                     <BdRow label="= Intrinsic Value"    val={"$" + (baseEps * usePE).toFixed(2)} bold={true} highlight={true} last={true} />
-                                  </BdSection>
-                                )}
-
-                                {/* PS */}
-                                {ov.ps > 0 && baseEps > 0 && (
-                                  <BdSection title="PS Breakdown">
-                                    <BdRow label="PE Value"             val={"$" + (baseEps * usePE).toFixed(2)} />
-                                    <BdRow label="ROIC adjustment"      val={(Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0) * 100).toFixed(0) + "%"} />
-                                    <BdDivider />
-                                    <BdRow label="= Intrinsic Value"    val={"$" + (baseEps * usePE * Math.min(ov.roic > 0 ? ov.roic / 100 + 0.85 : 0.90, 1.0)).toFixed(2)} bold={true} highlight={true} last={true} />
                                   </BdSection>
                                 )}
 
