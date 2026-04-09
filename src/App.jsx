@@ -1131,11 +1131,8 @@ function Detail({ sym, name, onBack }) {
     const dcffT = ggFull > 0 ? cap(ggFull) : 0;
     const peVal   = cap(fpe > 0 ? baseEps * fpe : baseEps * pe);
     const pb      = ov.hi52 > 0 ? (ov.hi52 + ov.lo52) / 2 : 0;
-    // PS Intrinsic Value: Revenue per Share x current TTM PS Ratio (Option A)
-    // Revenue per Share = Price / PS Ratio (derived from Yahoo data)
-    // Intrinsic Value   = Revenue per Share x PS Ratio = Price (current market price)
-    var psRevPerShare = (ov.ps > 0 && price > 0) ? price / ov.ps : 0;
-    const ps      = psRevPerShare > 0 ? cap(ov.ps * psRevPerShare) : 0;
+    // PS bar value = current price (Option A); breakdown IIFE holds the full SimFin-sourced detail
+    const ps = price > 0 ? cap(price) : 0;
     const ltgRate = ov.ltG > 0 ? ov.ltG : grCapped * 100;
     const psg     = ltgRate > 0 ? Math.min(price / ltgRate, maxVal) : 0;
     const pegVal  = ov.peg > 0 ? Math.min(baseEps * 15, maxVal) : 0;
