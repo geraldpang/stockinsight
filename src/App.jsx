@@ -1035,22 +1035,22 @@ function Detail({ sym, name, onBack }) {
     : (price > 0 ? price.toFixed(2) : "-");
 
   // Build valuation rows
+  // Hoist shared vars so breakdown IIFE can access them even when vals block doesn't run
+  var rawCagrSum = histCagrYears >= 2
+    ? Math.max(histGrowthRate * 100, 0)
+    : (ov && ov.ltG1Y > 0 ? ov.ltG1Y : Math.max(histGrowthRate * 100, 0));
+  var g1Sum = rawCagrSum > 50 ? rawCagrSum / 2 : rawCagrSum;
+  var g2Sum = g1Sum * 0.50;
+  var histCagrLabel = histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagrSum > 50 ? ", div 2)" : ")") : "analyst est.)";
+  // Safe defaults for shared calc objects (null = breakdown section won't render)
+  var dcf20Calc = null; var dcff20Calc = null; var dni20Calc = null; var ggCalc = null;
+  var psCalcIV = price || 0; var psCalcRatio = 0; var psCalcRevPS = 0; var psCalcRevSrc = "";
   const vals = [];
   if (ov && baseEps > 0 && price > 0) {
     const termGrowth = 0.04;
     const grCapped   = Math.min(histGrowthRate, 0.25);
     const maxVal     = price * 3;
     const cap        = function(v) { return Math.min(v, maxVal); };
-
-    // Use same growth rule as DCF-20 breakdown:
-    // Raw CAGR -> if > 50%, divide by 2 -> Y6-10 = Y1-5/2 -> Y11-20 = 4%
-    const rawCagrSum = histCagrYears >= 2
-      ? Math.max(histGrowthRate * 100, 0)
-      : (ov.ltG1Y > 0 ? ov.ltG1Y : Math.max(histGrowthRate * 100, 0));
-    const g1Sum = rawCagrSum > 50 ? rawCagrSum / 2 : rawCagrSum;
-    const g2Sum = g1Sum * 0.50;
-    // Shared label for growth row in all breakdowns
-    var histCagrLabel = histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagrSum > 50 ? ", div 2)" : ")") : "analyst est.)";
 
     // Get SimFin debt and cash for accurate DCF
     var sfDebtSum = 0; var sfCashSum = ov.cash || 0;
