@@ -1049,6 +1049,8 @@ function Detail({ sym, name, onBack }) {
       : (ov.ltG1Y > 0 ? ov.ltG1Y : Math.max(histGrowthRate * 100, 0));
     const g1Sum = rawCagrSum > 50 ? rawCagrSum / 2 : rawCagrSum;
     const g2Sum = g1Sum * 0.50;
+    // Shared label for growth row in all breakdowns
+    var histCagrLabel = histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagrSum > 50 ? ", div 2)" : ")") : "analyst est.)";
 
     // Get SimFin debt and cash for accurate DCF
     var sfDebtSum = 0; var sfCashSum = ov.cash || 0;
@@ -2121,7 +2123,6 @@ function Detail({ sym, name, onBack }) {
 
                           {/* Calculation Breakdowns - read from shared Calc objects, no recomputation */}
                           {ov && (function() {
-                            var histCagrLabel = histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagrSum > 50 ? ", div 2)" : ")") : "analyst est.)";
                             function fmtM(v) { return v !== null && v !== undefined ? "$" + (v/1e6).toFixed(0) + "M" : "-"; }
 
                             function BdRow(props) {
