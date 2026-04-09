@@ -139,7 +139,13 @@ async function getOverview(sym) {
     // For DCF calcs
     hi52:             (sd.fiftyTwoWeekHigh && sd.fiftyTwoWeekHigh.raw) || 0,
     lo52:             (sd.fiftyTwoWeekLow  && sd.fiftyTwoWeekLow.raw)  || 0,
-    sharesOut:        (ks.sharesOutstanding && ks.sharesOutstanding.raw) || 0,
+    sharesOut:        (function() {
+      // impliedSharesOutstanding covers all share classes (A+B+C for GOOGL, A+B for META/BRKB)
+      // sharesOutstanding may only return one class -- use implied as primary
+      var implied = (ks.impliedSharesOutstanding && ks.impliedSharesOutstanding.raw) || 0;
+      var basic   = (ks.sharesOutstanding        && ks.sharesOutstanding.raw)        || 0;
+      return implied > 0 ? implied : basic;
+    })(),
     fcfRaw:           (fd.freeCashflow && fd.freeCashflow.raw) || 0,
     ocfRaw:           (fd.operatingCashflow && fd.operatingCashflow.raw) || 0,
     niRaw:            (fd.netIncomeToCommon && fd.netIncomeToCommon.raw)
