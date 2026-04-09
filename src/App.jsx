@@ -1460,6 +1460,8 @@ function Detail({ sym, name, onBack }) {
                 return { bg:"#f0f7e6", fg:"#2a7a2a", border:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" };
               if (v.includes("neutral") || v.includes("fairly") || v === "hold" || v.startsWith("hold"))
                 return { bg:"#FAEEDA", fg:"#b88000", border:"#d4a800", dot:"#EF9F27", dotEmpty:"#4a3810" };
+              if (v === "premium")
+                return { bg:"#FAEEDA", fg:"#b88000", border:"#d4a800", dot:"#EF9F27", dotEmpty:"#4a3810" };
               if (v === "undervalued")
                 return { bg:"#EAF3DE", fg:"#2a7a2a", border:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" };
               if (v === "fairlyvalued")
@@ -1503,7 +1505,7 @@ function Detail({ sym, name, onBack }) {
                 ivColors = pillColor("fairlyvalued");
               } else if (!ivIsUnder && ivPct <= 10) {
                 ivLabel = "Premium"; ivScore = 2;
-                ivColors = pillColor("overvalued");
+                ivColors = pillColor("premium");
               } else {
                 ivLabel = "Overvalued"; ivScore = 1;
                 ivColors = pillColor("overvalued");
@@ -1603,8 +1605,8 @@ function Detail({ sym, name, onBack }) {
                     return (
                       <div style={{ padding:"10px 12px", background:loading?"#252525":c.bg, border:"0.5px solid "+(loading?"#333":c.border), borderRadius:8, opacity:loading?0.6:1 }}>
                         <div style={{ fontSize:10, color:loading?"#aaa":c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>Intrinsic Value</div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                          <div>
+                        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
+                          <div style={{ flex:1, minWidth:0 }}>
                             {loading && ovLoading
                               ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
                                   <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite", flexShrink:0 }}></div>
@@ -1612,9 +1614,9 @@ function Detail({ sym, name, onBack }) {
                                 </div>
                               : <span style={{ fontSize:15, fontWeight:500, color:loading?"#ccc":c.fg }}>{loading?"...":ivLabel}</span>
                             }
-                            {!loading && ivSublabel && <div style={{ fontSize:11, color:c.fg, marginTop:2, opacity:0.85 }}>{ivSublabel}</div>}
+                            {!loading && ivSublabel && <div style={{ fontSize:11, color:c.fg, marginTop:2, opacity:0.85, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{ivSublabel}</div>}
                           </div>
-                          {!loading && <Dots score={ivScore} filled={c.dot} empty={c.dotEmpty} />}
+                          {!loading && <div style={{ flexShrink:0, marginLeft:6, marginTop:2 }}><Dots score={ivScore} filled={c.dot} empty={c.dotEmpty} /></div>}
                         </div>
                       </div>
                     );
