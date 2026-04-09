@@ -2307,15 +2307,16 @@ function Detail({ sym, name, onBack }) {
                                 })()}
 
                                 {/* PS Breakdown - after FCF-GG */}
-                                {ov.ps > 0 && price > 0 && (function() {
-                                  var psRevPS  = price / ov.ps;
-                                  var psIV     = ov.ps * psRevPS;
+                                {price > 0 && (function() {
+                                  var psRatio = ov.ps > 0 ? ov.ps : 0;
+                                  var psRevPS = psRatio > 0 ? price / psRatio : 0;
+                                  var psIV    = psRevPS > 0 ? psRatio * psRevPS : price;
                                   return (
                                     <BdSection title="Mean Price to Sales (PS) Ratio Breakdown">
-                                      <BdRow label="Current Price"              val={"$" + price.toFixed(2)} />
-                                      <BdRow label="TTM Price / Sales (PS)"     val={ov.ps.toFixed(2) + "x"} />
-                                      <BdRow label="Revenue per Share"          val={"$" + psRevPS.toFixed(4) + "  [Price / PS]"} />
-                                      <BdRow label="Mean PS Ratio (TTM)"        val={ov.ps.toFixed(2) + "x"} />
+                                      <BdRow label="Current Price"                   val={"$" + price.toFixed(2)} />
+                                      <BdRow label="TTM Price / Sales (PS)"          val={psRatio > 0 ? psRatio.toFixed(2) + "x" : "N/A"} />
+                                      <BdRow label="Revenue per Share  [Price / PS]" val={psRevPS > 0 ? "$" + psRevPS.toFixed(4) : "N/A"} />
+                                      <BdRow label="Mean PS Ratio (TTM)"             val={psRatio > 0 ? psRatio.toFixed(2) + "x" : "N/A"} />
                                       <BdDivider />
                                       <BdRow label="= Intrinsic Value  [Rev/sh x PS]" val={"$" + psIV.toFixed(2)} bold={true} highlight={true} last={true} />
                                     </BdSection>
