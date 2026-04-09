@@ -1170,8 +1170,6 @@ function Detail({ sym, name, onBack }) {
     var psCalcIV      = psCalcRevPS > 0 && ov.ps > 0 ? cap(ov.ps * psCalcRevPS) : price > 0 ? cap(price) : 0;
     var psCalcRatio   = ov.ps > 0 ? ov.ps : 0;
     const ps = psCalcIV;
-    const ltgRate = ov.ltG > 0 ? ov.ltG : grCapped * 100;
-    const psg     = ltgRate > 0 ? Math.min(price / ltgRate, maxVal) : 0;
     const pegVal  = ov.peg > 0 ? Math.min(baseEps * 15, maxVal) : 0;
 
     vals.push({ label:"Discounted Cash Flow 20-year\n(DCF-20)",         value:dcf20,  color:"#d4a800" });
@@ -1180,7 +1178,6 @@ function Detail({ sym, name, onBack }) {
     if (dcffT  > 0) vals.push({ label:"Gordon Growth Terminal Value\n(DCFF-Terminal)",  value:dcffT,  color:"#d4a800" });
     vals.push({ label:"Mean Price to Sales\n(PS) Ratio",                value:ps,     color:"#d4a800" });
     if (pb > 0)     vals.push({ label:"Mean Price to Book\n(PB) Ratio",                        value:pb,     color:"#d4a800" });
-    if (psg > 0)    vals.push({ label:"Price to Sales Growth\n(PSG) Ratio",                    value:psg,    color:"#c03030" });
     if (pegVal > 0) vals.push({ label:"Price to Earnings Growth\n(PEG) Ratio Without NRI",     value:pegVal, color:"#c03030" });
 
     const oracleAvg = vals.reduce(function(sum, v) { return sum + v.value; }, 0) / vals.length;
