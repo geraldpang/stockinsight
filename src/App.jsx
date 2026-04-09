@@ -1067,68 +1067,86 @@ function Detail({ sym, name, onBack }) {
       }
     }
 
-    // DCF-20 using OCF (matching breakdown exactly)
-    var ocfSum = ov.ocfRaw > 0 ? ov.ocfRaw : ov.fcfRaw;
+    // Single source of truth: compute all IV methods once, shared by bar + breakdown
+    var ocfSum    = ov.ocfRaw > 0 ? ov.ocfRaw : ov.fcfRaw;
     var sharesSum = ov.sharesOut || 1;
-    function calcDCF20Sum(base, g1p, g2p) {
-      if (!base || !sharesSum) return 0;
-      var ev = 0; var f = base;
-      for (var y = 1; y <= 20; y++) {
-        var g = y <= 5 ? g1p/100 : y <= 10 ? g2p/100 : termGrowth;
-        f *= (1 + g); ev += f / Math.pow(1.10, y);
-      }
-      return (ev - sfDebtSum + sfCashSum) / sharesSum;
-    }
+    var g1r = g1Sum / 100; var g2r = g2Sum / 100;
 
-    const dcf20  = ocfSum > 0 ? cap(calcDCF20Sum(ocfSum, g1Sum, g2Sum)) : 0;
-    // DCFF-20 uses Net Income (from SimFin if Yahoo niRaw = 0)
+    // Shared NI base (Yahoo then SimFin fallback)
     var niBaseSum = ov.niRaw > 0 ? ov.niRaw : 0;
+    var niSrcSum  = niBaseSum > 0 ? "Yahoo" : "SimFin";
     if (!niBaseSum && sfBalSum && sfBalSum.income && Array.isArray(sfBalSum.income) && sfBalSum.income[0]) {
       var sfIncS = sfBalSum.income[0].statements && sfBalSum.income[0].statements[0];
       if (sfIncS && sfIncS.columns && sfIncS.data && sfIncS.data.length > 0) {
         var sfICols = sfIncS.columns; var sfIRow = sfIncS.data[sfIncS.data.length - 1];
         function sfGetI(n) { var ci = sfICols.indexOf(n); return (ci !== -1 && sfIRow[ci] !== null) ? sfIRow[ci] : null; }
         var sfNIS = sfGetI("Net Income") || sfGetI("Net Income Available to Common Shareholders");
-        if (sfNIS && sfNIS > 0) niBaseSum = sfNIS;
+        if (sfNIS && sfNIS > 0) { niBaseSum = sfNIS; niSrcSum = "SimFin"; }
       }
     }
-    const dcff20 = niBaseSum > 0 ? cap(calcDCF20Sum(niBaseSum, g1Sum, g2Sum)) : 0;
-    // DNI-20: match breakdown exactly (SimFin NI / shares, 10% fixed, same growth rule)
-    var niDNISum = niBaseSum > 0 ? niBaseSum / sharesSum
-                : ov.niRaw > 0  ? ov.niRaw / sharesSum
-                : baseEps > 0   ? baseEps * 0.90 : 0;
-    function calcDNI20Sum(niPS) {
-      if (!niPS) return 0;
-      var ev = 0; var f = niPS;
+
+    // Helper: DCF EV over 20 years
+    function calcEVSum(base, g1p, g2p) {
+      var ev = 0; var f = base;
       for (var y = 1; y <= 20; y++) {
-        var g = y <= 5 ? g1Sum/100 : y <= 10 ? (g1Sum*0.5)/100 : termGrowth;
+        var g = y <= 5 ? g1p : y <= 10 ? g2p : termGrowth;
         f *= (1 + g); ev += f / Math.pow(1.10, y);
       }
       return ev;
     }
-    const dni20 = niDNISum > 0 ? cap(calcDNI20Sum(niDNISum)) : 0;
-    // Full Gordon Growth: PV(explicit years 1-20) + PV(terminal perpetuity)
-    // Replaces DCFF-Terminal with a complete standalone valuation
-    // Base: FCF per share. No debt/cash bridge needed (per-share basis)
-    var ggFull = 0;
-    if (sharesSum > 0) {
-      var fcfBaseGG = ov.fcfRaw > 0 ? ov.fcfRaw : (ocfSum > 0 ? ocfSum * 0.6 : 0);
-      if (fcfBaseGG > 0) {
-        var fcfPSGG = fcfBaseGG / sharesSum;
-        // Part 1: PV of explicit years 1-20
-        var pvExplicit = 0; var fGG = fcfPSGG;
-        for (var gy = 1; gy <= 20; gy++) {
-          var ggy = gy <= 5 ? g1Sum/100 : gy <= 10 ? (g1Sum*0.5)/100 : termGrowth;
-          fGG *= (1 + ggy);
-          pvExplicit += fGG / Math.pow(1.10, gy);
-        }
-        // Part 2: PV of terminal perpetuity (Gordon Growth)
-        var tvGG   = fGG * (1 + termGrowth) / (0.10 - termGrowth);
-        var pvTvGG = tvGG / Math.pow(1.10, 20);
-        ggFull = pvExplicit + pvTvGG;
+
+    // DCF-20 (OCF based, debt/cash bridge)
+    var dcf20Calc = (function() {
+      if (!ocfSum || !sharesSum) return null;
+      var ev     = calcEVSum(ocfSum, g1r, g2r);
+      var equity = ev - sfDebtSum + sfCashSum;
+      return { ocf: ocfSum, debt: sfDebtSum, cash: sfCashSum, shares: sharesSum,
+               ev: ev, equity: equity, perShare: equity / sharesSum };
+    })();
+    const dcf20 = dcf20Calc ? cap(dcf20Calc.perShare) : 0;
+
+    // DCFF-20 (NI based, debt/cash bridge)
+    var dcff20Calc = (function() {
+      if (!niBaseSum || !sharesSum) return null;
+      var ev     = calcEVSum(niBaseSum, g1r, g2r);
+      var equity = ev - sfDebtSum + sfCashSum;
+      return { niBase: niBaseSum, niSrc: niSrcSum, debt: sfDebtSum, cash: sfCashSum, shares: sharesSum,
+               ev: ev, equity: equity, perShare: equity / sharesSum };
+    })();
+    const dcff20 = dcff20Calc ? cap(dcff20Calc.perShare) : 0;
+
+    // DNI-20 (NI per share, no debt bridge)
+    var niDNISum = niBaseSum > 0 ? niBaseSum / sharesSum
+                : ov.niRaw > 0  ? ov.niRaw  / sharesSum
+                : baseEps > 0   ? baseEps * 0.90 : 0;
+    var dni20Calc = (function() {
+      if (!niDNISum) return null;
+      var ev = 0; var f = niDNISum;
+      for (var y = 1; y <= 20; y++) {
+        var g = y <= 5 ? g1r : y <= 10 ? g2r : termGrowth;
+        f *= (1 + g); ev += f / Math.pow(1.10, y);
       }
-    }
-    const dcffT = ggFull > 0 ? cap(ggFull) : 0;
+      return { niPerShare: niDNISum, niSrc: niSrcSum, shares: sharesSum, perShare: ev };
+    })();
+    const dni20 = dni20Calc ? cap(dni20Calc.perShare) : 0;
+
+    // Gordon Growth / DCFF-Terminal (FCF per share, PV explicit + terminal)
+    var ggCalc = (function() {
+      if (!sharesSum) return null;
+      var fcfBase = ov.fcfRaw > 0 ? ov.fcfRaw : (ocfSum > 0 ? ocfSum * 0.6 : 0);
+      if (!fcfBase) return null;
+      var fcfPS = fcfBase / sharesSum;
+      var pvExp = 0; var fGG = fcfPS;
+      for (var gy = 1; gy <= 20; gy++) {
+        var ggy = gy <= 5 ? g1r : gy <= 10 ? g2r : termGrowth;
+        fGG *= (1 + ggy); pvExp += fGG / Math.pow(1.10, gy);
+      }
+      var tv   = fGG * (1 + termGrowth) / (0.10 - termGrowth);
+      var pvTv = tv / Math.pow(1.10, 20);
+      return { fcfBase: fcfBase, fcfPS: fcfPS, pvExplicit: pvExp,
+               fcfAt20: fGG, tv: tv, pvTv: pvTv, total: pvExp + pvTv };
+    })();
+    const dcffT = ggCalc ? cap(ggCalc.total) : 0;
     const peVal   = cap(fpe > 0 ? baseEps * fpe : baseEps * pe);
     const pb      = ov.hi52 > 0 ? (ov.hi52 + ov.lo52) / 2 : 0;
     // PS: compute once here, shared by both bar chart and breakdown IIFE
@@ -2103,115 +2121,11 @@ function Detail({ sym, name, onBack }) {
                             <span style={{ fontSize:11, color:"#aaa" }}>Stock price: ${price.toFixed(2)}</span>
                           </div>
 
-                          {/* Calculation Breakdowns */}
+                          {/* Calculation Breakdowns - read from shared Calc objects, no recomputation */}
                           {ov && (function() {
-                            var DISC   = 0.10;
-                            // Y1-5: 5-yr historical EPS CAGR, Y6-10: +5yr analyst estimate
-                            // Y1-5: longest available historical EPS CAGR (up to 9yr)
-                            // Y6-10: half of Y1-5
-                            // Y1-5: hist EPS CAGR. If > 50%, divide by 2 to temper explosive growth
-                            // Y6-10: half of Y1-5. Y11-20: fixed 4%
-                            var rawCagr = histCagrYears >= 2
-                                           ? Math.max(histGrowthRate * 100, 0)
-                                           : (ov.ltG1Y > 0 ? ov.ltG1Y : Math.max(histGrowthRate * 100, 0));
-                            var g1Pct   = rawCagr > 50 ? rawCagr / 2 : rawCagr;
-                            var g2Pct   = g1Pct * 0.50;
-                            var g1     = g1Pct / 100;
-                            var g2     = g2Pct / 100;
-                            var g3     = 0.04;
-                            var debt   = ov.totalDebt || 0;
-                            var cash   = ov.cash      || 0;
-                            var shares = ov.sharesOut  || 0;
-                            // Track whether debt is estimated
-                            var debtIsEst = false;
-                            // Priority 1: SimFin balance sheet (most accurate)
-                            // Uses most recent FY row (parseCompact sorts newest first)
-                            var sfBal = window.__simfinData && window.__simfinData[sym];
-                            if (sfBal && sfBal.balance && Array.isArray(sfBal.balance) && sfBal.balance[0]) {
-                              var sfStmt = sfBal.balance[0].statements && sfBal.balance[0].statements[0];
-                              var sfCols = sfStmt ? sfStmt.columns : null;
-                              var sfData = sfStmt ? sfStmt.data    : null;
-                              // Take the LAST row (SimFin returns oldest first)
-                              var sfRow0 = sfData && sfData.length > 0 ? sfData[sfData.length - 1] : null;
-                              if (sfRow0 && sfCols) {
-                                function sfGet(name) {
-                                  var ci = sfCols.indexOf(name);
-                                  return (ci !== -1 && sfRow0[ci] !== null) ? sfRow0[ci] : null;
-                                }
-                                // Total Debt = Short Term Debt + Long Term Debt
-                                var sfLTD  = sfGet("Long Term Debt")  || 0;
-                                var sfSTD  = sfGet("Short Term Debt") || 0;
-                                var sfTotalDebt = sfLTD + sfSTD;
-                                // Cash = full cash including short term investments
-                                var sfCash = sfGet("Cash, Cash Equivalents & Short Term Investments")
-                                          || sfGet("Cash & Cash Equivalents");
-                                if (sfTotalDebt > 0) { debt = sfTotalDebt; debtIsEst = false; }
-                                if (sfCash !== null)  { cash = sfCash; }
-                              }
-                            }
-                            // Get Net Income from SimFin if Yahoo niRaw is 0
-                            var niBase = ov.niRaw > 0 ? ov.niRaw : 0;
-                            if (!niBase && sfBal && sfBal.income && Array.isArray(sfBal.income) && sfBal.income[0]) {
-                              var sfIncStmt = sfBal.income[0].statements && sfBal.income[0].statements[0];
-                              if (sfIncStmt && sfIncStmt.columns && sfIncStmt.data && sfIncStmt.data.length > 0) {
-                                var sfIncCols = sfIncStmt.columns;
-                                var sfIncRow  = sfIncStmt.data[sfIncStmt.data.length - 1];
-                                function sfGetInc(n) { var ci = sfIncCols.indexOf(n); return (ci !== -1 && sfIncRow[ci] !== null) ? sfIncRow[ci] : null; }
-                                var sfNI = sfGetInc("Net Income") || sfGetInc("Net Income Available to Common Shareholders");
-                                if (sfNI && sfNI > 0) niBase = sfNI;
-                              }
-                            }
-                            var niSource = niBase === ov.niRaw ? "Yahoo" : "SimFin";
-                            // DNI-20: NI per share using same SimFin priority
-                            var niPerShareDNI = niBase > 0 && shares > 0 ? niBase / shares
-                                             : baseEps > 0 ? baseEps * 0.90 : 0;
-                            // Same growth rule as DCF-20
-                            var WACC_DNI = 0.10; // fixed 10% consistent with DCF-20 and DCFF-20
-                            function calcDNI20Bd(niPS) {
-                              if (!niPS) return null;
-                              var ev = 0; var f = niPS;
-                              for (var y = 1; y <= 20; y++) {
-                                var g = y <= 5 ? g1 : y <= 10 ? g2 : g3;
-                                f *= (1 + g); ev += f / Math.pow(1 + WACC_DNI, y);
-                              }
-                              return { ev: ev * shares, perShare: ev };
-                            }
-                            var dni20Res = niPerShareDNI > 0 ? calcDNI20Bd(niPerShareDNI) : null;
-
-                            // Priority 2: estimate from P/B ratio if still missing
-                            if (!debt && ov.de > 0 && ov.pbRatio > 0 && price > 0 && shares > 0) {
-                              var bvPerShare  = price / ov.pbRatio;
-                              var totalEquity = bvPerShare * shares;
-                              debt            = ov.de * totalEquity;
-                              debtIsEst       = true;
-                            } else if (!debt && ov.totalDebt) {
-                              debt = ov.totalDebt;
-                              debtIsEst = true;
-                            }
                             var usePE  = fpe > 0 ? fpe : pe;
-                            // Use operating cash flow (before capex) as base
-                            var ocf    = ov.ocfRaw > 0 ? ov.ocfRaw : ov.fcfRaw;
-
+                            var histCagrLabel = histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagrSum > 50 ? ", div 2)" : ")") : "analyst est.)";
                             function fmtM(v) { return v !== null && v !== undefined ? "$" + (v/1e6).toFixed(0) + "M" : "-"; }
-                            function calcEV(fcf0, gr1, gr2, gr3) {
-                              var ev = 0, f = fcf0;
-                              for (var y = 1; y <= 20; y++) {
-                                var g = y <= 5 ? gr1 : y <= 10 ? gr2 : gr3;
-                                f = f * (1 + g);
-                                ev += f / Math.pow(1 + DISC, y);
-                              }
-                              return ev;
-                            }
-                            function calcPerShare(fcf0) {
-                              if (!fcf0 || !shares) return null;
-                              var ev     = calcEV(fcf0, g1, g2, g3);
-                              var equity = ev - debt + cash;
-                              return { ev: ev, equity: equity, perShare: equity / shares };
-                            }
-
-                            var dcf20Res   = ocf       > 0 && shares > 0 ? calcPerShare(ocf)        : null;
-                            var dcff20Res  = niBase    > 0 && shares > 0 ? calcPerShare(niBase)     : null;
-                            var eps20Res   = baseEps   > 0 && shares > 0 ? calcPerShare(baseEps * shares) : null;
 
                             function BdRow(props) {
                               return (
@@ -2239,93 +2153,78 @@ function Detail({ sym, name, onBack }) {
                               <div style={{ marginTop:20, borderTop:"2px solid #e0dbd0", paddingTop:14 }}>
                                 <div style={{ fontSize:12, fontWeight:700, color:"#111", marginBottom:12 }}>Calculation Details</div>
 
-                                {/* DCF-20 */}
-                                {dcf20Res && (
+                                {/* DCF-20 - reads from dcf20Calc */}
+                                {dcf20Calc && (
                                   <BdSection title="DCF-20 Breakdown">
-                                    <BdRow label="Operating Cash Flow"  val={fmtM(ocf)} />
-                                    <BdRow label={"Total Debt" + (debtIsEst ? " (est.)" : " (SimFin)")} val={fmtM(debt)} />
-                                    <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
-                                    <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagr > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y6-10 (50% of Y1-5)"      val={(g2*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y11-20"        val="4%" />
-                                    <BdRow label="Discount Rate"        val="10%" />
+                                    <BdRow label="Operating Cash Flow"        val={fmtM(dcf20Calc.ocf)} />
+                                    <BdRow label="Total Debt (SimFin)"        val={fmtM(dcf20Calc.debt)} />
+                                    <BdRow label="Cash & ST Investments"      val={fmtM(dcf20Calc.cash)} />
+                                    <BdRow label="Shares Outstanding"         val={(dcf20Calc.shares/1e6).toFixed(0) + "M"} />
+                                    <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y6-10 (50% of Y1-5)" val={(g2Sum).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y11-20"              val="4%" />
+                                    <BdRow label="Discount Rate"              val="10%" />
                                     <BdDivider />
-                                    <BdRow label="Enterprise Value"     val={"$" + (dcf20Res.ev/1e6).toFixed(0) + "M"} />
-                                    <BdRow label="- Debt + Cash"        val={"$" + ((cash - debt)/1e6).toFixed(0) + "M"} />
-                                    <BdRow label="/ Shares"             val={(shares/1e6).toFixed(0) + "M"} />
+                                    <BdRow label="Enterprise Value"           val={"$" + (dcf20Calc.ev/1e6).toFixed(0) + "M"} />
+                                    <BdRow label="- Debt + Cash"              val={"$" + ((dcf20Calc.cash - dcf20Calc.debt)/1e6).toFixed(0) + "M"} />
+                                    <BdRow label="/ Shares"                   val={(dcf20Calc.shares/1e6).toFixed(0) + "M"} />
                                     <BdDivider />
-                                    <BdRow label="= Intrinsic Value"    val={"$" + (dcf20Res.perShare).toFixed(2)} bold={true} highlight={true} last={true} />
+                                    <BdRow label="= Intrinsic Value"          val={"$" + dcf20Calc.perShare.toFixed(2)} bold={true} highlight={true} last={true} />
                                   </BdSection>
                                 )}
 
-                                {/* DCFF-20 */}
-                                {dcff20Res && (
+                                {/* DCFF-20 - reads from dcff20Calc */}
+                                {dcff20Calc && (
                                   <BdSection title="DCFF-20 Breakdown">
-                                    <BdRow label={"Net Income (" + niSource + ")"}   val={fmtM(niBase)} />
-                                    <BdRow label={"Total Debt" + (debtIsEst ? " (est.)" : " (SimFin)")} val={fmtM(debt)} />
-                                    <BdRow label="Cash & ST Investments" val={fmtM(cash)} />
-                                    <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagr > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y6-10 (50% of Y1-5)"     val={(g2*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y11-20"        val="4%" />
-                                    <BdRow label="Discount Rate"        val="10%" />
+                                    <BdRow label={"Net Income (" + dcff20Calc.niSrc + ")"}  val={fmtM(dcff20Calc.niBase)} />
+                                    <BdRow label="Total Debt (SimFin)"        val={fmtM(dcff20Calc.debt)} />
+                                    <BdRow label="Cash & ST Investments"      val={fmtM(dcff20Calc.cash)} />
+                                    <BdRow label="Shares Outstanding"         val={(dcff20Calc.shares/1e6).toFixed(0) + "M"} />
+                                    <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y6-10 (50% of Y1-5)" val={(g2Sum).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y11-20"              val="4%" />
+                                    <BdRow label="Discount Rate"              val="10%" />
                                     <BdDivider />
-                                    <BdRow label="Enterprise Value"     val={"$" + (dcff20Res.ev/1e6).toFixed(0) + "M"} />
-                                    <BdRow label="- Debt + Cash"        val={"$" + ((cash - debt)/1e6).toFixed(0) + "M"} />
-                                    <BdRow label="/ Shares"             val={(shares/1e6).toFixed(0) + "M"} />
+                                    <BdRow label="Enterprise Value"           val={"$" + (dcff20Calc.ev/1e6).toFixed(0) + "M"} />
+                                    <BdRow label="- Debt + Cash"              val={"$" + ((dcff20Calc.cash - dcff20Calc.debt)/1e6).toFixed(0) + "M"} />
+                                    <BdRow label="/ Shares"                   val={(dcff20Calc.shares/1e6).toFixed(0) + "M"} />
                                     <BdDivider />
-                                    <BdRow label="= Intrinsic Value"    val={"$" + (dcff20Res.perShare).toFixed(2)} bold={true} highlight={true} last={true} />
+                                    <BdRow label="= Intrinsic Value"          val={"$" + dcff20Calc.perShare.toFixed(2)} bold={true} highlight={true} last={true} />
                                   </BdSection>
                                 )}
 
-                                {/* DNI-20 */}
-                                {dni20Res && (
+                                {/* DNI-20 - reads from dni20Calc */}
+                                {dni20Calc && (
                                   <BdSection title="DNI-20 Breakdown">
-                                    <BdRow label={"Net Income per Share (" + niSource + ")"} val={"$" + niPerShareDNI.toFixed(4)} />
-                                    <BdRow label="Shares Outstanding"   val={(shares/1e6).toFixed(0) + "M"} />
-                                    <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagr > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y6-10 (50% of Y1-5)"     val={(g2*100).toFixed(1) + "%"} />
-                                    <BdRow label="Growth Y11-20"        val="4%" />
-                                    <BdRow label="Discount Rate"        val="10%" />
+                                    <BdRow label={"Net Income per Share (" + dni20Calc.niSrc + ")"} val={"$" + dni20Calc.niPerShare.toFixed(4)} />
+                                    <BdRow label="Shares Outstanding"         val={(dni20Calc.shares/1e6).toFixed(0) + "M"} />
+                                    <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y6-10 (50% of Y1-5)" val={(g2Sum).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y11-20"              val="4%" />
+                                    <BdRow label="Discount Rate"              val="10%" />
                                     <BdDivider />
-                                    <BdRow label="= Intrinsic Value"    val={"$" + (dni20Res.perShare).toFixed(2)} bold={true} highlight={true} last={true} />
+                                    <BdRow label="= Intrinsic Value"          val={"$" + dni20Calc.perShare.toFixed(2)} bold={true} highlight={true} last={true} />
                                   </BdSection>
                                 )}
 
-                                {/* DCFF-Terminal */}
-                                {ov.fcfRaw > 0 && (function() {
-                                  var fcfBaseGGBd = ov.fcfRaw > 0 ? ov.fcfRaw : ocf;
-                                  var fcfPSGGBd   = shares > 0 ? fcfBaseGGBd / shares : 0;
-                                  // Part 1: PV of explicit years 1-20
-                                  var pvExpBd = 0; var fBd = fcfPSGGBd;
-                                  for (var gy = 1; gy <= 20; gy++) {
-                                    var ggyBd = gy <= 5 ? g1 : gy <= 10 ? g2 : g3;
-                                    fBd *= (1 + ggyBd);
-                                    pvExpBd += fBd / Math.pow(1.10, gy);
-                                  }
-                                  // Part 2: PV of terminal perpetuity
-                                  var tvBd   = fBd * (1 + g3) / (0.10 - g3);
-                                  var pvTvBd = tvBd / Math.pow(1.10, 20);
-                                  var totalGG = pvExpBd + pvTvBd;
-                                  return (
-                                    <BdSection title="Full Gordon Growth Breakdown (FCF-GG)">
-                                      <BdRow label="Free Cash Flow (Yahoo)"         val={fmtM(fcfBaseGGBd)} />
-                                      <BdRow label="FCF per Share"                  val={"$" + fcfPSGGBd.toFixed(4)} />
-                                      <BdRow label={"Growth Y1-5 (" + (histCagrYears > 0 ? histCagrYears + "-yr CAGR" + (rawCagr > 50 ? ", div 2)" : ")") : "analyst est.)")} val={(g1*100).toFixed(1) + "%"} />
-                                      <BdRow label="Growth Y6-10 (50% of Y1-5)"    val={(g2*100).toFixed(1) + "%"} />
-                                      <BdRow label="Growth Y11-20"                  val="4%" />
-                                      <BdRow label="Discount Rate"                  val="10%" />
-                                      <BdDivider />
-                                      <BdRow label="Part 1: PV of Years 1-20"       val={"$" + pvExpBd.toFixed(2) + "/sh"} />
-                                      <BdRow label="FCF at Year 20"                 val={"$" + fBd.toFixed(4) + "/sh"} />
-                                      <BdRow label="Terminal Value at Yr 20"        val={"$" + tvBd.toFixed(2) + "/sh  [FCF21/(10%-4%)]"} />
-                                      <BdRow label="Part 2: PV of Terminal Value"   val={"$" + pvTvBd.toFixed(2) + "/sh  [TV/(1.10)^20]"} />
-                                      <BdDivider />
-                                      <BdRow label="= Intrinsic Value (Pt1 + Pt2)"  val={"$" + totalGG.toFixed(2)} bold={true} highlight={true} last={true} />
-                                    </BdSection>
-                                  );
-                                })()}
+                                {/* FCF-GG - reads from ggCalc */}
+                                {ggCalc && (
+                                  <BdSection title="Full Gordon Growth Breakdown (FCF-GG)">
+                                    <BdRow label="Free Cash Flow (Yahoo)"         val={fmtM(ggCalc.fcfBase)} />
+                                    <BdRow label="FCF per Share"                  val={"$" + ggCalc.fcfPS.toFixed(4)} />
+                                    <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y6-10 (50% of Y1-5)"    val={(g2Sum).toFixed(1) + "%"} />
+                                    <BdRow label="Growth Y11-20"                  val="4%" />
+                                    <BdRow label="Discount Rate"                  val="10%" />
+                                    <BdDivider />
+                                    <BdRow label="Part 1: PV of Years 1-20"       val={"$" + ggCalc.pvExplicit.toFixed(2) + "/sh"} />
+                                    <BdRow label="FCF at Year 20"                 val={"$" + ggCalc.fcfAt20.toFixed(4) + "/sh"} />
+                                    <BdRow label="Terminal Value at Yr 20"        val={"$" + ggCalc.tv.toFixed(2) + "/sh  [FCF21/(10%-4%)]"} />
+                                    <BdRow label="Part 2: PV of Terminal Value"   val={"$" + ggCalc.pvTv.toFixed(2) + "/sh  [TV/(1.10)^20]"} />
+                                    <BdDivider />
+                                    <BdRow label="= Intrinsic Value (Pt1 + Pt2)"  val={"$" + ggCalc.total.toFixed(2)} bold={true} highlight={true} last={true} />
+                                  </BdSection>
+                                )}
 
                                 {/* PS Breakdown - reads from psCalc* computed once in vals block above */}
                                 {price > 0 && (
