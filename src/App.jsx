@@ -1058,9 +1058,9 @@ function Detail({ sym, name, onBack }) {
     histG2Source = "linear decay " + (histG2Rate*100).toFixed(0) + "%->4%)";
   }
 
-  // 3) Beta-adjusted WACC: risk-free 4.5% + beta x 5.5%
+  // 3) Beta-adjusted WACC: risk-free 4.2% + beta x 3.5%, clamped 6%-10%
   var beta = ov ? (ov.beta || 1.0) : 1.0;
-  var WACC_ADJ = Math.min(Math.max(0.045 + beta * 0.055, 0.06), 0.18); // clamp 6%-18%
+  var WACC_ADJ = Math.min(Math.max(0.042 + beta * 0.035, 0.06), 0.10); // clamp 6%-10%
 
   // 4) Real FCF per share = freeCashflow / sharesOutstanding
   var fcfPerShare = 0;
@@ -1141,7 +1141,8 @@ function Detail({ sym, name, onBack }) {
     //   Y6=g2p, Y7=g2p-step, Y8=g2p-2*step, Y9=g2p-3*step, Y10=termGrowth
     //   where step = (g2p - termGrowth) / 4
     // Y11-20: flat termGrowth
-    function calcEVSum(base, g1p, g2p) {
+    // disc: WACC_ADJ (beta-adjusted, 6%-10%)
+    function calcEVSum(base, g1p, g2p, disc) {
       var ev = 0; var f = base;
       var decayStep = (g2p - termGrowth) / 4;
       for (var y = 1; y <= 20; y++) {
@@ -1153,7 +1154,7 @@ function Detail({ sym, name, onBack }) {
         } else {
           g = termGrowth;
         }
-        f *= (1 + g); ev += f / Math.pow(1.10, y);
+        f *= (1 + g); ev += f / Math.pow(1 + disc, y);
       }
       return ev;
     }
@@ -1161,20 +1162,20 @@ function Detail({ sym, name, onBack }) {
     // DCF-20 (OCF based, debt/cash bridge)
     var dcf20Calc = (function() {
       if (!ocfSum || !sharesSum) return null;
-      var ev     = calcEVSum(ocfSum, g1r, g2r);
+      var ev     = calcEVSum(ocfSum, g1r, g2r, WACC_ADJ);
       var equity = ev - sfDebtSum + sfCashSum;
       return { ocf: ocfSum, debt: sfDebtSum, cash: sfCashSum, shares: sharesSum,
-               ev: ev, equity: equity, perShare: equity / sharesSum };
+               ev: ev, equity: equity, perShare: equity / sharesSum, disc: WACC_ADJ };
     })();
     const dcf20 = dcf20Calc ? cap(dcf20Calc.perShare) : 0;
 
     // DCFF-20 (NI based, debt/cash bridge)
     var dcff20Calc = (function() {
       if (!niBaseSum || !sharesSum) return null;
-      var ev     = calcEVSum(niBaseSum, g1r, g2r);
+      var ev     = calcEVSum(niBaseSum, g1r, g2r, WACC_ADJ);
       var equity = ev - sfDebtSum + sfCashSum;
       return { niBase: niBaseSum, niSrc: niSrcSum, debt: sfDebtSum, cash: sfCashSum, shares: sharesSum,
-               ev: ev, equity: equity, perShare: equity / sharesSum };
+               ev: ev, equity: equity, perShare: equity / sharesSum, disc: WACC_ADJ };
     })();
     const dcff20 = dcff20Calc ? cap(dcff20Calc.perShare) : 0;
 
@@ -1191,9 +1192,9 @@ function Detail({ sym, name, onBack }) {
         if (y <= 5) { g = g1r; }
         else if (y <= 10) { g = g2r - dniDecayStep * (y - 6); }
         else { g = termGrowth; }
-        f *= (1 + g); ev += f / Math.pow(1.10, y);
+        f *= (1 + g); ev += f / Math.pow(1 + WACC_ADJ, y);
       }
-      return { niPerShare: niDNISum, niSrc: niSrcSum, shares: sharesSum, perShare: ev };
+      return { niPerShare: niDNISum, niSrc: niSrcSum, shares: sharesSum, perShare: ev, disc: WACC_ADJ };
     })();
     const dni20 = dni20Calc ? cap(dni20Calc.perShare) : 0;
 
@@ -1210,12 +1211,12 @@ function Detail({ sym, name, onBack }) {
         if (gy <= 5) { ggy = g1r; }
         else if (gy <= 10) { ggy = g2r - ggDecayStep * (gy - 6); }
         else { ggy = termGrowth; }
-        fGG *= (1 + ggy); pvExp += fGG / Math.pow(1.10, gy);
+        fGG *= (1 + ggy); pvExp += fGG / Math.pow(1 + WACC_ADJ, gy);
       }
-      var tv   = fGG * (1 + termGrowth) / (0.10 - termGrowth);
-      var pvTv = tv / Math.pow(1.10, 20);
+      var tv   = fGG * (1 + termGrowth) / (WACC_ADJ - termGrowth);
+      var pvTv = tv / Math.pow(1 + WACC_ADJ, 20);
       return { fcfBase: fcfBase, fcfPS: fcfPS, pvExplicit: pvExp,
-               fcfAt20: fGG, tv: tv, pvTv: pvTv, total: pvExp + pvTv };
+               fcfAt20: fGG, tv: tv, pvTv: pvTv, total: pvExp + pvTv, disc: WACC_ADJ };
     })();
     const dcffT = ggCalc ? cap(ggCalc.total) : 0;
     // PS: compute once here, shared by both bar chart and breakdown IIFE
@@ -2225,7 +2226,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
                                     <BdRow label={"Growth Y6-10 (" + histG2Source} val={(g2Sum).toFixed(1) + "% -> 4%"} />
                                     <BdRow label="Growth Y11-20"              val="4%" />
-                                    <BdRow label="Discount Rate"              val="10%" />
+                                    <BdRow label="Discount Rate"              val={(dcf20Calc.disc * 100).toFixed(2) + "%"} />
                                     <BdDivider />
                                     <BdRow label="Enterprise Value"           val={"$" + (dcf20Calc.ev/1e6).toFixed(0) + "M"} />
                                     <BdRow label="- Debt + Cash"              val={"$" + ((dcf20Calc.cash - dcf20Calc.debt)/1e6).toFixed(0) + "M"} />
@@ -2245,7 +2246,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
                                     <BdRow label={"Growth Y6-10 (" + histG2Source} val={(g2Sum).toFixed(1) + "% -> 4%"} />
                                     <BdRow label="Growth Y11-20"              val="4%" />
-                                    <BdRow label="Discount Rate"              val="10%" />
+                                    <BdRow label="Discount Rate"              val={(dcff20Calc.disc * 100).toFixed(2) + "%"} />
                                     <BdDivider />
                                     <BdRow label="Enterprise Value"           val={"$" + (dcff20Calc.ev/1e6).toFixed(0) + "M"} />
                                     <BdRow label="- Debt + Cash"              val={"$" + ((dcff20Calc.cash - dcff20Calc.debt)/1e6).toFixed(0) + "M"} />
@@ -2263,7 +2264,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
                                     <BdRow label={"Growth Y6-10 (" + histG2Source} val={(g2Sum).toFixed(1) + "% -> 4%"} />
                                     <BdRow label="Growth Y11-20"              val="4%" />
-                                    <BdRow label="Discount Rate"              val="10%" />
+                                    <BdRow label="Discount Rate"              val={(dni20Calc.disc * 100).toFixed(2) + "%"} />
                                     <BdDivider />
                                     <BdRow label="= Intrinsic Value"          val={"$" + dni20Calc.perShare.toFixed(2)} bold={true} highlight={true} last={true} />
                                   </BdSection>
@@ -2277,7 +2278,7 @@ function Detail({ sym, name, onBack }) {
                                     <BdRow label={"Growth Y1-5 (" + histCagrLabel} val={(g1Sum).toFixed(1) + "%"} />
                                     <BdRow label={"Growth Y6-10 (" + histG2Source} val={(g2Sum).toFixed(1) + "% -> 4%"} />
                                     <BdRow label="Growth Y11-20"                  val="4%" />
-                                    <BdRow label="Discount Rate"                  val="10%" />
+                                    <BdRow label="Discount Rate"                  val={(ggCalc.disc * 100).toFixed(2) + "%"} />
                                     <BdDivider />
                                     <BdRow label="Part 1: PV of Years 1-20"       val={"$" + ggCalc.pvExplicit.toFixed(2) + "/sh"} />
                                     <BdRow label="FCF at Year 20"                 val={"$" + ggCalc.fcfAt20.toFixed(4) + "/sh"} />
