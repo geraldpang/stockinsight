@@ -1460,7 +1460,11 @@ function Detail({ sym, name, onBack }) {
                 return { bg:"#f0f7e6", fg:"#2a7a2a", border:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" };
               if (v.includes("neutral") || v.includes("fairly") || v === "hold" || v.startsWith("hold"))
                 return { bg:"#FAEEDA", fg:"#b88000", border:"#d4a800", dot:"#EF9F27", dotEmpty:"#4a3810" };
-              if (v.includes("none") || v.includes("weak") || v.includes("bearish") || v.includes("overvalued"))
+              if (v === "undervalued")
+                return { bg:"#EAF3DE", fg:"#2a7a2a", border:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" };
+              if (v === "fairlyvalued")
+                return { bg:"#f0f7e6", fg:"#3a6a1a", border:"#5a9020", dot:"#9acd50", dotEmpty:"#2a4020" };
+              if (v.includes("none") || v.includes("weak") || v.includes("bearish") || v.includes("overvalued") || v === "overvalued")
                 return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#e05050", dotEmpty:"#4a2020" };
               return { bg:"#f5f2ec", fg:"#555", border:"#ccc", dot:"#7abd00", dotEmpty:"#2a5020" };
             }
@@ -1481,8 +1485,32 @@ function Detail({ sym, name, onBack }) {
             var finRating   = finParsed.classification  || null;
             var finScore    = finParsed.score           || 0;
 
-            var ivLabel       = vals.length > 0 ? (parseFloat(oracle) > price ? "Undervalued" : "Overvalued") : null;
-            var ivColors      = ivLabel ? pillColor(ivLabel) : pillColor(null);
+            // Graduated IV scoring: 5 tiers based on discount/premium %
+            var ivOracle = vals.length > 0 ? parseFloat(oracle) : 0;
+            var ivPct    = (price > 0 && ivOracle > 0) ? Math.round(Math.abs(ivOracle - price) / price * 100) : 0;
+            var ivIsUnder = ivOracle > price;
+            var ivLabel  = null; var ivScore = 0; var ivColors = pillColor(null);
+            var ivSublabel = null;
+            if (ivOracle > 0 && price > 0) {
+              if (ivIsUnder && ivPct > 20) {
+                ivLabel = "Deep Value"; ivScore = 5;
+                ivColors = pillColor("undervalued");
+              } else if (ivIsUnder && ivPct >= 5) {
+                ivLabel = "Undervalued"; ivScore = 4;
+                ivColors = pillColor("undervalued");
+              } else if (ivIsUnder && ivPct >= 0) {
+                ivLabel = "Fairly Valued"; ivScore = 3;
+                ivColors = pillColor("fairlyvalued");
+              } else if (!ivIsUnder && ivPct <= 10) {
+                ivLabel = "Slight Premium"; ivScore = 2;
+                ivColors = pillColor("overvalued");
+              } else {
+                ivLabel = "Overvalued"; ivScore = 1;
+                ivColors = pillColor("overvalued");
+              }
+              var ivPctStr = ivPct + "% " + (ivIsUnder ? "discount" : "premium");
+              ivSublabel = ivPctStr + " " + String.fromCharCode(183) + " Value at $" + oracle;
+            }
             var moatColors    = moatRating  ? pillColor(moatRating)  : pillColor(null);
             var finColors     = finRating   ? pillColor(finRating)   : pillColor(null);
             function darkify(c) {
@@ -1525,7 +1553,7 @@ function Detail({ sym, name, onBack }) {
             var _aiP2 = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null;
             var _aiD2 = _aiP2 ? (_aiP2.dots||0) : 0;
             var _msD2 = (typeof window.__msDots!=="undefined") ? window.__msDots : 0;
-            var _ivD2 = ivLabel==="Undervalued"?5:ivLabel==="Overvalued"?2:0;
+            var _ivD2 = ivScore || 0;
             var _ind2 = massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
             var _mcdH = _ind2?(_ind2.macdHistory||[]):[];
             var _rsiH = _ind2?(_ind2.rsiHistory||[]):[];
@@ -1569,27 +1597,25 @@ function Detail({ sym, name, onBack }) {
                   {(function(){ window.__moatDots=moatScore; window.__finDots=finScore; return null; })()}
                   <Card label="Financial Strength" value={finRating}  score={finScore}   colors={finColors}     loading={!finRating && insightLoading} />
                   {(function(){
-                    var ivVal = vals.length > 0 ? "$" + oracle : null;
-                    var ivScore = ivLabel==="Undervalued"?5:ivLabel==="Overvalued"?2:0;
-                    var c = ivVal ? ivColors : pillColor(null);
-                    var loading = !ivVal;
+                    var loading   = !ivLabel;
                     var ovLoading = !ov;
+                    var c = darkify(ivColors);
                     return (
-                      <div style={{ padding:"10px 12px", background:loading?"#252525":darkify(c).bg, border:"0.5px solid "+(loading?"#333":darkify(c).border), borderRadius:8, opacity:loading?0.6:1 }}>
+                      <div style={{ padding:"10px 12px", background:loading?"#252525":c.bg, border:"0.5px solid "+(loading?"#333":c.border), borderRadius:8, opacity:loading?0.6:1 }}>
                         <div style={{ fontSize:10, color:loading?"#aaa":c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>Intrinsic Value</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                          <div>
                             {loading && ovLoading
                               ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
                                   <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite", flexShrink:0 }}></div>
                                   <span style={{ fontSize:10, color:"#555", fontWeight:600 }}>Loading...</span>
                                 </div>
-                              : <span style={{ fontSize:14, fontWeight:700, color:loading?"#ccc":c.fg }}>{loading?"...":ivVal}</span>
+                              : <span style={{ fontSize:15, fontWeight:500, color:loading?"#ccc":c.fg }}>{loading?"...":ivLabel}</span>
                             }
+                            {!loading && ivSublabel && <div style={{ fontSize:11, color:c.fg, marginTop:2, opacity:0.85 }}>{ivSublabel}</div>}
                           </div>
                           {!loading && <Dots score={ivScore} filled={c.dot} empty={c.dotEmpty} />}
                         </div>
-                        {!loading && ivLabel && <div style={{ fontSize:10, color:c.fg, marginTop:3, opacity:0.85 }}>{ivLabel}</div>}
                       </div>
                     );
                   })()}
