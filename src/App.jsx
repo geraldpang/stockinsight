@@ -4796,19 +4796,35 @@ export default function App() {
   const [clerkUser, setClerkUser] = useState(null);
   const [clerkLoaded, setClerkLoaded] = useState(false);
 
-  // Initialise Clerk on mount
+  // Initialise Clerk on mount -- listen for clerk-loaded event or poll
   useEffect(function() {
-    function initClerk() {
-      if (!window.Clerk) { setTimeout(initClerk, 100); return; }
+    function doLoad() {
       window.Clerk.load().then(function() {
         setClerkUser(window.Clerk.user || null);
         setClerkLoaded(true);
         window.Clerk.addListener(function(evt) {
           setClerkUser(evt.user || null);
         });
+      }).catch(function(e) {
+        console.warn("Clerk load failed:", e);
+        setClerkLoaded(true);
       });
     }
-    initClerk();
+    // If Clerk already ready
+    if (window.Clerk) { doLoad(); return; }
+    // Listen for Clerk's own loaded event
+    window.addEventListener("clerk-loaded", doLoad, { once: true });
+    // Also poll as fallback
+    var attempts = 0;
+    var poll = setInterval(function() {
+      attempts++;
+      if (window.Clerk) { clearInterval(poll); doLoad(); }
+      if (attempts > 100) { clearInterval(poll); setClerkLoaded(true); }
+    }, 100);
+    return function() {
+      clearInterval(poll);
+      window.removeEventListener("clerk-loaded", doLoad);
+    };
   }, []);
 
   function getHash() {
