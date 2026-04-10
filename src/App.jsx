@@ -2187,11 +2187,11 @@ function Detail({ sym, name, onBack }) {
                         var pct = price > 0 ? Math.round(Math.abs(iv - price) / price * 100) : 0;
                         // Same 5-tier logic as summary pill
                         var bannerLabel, bannerBg, bannerBorder, bannerFg;
-                        if (isUnder && pct > 20)      { bannerLabel="Exceptional"; bannerBg="#1e2a1e"; bannerBorder="#2a5020"; bannerFg="#7abd00"; }
-                        else if (isUnder && pct >= 5) { bannerLabel="Undervalued"; bannerBg="#1e2a1e"; bannerBorder="#2a5020"; bannerFg="#7abd00"; }
-                        else if (isUnder)              { bannerLabel="Fair";        bannerBg="#1e2f1e"; bannerBorder="#2a4020"; bannerFg="#9acd50"; }
-                        else if (!isUnder && pct <= 10){ bannerLabel="Premium";     bannerBg="#2a2010"; bannerBorder="#4a3810"; bannerFg="#EF9F27"; }
-                        else                           { bannerLabel="Overvalued";  bannerBg="#2a1e1e"; bannerBorder="#4a2020"; bannerFg="#e05050"; }
+                        if (isUnder && pct > 20)      { bannerLabel="Exceptional"; bannerBg="#EAF3DE"; bannerBorder="#7abd00"; bannerFg="#1a6a1a"; }
+                        else if (isUnder && pct >= 5) { bannerLabel="Undervalued"; bannerBg="#EAF3DE"; bannerBorder="#7abd00"; bannerFg="#1a6a1a"; }
+                        else if (isUnder)              { bannerLabel="Fair";        bannerBg="#f0f7e6"; bannerBorder="#5a9020"; bannerFg="#3a6a1a"; }
+                        else if (!isUnder && pct <= 10){ bannerLabel="Premium";     bannerBg="#FAEEDA"; bannerBorder="#d4a800"; bannerFg="#b88000"; }
+                        else                           { bannerLabel="Overvalued";  bannerBg="#FCEBEB"; bannerBorder="#e08080"; bannerFg="#c03030"; }
                         var bannerSub = pct + "% " + (isUnder ? "discount" : "premium") + " ($" + Math.round(iv) + ")";
                         return (
                           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:bannerBg, borderRadius:8, marginBottom:16, border:"0.5px solid " + bannerBorder }}>
@@ -2200,7 +2200,7 @@ function Detail({ sym, name, onBack }) {
                               <div style={{ fontSize:15, fontWeight:500, color:bannerFg }}>{bannerLabel}</div>
                               <div style={{ fontSize:11, color:bannerFg, marginTop:2, opacity:0.85 }}>{bannerSub}</div>
                             </div>
-                            <div style={{ fontSize:22, fontWeight:700, color:bannerFg }}>${oracle}</div>
+                            <div style={{ fontSize:20, fontWeight:500, color:bannerFg }}>${oracle}</div>
                           </div>
                         );
                       })()}
