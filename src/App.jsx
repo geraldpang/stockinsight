@@ -871,6 +871,7 @@ function parseAiInsight(text) {
 }
 
 function Detail({ sym, name, onBack, clerkUser, supported }) {
+  var isAdmin = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === "admin");
   // Unsupported ticker -- show friendly message
   if (supported === false) {
     return (
@@ -2589,7 +2590,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
 
                     {/* 5-Tab Insight Panel */}
           {(function() {
-            var TABS = [
+            var ALL_TABS = [
               { id:"business",  label:"Business Overview" },
               { id:"moat",      label:"Economic MOAT" },
               { id:"intrinsic", label:"Intrinsic Value" },
@@ -2600,9 +2601,16 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
               { id:"debug",     label:"Debug" },
               { id:"admin",     label:"Admin" },
             ];
+            var ADMIN_TABS = ["addlinfo", "debug", "admin"];
+            var TABS = isAdmin ? ALL_TABS : ALL_TABS.filter(function(t) { return ADMIN_TABS.indexOf(t.id) === -1; });
 
             function handleTab(id) {
+              if (ADMIN_TABS.indexOf(id) !== -1 && !isAdmin) return;
               setInsightTab(id);
+            }
+            // Redirect if non-admin somehow lands on admin tab
+            if (ADMIN_TABS.indexOf(insightTab) !== -1 && !isAdmin) {
+              setInsightTab("business");
             }
 
             // Parse new structured moat format with scores
