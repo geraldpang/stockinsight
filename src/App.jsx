@@ -405,6 +405,16 @@ function Detail({ sym, name, onBack }) {
   const [adminCfg,      setAdminCfg]      = useState(null);
   const [adminStats,    setAdminStats]    = useState({});
 
+  // Mount Clerk UserButton when signed in
+  useEffect(function() {
+    if (!clerkUser || !window.Clerk) return;
+    var el = document.getElementById("clerk-user-button-detail");
+    if (el && !el.dataset.mounted) {
+      el.dataset.mounted = "1";
+      window.Clerk.mountUserButton(el);
+    }
+  }, [clerkUser]);
+
   function parseAndStoreInsight(tabId, text) {
     if (!text) return;
     var result = {};
@@ -961,6 +971,28 @@ function Detail({ sym, name, onBack }) {
   const moatBg = moat === "Wide" ? "#1a6a1a" : moat === "Narrow" ? "#b88000" : "#444";
   const moatFg = (moat === "Wide" || moat === "Narrow") ? "#fff" : "#888";
 
+  // Get Clerk auth header for premium API calls
+  function getAuthHeaders() {
+    var headers = { "Content-Type": "application/json" };
+    if (window.Clerk && window.Clerk.session) {
+      window.Clerk.session.getToken().then(function(token) {
+        if (token) headers["Authorization"] = "Bearer " + token;
+      });
+    }
+    return headers;
+  }
+
+  async function getAuthHeadersAsync() {
+    var headers = { "Content-Type": "application/json" };
+    try {
+      if (window.Clerk && window.Clerk.session) {
+        var token = await window.Clerk.session.getToken();
+        if (token) headers["Authorization"] = "Bearer " + token;
+      }
+    } catch(e) {}
+    return headers;
+  }
+
   function calcDCF(eps0, growthRate, terminalRate, wacc, years) {
     var total = 0, fcf = eps0;
     for (var y = 1; y <= years; y++) {
@@ -1352,6 +1384,10 @@ function Detail({ sym, name, onBack }) {
                 <button onClick={onBack} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"5px 12px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:600, whiteSpace:"nowrap" }}>
                   Back
                 </button>
+                {clerkUser
+                  ? <div id="clerk-user-button-detail" style={{ flexShrink:0 }}></div>
+                  : <button onClick={function(){ if(window.Clerk) window.Clerk.openSignIn(); }} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:20, padding:"5px 14px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:700, whiteSpace:"nowrap" }}>Sign In</button>
+                }
               </div>
             </div>
 
@@ -4721,9 +4757,9 @@ function PaywallCard({ sym, name, onBack }) {
             Members Only
           </div>
           <div style={{ fontSize:14, color:"#a09a8a", lineHeight:1.7, marginBottom:32 }}>
-            {"Full AI insights for " + sym + " are available to members."}
+            {"Sign in to access full AI insights for " + sym + " and all 28 stocks."}
             <br />
-            {"10 stocks are free " + String.fromCharCode(0x2014) + " including NVDA, AAPL, TSLA, MSFT and more."}
+            {"10 stocks are always free " + String.fromCharCode(0x2014) + " no sign-in required."}
           </div>
           <div style={{ marginBottom:32 }}>
             <div style={{ fontSize:11, fontWeight:700, color:"#6a6460", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:10 }}>Free tickers</div>
@@ -4737,14 +4773,9 @@ function PaywallCard({ sym, name, onBack }) {
           </div>
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             <button
-              onClick={function() {
-                var email = window.prompt("Enter your email to register interest:");
-                if (email && email.indexOf("@") > 0) {
-                  window.alert("Thanks! We" + String.fromCharCode(0x2019) + "ll be in touch at " + email + " when membership opens.");
-                }
-              }}
+              onClick={function() { if (window.Clerk) window.Clerk.openSignIn(); }}
               style={{ width:"100%", padding:"14px", borderRadius:50, border:"none", background:ORANGE, color:"#fff", fontWeight:800, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
-              Register Interest
+              Sign In to Access
             </button>
             <button
               onClick={onBack}
@@ -4762,6 +4793,23 @@ function PaywallCard({ sym, name, onBack }) {
 export default function App() {
   const [input,   setInput]   = useState("");
   const [focused, setFocused] = useState(false);
+  const [clerkUser, setClerkUser] = useState(null);
+  const [clerkLoaded, setClerkLoaded] = useState(false);
+
+  // Initialise Clerk on mount
+  useEffect(function() {
+    function initClerk() {
+      if (!window.Clerk) { setTimeout(initClerk, 100); return; }
+      window.Clerk.load().then(function() {
+        setClerkUser(window.Clerk.user || null);
+        setClerkLoaded(true);
+        window.Clerk.addListener(function(evt) {
+          setClerkUser(evt.user || null);
+        });
+      });
+    }
+    initClerk();
+  }, []);
 
   function getHash() {
     var h = window.location.hash.replace("#", "").toUpperCase().trim();
@@ -4788,12 +4836,17 @@ export default function App() {
 
   if (hashSym) {
     var _onBack = function() { window.location.hash = ""; };
-    if (FREE_TICKERS.indexOf(hashSym) === -1) {
+    var _isFree = FREE_TICKERS.indexOf(hashSym) !== -1;
+    var _isSignedIn = !!clerkUser;
+    // Free tickers: always accessible
+    // Premium tickers: accessible only if signed in
+    if (!_isFree && !_isSignedIn) {
       return (
         <PaywallCard
           sym={hashSym}
           name={NAMES[hashSym]}
           onBack={_onBack}
+          clerkLoaded={clerkLoaded}
         />
       );
     }
@@ -4802,6 +4855,7 @@ export default function App() {
         sym={hashSym}
         name={NAMES[hashSym] || hashSym}
         onBack={_onBack}
+        clerkUser={clerkUser}
       />
     );
   }
@@ -4826,6 +4880,19 @@ export default function App() {
 
       {/* Nav */}
       <nav style={{ position:"relative", zIndex:10, padding:"0 32px", height:52, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        {(function() {
+          if (!clerkLoaded) return null;
+          if (clerkUser) {
+            return <div id="clerk-user-button-landing" style={{ position:"absolute", right:32, top:"50%", transform:"translateY(-50%)" }}></div>;
+          }
+          return (
+            <button
+              onClick={function() { if (window.Clerk) window.Clerk.openSignIn(); }}
+              style={{ position:"absolute", right:32, top:"50%", transform:"translateY(-50%)", background:"#c8f000", color:"#0e0e0c", border:"none", borderRadius:20, padding:"7px 18px", fontWeight:700, fontSize:12, fontFamily:FONT, cursor:"pointer" }}>
+              Sign In
+            </button>
+          );
+        })()}
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <svg width="24" height="24" viewBox="0 0 110 110">
             <path d="M55 10 L96 33 L96 77 L55 100 L14 77 L14 33 Z" fill="none" stroke={LIME} strokeWidth="3"/>
