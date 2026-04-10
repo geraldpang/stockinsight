@@ -5543,7 +5543,7 @@ export default function App() {
               {sugg.map(function(s) {
                 return (
                   <div key={s.symbol}
-                    onMouseDown={function(e) { e.preventDefault(); setInput(s.symbol); }}
+                    onMouseDown={function(e) { e.preventDefault(); go(s.symbol); }}
                     style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 18px", cursor:"pointer", borderBottom:"1px solid #2c2c26" }}
                     onMouseEnter={function(e) { e.currentTarget.style.background = "rgba(200,240,0,0.10)"; }}
                     onMouseLeave={function(e) { e.currentTarget.style.background = "transparent"; }}>
