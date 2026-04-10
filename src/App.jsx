@@ -1838,7 +1838,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
       {(function() {
         var allStocks2 = Object.keys(NAMES).map(function(k){ return {symbol:k, name:NAMES[k]}; });
         var navSugg = (navInput.length > 0 && navFocus)
-          ? allStocks2.filter(function(s){ return s.symbol.toLowerCase().startsWith(navInput.toLowerCase()) || s.name.toLowerCase().includes(navInput.toLowerCase()); }).slice(0,6)
+          ? allStocks2.filter(function(s){ var q = navInput.toLowerCase(); return s.symbol.toLowerCase().startsWith(q) || (q.length >= 3 && s.name.toLowerCase().includes(q)); }).slice(0,6)
           : [];
         function navGo(s) {
           var ticker = (s || navInput).toUpperCase().trim();
@@ -5454,8 +5454,8 @@ export default function App() {
   const allStocks = Object.keys(NAMES).map(function(k) { return { symbol:k, name:NAMES[k] }; });
   const sugg = (input.length > 0 && focused)
     ? allStocks.filter(function(s) {
-        return s.symbol.toLowerCase().startsWith(input.toLowerCase()) ||
-               s.name.toLowerCase().includes(input.toLowerCase());
+        var q = input.toLowerCase();
+        return s.symbol.toLowerCase().startsWith(q) || (q.length >= 3 && s.name.toLowerCase().includes(q));
       }).slice(0, 6)
     : [];
 
