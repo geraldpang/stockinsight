@@ -5590,13 +5590,24 @@ export default function App() {
               );
             })}
           </div>
-          <div style={{ fontSize:12, color:"#4a4a44" }}>
-            {"More stocks available with membership " + String.fromCharCode(0x2014) + " "}
-            <span style={{ color:"#6a6460", textDecoration:"underline", cursor:"pointer" }}
-              onClick={function() { go("INTC"); }}>
-              {"see what" + String.fromCharCode(0x2019) + "s coming"}
-            </span>
-          </div>
+          {!clerkUser && (
+            <div style={{ maxWidth:420, margin:"0 auto", padding:"14px 20px", background:"rgba(200,240,0,0.06)", border:"1px solid rgba(200,240,0,0.2)", borderRadius:12, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+              <div style={{ textAlign:"left" }}>
+                <div style={{ fontSize:13, fontWeight:700, color:LIME, marginBottom:3 }}>S&P 500 access</div>
+                <div style={{ fontSize:11, color:"#6a6460" }}>Sign in to unlock all 500 companies</div>
+              </div>
+              <button
+                onClick={function() { if(window.Clerk){ try{ window.Clerk.openSignIn({}); } catch(e){ window.location.href="https://accounts.nervousgeek.com/sign-in"; } } }}
+                style={{ background:LIME, color:"#0e0e0c", border:"none", borderRadius:20, padding:"7px 18px", fontSize:12, fontWeight:800, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0, fontFamily:FONT }}>
+                Sign In
+              </button>
+            </div>
+          )}
+          {clerkUser && (
+            <div style={{ fontSize:12, color:"#4a4a44" }}>
+              {"Signed in " + String.fromCharCode(0x2014) + " all S&P 500 companies unlocked"}
+            </div>
+          )}
         </div>
       </div>
 
