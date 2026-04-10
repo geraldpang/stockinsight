@@ -384,7 +384,7 @@ function parseAiInsight(text) {
   };
 }
 
-function Detail({ sym, name, onBack }) {
+function Detail({ sym, name, onBack, clerkUser }) {
   const [__err, set__err] = useState(null);
 
   const [navInput,  setNavInput]  = useState("");
