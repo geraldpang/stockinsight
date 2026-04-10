@@ -2185,14 +2185,22 @@ function Detail({ sym, name, onBack }) {
                         var iv = parseFloat(oracle);
                         var isUnder = iv > price;
                         var pct = price > 0 ? Math.round(Math.abs(iv - price) / price * 100) : 0;
+                        // Same 5-tier logic as summary pill
+                        var bannerLabel, bannerBg, bannerBorder, bannerFg;
+                        if (isUnder && pct > 20)      { bannerLabel="Exceptional"; bannerBg="#1e2a1e"; bannerBorder="#2a5020"; bannerFg="#7abd00"; }
+                        else if (isUnder && pct >= 5) { bannerLabel="Undervalued"; bannerBg="#1e2a1e"; bannerBorder="#2a5020"; bannerFg="#7abd00"; }
+                        else if (isUnder)              { bannerLabel="Fair";        bannerBg="#1e2f1e"; bannerBorder="#2a4020"; bannerFg="#9acd50"; }
+                        else if (!isUnder && pct <= 10){ bannerLabel="Premium";     bannerBg="#2a2010"; bannerBorder="#4a3810"; bannerFg="#EF9F27"; }
+                        else                           { bannerLabel="Overvalued";  bannerBg="#2a1e1e"; bannerBorder="#4a2020"; bannerFg="#e05050"; }
+                        var bannerSub = pct + "% " + (isUnder ? "discount" : "premium") + " ($" + Math.round(iv) + ")";
                         return (
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background: isUnder ? "#e6f4e6" : "#fff0f0", borderRadius:8, marginBottom:16, border:"0.5px solid " + (isUnder ? "#7abd00" : "#e08080") }}>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:bannerBg, borderRadius:8, marginBottom:16, border:"0.5px solid " + bannerBorder }}>
                             <div>
-                              <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Intrinsic Value</div>
-                              <div style={{ fontSize:15, fontWeight:700, color: isUnder ? "#1a6a1a" : "#c03030" }}>{isUnder ? "Undervalued" : "Overvalued"} by {pct}%</div>
-                              <div style={{ fontSize:11, color:"#555", marginTop:2 }}>Est. fair value ${oracle} vs current ${price.toFixed(2)}</div>
+                              <div style={{ fontSize:10, color:bannerFg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Intrinsic Value</div>
+                              <div style={{ fontSize:15, fontWeight:500, color:bannerFg }}>{bannerLabel}</div>
+                              <div style={{ fontSize:11, color:bannerFg, marginTop:2, opacity:0.85 }}>{bannerSub}</div>
                             </div>
-                            <div style={{ fontSize:22, fontWeight:900, color: isUnder ? "#1a6a1a" : "#c03030" }}>${oracle}</div>
+                            <div style={{ fontSize:22, fontWeight:700, color:bannerFg }}>${oracle}</div>
                           </div>
                         );
                       })()}
