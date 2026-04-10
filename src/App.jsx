@@ -1386,7 +1386,7 @@ function Detail({ sym, name, onBack, clerkUser }) {
                 </button>
                 {clerkUser
                   ? <div id="clerk-user-button-detail" style={{ flexShrink:0 }}></div>
-                  : <button onClick={function(){ if(window.Clerk) window.Clerk.openSignIn(); }} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:20, padding:"5px 14px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:700, whiteSpace:"nowrap" }}>Sign In</button>
+                  : <button onClick={function(){ if(window.Clerk){ try{ window.Clerk.openSignIn({}); } catch(e){ window.location.href="https://accounts.nervousgeek.com/sign-in"; } } }} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:20, padding:"5px 14px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:700, whiteSpace:"nowrap" }}>Sign In</button>
                 }
               </div>
             </div>
@@ -4773,7 +4773,7 @@ function PaywallCard({ sym, name, onBack }) {
           </div>
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             <button
-              onClick={function() { if (window.Clerk) window.Clerk.openSignIn(); }}
+              onClick={function() { if (window.Clerk) { try{ window.Clerk.openSignIn({}); } catch(e){ window.location.href="https://accounts.nervousgeek.com/sign-in"; } } }}
               style={{ width:"100%", padding:"14px", borderRadius:50, border:"none", background:ORANGE, color:"#fff", fontWeight:800, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
               Sign In to Access
             </button>
@@ -4795,6 +4795,16 @@ export default function App() {
   const [focused, setFocused] = useState(false);
   const [clerkUser, setClerkUser] = useState(null);
   const [clerkLoaded, setClerkLoaded] = useState(false);
+
+  // Mount UserButton on landing page when signed in
+  useEffect(function() {
+    if (!clerkUser || !window.Clerk) return;
+    var el = document.getElementById("clerk-user-button-landing");
+    if (el && !el.dataset.mounted) {
+      el.dataset.mounted = "1";
+      window.Clerk.mountUserButton(el);
+    }
+  }, [clerkUser]);
 
   // Initialise Clerk on mount -- listen for clerk-loaded event or poll
   useEffect(function() {
@@ -4903,7 +4913,12 @@ export default function App() {
           }
           return (
             <button
-              onClick={function() { if (window.Clerk) window.Clerk.openSignIn(); }}
+              onClick={function() {
+                if (window.Clerk) {
+                  try { window.Clerk.openSignIn({}); }
+                  catch(e) { window.location.href = "https://accounts.nervousgeek.com/sign-in"; }
+                }
+              }}
               style={{ position:"absolute", right:32, top:"50%", transform:"translateY(-50%)", background:"#c8f000", color:"#0e0e0c", border:"none", borderRadius:20, padding:"7px 18px", fontWeight:700, fontSize:12, fontFamily:FONT, cursor:"pointer" }}>
               Sign In
             </button>
@@ -4920,10 +4935,7 @@ export default function App() {
           </svg>
           <span style={{ fontSize:17, fontWeight:900, letterSpacing:0 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(200,240,0,0.08)", border:"1px solid rgba(200,240,0,0.25)", borderRadius:20, padding:"5px 16px" }}>
-          <span style={{ width:6, height:6, borderRadius:"50%", background:LIME, display:"inline-block" }} />
-          <span style={{ fontSize:11, fontWeight:600, color:LIME }}>Live Market Data</span>
-        </div>
+
       </nav>
 
       {/* Hero */}
