@@ -4909,7 +4909,8 @@ export default function App() {
     var _isFree = FREE_TICKERS.indexOf(hashSym) !== -1;
     var _isSignedIn = !!clerkUser;
     // Free tickers: always accessible
-    // Premium tickers: accessible only if signed in
+    // Signed-in users: full access to all supported tickers
+    // Signed-out + premium ticker: show paywall
     if (!_isFree && !_isSignedIn) {
       return (
         <PaywallCard
