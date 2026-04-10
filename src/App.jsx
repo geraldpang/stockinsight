@@ -1510,8 +1510,7 @@ function Detail({ sym, name, onBack }) {
                 ivLabel = "Overvalued"; ivScore = 1;
                 ivColors = pillColor("overvalued");
               }
-              var ivPctStr = ivPct + "% " + (ivIsUnder ? "discount" : "premium");
-              ivSublabel = ivPctStr + " " + String.fromCharCode(183) + " $" + oracle;
+              ivSublabel = ivPct + "% " + (ivIsUnder ? "discount" : "premium") + " ($" + Math.round(parseFloat(oracle)) + ")";
             }
             var moatColors    = moatRating  ? pillColor(moatRating)  : pillColor(null);
             var finColors     = finRating   ? pillColor(finRating)   : pillColor(null);
@@ -1527,7 +1526,7 @@ function Detail({ sym, name, onBack }) {
               var loading = !props.value;
               var isSpinning = props.loading === true;
               return (
-                <div style={{ padding:"10px 12px", background: loading ? "#222" : c.bg, border:"0.5px solid " + (loading ? "#333" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1 }}>
+                <div style={{ padding:"10px 12px", background: loading ? "#222" : c.bg, border:"0.5px solid " + (loading ? "#333" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1, minHeight:72, boxSizing:"border-box" }}>
                   <div style={{ fontSize:10, color: loading ? "#aaa" : c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>{props.label}</div>
                   <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
                     <div>
@@ -1603,7 +1602,7 @@ function Detail({ sym, name, onBack }) {
                     var ovLoading = !ov;
                     var c = darkify(ivColors);
                     return (
-                      <div style={{ padding:"10px 12px", background:loading?"#252525":c.bg, border:"0.5px solid "+(loading?"#333":c.border), borderRadius:8, opacity:loading?0.6:1 }}>
+                      <div style={{ padding:"10px 12px", background:loading?"#252525":c.bg, border:"0.5px solid "+(loading?"#333":c.border), borderRadius:8, opacity:loading?0.6:1, minHeight:72, boxSizing:"border-box" }}>
                         <div style={{ fontSize:10, color:loading?"#aaa":c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>Intrinsic Value</div>
                         <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
                           <div style={{ flex:1, minWidth:0 }}>
