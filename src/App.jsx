@@ -1511,7 +1511,7 @@ function Detail({ sym, name, onBack }) {
                 ivColors = pillColor("overvalued");
               }
               var ivPctStr = ivPct + "% " + (ivIsUnder ? "discount" : "premium");
-              ivSublabel = ivPctStr + " (Value: $" + oracle + ")";
+              ivSublabel = ivPctStr + " " + String.fromCharCode(183) + " $" + oracle;
             }
             var moatColors    = moatRating  ? pillColor(moatRating)  : pillColor(null);
             var finColors     = finRating   ? pillColor(finRating)   : pillColor(null);
@@ -1594,7 +1594,7 @@ function Detail({ sym, name, onBack }) {
                 )}
                 <div style={{ borderTop:"1px solid #2c2c2e", margin:"10px 0 16px" }}></div>
                 <div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:600, marginBottom:7 }}>Analysis Summary</div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr)", gap:7, alignItems:"stretch" }}>
                   <Card label="Economic Moat"    value={moatRating}  score={moatScore}  colors={moatColors}    loading={!moatRating && insightLoading} />
                   {(function(){ window.__moatDots=moatScore; window.__finDots=finScore; return null; })()}
                   <Card label="Financial Strength" value={finRating}  score={finScore}   colors={finColors}     loading={!finRating && insightLoading} />
