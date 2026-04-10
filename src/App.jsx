@@ -1889,24 +1889,24 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
             <style>{"              .nav-desktop { display:flex; }              .nav-mobile  { display:none; }              @media (max-width:600px) {                .nav-desktop { display:none; }                .nav-mobile  { display:block; }              }            "}</style>
 
             {/* DESKTOP */}
-            {/* Nav mirrors the 400px / 1fr body grid so search aligns with the right panel */}
-            <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"flex", alignItems:"center", gap:0 }}>
-              {/* Logo + ticker */}
-              <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-                <span style={{ fontWeight:800, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap" }}>nervousgeek.com</span>
+            <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"flex", alignItems:"center", gap:12 }}>
+              {/* Left -- Logo + ticker */}
+              <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+                <span style={{ fontWeight:800, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap" }}>nervousgeek</span>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
-              {/* Spacer */}
-              <div style={{ flex:1 }}></div>
-              {/* Search + Back on far right */}
-              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                {SearchPill}
-                <button onClick={onBack} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"5px 12px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:600, whiteSpace:"nowrap" }}>
-                  Back
+              {/* Centre -- Back + Search */}
+              <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                <button onClick={onBack} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"5px 12px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:600, whiteSpace:"nowrap", flexShrink:0 }}>
+                  {"< Back"}
                 </button>
+                {SearchPill}
+              </div>
+              {/* Right -- Avatar or Sign In */}
+              <div style={{ flexShrink:0 }}>
                 {clerkUser
-                  ? <div id="clerk-user-button-detail" style={{ flexShrink:0 }}></div>
-                  : <button onClick={function(){ if(window.Clerk){ try{ window.Clerk.openSignIn({}); } catch(e){ window.location.href="https://accounts.nervousgeek.com/sign-in"; } } }} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:20, padding:"5px 14px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:700, whiteSpace:"nowrap" }}>Sign In</button>
+                  ? <div id="clerk-user-button-detail"></div>
+                  : <button onClick={function(){ if(window.Clerk){ try{ window.Clerk.openSignIn({}); } catch(e){ window.location.href="https://accounts.nervousgeek.com/sign-in"; } } }} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:20, padding:"5px 16px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:700, whiteSpace:"nowrap" }}>Sign In</button>
                 }
               </div>
             </div>
