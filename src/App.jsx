@@ -384,7 +384,33 @@ function parseAiInsight(text) {
   };
 }
 
-function Detail({ sym, name, onBack, clerkUser }) {
+function Detail({ sym, name, onBack, clerkUser, supported }) {
+  // Unsupported ticker -- show friendly message
+  if (supported === false) {
+    return (
+      <div style={{ minHeight:"100vh", background:"#0e0e0c", fontFamily:FONT, display:"flex", flexDirection:"column" }}>
+        <nav style={{ height:52, padding:"0 24px", display:"flex", alignItems:"center", gap:12, background:LIME }}>
+          <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", color:"#0e0e0c", fontWeight:800, fontSize:13, fontFamily:FONT }}>
+            {"< Back"}
+          </button>
+          <span style={{ fontWeight:800, fontSize:15, color:"#0e0e0c" }}>nervousgeek.com</span>
+        </nav>
+        <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
+          <div style={{ maxWidth:480, width:"100%", background:"#1c1c1e", border:"1px solid #2c2c26", borderRadius:20, padding:"48px 40px", textAlign:"center" }}>
+            <div style={{ fontSize:22, fontWeight:800, color:"#f0ede6", marginBottom:12 }}>{sym}</div>
+            <div style={{ fontSize:14, color:"#a09a8a", lineHeight:1.7, marginBottom:32 }}>
+              {"This ticker is not currently supported. nervousgeek.com covers 28 stocks."}
+              <br />
+              {"Use the search to find a supported ticker."}
+            </div>
+            <button onClick={onBack} style={{ width:"100%", padding:"14px", borderRadius:50, border:"none", background:LIME, color:"#0e0e0c", fontWeight:800, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
+              Back to search
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const [__err, set__err] = useState(null);
 
   const [navInput,  setNavInput]  = useState("");
@@ -581,9 +607,10 @@ function Detail({ sym, name, onBack, clerkUser }) {
       var _isLiveMode = !_kvCfg || _kvCfg.indexOf(sym) !== -1;
 
       function _callClaude(onResult) {
+        var _anth1Hdrs = Object.assign({"Content-Type":"application/json"}, window.__clerkToken ? {"Authorization":"Bearer "+window.__clerkToken} : {});
         fetch("/anthropic", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: _anth1Hdrs,
           body: JSON.stringify({
             model: "claude-haiku-4-5-20251001",
             max_tokens: 900,
@@ -724,7 +751,8 @@ function Detail({ sym, name, onBack, clerkUser }) {
         return;
       }
       window.__simfinLoading[sym] = true;
-      fetch("/simfin?sym=" + sym)
+      var simfinHdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
+      fetch("/simfin?sym=" + sym, { headers: simfinHdrs })
         .then(function(r) {
           setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "SimFin prefetch -- HTTP " + r.status, data: null }]); });
           return r.text();
@@ -824,7 +852,8 @@ function Detail({ sym, name, onBack, clerkUser }) {
     setAddlLoading(true);
     var debugEntries = [];
     debugEntries.push({ time: new Date().toISOString(), label: "Fetching /massive?sym=" + sym });
-    fetch("/massive?sym=" + (sym === "BRKB" ? "BRK-B" : sym))
+    var massiveHdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
+    fetch("/massive?sym=" + (sym === "BRKB" ? "BRK-B" : sym), { headers: massiveHdrs })
       .then(function(r) { return r.json(); })
       .then(function(data) {
         debugEntries.push({ time: new Date().toISOString(), label: "Massive response received", data: { newsCount: data && data.news ? data.news.length : 0, tickerName: data && data.ticker ? data.ticker.name : null, debug: data && data._debug } });
@@ -4817,8 +4846,18 @@ export default function App() {
       window.Clerk.load(loadOpts).then(function() {
         setClerkUser(window.Clerk.user || null);
         setClerkLoaded(true);
+        // Store token for API calls
+        if (window.Clerk.session) {
+          window.Clerk.session.getToken().then(function(t) { window.__clerkToken = t; });
+        }
         window.Clerk.addListener(function(evt) {
           setClerkUser(evt.user || null);
+          // Refresh token on auth state change
+          if (evt.session) {
+            evt.session.getToken().then(function(t) { window.__clerkToken = t; });
+          } else {
+            window.__clerkToken = null;
+          }
         });
       }).catch(function(e) {
         console.warn("Clerk load failed:", e);
@@ -4887,6 +4926,7 @@ export default function App() {
         name={NAMES[hashSym] || hashSym}
         onBack={_onBack}
         clerkUser={clerkUser}
+        supported={!!NAMES[hashSym]}
       />
     );
   }
