@@ -434,12 +434,15 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
   // Mount Clerk UserButton when signed in
   useEffect(function() {
     if (!clerkUser || !window.Clerk) return;
-    var el = document.getElementById("clerk-user-button-detail");
-    if (el && !el.dataset.mounted) {
-      el.dataset.mounted = "1";
-      try { window.Clerk.mountUserButton(el); }
-      catch(e) { console.warn("UserButton mount failed:", e); el.dataset.mounted = ""; }
-    }
+    var t = setTimeout(function() {
+      var el = document.getElementById("clerk-user-button-detail");
+      if (el) {
+        el.dataset.mounted = "";
+        try { window.Clerk.mountUserButton(el); el.dataset.mounted = "1"; }
+        catch(e) { console.warn("UserButton mount failed:", e); }
+      }
+    }, 50);
+    return function() { clearTimeout(t); };
   }, [clerkUser]);
 
   function parseAndStoreInsight(tabId, text) {
@@ -4827,15 +4830,20 @@ export default function App() {
   const [clerkLoaded, setClerkLoaded] = useState(false);
 
   // Mount UserButton on landing page when signed in
+  // Also re-runs when hashSym changes (returning from Detail page)
   useEffect(function() {
     if (!clerkUser || !window.Clerk) return;
-    var el = document.getElementById("clerk-user-button-landing");
-    if (el && !el.dataset.mounted) {
-      el.dataset.mounted = "1";
-      try { window.Clerk.mountUserButton(el); }
-      catch(e) { console.warn("UserButton mount failed:", e); el.dataset.mounted = ""; }
-    }
-  }, [clerkUser]);
+    // Small delay to let React render the div first
+    var t = setTimeout(function() {
+      var el = document.getElementById("clerk-user-button-landing");
+      if (el) {
+        el.dataset.mounted = "";
+        try { window.Clerk.mountUserButton(el); el.dataset.mounted = "1"; }
+        catch(e) { console.warn("UserButton mount failed:", e); }
+      }
+    }, 50);
+    return function() { clearTimeout(t); };
+  }, [clerkUser, hashSym]);
 
   // Initialise Clerk on mount -- listen for clerk-loaded event or poll
   useEffect(function() {
