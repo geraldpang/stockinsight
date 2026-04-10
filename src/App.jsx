@@ -411,7 +411,8 @@ function Detail({ sym, name, onBack, clerkUser }) {
     var el = document.getElementById("clerk-user-button-detail");
     if (el && !el.dataset.mounted) {
       el.dataset.mounted = "1";
-      window.Clerk.mountUserButton(el);
+      try { window.Clerk.mountUserButton(el); }
+      catch(e) { console.warn("UserButton mount failed:", e); el.dataset.mounted = ""; }
     }
   }, [clerkUser]);
 
@@ -4802,14 +4803,18 @@ export default function App() {
     var el = document.getElementById("clerk-user-button-landing");
     if (el && !el.dataset.mounted) {
       el.dataset.mounted = "1";
-      window.Clerk.mountUserButton(el);
+      try { window.Clerk.mountUserButton(el); }
+      catch(e) { console.warn("UserButton mount failed:", e); el.dataset.mounted = ""; }
     }
   }, [clerkUser]);
 
   // Initialise Clerk on mount -- listen for clerk-loaded event or poll
   useEffect(function() {
     function doLoad() {
-      window.Clerk.load().then(function() {
+      var loadOpts = window.__internal_ClerkUICtor
+        ? { ui: { ClerkUI: window.__internal_ClerkUICtor } }
+        : {};
+      window.Clerk.load(loadOpts).then(function() {
         setClerkUser(window.Clerk.user || null);
         setClerkLoaded(true);
         window.Clerk.addListener(function(evt) {
