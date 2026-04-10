@@ -51,6 +51,62 @@ export async function onRequest(context) {
       return context.next();
     }
 
+    // -------------------------------------------------------------------------
+    // Clerk JWT verification for premium ticker routes
+    // Free tickers bypass auth. Premium tickers require a valid Clerk session.
+    // -------------------------------------------------------------------------
+    var FREE_TICKERS_W = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
+    var PREMIUM_ROUTES = ["/anthropic", "/massive", "/simfin"];
+    var isPremiumRoute = PREMIUM_ROUTES.indexOf(url.pathname) !== -1;
+    var reqSym = (url.searchParams.get("sym") || "").toUpperCase().trim();
+    var isFreeTickerReq = FREE_TICKERS_W.indexOf(reqSym) !== -1 || reqSym === "";
+
+    async function verifyClerkToken(request, clerkSecretKey) {
+      try {
+        var authHeader = request.headers.get("Authorization") || "";
+        var token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+        if (!token) return false;
+        // Verify JWT against Clerk JWKS
+        var jwksUrl = "https://clerk.nervousgeek.com/.well-known/jwks.json";
+        var jwksRes = await fetch(jwksUrl);
+        var jwks = await jwksRes.json();
+        // Decode JWT header to get kid
+        var parts = token.split(".");
+        if (parts.length !== 3) return false;
+        var header = JSON.parse(atob(parts[0].replace(/-/g,"+").replace(/_/g,"/")));
+        var key = (jwks.keys || []).find(function(k) { return k.kid === header.kid; });
+        if (!key) return false;
+        // Import key and verify
+        var cryptoKey = await crypto.subtle.importKey(
+          "jwk", key,
+          { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+          false, ["verify"]
+        );
+        var enc = new TextEncoder();
+        var signingInput = enc.encode(parts[0] + "." + parts[1]);
+        var sigBytes = Uint8Array.from(atob(parts[2].replace(/-/g,"+").replace(/_/g,"/")), function(c){ return c.charCodeAt(0); });
+        var valid = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", cryptoKey, sigBytes, signingInput);
+        if (!valid) return false;
+        // Check expiry
+        var payload = JSON.parse(atob(parts[1].replace(/-/g,"+").replace(/_/g,"/")));
+        if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return false;
+        return true;
+      } catch(e) {
+        return false;
+      }
+    }
+
+    if (isPremiumRoute && !isFreeTickerReq) {
+      var clerkSecretKey = context.env.CLERK_SECRET_KEY;
+      var isAuthed = await verifyClerkToken(context.request, clerkSecretKey);
+      if (!isAuthed) {
+        return new Response(JSON.stringify({ error: "Unauthorised. Please sign in to access this ticker." }), {
+          status: 401,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+    }
+
     if (context.request.method === "OPTIONS") {
       return new Response(null, {
         headers: {
