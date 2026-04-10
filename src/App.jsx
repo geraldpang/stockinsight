@@ -4830,20 +4830,22 @@ export default function App() {
   const [clerkLoaded, setClerkLoaded] = useState(false);
 
   // Mount UserButton on landing page when signed in
-  // Also re-runs when hashSym changes (returning from Detail page)
+  // Uses MutationObserver to detect when the div appears in DOM after navigation
   useEffect(function() {
     if (!clerkUser || !window.Clerk) return;
-    // Small delay to let React render the div first
-    var t = setTimeout(function() {
+    function tryMount() {
       var el = document.getElementById("clerk-user-button-landing");
       if (el) {
         el.dataset.mounted = "";
         try { window.Clerk.mountUserButton(el); el.dataset.mounted = "1"; }
         catch(e) { console.warn("UserButton mount failed:", e); }
       }
-    }, 50);
+    }
+    // Try immediately and after short delay for navigation case
+    tryMount();
+    var t = setTimeout(tryMount, 100);
     return function() { clearTimeout(t); };
-  }, [clerkUser, hashSym]);
+  }, [clerkUser]);
 
   // Initialise Clerk on mount -- listen for clerk-loaded event or poll
   useEffect(function() {
@@ -4904,6 +4906,21 @@ export default function App() {
   useEffect(function() {
     document.title = "nervousgeek.com";
   }, []);
+
+  // Remount UserButton when returning to landing page (hashSym becomes null)
+  useEffect(function() {
+    if (hashSym) return; // only on landing page
+    if (!clerkUser || !window.Clerk) return;
+    var t = setTimeout(function() {
+      var el = document.getElementById("clerk-user-button-landing");
+      if (el) {
+        el.dataset.mounted = "";
+        try { window.Clerk.mountUserButton(el); el.dataset.mounted = "1"; }
+        catch(e) { console.warn("UserButton remount failed:", e); }
+      }
+    }, 80);
+    return function() { clearTimeout(t); };
+  }, [hashSym, clerkUser]);
 
   function go(sym) {
     var s = (sym || input).toUpperCase().trim();
