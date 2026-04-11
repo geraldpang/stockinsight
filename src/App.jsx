@@ -1888,19 +1888,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
         return (
           <div>
             {/* Desktop nav: 1 row - Back / Logo / centred search / Live badge */}
-            <style>{"
-              .nav-desktop { display: flex; }
-              .nav-mobile  { display: none; }
-              @media (max-width: 768px) {
-                .nav-desktop { display: none !important; }
-                .nav-mobile  { display: block !important; }
-                .body-grid   { display: block !important; }
-                .panel-left  { width: 100% !important; border-right: none !important; }
-                .panel-right { width: 100% !important; padding: 16px !important; }
-                .view-analysis-btn { display: block !important; }
-                .mobile-back-btn   { display: block !important; }
-              }
-            "}</style>
+            <style>{".nav-desktop{display:flex}.nav-mobile{display:none}@media(max-width:768px){.nav-desktop{display:none!important}.nav-mobile{display:block!important}.body-grid{display:block!important}.panel-left{width:100%!important;border-right:none!important}.panel-right{width:100%!important;padding:16px!important}.view-analysis-btn{display:block!important}.mobile-back-btn{display:block!important}}"}</style>
 
             {/* DESKTOP */}
             <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"400px 1fr auto", alignItems:"center", gap:0 }}>
