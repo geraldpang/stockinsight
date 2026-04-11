@@ -5095,8 +5095,8 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                 <div style={{ padding:"20px 24px" }}>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
                     <div>
-                      <div style={{ fontSize:13, fontWeight:700, color:"#f0ede6" }}>Cache Manager</div>
-                      <div style={{ fontSize:11, color:"#555", marginTop:3 }}>All S&P 500 tickers use cache-first by default. Toggle LIVE to force fresh Claude calls.</div>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#1a1a14" }}>Cache Manager</div>
+                      <div style={{ fontSize:11, color:"#888", marginTop:3 }}>All S&P 500 tickers use cache-first by default. Toggle LIVE to force fresh Claude calls.</div>
                     </div>
                     <button
                       onClick={function() {
@@ -5104,12 +5104,12 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                         setAdminCfg(null);
                         setAdminStats({});
                       }}
-                      style={{ fontSize:11, color:"#c8f000", background:"none", border:"1px solid #2a5020", borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:FONT }}>
+                      style={{ fontSize:11, color:"#1a1a14", background:"none", border:"1px solid #ccc", borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:FONT }}>
                       {String.fromCharCode(0x21BA) + " Refresh"}
                     </button>
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-                    <div style={{ display:"flex", alignItems:"center", background:"#1c1c1e", border:"1px solid #333", borderRadius:8, padding:"6px 12px", gap:8, flex:1 }}>
+                    <div style={{ display:"flex", alignItems:"center", background:"#ffffff", border:"1px solid #e0dbd0", borderRadius:8, padding:"6px 12px", gap:8, flex:1 }}>
                       <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
                         <circle cx="6.5" cy="6.5" r="5" stroke="#555" strokeWidth="1.5"/>
                         <path d="M10.5 10.5L14 14" stroke="#555" strokeWidth="1.5" strokeLinecap="round"/>
@@ -5118,7 +5118,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                         placeholder="Filter by ticker or company..."
                         defaultValue=""
                         onChange={function(e) { window.__adminSearch = e.target.value; setAdminStats(function(p){ return Object.assign({},p); }); }}
-                        style={{ flex:1, background:"transparent", border:"none", outline:"none", fontSize:12, color:"#f0ede6", fontFamily:FONT }}
+                        style={{ flex:1, background:"transparent", border:"none", outline:"none", fontSize:12, color:"#1a1a14", fontFamily:FONT }}
                       />
                     </div>
                     <span style={{ fontSize:11, color:"#555", whiteSpace:"nowrap" }}>{FILTERED.length + " / " + ALL_SP500.length}</span>
@@ -5187,10 +5187,10 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                                 onMouseLeave={function(e){ e.currentTarget.style.background=rowBg; }}>
                                 <td style={{ padding:"10px 14px", fontWeight:700, color:"#1a1a14", whiteSpace:"nowrap" }}>{t}</td>
                                 <td style={{ padding:"10px 14px", color:"#666", maxWidth:200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{(NAMES[t]||t)}</td>
-                                <td style={{ padding:"10px 14px", color:statusColor, fontSize:11, whiteSpace:"nowrap" }}>
+                                <td style={{ padding:"10px 14px", color: cachedTabs.length===AI_TABS.length ? "#1a6a1a" : cachedTabs.length>0 ? "#EF9F27" : "#e05050", fontSize:11, whiteSpace:"nowrap" }}>
                                   {String.fromCharCode(0x25CF) + " " + statusLabel}
                                 </td>
-                                <td style={{ padding:"10px 14px", color: latestDate ? statusColor : "#bbb", fontSize:11, whiteSpace:"nowrap" }}>{age || String.fromCharCode(0x2014)}</td>
+                                <td style={{ padding:"10px 14px", color: latestDate ? (cachedTabs.length===AI_TABS.length ? "#1a6a1a" : cachedTabs.length>0 ? "#EF9F27" : "#e05050") : "#bbb", fontSize:11, whiteSpace:"nowrap" }}>{age || String.fromCharCode(0x2014)}</td>
                                 <td style={{ padding:"10px 14px" }}>
                                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                                     <div onClick={function() {
@@ -5201,8 +5201,8 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                                           .then(function(r){ return r.json(); })
                                           .then(function(d){ if (d.ok) { setAdminCfg(newCfg); } });
                                       }}
-                                      style={{ width:34, height:18, borderRadius:9, background: isLive?"#c8f000":"#333", position:"relative", cursor:"pointer", border: isLive?"none":"1px solid #444", flexShrink:0 }}>
-                                      <div style={{ position:"absolute", top:2, left: isLive?15:2, width:14, height:14, borderRadius:"50%", background: isLive?"#0e0e0c":"#666" }}></div>
+                                      style={{ width:34, height:18, borderRadius:9, background: isLive?"#1a6a1a":"#e0dbd0", position:"relative", cursor:"pointer", border:"none", flexShrink:0 }}>
+                                      <div style={{ position:"absolute", top:2, left: isLive?15:2, width:14, height:14, borderRadius:"50%", background: isLive?"#ffffff":"#f0ede6" }}></div>
                                     </div>
                                     <span style={{ fontSize:11, color: isLive?"#1a1a14":"#1a6a1a", fontWeight: isLive?600:500 }}>{isLive?"Live":"Cached"}</span>
                                   </div>
