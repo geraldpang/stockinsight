@@ -2482,6 +2482,14 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
             return null;
           })()}
 
+          {/* Mobile: View Analysis button */}
+          <div className="view-analysis-btn" style={{ display:"none", marginBottom:12 }}>
+            <button
+              onClick={function(){ setMobilePanel("right"); }}
+              style={{ width:"100%", padding:"13px", background:"#c8f000", color:"#0e0e0c", border:"none", borderRadius:50, fontSize:14, fontWeight:800, fontFamily:FONT, cursor:"pointer" }}>
+              {"View Analysis " + String.fromCharCode(0x2192)}
+            </button>
+          </div>
           <div style={{ borderTop:"1px solid #2c2c2e", margin:"12px 0" }}></div>
           {/* Valuation Section */}
           <div style={{ background:"#252525", border:"1px solid #2c2c2e", borderRadius:12, padding:"16px", marginBottom:12 }}>
@@ -2558,14 +2566,6 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
             )}
           </div>
 
-          {/* Mobile: View Analysis button */}
-          <div className="view-analysis-btn" style={{ display:"none", marginTop:20 }}>
-            <button
-              onClick={function(){ setMobilePanel("right"); }}
-              style={{ width:"100%", padding:"14px", background:"#c8f000", color:"#0e0e0c", border:"none", borderRadius:50, fontSize:14, fontWeight:800, fontFamily:FONT, cursor:"pointer" }}>
-              {"View Analysis " + String.fromCharCode(0x2192)}
-            </button>
-          </div>
         </div>
 
         {/* RIGHT PANEL */}
