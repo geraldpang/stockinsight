@@ -5208,7 +5208,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
         <div id="disc-full"
           onClick={function(){ var d=document.getElementById("disc-full"); if(d) d.style.display="none"; var t=document.getElementById("disc-tap"); if(t) t.innerText="tap to read"; }}
           style={{
-            display:"block",
+            display:clerkUser?"none":"block",
             maxHeight:"50vh",
             overflowY:"auto",
             padding:"14px 20px",
@@ -5636,7 +5636,7 @@ export default function App() {
         <div id="lp-disc-full"
           onClick={function(){ var d=document.getElementById("lp-disc-full"); if(d) d.style.display="none"; var t=document.getElementById("lp-disc-tap"); if(t) t.innerText="tap to read"; }}
           style={{
-            display:"block",
+            display:clerkUser?"none":"block",
             maxHeight:"50vh",
             overflowY:"auto",
             padding:"14px 20px",
@@ -5676,7 +5676,7 @@ export default function App() {
             </div>
             <span style={{ fontSize:10, fontWeight:600, color:LIME, textTransform:"uppercase", letterSpacing:"0.06em" }}>General information only -- not financial advice</span>
           </div>
-          <span id="lp-disc-tap" style={{ fontSize:10, color:"#555" }}>tap to close</span>
+          <span id="lp-disc-tap" style={{ fontSize:10, color:"#555" }}>{clerkUser ? "tap to read" : "tap to close"}</span>
         </div>
       </div>
     </div>
