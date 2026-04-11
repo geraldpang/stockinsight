@@ -5621,7 +5621,7 @@ export default function App() {
           )}
           {clerkUser && (
             <div style={{ fontSize:12, color:"#4a4a44" }}>
-              {"All S&P 500 companies unlocked " + String.fromCharCode(0x2713)}
+              <span style={{ color:LIME, fontWeight:700 }}>{"All S&P 500 companies unlocked " + String.fromCharCode(0x2713)}</span>
             </div>
           )}
         </div>
