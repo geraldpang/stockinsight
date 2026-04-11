@@ -1072,13 +1072,13 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
           if (cfgData && Array.isArray(cfgData.value)) {
             window.__adminCfg = cfgData.value;
           } else if (!window.__adminCfg) {
-            window.__adminCfg = []; // All tickers cache-first by default
+            window.__adminCfg = [];
           }
           runAiTabs();
         })
         .catch(function() {
           if (!window.__adminCfg) {
-            window.__adminCfg = []; // All tickers cache-first by default
+            window.__adminCfg = [];
           }
           runAiTabs();
         });
@@ -1092,9 +1092,8 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
         technical: "You are a professional technical analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), provide a technical analysis covering: Trend (50-day MA, 200-day MA, direction), Momentum (RSI condition, MACD condition), Support and Resistance zones, Volume analysis (confirms move? accumulation or distribution?), Chart Patterns (breakout / consolidation / reversal / double bottom / head and shoulders / flag/pennant / no clear pattern). End with: Technical Rating: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish and Entry Timing View: Good Entry / Wait for Pullback / Breakout Watch / Avoid for Now. Be specific with price levels where possible.",
         aiinsight: "You are a senior investment analyst. For " + sym + " (" + (NAMES[sym]||sym) + "), provide an AI Insight in EXACTLY this format:\\n\\nFundamental: X/5\\nResult: One sentence.\\n\\nTechnical: X/5\\nResult: One sentence.\\n\\nSentiment: X/5\\nResult: One sentence.\\n\\nOverall Verdict: Buy / Hold / Avoid / Strong Buy / Strong Avoid\\nConfidence: Low / Medium / High\\nHorizon: Short-term (1-3m) / Medium-term (3-12m) / Long-term (12m+)\\n\\nKey Risk: One sentence on the most important downside risk.\\nKey Opportunity: One sentence on the most important upside catalyst.\\n\\nAI Insight Summary (max 80 words): Concise investment conclusion."
       };
-      // Check KV config: is this ticker in LIVE or CACHED mode?
-      // Default: ALL tickers use cache-first (Option A -- on-demand caching for all S&P 500)
-      // Only LIVE if admin has explicitly toggled ticker to live mode
+      // Cache-first for all S&P 500 tickers (Option A)
+      // Only LIVE if admin explicitly toggled ticker to live mode
       var _kvCfg = window.__adminCfg || null;
       var _isLiveMode = _kvCfg && _kvCfg.indexOf(sym) !== -1;
 
@@ -5066,14 +5065,14 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
             {insightTab === "admin" && (function() {
               var ALL_SP500 = Object.keys(NAMES).sort();
               var AI_TABS = ["moat","financial","aiinsight"];
-
-              var liveSet  = adminCfg  || [];
-              var statsMap = adminStats || {};
               var adminQ = (window.__adminSearch || "").toLowerCase();
               var FILTERED = ALL_SP500.filter(function(t) {
                 if (!adminQ) return true;
                 return t.toLowerCase().startsWith(adminQ) || (NAMES[t]||"").toLowerCase().includes(adminQ);
               });
+
+              var liveSet  = adminCfg  || [];
+              var statsMap = adminStats || {};
 
               function fmtAge(iso) {
                 if (!iso) return null;
@@ -5094,7 +5093,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
 
               return (
                 <div style={{ padding:"20px 24px" }}>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
                     <div>
                       <div style={{ fontSize:13, fontWeight:700, color:"#f0ede6" }}>Cache Manager</div>
                       <div style={{ fontSize:11, color:"#555", marginTop:3 }}>All S&P 500 tickers use cache-first by default. Toggle LIVE to force fresh Claude calls.</div>
@@ -5124,132 +5123,97 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                     </div>
                     <span style={{ fontSize:11, color:"#555", whiteSpace:"nowrap" }}>{FILTERED.length + " / " + ALL_SP500.length}</span>
                   </div>
-                  {/* Sortable table */}
-                  {(function() {
-                    var sortKey = window.__adminSort || "ticker";
-                    var sortDir = window.__adminSortDir || 1;
-                    function setSort(k) {
-                      if (window.__adminSort === k) { window.__adminSortDir = (window.__adminSortDir || 1) * -1; }
-                      else { window.__adminSort = k; window.__adminSortDir = 1; }
-                      setAdminStats(function(p){ return Object.assign({},p); });
-                    }
-                    function getSortVal(t) {
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {FILTERED.map(function(t) {
+                      var isLive = liveSet.indexOf(t) !== -1;
                       var cachedTabs = AI_TABS.filter(function(tab) { var m = statsMap["insight:" + t + ":" + tab]; return !!(m && (m.exists || m.cachedAt)); });
-                      var latestDate = null;
+                      var latestDate   = null;
+                      var hasOldFormat = false;
                       AI_TABS.forEach(function(tab) {
                         var meta = statsMap["insight:" + t + ":" + tab];
-                        if (meta && meta.cachedAt) { if (!latestDate || new Date(meta.cachedAt) > new Date(latestDate)) latestDate = meta.cachedAt; }
+                        if (meta && meta.cachedAt) {
+                          if (!latestDate || new Date(meta.cachedAt) > new Date(latestDate)) { latestDate = meta.cachedAt; }
+                        } else if (meta && meta.exists) {
+                          hasOldFormat = true;
+                        }
                       });
-                      if (sortKey === "ticker")   return t;
-                      if (sortKey === "company")  return (NAMES[t]||"").toLowerCase();
-                      if (sortKey === "status")   return cachedTabs.length === AI_TABS.length ? 0 : cachedTabs.length > 0 ? 1 : 2;
-                      if (sortKey === "cached")   return latestDate ? new Date(latestDate).getTime() : 0;
-                      if (sortKey === "mode")     return liveSet.indexOf(t) !== -1 ? 0 : 1;
-                      return t;
-                    }
-                    var SORTED = FILTERED.slice().sort(function(a,b) {
-                      var va = getSortVal(a); var vb = getSortVal(b);
-                      if (va < vb) return -1 * sortDir;
-                      if (va > vb) return 1 * sortDir;
-                      return 0;
-                    });
-                    function SortHdr(props) {
-                      var active = sortKey === props.k;
-                      var arrow = active ? (sortDir === 1 ? " " + String.fromCharCode(0x25B2) : " " + String.fromCharCode(0x25BC)) : "";
                       return (
-                        <th onClick={function(){ setSort(props.k); }}
-                          style={{ padding:"8px 10px", fontSize:10, fontWeight:700, color: active ? "#c8f000" : "#555", textTransform:"uppercase", letterSpacing:"0.06em", textAlign:props.align||"left", cursor:"pointer", whiteSpace:"nowrap", borderBottom:"1px solid #2c2c26", background:"#151513", userSelect:"none" }}>
-                          {props.label}{arrow}
-                        </th>
+                        <div key={t} style={{ background:"#1c1c1e", border:"1px solid " + (isLive ? "#2a3a14" : "#2c2c26"), borderRadius:10, padding:"12px 16px" }}>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                              <div>
+                                <span style={{ fontSize:13, fontWeight:800, color:"#f0ede6" }}>{t}</span>
+                                <span style={{ fontSize:11, color:"#555", marginLeft:8 }}>{(NAMES[t]||t).slice(0,22)}</span>
+                              </div>
+                              {cachedTabs.length === AI_TABS.length && <span style={{ fontSize:9, fontWeight:700, color:"#7abd00", background:"#1e2a1e", border:"1px solid #2a5020", borderRadius:4, padding:"2px 6px" }}>FULL CACHE</span>}
+                              {cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length && <span style={{ fontSize:9, fontWeight:700, color:"#EF9F27", background:"#2a2010", border:"1px solid #4a3810", borderRadius:4, padding:"2px 6px" }}>PARTIAL</span>}
+                              {cachedTabs.length === 0 && !isLive && <span style={{ fontSize:9, fontWeight:700, color:"#e05050", background:"#2a1e1e", border:"1px solid #4a2020", borderRadius:4, padding:"2px 6px" }}>NO CACHE</span>}
+                            </div>
+                            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                              <span style={{ fontSize:11, color: isLive ? "#c8f000" : "#555", fontWeight:700 }}>{isLive ? "LIVE" : "CACHED"}</span>
+                              <div
+                                onClick={function() {
+                                  var nowLive = liveSet.indexOf(t) !== -1;
+                                  var newCfg  = nowLive ? liveSet.filter(function(x){ return x !== t; }) : liveSet.concat([t]);
+                                  window.__adminCfg = newCfg;
+                                  fetch("/cache?action=config", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newCfg) })
+                                    .then(function(r){ return r.json(); })
+                                    .then(function(d){ if (d.ok) { setAdminCfg(newCfg); } });
+                                }}
+                                style={{ width:40, height:22, borderRadius:11, background: isLive ? "#c8f000" : "#333", position:"relative", cursor:"pointer", border: isLive ? "none" : "1px solid #444" }}>
+                                <div style={{ position:"absolute", top:3, left: isLive ? 20 : 3, width:16, height:16, borderRadius:"50%", background: isLive ? "#0e0e0c" : "#666" }}></div>
+                              </div>
+                              {!isLive && (
+                                <button
+                                  onClick={function() {
+                                    if (!window.confirm("Clear cache for " + t + "? Next visitor will trigger a fresh Claude call.")) return;
+                                    fetch("/cache?sym=" + t + "&tab=moat", { method:"DELETE" })
+                                      .then(function() {
+                                        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache CLEARED: " + t }]); });
+                                        setAdminStats(function(prev) {
+                                          var next = Object.assign({}, prev);
+                                          delete next["insight:" + t + ":moat"];
+                                          delete next["insight:" + t + ":financial"];
+                                          delete next["insight:" + t + ":aiinsight"];
+                                          return next;
+                                        });
+                                      });
+                                  }}
+                                  style={{ fontSize:10, color:"#e05050", background:"none", border:"1px solid #4a2020", borderRadius:6, padding:"3px 8px", cursor:"pointer", fontFamily:FONT, whiteSpace:"nowrap" }}>
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          {(latestDate || hasOldFormat) && (
+                            <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #252525", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                              <div style={{ display:"flex", gap:5 }}>
+                                {cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length && AI_TABS.map(function(tab) {
+                                  var hit = !!(statsMap["insight:" + t + ":" + tab] && statsMap["insight:" + t + ":" + tab].cachedAt);
+                                  return (
+                                    <span key={tab} style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:4, color: hit ? "#7abd00" : "#444", background: hit ? "#1e2a1e" : "#181818", border:"1px solid " + (hit ? "#2a5020" : "#252525") }}>
+                                      {tab === "aiinsight" ? "AI" : tab.charAt(0).toUpperCase() + tab.slice(1)}{hit ? " " + String.fromCharCode(0x2713) : " " + String.fromCharCode(0x2013)}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                              <span style={{ fontSize:10, color:"#555" }}>{latestDate ? "Last cached: " + fmtDate(latestDate) + " (" + fmtAge(latestDate) + ")" : "Cached (visit ticker to update date)"}</span>
+                            </div>
+                          )}
+                        </div>
                       );
-                    }
-                    return (
-                      <div style={{ overflowX:"auto", borderRadius:8, border:"1px solid #2c2c26" }}>
-                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                          <thead>
-                            <tr>
-                              <SortHdr k="ticker"  label="Ticker" />
-                              <SortHdr k="company" label="Company" />
-                              <SortHdr k="status"  label="Cache" />
-                              <SortHdr k="cached"  label="Last Cached" />
-                              <SortHdr k="mode"    label="Mode" align="center" />
-                              <th style={{ padding:"8px 10px", fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", textAlign:"center", borderBottom:"1px solid #2c2c26", background:"#151513" }}>Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {SORTED.map(function(t) {
-                              var isLive = liveSet.indexOf(t) !== -1;
-                              var cachedTabs = AI_TABS.filter(function(tab) { var m = statsMap["insight:" + t + ":" + tab]; return !!(m && (m.exists || m.cachedAt)); });
-                              var latestDate = null;
-                              AI_TABS.forEach(function(tab) {
-                                var meta = statsMap["insight:" + t + ":" + tab];
-                                if (meta && meta.cachedAt) { if (!latestDate || new Date(meta.cachedAt) > new Date(latestDate)) latestDate = meta.cachedAt; }
-                              });
-                              var statusLabel = cachedTabs.length === AI_TABS.length ? "Full" : cachedTabs.length > 0 ? "Partial" : "None";
-                              var statusColor = cachedTabs.length === AI_TABS.length ? "#7abd00" : cachedTabs.length > 0 ? "#EF9F27" : "#e05050";
-                              var statusBg    = cachedTabs.length === AI_TABS.length ? "#1e2a1e" : cachedTabs.length > 0 ? "#2a2010" : "#2a1e1e";
-                              var rowBg = isLive ? "rgba(200,240,0,0.03)" : "transparent";
-                              return (
-                                <tr key={t} style={{ background:rowBg, borderBottom:"1px solid #1a1a16" }}
-                                  onMouseEnter={function(e){ e.currentTarget.style.background="#1c1c1e"; }}
-                                  onMouseLeave={function(e){ e.currentTarget.style.background=rowBg; }}>
-                                  <td style={{ padding:"9px 10px", fontWeight:700, color:"#f0ede6" }}>{t}</td>
-                                  <td style={{ padding:"9px 10px", color:"#777", maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{(NAMES[t]||t)}</td>
-                                  <td style={{ padding:"9px 10px" }}>
-                                    <span style={{ fontSize:10, fontWeight:700, color:statusColor, background:statusBg, padding:"2px 8px", borderRadius:4 }}>{statusLabel}</span>
-                                  </td>
-                                  <td style={{ padding:"9px 10px", color:"#555", fontSize:11 }}>
-                                    {latestDate ? (function(){
-                                      var diff = Date.now() - new Date(latestDate).getTime();
-                                      var mins = Math.floor(diff/60000); var hrs = Math.floor(mins/60); var days = Math.floor(hrs/24);
-                                      return days>0 ? days+"d ago" : hrs>0 ? hrs+"h ago" : mins>0 ? mins+"m ago" : "just now";
-                                    })() : String.fromCharCode(0x2014)}
-                                  </td>
-                                  <td style={{ padding:"9px 10px", textAlign:"center" }}>
-                                    <div onClick={function() {
-                                        var nowLive = liveSet.indexOf(t) !== -1;
-                                        var newCfg  = nowLive ? liveSet.filter(function(x){ return x !== t; }) : liveSet.concat([t]);
-                                        window.__adminCfg = newCfg;
-                                        fetch("/cache?action=config", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newCfg) })
-                                          .then(function(r){ return r.json(); })
-                                          .then(function(d){ if (d.ok) { setAdminCfg(newCfg); } });
-                                      }}
-                                      style={{ width:36, height:20, borderRadius:10, background: isLive ? "#c8f000" : "#333", position:"relative", cursor:"pointer", border: isLive ? "none" : "1px solid #444", display:"inline-block" }}>
-                                      <div style={{ position:"absolute", top:2, left: isLive ? 17 : 2, width:16, height:16, borderRadius:"50%", background: isLive ? "#0e0e0c" : "#666" }}></div>
-                                    </div>
-                                    <div style={{ fontSize:9, color: isLive ? "#c8f000" : "#444", marginTop:2 }}>{isLive ? "LIVE" : "CACHED"}</div>
-                                  </td>
-                                  <td style={{ padding:"9px 10px", textAlign:"center" }}>
-                                    {!isLive && (
-                                      <button onClick={function() {
-                                          if (!window.confirm("Clear cache for " + t + "?")) return;
-                                          fetch("/cache?sym=" + t + "&tab=moat", { method:"DELETE" }).then(function() {
-                                            setAdminStats(function(prev) {
-                                              var next = Object.assign({}, prev);
-                                              delete next["insight:" + t + ":moat"];
-                                              delete next["insight:" + t + ":financial"];
-                                              delete next["insight:" + t + ":aiinsight"];
-                                              return next;
-                                            });
-                                          });
-                                        }}
-                                        style={{ fontSize:10, color:"#e05050", background:"none", border:"1px solid #4a2020", borderRadius:6, padding:"2px 8px", cursor:"pointer", fontFamily:FONT }}>
-                                        Clear
-                                      </button>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })()}
+                    })}
+                  </div>
+                  <div style={{ marginTop:16, padding:"10px 14px", background:"#1a1a10", border:"1px solid #2c2c14", borderRadius:8, fontSize:11, color:"#7abd00", lineHeight:1.7 }}>
+                    {"Live = Claude runs on every visit (" + String.fromCharCode(0x7E) + "$0.03/visit)." + String.fromCharCode(0xA0) + "Cached = stored result served free for 7 days."}
+                  </div>
+                </div>
+              );
+            })()}
+
+
               </div>
             );
-          })()}
-
           })()}
 
         </div>
