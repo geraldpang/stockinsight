@@ -5123,10 +5123,10 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                     </div>
                     <span style={{ fontSize:11, color:"#555", whiteSpace:"nowrap" }}>{FILTERED.length + " / " + ALL_SP500.length}</span>
                   </div>
-                  <div style={{ overflowX:"auto", border:"0.5px solid #252520", borderRadius:8, background:"#0e0e0c" }}>
+                  <div style={{ overflowX:"auto", border:"0.5px solid #e0dbd0", borderRadius:8, background:"#fff" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                       <thead>
-                        <tr style={{ background:"#252520" }}>
+                        <tr style={{ background:"#f5f2ec" }}>
                           {["ticker","company","cache","lastCached","mode"].map(function(col) {
                             var labels = { ticker:"Ticker", company:"Company", cache:"Cache", lastCached:"Last Cached", mode:"Mode" };
                             var active = (window.__adminSort||"ticker") === col;
@@ -5138,12 +5138,12 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                                   else { window.__adminSort = col; window.__adminSortDir = 1; }
                                   setAdminStats(function(p){ return Object.assign({},p); });
                                 }}
-                                style={{ padding:"10px 14px", fontSize:11, fontWeight:500, color: active ? "#c8f000" : "#666", textAlign:"left", cursor:"pointer", whiteSpace:"nowrap", borderBottom:"0.5px solid #333", userSelect:"none" }}>
+                                style={{ padding:"10px 14px", fontSize:11, fontWeight:500, color: active ? "#1a6a1a" : "#888", textAlign:"left", cursor:"pointer", whiteSpace:"nowrap", borderBottom:"0.5px solid #e0dbd0", userSelect:"none" }}>
                                 {labels[col]}{active ? (dir===1 ? " " + String.fromCharCode(0x25B2) : " " + String.fromCharCode(0x25BC)) : ""}
                               </th>
                             );
                           })}
-                          <th style={{ padding:"10px 14px", fontSize:11, fontWeight:500, color:"#666", textAlign:"center", borderBottom:"0.5px solid #333" }}>Actions</th>
+                          <th style={{ padding:"10px 14px", fontSize:11, fontWeight:500, color:"#888", textAlign:"center", borderBottom:"0.5px solid #e0dbd0" }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -5180,17 +5180,17 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                               age = days>0 ? days+"d ago" : hrs>0 ? hrs+"h ago" : mins>0 ? mins+"m ago" : "just now";
                             }
                             var rowIdx = SORTED.indexOf(t);
-                            var rowBg = rowIdx % 2 === 0 ? "#1a1a14" : "#141410";
+                            var rowBg = rowIdx % 2 === 0 ? "#ffffff" : "#f9f7f4";
                             return (
-                              <tr key={t} style={{ borderBottom:"0.5px solid #1c1c18", background:rowBg }}
-                                onMouseEnter={function(e){ e.currentTarget.style.background="#252520"; }}
+                              <tr key={t} style={{ borderBottom:"0.5px solid #e8e4dc", background:rowBg }}
+                                onMouseEnter={function(e){ e.currentTarget.style.background="#f0ede6"; }}
                                 onMouseLeave={function(e){ e.currentTarget.style.background=rowBg; }}>
-                                <td style={{ padding:"10px 14px", fontWeight:700, color:"#f0ede6", whiteSpace:"nowrap" }}>{t}</td>
-                                <td style={{ padding:"10px 14px", color:"#777", maxWidth:200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{(NAMES[t]||t)}</td>
+                                <td style={{ padding:"10px 14px", fontWeight:700, color:"#1a1a14", whiteSpace:"nowrap" }}>{t}</td>
+                                <td style={{ padding:"10px 14px", color:"#666", maxWidth:200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{(NAMES[t]||t)}</td>
                                 <td style={{ padding:"10px 14px", color:statusColor, fontSize:11, whiteSpace:"nowrap" }}>
                                   {String.fromCharCode(0x25CF) + " " + statusLabel}
                                 </td>
-                                <td style={{ padding:"10px 14px", color: latestDate ? statusColor : "#333", fontSize:11, whiteSpace:"nowrap" }}>{age || String.fromCharCode(0x2014)}</td>
+                                <td style={{ padding:"10px 14px", color: latestDate ? statusColor : "#bbb", fontSize:11, whiteSpace:"nowrap" }}>{age || String.fromCharCode(0x2014)}</td>
                                 <td style={{ padding:"10px 14px" }}>
                                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                                     <div onClick={function() {
@@ -5204,7 +5204,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                                       style={{ width:34, height:18, borderRadius:9, background: isLive?"#c8f000":"#333", position:"relative", cursor:"pointer", border: isLive?"none":"1px solid #444", flexShrink:0 }}>
                                       <div style={{ position:"absolute", top:2, left: isLive?15:2, width:14, height:14, borderRadius:"50%", background: isLive?"#0e0e0c":"#666" }}></div>
                                     </div>
-                                    <span style={{ fontSize:11, color: isLive?"#c8f000":"#444", fontWeight: isLive?600:400 }}>{isLive?"Live":"Cached"}</span>
+                                    <span style={{ fontSize:11, color: isLive?"#1a1a14":"#1a6a1a", fontWeight: isLive?600:500 }}>{isLive?"Live":"Cached"}</span>
                                   </div>
                                 </td>
                                 <td style={{ padding:"8px 10px", textAlign:"center" }}>
