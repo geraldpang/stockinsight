@@ -5591,21 +5591,37 @@ export default function App() {
             })}
           </div>
           {!clerkUser && (
-            <div style={{ maxWidth:420, margin:"0 auto", padding:"14px 20px", background:"rgba(200,240,0,0.06)", border:"1px solid rgba(200,240,0,0.2)", borderRadius:12, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
-              <div style={{ textAlign:"left" }}>
-                <div style={{ fontSize:13, fontWeight:700, color:LIME, marginBottom:3 }}>S&P 500 access</div>
-                <div style={{ fontSize:11, color:"#6a6460" }}>Sign in to unlock all 500 companies</div>
+            <div>
+              {/* Divider */}
+              <div style={{ display:"flex", alignItems:"center", gap:10, maxWidth:400, margin:"0 auto 10px" }}>
+                <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
+                <span style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.1em", whiteSpace:"nowrap" }}>{"+ 490 more with sign in"}</span>
+                <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
               </div>
+              {/* Faded locked tickers */}
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16, opacity:0.25 }}>
+                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>NFLX</span>
+                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>AMD</span>
+                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>JPM</span>
+                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>BAC</span>
+                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>GS</span>
+                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>XOM</span>
+                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>COST</span>
+                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>MA</span>
+                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>V</span>
+                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>WMT</span>
+              </div>
+              {/* Sign in button */}
               <button
                 onClick={function() { if(window.Clerk){ try{ window.Clerk.openSignIn({}); } catch(e){ window.location.href="https://accounts.nervousgeek.com/sign-in"; } } }}
-                style={{ background:LIME, color:"#0e0e0c", border:"none", borderRadius:20, padding:"7px 18px", fontSize:12, fontWeight:800, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0, fontFamily:FONT }}>
-                Sign In
+                style={{ background:LIME, color:"#0e0e0c", border:"none", borderRadius:24, padding:"10px 32px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:FONT }}>
+                {"Sign in to unlock all 500"}
               </button>
             </div>
           )}
           {clerkUser && (
             <div style={{ fontSize:12, color:"#4a4a44" }}>
-              {"Signed in " + String.fromCharCode(0x2014) + " all S&P 500 companies unlocked"}
+              {"All S&P 500 companies unlocked " + String.fromCharCode(0x2713)}
             </div>
           )}
         </div>
