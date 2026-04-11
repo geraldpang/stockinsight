@@ -5250,6 +5250,8 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
             );
           })()}
 
+          })()}
+
         </div>
       </div>
       {/* Sticky disclaimer footer */}
