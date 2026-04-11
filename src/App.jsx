@@ -5123,86 +5123,113 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                     </div>
                     <span style={{ fontSize:11, color:"#555", whiteSpace:"nowrap" }}>{FILTERED.length + " / " + ALL_SP500.length}</span>
                   </div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                    {FILTERED.map(function(t) {
-                      var isLive = liveSet.indexOf(t) !== -1;
-                      var cachedTabs = AI_TABS.filter(function(tab) { var m = statsMap["insight:" + t + ":" + tab]; return !!(m && (m.exists || m.cachedAt)); });
-                      var latestDate   = null;
-                      var hasOldFormat = false;
-                      AI_TABS.forEach(function(tab) {
-                        var meta = statsMap["insight:" + t + ":" + tab];
-                        if (meta && meta.cachedAt) {
-                          if (!latestDate || new Date(meta.cachedAt) > new Date(latestDate)) { latestDate = meta.cachedAt; }
-                        } else if (meta && meta.exists) {
-                          hasOldFormat = true;
-                        }
-                      });
-                      return (
-                        <div key={t} style={{ background:"#1c1c1e", border:"1px solid " + (isLive ? "#2a3a14" : "#2c2c26"), borderRadius:10, padding:"12px 16px" }}>
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                              <div>
-                                <span style={{ fontSize:13, fontWeight:800, color:"#f0ede6" }}>{t}</span>
-                                <span style={{ fontSize:11, color:"#555", marginLeft:8 }}>{(NAMES[t]||t).slice(0,22)}</span>
-                              </div>
-                              {cachedTabs.length === AI_TABS.length && <span style={{ fontSize:9, fontWeight:700, color:"#7abd00", background:"#1e2a1e", border:"1px solid #2a5020", borderRadius:4, padding:"2px 6px" }}>FULL CACHE</span>}
-                              {cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length && <span style={{ fontSize:9, fontWeight:700, color:"#EF9F27", background:"#2a2010", border:"1px solid #4a3810", borderRadius:4, padding:"2px 6px" }}>PARTIAL</span>}
-                              {cachedTabs.length === 0 && !isLive && <span style={{ fontSize:9, fontWeight:700, color:"#e05050", background:"#2a1e1e", border:"1px solid #4a2020", borderRadius:4, padding:"2px 6px" }}>NO CACHE</span>}
-                            </div>
-                            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                              <span style={{ fontSize:11, color: isLive ? "#c8f000" : "#555", fontWeight:700 }}>{isLive ? "LIVE" : "CACHED"}</span>
-                              <div
+                  <div style={{ overflowX:"auto", border:"1px solid #2c2c26", borderRadius:8 }}>
+                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                      <thead>
+                        <tr style={{ background:"#151513" }}>
+                          {["ticker","company","cache","lastCached","mode"].map(function(col) {
+                            var labels = { ticker:"Ticker", company:"Company", cache:"Cache", lastCached:"Last Cached", mode:"Mode" };
+                            var active = (window.__adminSort||"ticker") === col;
+                            var dir = window.__adminSortDir || 1;
+                            return (
+                              <th key={col}
                                 onClick={function() {
-                                  var nowLive = liveSet.indexOf(t) !== -1;
-                                  var newCfg  = nowLive ? liveSet.filter(function(x){ return x !== t; }) : liveSet.concat([t]);
-                                  window.__adminCfg = newCfg;
-                                  fetch("/cache?action=config", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newCfg) })
-                                    .then(function(r){ return r.json(); })
-                                    .then(function(d){ if (d.ok) { setAdminCfg(newCfg); } });
+                                  if (window.__adminSort === col) { window.__adminSortDir = (window.__adminSortDir||1) * -1; }
+                                  else { window.__adminSort = col; window.__adminSortDir = 1; }
+                                  setAdminStats(function(p){ return Object.assign({},p); });
                                 }}
-                                style={{ width:40, height:22, borderRadius:11, background: isLive ? "#c8f000" : "#333", position:"relative", cursor:"pointer", border: isLive ? "none" : "1px solid #444" }}>
-                                <div style={{ position:"absolute", top:3, left: isLive ? 20 : 3, width:16, height:16, borderRadius:"50%", background: isLive ? "#0e0e0c" : "#666" }}></div>
-                              </div>
-                              {!isLive && (
-                                <button
-                                  onClick={function() {
-                                    if (!window.confirm("Clear cache for " + t + "? Next visitor will trigger a fresh Claude call.")) return;
-                                    fetch("/cache?sym=" + t + "&tab=moat", { method:"DELETE" })
-                                      .then(function() {
-                                        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache CLEARED: " + t }]); });
-                                        setAdminStats(function(prev) {
-                                          var next = Object.assign({}, prev);
-                                          delete next["insight:" + t + ":moat"];
-                                          delete next["insight:" + t + ":financial"];
-                                          delete next["insight:" + t + ":aiinsight"];
-                                          return next;
+                                style={{ padding:"8px 10px", fontSize:10, fontWeight:700, color: active ? "#c8f000" : "#555", textTransform:"uppercase", letterSpacing:"0.06em", textAlign:"left", cursor:"pointer", whiteSpace:"nowrap", borderBottom:"1px solid #2c2c26", userSelect:"none" }}>
+                                {labels[col]}{active ? (dir===1 ? " " + String.fromCharCode(0x25B2) : " " + String.fromCharCode(0x25BC)) : ""}
+                              </th>
+                            );
+                          })}
+                          <th style={{ padding:"8px 10px", fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", textAlign:"center", borderBottom:"1px solid #2c2c26" }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(function() {
+                          var sortKey = window.__adminSort || "ticker";
+                          var sortDir = window.__adminSortDir || 1;
+                          var SORTED = FILTERED.slice().sort(function(a, b) {
+                            var getVal = function(t) {
+                              var ct = AI_TABS.filter(function(tab) { var m = statsMap["insight:"+t+":"+tab]; return !!(m&&(m.exists||m.cachedAt)); });
+                              var ld = null;
+                              AI_TABS.forEach(function(tab) { var m = statsMap["insight:"+t+":"+tab]; if (m&&m.cachedAt) { if (!ld||new Date(m.cachedAt)>new Date(ld)) ld=m.cachedAt; } });
+                              if (sortKey==="ticker")     return t;
+                              if (sortKey==="company")    return (NAMES[t]||"").toLowerCase();
+                              if (sortKey==="cache")      return ct.length===AI_TABS.length ? 0 : ct.length>0 ? 1 : 2;
+                              if (sortKey==="lastCached") return ld ? new Date(ld).getTime() : 0;
+                              if (sortKey==="mode")       return liveSet.indexOf(t)!==-1 ? 0 : 1;
+                              return t;
+                            };
+                            var va = getVal(a); var vb = getVal(b);
+                            return va < vb ? -sortDir : va > vb ? sortDir : 0;
+                          });
+                          return SORTED.map(function(t) {
+                            var isLive = liveSet.indexOf(t) !== -1;
+                            var cachedTabs = AI_TABS.filter(function(tab) { var m = statsMap["insight:"+t+":"+tab]; return !!(m&&(m.exists||m.cachedAt)); });
+                            var latestDate = null;
+                            AI_TABS.forEach(function(tab) { var m = statsMap["insight:"+t+":"+tab]; if (m&&m.cachedAt) { if (!latestDate||new Date(m.cachedAt)>new Date(latestDate)) latestDate=m.cachedAt; } });
+                            var statusLabel = cachedTabs.length===AI_TABS.length ? "Full" : cachedTabs.length>0 ? "Partial" : "None";
+                            var statusColor = cachedTabs.length===AI_TABS.length ? "#7abd00" : cachedTabs.length>0 ? "#EF9F27" : "#e05050";
+                            var statusBg    = cachedTabs.length===AI_TABS.length ? "#1e2a1e" : cachedTabs.length>0 ? "#2a2010" : "#2a1e1e";
+                            var age = "";
+                            if (latestDate) {
+                              var diff = Date.now() - new Date(latestDate).getTime();
+                              var mins = Math.floor(diff/60000); var hrs = Math.floor(mins/60); var days = Math.floor(hrs/24);
+                              age = days>0 ? days+"d ago" : hrs>0 ? hrs+"h ago" : mins>0 ? mins+"m ago" : "just now";
+                            }
+                            return (
+                              <tr key={t} style={{ borderBottom:"1px solid #1a1a16" }}
+                                onMouseEnter={function(e){ e.currentTarget.style.background="#1c1c1e"; }}
+                                onMouseLeave={function(e){ e.currentTarget.style.background="transparent"; }}>
+                                <td style={{ padding:"8px 10px", fontWeight:700, color:"#f0ede6", whiteSpace:"nowrap" }}>{t}</td>
+                                <td style={{ padding:"8px 10px", color:"#777", maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{(NAMES[t]||t)}</td>
+                                <td style={{ padding:"8px 10px" }}>
+                                  <span style={{ fontSize:10, fontWeight:700, color:statusColor, background:statusBg, padding:"2px 8px", borderRadius:4 }}>{statusLabel}</span>
+                                </td>
+                                <td style={{ padding:"8px 10px", color:"#555", fontSize:11, whiteSpace:"nowrap" }}>{age || String.fromCharCode(0x2014)}</td>
+                                <td style={{ padding:"8px 10px" }}>
+                                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                                    <div onClick={function() {
+                                        var nowLive = liveSet.indexOf(t) !== -1;
+                                        var newCfg = nowLive ? liveSet.filter(function(x){ return x!==t; }) : liveSet.concat([t]);
+                                        window.__adminCfg = newCfg;
+                                        fetch("/cache?action=config", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newCfg) })
+                                          .then(function(r){ return r.json(); })
+                                          .then(function(d){ if (d.ok) { setAdminCfg(newCfg); } });
+                                      }}
+                                      style={{ width:34, height:18, borderRadius:9, background: isLive?"#c8f000":"#333", position:"relative", cursor:"pointer", border: isLive?"none":"1px solid #444", flexShrink:0 }}>
+                                      <div style={{ position:"absolute", top:2, left: isLive?15:2, width:14, height:14, borderRadius:"50%", background: isLive?"#0e0e0c":"#666" }}></div>
+                                    </div>
+                                    <span style={{ fontSize:10, color: isLive?"#c8f000":"#444" }}>{isLive?"LIVE":"CACHED"}</span>
+                                  </div>
+                                </td>
+                                <td style={{ padding:"8px 10px", textAlign:"center" }}>
+                                  {!isLive && (
+                                    <button onClick={function() {
+                                        if (!window.confirm("Clear cache for "+t+"?")) return;
+                                        fetch("/cache?sym="+t+"&tab=moat", { method:"DELETE" }).then(function() {
+                                          setAdminStats(function(prev) {
+                                            var next = Object.assign({}, prev);
+                                            delete next["insight:"+t+":moat"];
+                                            delete next["insight:"+t+":financial"];
+                                            delete next["insight:"+t+":aiinsight"];
+                                            return next;
+                                          });
                                         });
-                                      });
-                                  }}
-                                  style={{ fontSize:10, color:"#e05050", background:"none", border:"1px solid #4a2020", borderRadius:6, padding:"3px 8px", cursor:"pointer", fontFamily:FONT, whiteSpace:"nowrap" }}>
-                                  Clear
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          {(latestDate || hasOldFormat) && (
-                            <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #252525", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                              <div style={{ display:"flex", gap:5 }}>
-                                {cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length && AI_TABS.map(function(tab) {
-                                  var hit = !!(statsMap["insight:" + t + ":" + tab] && statsMap["insight:" + t + ":" + tab].cachedAt);
-                                  return (
-                                    <span key={tab} style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:4, color: hit ? "#7abd00" : "#444", background: hit ? "#1e2a1e" : "#181818", border:"1px solid " + (hit ? "#2a5020" : "#252525") }}>
-                                      {tab === "aiinsight" ? "AI" : tab.charAt(0).toUpperCase() + tab.slice(1)}{hit ? " " + String.fromCharCode(0x2713) : " " + String.fromCharCode(0x2013)}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                              <span style={{ fontSize:10, color:"#555" }}>{latestDate ? "Last cached: " + fmtDate(latestDate) + " (" + fmtAge(latestDate) + ")" : "Cached (visit ticker to update date)"}</span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                                      }}
+                                      style={{ fontSize:10, color:"#e05050", background:"none", border:"1px solid #4a2020", borderRadius:6, padding:"2px 8px", cursor:"pointer", fontFamily:FONT }}>
+                                      Clear
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
                   </div>
                   <div style={{ marginTop:16, padding:"10px 14px", background:"#1a1a10", border:"1px solid #2c2c14", borderRadius:8, fontSize:11, color:"#7abd00", lineHeight:1.7 }}>
                     {"Live = Claude runs on every visit (" + String.fromCharCode(0x7E) + "$0.03/visit)." + String.fromCharCode(0xA0) + "Cached = stored result served free for 7 days."}
