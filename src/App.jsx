@@ -917,6 +917,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
   const [debugLog,      setDebugLog]      = useState([]);
   const [adminCfg,      setAdminCfg]      = useState(null);
   const [adminStats,    setAdminStats]    = useState({});
+  const [mobilePanel,   setMobilePanel]   = useState("left"); // "left" | "right"
 
   // Mount Clerk UserButton when signed in
   useEffect(function() {
@@ -1887,7 +1888,19 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
         return (
           <div>
             {/* Desktop nav: 1 row - Back / Logo / centred search / Live badge */}
-            <style>{"              .nav-desktop { display:flex; }              .nav-mobile  { display:none; }              @media (max-width:600px) {                .nav-desktop { display:none; }                .nav-mobile  { display:block; }              }            "}</style>
+            <style>{"
+              .nav-desktop { display: flex; }
+              .nav-mobile  { display: none; }
+              @media (max-width: 768px) {
+                .nav-desktop { display: none !important; }
+                .nav-mobile  { display: block !important; }
+                .body-grid   { display: block !important; }
+                .panel-left  { width: 100% !important; border-right: none !important; }
+                .panel-right { width: 100% !important; padding: 16px !important; }
+                .view-analysis-btn { display: block !important; }
+                .mobile-back-btn   { display: block !important; }
+              }
+            "}</style>
 
             {/* DESKTOP */}
             <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"400px 1fr auto", alignItems:"center", gap:0 }}>
@@ -1919,7 +1932,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                   <span style={{ fontWeight:800, fontSize:14, color:"#1a1a14" }}>nervousgeek.com</span>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
-                <button onClick={onBack} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"4px 10px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:11, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
+                <button onClick={function(){ setMobilePanel("left"); onBack(); }} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"4px 10px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:11, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
                   Back
                 </button>
 
@@ -1976,10 +1989,10 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
       )}
 
       {/* Body grid */}
-      <div style={{ display:"grid", gridTemplateColumns:"400px 1fr" }}>
+      <div className="body-grid" style={{ display:"grid", gridTemplateColumns:"400px 1fr" }}>
 
         {/* LEFT PANEL */}
-        <div style={{ padding:"24px 20px", borderRight:"1px solid #111", background:"#1c1c1e" }}>
+        <div className="panel-left" style={{ padding:"24px 20px", borderRight:"1px solid #111", background:"#1c1c1e", display: mobilePanel === "right" ? "none" : "block" }}>
 
           <h2 style={{ fontSize:21, fontWeight:900, color:"#f0ede6", margin:"0 0 3px" }}>({sym}) {name}</h2>
           <div style={{ fontSize:13, color:"#555", marginBottom:14 }}>{ov ? ov.exchange : "NASDAQ"}</div>
@@ -2558,8 +2571,26 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
           </div>
         </div>
 
+          {/* Mobile: View Analysis button */}
+          <div className="view-analysis-btn" style={{ display:"none", marginTop:20 }}>
+            <button
+              onClick={function(){ setMobilePanel("right"); }}
+              style={{ width:"100%", padding:"14px", background:"#c8f000", color:"#0e0e0c", border:"none", borderRadius:50, fontSize:14, fontWeight:800, fontFamily:FONT, cursor:"pointer" }}>
+              {"View Analysis " + String.fromCharCode(0x2192)}
+            </button>
+          </div>
+        </div>
+
         {/* RIGHT PANEL */}
-        <div style={{ padding:"24px", background:"#fff" }}>
+        <div className="panel-right" style={{ padding:"24px", background:"#fff", minHeight:"100vh", display: mobilePanel === "left" ? "none" : "block" }}>
+          {/* Mobile back button */}
+          <div style={{ display:"none" }} className="mobile-back-btn">
+            <button
+              onClick={function(){ setMobilePanel("left"); }}
+              style={{ display:"flex", alignItems:"center", gap:6, background:"none", border:"none", cursor:"pointer", color:"#555", fontSize:13, fontFamily:FONT, marginBottom:16, padding:0 }}>
+              <span style={{ fontSize:16 }}>{"<"}</span> Summary
+            </button>
+          </div>
 
           {/* TradingView Chart */}
           <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden", marginBottom:20 }}>
