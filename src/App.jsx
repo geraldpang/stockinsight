@@ -5069,6 +5069,11 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
 
               var liveSet  = adminCfg  || [];
               var statsMap = adminStats || {};
+              var adminQ = (window.__adminSearch || "").toLowerCase();
+              var FILTERED = ALL_SP500.filter(function(t) {
+                if (!adminQ) return true;
+                return t.toLowerCase().startsWith(adminQ) || (NAMES[t]||"").toLowerCase().includes(adminQ);
+              });
 
               function fmtAge(iso) {
                 if (!iso) return null;
@@ -5089,7 +5094,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
 
               return (
                 <div style={{ padding:"20px 24px" }}>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
                     <div>
                       <div style={{ fontSize:13, fontWeight:700, color:"#f0ede6" }}>Cache Manager</div>
                       <div style={{ fontSize:11, color:"#555", marginTop:3 }}>All S&P 500 tickers use cache-first by default. Toggle LIVE to force fresh Claude calls.</div>
@@ -5104,8 +5109,23 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                       {String.fromCharCode(0x21BA) + " Refresh"}
                     </button>
                   </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+                    <div style={{ display:"flex", alignItems:"center", background:"#1c1c1e", border:"1px solid #333", borderRadius:8, padding:"6px 12px", gap:8, flex:1 }}>
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
+                        <circle cx="6.5" cy="6.5" r="5" stroke="#555" strokeWidth="1.5"/>
+                        <path d="M10.5 10.5L14 14" stroke="#555" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
+                      <input
+                        placeholder="Filter by ticker or company..."
+                        defaultValue=""
+                        onChange={function(e) { window.__adminSearch = e.target.value; setAdminStats(function(p){ return Object.assign({},p); }); }}
+                        style={{ flex:1, background:"transparent", border:"none", outline:"none", fontSize:12, color:"#f0ede6", fontFamily:FONT }}
+                      />
+                    </div>
+                    <span style={{ fontSize:11, color:"#555", whiteSpace:"nowrap" }}>{FILTERED.length + " / " + ALL_SP500.length}</span>
+                  </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                    {ALL_SP500.map(function(t) {
+                    {FILTERED.map(function(t) {
                       var isLive = liveSet.indexOf(t) !== -1;
                       var cachedTabs = AI_TABS.filter(function(tab) { var m = statsMap["insight:" + t + ":" + tab]; return !!(m && (m.exists || m.cachedAt)); });
                       var latestDate   = null;
