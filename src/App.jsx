@@ -1888,7 +1888,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
         return (
           <div>
             {/* Desktop nav: 1 row - Back / Logo / centred search / Live badge */}
-            <style>{".nav-desktop{display:flex}.nav-mobile{display:none}@media(max-width:768px){.nav-desktop{display:none!important}.nav-mobile{display:block!important}.body-grid{display:block!important}.panel-left{width:100%!important;border-right:none!important}.panel-right{width:100%!important;padding:16px!important}.view-analysis-btn{display:block!important}.mobile-back-btn{display:block!important}}"}</style>
+            <style>{".nav-desktop{display:flex}.nav-mobile{display:none}@media(max-width:768px){.nav-desktop{display:none!important}.nav-mobile{display:block!important}.body-grid{display:block!important}.panel-left{width:100%!important;border-right:none!important}.panel-right{width:100%!important;padding:16px!important}.view-analysis-btn{display:block!important}.mobile-back-btn{display:block!important}.show-right .panel-left{display:none!important}.show-right .panel-right{display:block!important}.show-left .panel-right{display:none!important}.show-left .panel-left{display:block!important}}"}</style>
 
             {/* DESKTOP */}
             <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"400px 1fr auto", alignItems:"center", gap:0 }}>
@@ -1977,10 +1977,10 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
       )}
 
       {/* Body grid */}
-      <div className="body-grid" style={{ display:"grid", gridTemplateColumns:"400px 1fr" }}>
+      <div className={"body-grid" + (mobilePanel === "right" ? " show-right" : " show-left")} style={{ display:"grid", gridTemplateColumns:"400px 1fr" }}>
 
         {/* LEFT PANEL */}
-        <div className="panel-left" style={{ padding:"24px 20px", borderRight:"1px solid #111", background:"#1c1c1e", display: mobilePanel === "right" ? "none" : "block" }}>
+        <div className="panel-left" style={{ padding:"24px 20px", borderRight:"1px solid #111", background:"#1c1c1e" }}>
 
           <h2 style={{ fontSize:21, fontWeight:900, color:"#f0ede6", margin:"0 0 3px" }}>({sym}) {name}</h2>
           <div style={{ fontSize:13, color:"#555", marginBottom:14 }}>{ov ? ov.exchange : "NASDAQ"}</div>
@@ -2569,7 +2569,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
         </div>
 
         {/* RIGHT PANEL */}
-        <div className="panel-right" style={{ padding:"24px", background:"#fff", minHeight:"100vh", display: mobilePanel === "left" ? "none" : "block" }}>
+        <div className="panel-right" style={{ padding:"24px", background:"#fff", minHeight:"100vh" }}>
           {/* Mobile back button */}
           <div style={{ display:"none" }} className="mobile-back-btn">
             <button
