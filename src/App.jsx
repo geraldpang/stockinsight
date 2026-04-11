@@ -2557,7 +2557,6 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
               </div>
             )}
           </div>
-        </div>
 
           {/* Mobile: View Analysis button */}
           <div className="view-analysis-btn" style={{ display:"none", marginTop:20 }}>
