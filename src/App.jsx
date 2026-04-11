@@ -1072,13 +1072,13 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
           if (cfgData && Array.isArray(cfgData.value)) {
             window.__adminCfg = cfgData.value;
           } else if (!window.__adminCfg) {
-            window.__adminCfg = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
+            window.__adminCfg = []; // All tickers cache-first by default
           }
           runAiTabs();
         })
         .catch(function() {
           if (!window.__adminCfg) {
-            window.__adminCfg = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
+            window.__adminCfg = []; // All tickers cache-first by default
           }
           runAiTabs();
         });
@@ -1093,8 +1093,10 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
         aiinsight: "You are a senior investment analyst. For " + sym + " (" + (NAMES[sym]||sym) + "), provide an AI Insight in EXACTLY this format:\\n\\nFundamental: X/5\\nResult: One sentence.\\n\\nTechnical: X/5\\nResult: One sentence.\\n\\nSentiment: X/5\\nResult: One sentence.\\n\\nOverall Verdict: Buy / Hold / Avoid / Strong Buy / Strong Avoid\\nConfidence: Low / Medium / High\\nHorizon: Short-term (1-3m) / Medium-term (3-12m) / Long-term (12m+)\\n\\nKey Risk: One sentence on the most important downside risk.\\nKey Opportunity: One sentence on the most important upside catalyst.\\n\\nAI Insight Summary (max 80 words): Concise investment conclusion."
       };
       // Check KV config: is this ticker in LIVE or CACHED mode?
+      // Default: ALL tickers use cache-first (Option A -- on-demand caching for all S&P 500)
+      // Only LIVE if admin has explicitly toggled ticker to live mode
       var _kvCfg = window.__adminCfg || null;
-      var _isLiveMode = !_kvCfg || _kvCfg.indexOf(sym) !== -1;
+      var _isLiveMode = _kvCfg && _kvCfg.indexOf(sym) !== -1;
 
       function _callClaude(onResult) {
         var _anth1Hdrs = Object.assign({"Content-Type":"application/json"}, window.__clerkToken ? {"Authorization":"Bearer "+window.__clerkToken} : {});
@@ -5062,11 +5064,10 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                   })()}
 
             {insightTab === "admin" && (function() {
-              var FREE = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
+              var ALL_SP500 = Object.keys(NAMES).sort();
               var AI_TABS = ["moat","financial","aiinsight"];
-              var NAMES_SHORT = { NVDA:"NVIDIA", AAPL:"Apple", MSFT:"Microsoft", AMZN:"Amazon", GOOGL:"Alphabet", AVGO:"Broadcom", META:"Meta", TSLA:"Tesla", LLY:"Eli Lilly", BRKB:"Berkshire B" };
 
-              var liveSet  = adminCfg  || FREE.slice();
+              var liveSet  = adminCfg  || [];
               var statsMap = adminStats || {};
 
               function fmtAge(iso) {
@@ -5091,7 +5092,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
                     <div>
                       <div style={{ fontSize:13, fontWeight:700, color:"#f0ede6" }}>Cache Manager</div>
-                      <div style={{ fontSize:11, color:"#555", marginTop:3 }}>Toggle live or cached per ticker. Cached serves stored AI result at no cost.</div>
+                      <div style={{ fontSize:11, color:"#555", marginTop:3 }}>All S&P 500 tickers use cache-first by default. Toggle LIVE to force fresh Claude calls.</div>
                     </div>
                     <button
                       onClick={function() {
@@ -5104,7 +5105,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                     </button>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                    {FREE.map(function(t) {
+                    {ALL_SP500.map(function(t) {
                       var isLive = liveSet.indexOf(t) !== -1;
                       var cachedTabs = AI_TABS.filter(function(tab) { var m = statsMap["insight:" + t + ":" + tab]; return !!(m && (m.exists || m.cachedAt)); });
                       var latestDate   = null;
@@ -5123,7 +5124,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                               <div>
                                 <span style={{ fontSize:13, fontWeight:800, color:"#f0ede6" }}>{t}</span>
-                                <span style={{ fontSize:11, color:"#555", marginLeft:8 }}>{NAMES_SHORT[t] || t}</span>
+                                <span style={{ fontSize:11, color:"#555", marginLeft:8 }}>{(NAMES[t]||t).slice(0,22)}</span>
                               </div>
                               {cachedTabs.length === AI_TABS.length && <span style={{ fontSize:9, fontWeight:700, color:"#7abd00", background:"#1e2a1e", border:"1px solid #2a5020", borderRadius:4, padding:"2px 6px" }}>FULL CACHE</span>}
                               {cachedTabs.length > 0 && cachedTabs.length < AI_TABS.length && <span style={{ fontSize:9, fontWeight:700, color:"#EF9F27", background:"#2a2010", border:"1px solid #4a3810", borderRadius:4, padding:"2px 6px" }}>PARTIAL</span>}
