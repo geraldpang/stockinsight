@@ -870,7 +870,7 @@ function parseAiInsight(text) {
   };
 }
 
-function Detail({ sym, name, onBack, clerkUser, supported }) {
+function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   var isAdmin = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === "admin");
   // Unsupported ticker -- show friendly message
   if (supported === false) {
