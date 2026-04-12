@@ -728,13 +728,6 @@ export async function onRequest(context) {
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
     });
 
-  } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-    });
-  }
-}
     // GET  /stripe?action=checkout&plan=monthly  -> create checkout session
     // GET  /stripe?action=checkout&plan=annual   -> create checkout session
     // GET  /stripe?action=portal                 -> customer portal session
