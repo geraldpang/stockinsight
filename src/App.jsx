@@ -5731,49 +5731,39 @@ export default function App() {
 
         {/* Free tickers section */}
         <div style={{ marginTop:32, width:"100%", maxWidth:580, textAlign:"center" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, marginBottom:16 }}>
-            <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
-            <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-              <span style={{ width:6, height:6, borderRadius:"50%", background:LIME, display:"inline-block" }}></span>
-              <span style={{ fontSize:11, fontWeight:700, color:LIME, letterSpacing:"0.12em", textTransform:"uppercase" }}>10 Free Stocks</span>
-            </div>
-            <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
-          </div>
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16 }}>
-            {FREE_TICKERS.map(function(t) {
-              return (
-                <button key={t}
-                  onClick={function() { go(t); }}
-                  style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a", cursor:"pointer", fontFamily:FONT }}
-                  onMouseEnter={function(e) { e.currentTarget.style.background=BG; e.currentTarget.style.color=LIME; e.currentTarget.style.borderColor=LIME; }}
-                  onMouseLeave={function(e) { e.currentTarget.style.background="#1a1a16"; e.currentTarget.style.color="#a09a8a"; e.currentTarget.style.borderColor="#2c2c26"; }}>
-                  {t}
-                </button>
-              );
-            })}
-          </div>
+          {/* Not signed in: show 10 free tickers + faded locked + sign in */}
           {!clerkUser && (
             <div>
-              {/* Divider */}
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, marginBottom:16 }}>
+                <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
+                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                  <span style={{ width:6, height:6, borderRadius:"50%", background:LIME, display:"inline-block" }}></span>
+                  <span style={{ fontSize:11, fontWeight:700, color:LIME, letterSpacing:"0.12em", textTransform:"uppercase" }}>10 Free Stocks</span>
+                </div>
+                <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
+              </div>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16 }}>
+                {FREE_TICKERS.map(function(t) {
+                  return (
+                    <button key={t} onClick={function() { go(t); }}
+                      style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a", cursor:"pointer", fontFamily:FONT }}
+                      onMouseEnter={function(e) { e.currentTarget.style.background=BG; e.currentTarget.style.color=LIME; e.currentTarget.style.borderColor=LIME; }}
+                      onMouseLeave={function(e) { e.currentTarget.style.background="#1a1a16"; e.currentTarget.style.color="#a09a8a"; e.currentTarget.style.borderColor="#2c2c26"; }}>
+                      {t}
+                    </button>
+                  );
+                })}
+              </div>
               <div style={{ display:"flex", alignItems:"center", gap:10, maxWidth:400, margin:"0 auto 10px" }}>
                 <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
                 <span style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.1em", whiteSpace:"nowrap" }}>{"+ 490 more with sign in"}</span>
                 <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
               </div>
-              {/* Faded locked tickers */}
               <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16, opacity:0.25 }}>
-                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>NFLX</span>
-                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>AMD</span>
-                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>JPM</span>
-                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>BAC</span>
-                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>GS</span>
-                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>XOM</span>
-                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>COST</span>
-                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>MA</span>
-                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>V</span>
-                <span style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>WMT</span>
+                {["NFLX","AMD","JPM","BAC","GS","XOM","COST","MA","V","WMT"].map(function(t) {
+                  return <span key={t} style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>{t}</span>;
+                })}
               </div>
-              {/* Sign in button */}
               <button
                 onClick={function() { if(window.Clerk){ try{ window.Clerk.openSignIn({}); } catch(e){ window.location.href="https://accounts.nervousgeek.com/sign-in"; } } }}
                 style={{ background:LIME, color:"#0e0e0c", border:"none", borderRadius:24, padding:"10px 32px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:FONT }}>
@@ -5781,9 +5771,45 @@ export default function App() {
               </button>
             </div>
           )}
-          {clerkUser && (
-            <div style={{ fontSize:12, color:"#4a4a44" }}>
-              <span style={{ color:LIME, fontWeight:700 }}>{"All S&P 500 companies unlocked " + String.fromCharCode(0x2713)}</span>
+
+          {/* Signed in, NOT paid: S&P 500 unlocked + faded non-S&P + upgrade */}
+          {clerkUser && !isPaid && (
+            <div>
+              <div style={{ fontSize:12, marginBottom:14 }}>
+                <span style={{ color:LIME, fontWeight:700 }}>{"All S&P 500 companies unlocked " + String.fromCharCode(0x2713)}</span>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:10, maxWidth:420, margin:"0 auto 10px" }}>
+                <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
+                <span style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.1em", whiteSpace:"nowrap" }}>highest volume outside S&P 500</span>
+                <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
+              </div>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16, opacity:0.25 }}>
+                {["SMCI","ARM","PLTR","RIVN","LCID","SOFI","MSTR","COIN","HOOD","IONQ"].map(function(t) {
+                  return <span key={t} style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>{t}</span>;
+                })}
+              </div>
+              <button
+                onClick={function(){
+                  var hdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
+                  fetch("/stripe?action=checkout&plan=monthly", { headers: hdrs })
+                    .then(function(r){ return r.json(); })
+                    .then(function(d){ if (d.url) window.location.href = d.url; });
+                }}
+                style={{ background:LIME, color:"#0e0e0c", border:"none", borderRadius:24, padding:"10px 32px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:FONT }}>
+                {"Upgrade to unlock all US stocks"}
+              </button>
+            </div>
+          )}
+
+          {/* Signed in + paid: full access */}
+          {clerkUser && isPaid && (
+            <div>
+              <div style={{ fontSize:12, marginBottom:8 }}>
+                <span style={{ color:LIME, fontWeight:700 }}>{"All S&P 500 companies unlocked " + String.fromCharCode(0x2713)}</span>
+              </div>
+              <div style={{ fontSize:12 }}>
+                <span style={{ color:LIME, fontWeight:700 }}>{"All US companies unlocked " + String.fromCharCode(0x2713)}</span>
+              </div>
             </div>
           )}
         </div>
