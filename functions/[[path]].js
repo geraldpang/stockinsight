@@ -603,8 +603,8 @@ export async function onRequest(context) {
           "allow_promotion_codes": "true",
         };
         if (userId) sessionParams["client_reference_id"] = userId;
-        var res = await fetch(STRIPE_BASE + "/checkout/sessions", { method: "POST", headers: stripeHeaders(), body: encodeForm(sessionParams) });
-        var session = await res.json();
+        var stripeRes = await fetch(STRIPE_BASE + "/checkout/sessions", { method: "POST", headers: stripeHeaders(), body: encodeForm(sessionParams) });
+        var session = await stripeRes.json();
         if (!session.url) return new Response(JSON.stringify({ error: "Failed to create checkout session", detail: session }), { status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
         return new Response(JSON.stringify({ url: session.url }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
       }
@@ -615,8 +615,8 @@ export async function onRequest(context) {
         if (!userId) return new Response(JSON.stringify({ error: "Not signed in" }), { status: 401, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
         var customerId = CACHE ? await CACHE.get("stripe:cus:" + userId) : null;
         if (!customerId) return new Response(JSON.stringify({ error: "No subscription found" }), { status: 404, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
-        var res = await fetch(STRIPE_BASE + "/billing_portal/sessions", { method: "POST", headers: stripeHeaders(), body: encodeForm({ customer: customerId, return_url: APP_URL }) });
-        var portal = await res.json();
+        var portalRes = await fetch(STRIPE_BASE + "/billing_portal/sessions", { method: "POST", headers: stripeHeaders(), body: encodeForm({ customer: customerId, return_url: APP_URL }) });
+        var portal = await portalRes.json();
         return new Response(JSON.stringify({ url: portal.url }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
       }
 
@@ -734,197 +734,6 @@ export async function onRequest(context) {
     // GET  /stripe?action=status                 -> check subscription status
     // POST /stripe?action=webhook                -> Stripe webhook handler
     // -------------------------------------------------------------------------
-    if (url.pathname === "/stripe") {
-      var stripeKey     = context.env.STRIPE_SECRET_KEY;
-      var webhookSecret = context.env.STRIPE_WEBHOOK_SECRET;
-      var CACHE         = context.env.CACHE;
-      var stripeAction  = url.searchParams.get("action") || "";
-      var stripePlan    = url.searchParams.get("plan")   || "monthly";
-      var STRIPE_BASE   = "https://api.stripe.com/v1";
-      var PRICE_MONTHLY = "price_1TLEJoETaGzjK4K2F4TdQqU6";
-      var PRICE_ANNUAL  = "price_1TLELbETaGzjK4K22khmlNIc";
-      var APP_URL       = "https://nervousgeek.com";
-
-      function stripeHeaders() {
-        return {
-          "Authorization": "Bearer " + stripeKey,
-          "Content-Type":  "application/x-www-form-urlencoded",
-        };
-      }
-
-      function encodeForm(obj) {
-        return Object.keys(obj).map(function(k) {
-          return encodeURIComponent(k) + "=" + encodeURIComponent(obj[k]);
-        }).join("&");
-      }
-
-      // Get Clerk user ID from token
-      async function getClerkUserId(request) {
-        try {
-          var authHeader = request.headers.get("Authorization") || "";
-          var token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-          if (!token) return null;
-          var parts = token.split(".");
-          if (parts.length !== 3) return null;
-          var payload = JSON.parse(atob(parts[1].replace(/-/g,"+").replace(/_/g,"/")));
-          return payload.sub || null;
-        } catch(e) { return null; }
-      }
-
-      // ── Status: check if user has active subscription ─────────────────────
-      if (stripeAction === "status") {
-        var userId = await getClerkUserId(context.request);
-        if (!userId) return new Response(JSON.stringify({ paid: false }), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
-        var subStatus = CACHE ? await CACHE.get("stripe:sub:" + userId) : null;
-        return new Response(JSON.stringify({ paid: subStatus === "active" }), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
-      }
-
-      // ── Checkout: create Stripe checkout session ───────────────────────────
-      if (stripeAction === "checkout") {
-        if (!stripeKey) return new Response(JSON.stringify({ error: "STRIPE_SECRET_KEY not set" }), {
-          status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
-        var userId = await getClerkUserId(context.request);
-        var priceId = stripePlan === "annual" ? PRICE_ANNUAL : PRICE_MONTHLY;
-        var sessionParams = {
-          "mode":                                 "subscription",
-          "line_items[0][price]":                 priceId,
-          "line_items[0][quantity]":              "1",
-          "success_url":                          APP_URL + "?payment=success",
-          "cancel_url":                           APP_URL + "?payment=cancelled",
-          "allow_promotion_codes":                "true",
-        };
-        if (userId) sessionParams["client_reference_id"] = userId;
-        var res = await fetch(STRIPE_BASE + "/checkout/sessions", {
-          method:  "POST",
-          headers: stripeHeaders(),
-          body:    encodeForm(sessionParams),
-        });
-        var session = await res.json();
-        if (!session.url) return new Response(JSON.stringify({ error: "Failed to create checkout session", detail: session }), {
-          status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
-        return new Response(JSON.stringify({ url: session.url }), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
-      }
-
-      // ── Portal: customer subscription management ───────────────────────────
-      if (stripeAction === "portal") {
-        if (!stripeKey) return new Response(JSON.stringify({ error: "STRIPE_SECRET_KEY not set" }), {
-          status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
-        var userId = await getClerkUserId(context.request);
-        if (!userId) return new Response(JSON.stringify({ error: "Not signed in" }), {
-          status: 401, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
-        // Get Stripe customer ID from KV
-        var customerId = CACHE ? await CACHE.get("stripe:cus:" + userId) : null;
-        if (!customerId) return new Response(JSON.stringify({ error: "No subscription found" }), {
-          status: 404, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
-        var res = await fetch(STRIPE_BASE + "/billing_portal/sessions", {
-          method:  "POST",
-          headers: stripeHeaders(),
-          body:    encodeForm({ customer: customerId, return_url: APP_URL }),
-        });
-        var portal = await res.json();
-        return new Response(JSON.stringify({ url: portal.url }), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
-      }
-
-      // ── Webhook: handle Stripe events ─────────────────────────────────────
-      if (stripeAction === "webhook" && context.request.method === "POST") {
-        var rawBody  = await context.request.text();
-        var sigHeader = context.request.headers.get("Stripe-Signature") || "";
-
-        // Verify webhook signature
-        async function verifyStripeSignature(body, sig, secret) {
-          try {
-            var parts = {};
-            sig.split(",").forEach(function(p) { var kv = p.split("="); parts[kv[0]] = kv[1]; });
-            var ts = parts["t"]; var v1 = parts["v1"];
-            if (!ts || !v1) return false;
-            var signedPayload = ts + "." + body;
-            var enc = new TextEncoder();
-            var key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-            var sig2 = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
-            var hex  = Array.from(new Uint8Array(sig2)).map(function(b){ return b.toString(16).padStart(2,"0"); }).join("");
-            return hex === v1;
-          } catch(e) { return false; }
-        }
-
-        if (webhookSecret) {
-          var valid = await verifyStripeSignature(rawBody, sigHeader, webhookSecret);
-          if (!valid) return new Response("Invalid signature", { status: 400 });
-        }
-
-        var event;
-        try { event = JSON.parse(rawBody); } catch(e) {
-          return new Response("Invalid JSON", { status: 400 });
-        }
-
-        var eventType = event.type || "";
-        var obj       = event.data && event.data.object ? event.data.object : {};
-
-        // Handle subscription events
-        if (eventType === "checkout.session.completed") {
-          var userId     = obj.client_reference_id || "";
-          var customerId = obj.customer            || "";
-          var subId      = obj.subscription        || "";
-          if (userId && CACHE) {
-            await CACHE.put("stripe:sub:" + userId, "active",     { expirationTtl: 60 * 60 * 24 * 400 });
-            await CACHE.put("stripe:cus:" + userId, customerId,   { expirationTtl: 60 * 60 * 24 * 400 });
-            await CACHE.put("stripe:sid:" + userId, subId,        { expirationTtl: 60 * 60 * 24 * 400 });
-          }
-        }
-
-        if (eventType === "customer.subscription.deleted" || eventType === "customer.subscription.paused") {
-          // Find userId by customerId
-          var customerId = obj.customer || "";
-          // We store sub status -- look up by iterating KV not possible easily
-          // Instead store reverse lookup: customerId -> userId
-          if (customerId && CACHE) {
-            var uidKey = await CACHE.get("stripe:uid:" + customerId);
-            if (uidKey) await CACHE.put("stripe:sub:" + uidKey, "cancelled", { expirationTtl: 60 * 60 * 24 * 400 });
-          }
-        }
-
-        if (eventType === "checkout.session.completed" && obj.client_reference_id && obj.customer && CACHE) {
-          // Store reverse lookup customerId -> userId
-          await CACHE.put("stripe:uid:" + obj.customer, obj.client_reference_id, { expirationTtl: 60 * 60 * 24 * 400 });
-        }
-
-        if (eventType === "invoice.payment_succeeded") {
-          var customerId = obj.customer || "";
-          if (customerId && CACHE) {
-            var uidKey = await CACHE.get("stripe:uid:" + customerId);
-            if (uidKey) await CACHE.put("stripe:sub:" + uidKey, "active", { expirationTtl: 60 * 60 * 24 * 400 });
-          }
-        }
-
-        if (eventType === "invoice.payment_failed") {
-          var customerId = obj.customer || "";
-          if (customerId && CACHE) {
-            var uidKey = await CACHE.get("stripe:uid:" + customerId);
-            if (uidKey) await CACHE.put("stripe:sub:" + uidKey, "past_due", { expirationTtl: 60 * 60 * 24 * 400 });
-          }
-        }
-
-        return new Response(JSON.stringify({ received: true }), {
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-
-      return new Response(JSON.stringify({ error: "Unknown stripe action" }), {
-        status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-      });
-    }
 
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), {
