@@ -1920,7 +1920,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                             <span style={{ fontSize:9, color:"#1a1a14", opacity:0.6 }}>Manage Plan</span>
                           </div>
                         ) : (
-                          <span style={{ fontSize:10, fontWeight:700, color:"#1a1a14", background:"#ffffff", padding:"3px 10px", borderRadius:10 }}>MEMBER</span>
+                          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, cursor:"pointer" }}
+                            onClick={function(){ window.__showUpgrade && window.__showUpgrade(); }}>
+                            <span style={{ fontSize:10, fontWeight:700, color:"#1a1a14", background:"#ffffff", padding:"3px 10px", borderRadius:10 }}>MEMBER</span>
+                            <span style={{ fontSize:9, color:"#1a1a14", opacity:0.6 }}>Upgrade</span>
+                          </div>
                         )}
                       <div id="clerk-user-button-detail"></div>
                     </div>
@@ -5501,7 +5505,7 @@ export default function App() {
   const [focused, setFocused] = useState(false);
   const [clerkUser, setClerkUser] = useState(null);
   const [clerkLoaded, setClerkLoaded] = useState(false);
-  const [isPaid, setIsPaid] = useState(false);
+  const [isPaid, setIsPaid] = useState(!!(window.__isPaid));
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   // Mount UserButton on landing page when signed in
@@ -5550,7 +5554,7 @@ export default function App() {
               // Check subscription status
               fetch("/stripe?action=status", { headers: { "Authorization": "Bearer " + t } })
                 .then(function(r){ return r.json(); })
-                .then(function(d){ setIsPaid(!!(d && d.paid)); })
+                .then(function(d){ var p = !!(d && d.paid); window.__isPaid = p; setIsPaid(p); })
                 .catch(function(){ setIsPaid(false); });
             });
           } else {
@@ -5618,6 +5622,7 @@ export default function App() {
     window.location.hash = s;
   }
 
+  window.__showUpgrade = function(){ setShowUpgrade(true); };
   if (showUpgrade) {
     return <UpgradePage onBack={function(){ setShowUpgrade(false); }} clerkUser={clerkUser} />;
   }
