@@ -5623,14 +5623,16 @@ export default function App() {
             return (
               <div style={{ position:"absolute", right:32, top:"50%", transform:"translateY(-50%)", display:"flex", alignItems:"center", gap:8 }}>
                 {isPaid && (
-                  <button onClick={function(){
-                    var hdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
-                    fetch("/stripe?action=portal", { headers: hdrs })
-                      .then(function(r){ return r.json(); })
-                      .then(function(d){ if (d.url) window.location.href = d.url; });
-                  }} style={{ background:"none", border:"1px solid rgba(0,0,0,0.2)", borderRadius:20, padding:"5px 14px", fontSize:11, fontWeight:700, color:"#1a1a14", fontFamily:FONT, cursor:"pointer" }}>
-                    {"Manage Plan"}
-                  </button>
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, cursor:"pointer" }}
+                    onClick={function(){
+                      var hdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
+                      fetch("/stripe?action=portal", { headers: hdrs })
+                        .then(function(r){ return r.json(); })
+                        .then(function(d){ if (d.url) window.location.href = d.url; });
+                    }}>
+                    <span style={{ fontSize:10, fontWeight:700, color:"#1a1a14", background:LIME, padding:"3px 10px", borderRadius:10 }}>PREMIUM</span>
+                    <span style={{ fontSize:9, color:LIME, opacity:0.7 }}>Manage Plan</span>
+                  </div>
                 )}
                 <div id="clerk-user-button-landing"></div>
               </div>
