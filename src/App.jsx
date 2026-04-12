@@ -1908,7 +1908,18 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               <div style={{ paddingLeft:10 }}>
                 {clerkUser
                   ? <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                      {isPaid && <span style={{ fontSize:10, fontWeight:700, color:"#1a1a14", background:LIME, padding:"3px 10px", borderRadius:10 }}>PREMIUM</span>}
+                      {isPaid && (
+                        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, cursor:"pointer" }}
+                          onClick={function(){
+                            var hdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
+                            fetch("/stripe?action=portal", { headers: hdrs })
+                              .then(function(r){ return r.json(); })
+                              .then(function(d){ if (d.url) window.location.href = d.url; });
+                          }}>
+                          <span style={{ fontSize:10, fontWeight:700, color:"#1a1a14", background:LIME, padding:"3px 10px", borderRadius:10 }}>PREMIUM</span>
+                          <span style={{ fontSize:9, color:"#1a1a14", opacity:0.6 }}>Manage Plan</span>
+                        </div>
+                      )}
                       <div id="clerk-user-button-detail"></div>
                     </div>
                   : <button onClick={function(){ if(window.Clerk){ try{ window.Clerk.openSignIn({}); } catch(e){ window.location.href="https://accounts.nervousgeek.com/sign-in"; } } }} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:20, padding:"5px 16px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:700, whiteSpace:"nowrap" }}>Sign In</button>
