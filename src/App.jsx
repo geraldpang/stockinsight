@@ -1907,7 +1907,10 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
               {/* Far right -- Avatar or Sign In */}
               <div style={{ paddingLeft:10 }}>
                 {clerkUser
-                  ? <div id="clerk-user-button-detail"></div>
+                  ? <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      {isPaid && <span style={{ fontSize:10, fontWeight:700, color:"#1a1a14", background:LIME, padding:"3px 10px", borderRadius:10 }}>PREMIUM</span>}
+                      <div id="clerk-user-button-detail"></div>
+                    </div>
                   : <button onClick={function(){ if(window.Clerk){ try{ window.Clerk.openSignIn({}); } catch(e){ window.location.href="https://accounts.nervousgeek.com/sign-in"; } } }} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:20, padding:"5px 16px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:700, whiteSpace:"nowrap" }}>Sign In</button>
                 }
               </div>
@@ -5323,57 +5326,91 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
 
 
 // -- Paywall card -------------------------------------------------------------
-function PaywallCard({ sym, name, onBack }) {
+function PaywallCard({ sym, name, onBack, isPaid, clerkUser, mode }) {
   var ORANGE = "#F05A1A";
+  var isUpgrade = mode === "upgrade";
+  function doUpgrade(plan) {
+    var hdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
+    fetch("/stripe?action=checkout&plan=" + plan, { headers: hdrs })
+      .then(function(r){ return r.json(); })
+      .then(function(d){ if (d.url) window.location.href = d.url; });
+  }
   return (
     <div style={{ minHeight:"100vh", background:"#0e0e0c", fontFamily:FONT, display:"flex", flexDirection:"column" }}>
       <nav style={{ height:52, padding:"0 24px", display:"flex", alignItems:"center", gap:12, background:LIME }}>
-        <button
-          onClick={onBack}
-          style={{ background:"none", border:"none", cursor:"pointer", color:"#0e0e0c", fontWeight:800, fontSize:13, fontFamily:FONT, display:"flex", alignItems:"center", gap:6, padding:0 }}>
+        <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", color:"#0e0e0c", fontWeight:800, fontSize:13, fontFamily:FONT, padding:0 }}>
           {"< Back"}
         </button>
         <span style={{ fontWeight:800, fontSize:15, color:"#0e0e0c" }}>nervousgeek.com</span>
       </nav>
       <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
         <div style={{ maxWidth:480, width:"100%", background:"#1c1c1e", border:"1px solid #2c2c26", borderRadius:20, padding:"48px 40px", textAlign:"center" }}>
-          <div style={{ width:64, height:64, borderRadius:"50%", background:"#2a2010", border:"2px solid #4a3810", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 24px" }}>
-            <span style={{ fontSize:28 }}>{String.fromCharCode(0x1F512)}</span>
+          <div style={{ width:64, height:64, borderRadius:"50%", background: isUpgrade?"#1e2a1e":"#2a2010", border:"2px solid "+(isUpgrade?"#2a5020":"#4a3810"), display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 24px" }}>
+            <span style={{ fontSize:28 }}>{isUpgrade ? String.fromCharCode(0x1F310) : String.fromCharCode(0x1F512)}</span>
           </div>
-          <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"#2a2010", border:"1px solid #4a3810", borderRadius:8, padding:"6px 16px", marginBottom:20 }}>
-            <span style={{ fontWeight:900, fontSize:14, color:"#EF9F27" }}>{sym}</span>
-            <span style={{ fontSize:13, color:"#a09a8a" }}>{name}</span>
+          <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"#1a1a14", border:"1px solid #2c2c26", borderRadius:8, padding:"6px 16px", marginBottom:20 }}>
+            <span style={{ fontWeight:900, fontSize:14, color:LIME }}>{sym}</span>
+            {name && name !== sym && <span style={{ fontSize:13, color:"#a09a8a" }}>{name}</span>}
           </div>
           <div style={{ fontSize:22, fontWeight:800, color:"#f0ede6", marginBottom:12, lineHeight:1.3 }}>
-            Members Only
+            {isUpgrade ? "Premium Ticker" : "Members Only"}
           </div>
-          <div style={{ fontSize:14, color:"#a09a8a", lineHeight:1.7, marginBottom:32 }}>
-            {"Sign in to access full AI insights for all S&P 500 companies."}
-            <br />
-            {"10 stocks are always free " + String.fromCharCode(0x2014) + " no sign-in required."}
+          <div style={{ fontSize:14, color:"#a09a8a", lineHeight:1.7, marginBottom:28 }}>
+            {isUpgrade
+              ? (sym + " is outside the S&P 500. Upgrade to Premium to access any stock on any global exchange.")
+              : ("Sign in to access full AI insights for all S&P 500 companies.")
+            }
           </div>
-          <div style={{ marginBottom:32 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:"#6a6460", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:10 }}>Free tickers</div>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
-              {FREE_TICKERS.map(function(t) {
-                return (
-                  <span key={t} style={{ padding:"4px 12px", borderRadius:20, background:"#1e2a1e", border:"1px solid #2a5020", fontSize:12, fontWeight:700, color:"#7abd00" }}>{t}</span>
-                );
-              })}
+          {isUpgrade ? (
+            <div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
+                <div style={{ background:"#1e2a1e", border:"1px solid #2a5020", borderRadius:12, padding:"16px 14px", textAlign:"center" }}>
+                  <div style={{ fontSize:11, color:"#7abd00", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Monthly</div>
+                  <div style={{ fontSize:24, fontWeight:900, color:"#f0ede6" }}>$10</div>
+                  <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>per month</div>
+                  <button onClick={function(){ doUpgrade("monthly"); }}
+                    style={{ width:"100%", padding:"10px", borderRadius:50, border:"none", background:LIME, color:"#0e0e0c", fontWeight:800, fontSize:13, fontFamily:FONT, cursor:"pointer" }}>
+                    Upgrade Monthly
+                  </button>
+                </div>
+                <div style={{ background:"#1e2a1e", border:"2px solid #7abd00", borderRadius:12, padding:"16px 14px", textAlign:"center", position:"relative" }}>
+                  <div style={{ position:"absolute", top:-10, left:"50%", transform:"translateX(-50%)", background:LIME, color:"#0e0e0c", fontSize:10, fontWeight:800, padding:"2px 10px", borderRadius:10, whiteSpace:"nowrap" }}>BEST VALUE</div>
+                  <div style={{ fontSize:11, color:"#7abd00", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Annual</div>
+                  <div style={{ fontSize:24, fontWeight:900, color:"#f0ede6" }}>$96</div>
+                  <div style={{ fontSize:11, color:"#555", marginBottom:12 }}>per year (save 20%)</div>
+                  <button onClick={function(){ doUpgrade("annual"); }}
+                    style={{ width:"100%", padding:"10px", borderRadius:50, border:"none", background:LIME, color:"#0e0e0c", fontWeight:800, fontSize:13, fontFamily:FONT, cursor:"pointer" }}>
+                    Upgrade Annual
+                  </button>
+                </div>
+              </div>
+              <button onClick={onBack}
+                style={{ width:"100%", padding:"12px", borderRadius:50, border:"1px solid #2c2c26", background:"transparent", color:"#a09a8a", fontWeight:700, fontSize:13, fontFamily:FONT, cursor:"pointer" }}>
+                Back to S&P 500 stocks
+              </button>
             </div>
-          </div>
-          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-            <button
-              onClick={function() { if (window.Clerk) { try{ window.Clerk.openSignIn({}); } catch(e){ window.location.href="https://accounts.nervousgeek.com/sign-in"; } } }}
-              style={{ width:"100%", padding:"14px", borderRadius:50, border:"none", background:ORANGE, color:"#fff", fontWeight:800, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
-              Sign In to Access
-            </button>
-            <button
-              onClick={onBack}
-              style={{ width:"100%", padding:"14px", borderRadius:50, border:"1px solid #2c2c26", background:"transparent", color:"#a09a8a", fontWeight:700, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
-              {"Back to free stocks"}
-            </button>
-          </div>
+          ) : (
+            <div>
+              <div style={{ marginBottom:24 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#6a6460", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:10 }}>Free tickers</div>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
+                  {FREE_TICKERS.map(function(t) {
+                    return <span key={t} style={{ padding:"4px 12px", borderRadius:20, background:"#1e2a1e", border:"1px solid #2a5020", fontSize:12, fontWeight:700, color:"#7abd00" }}>{t}</span>;
+                  })}
+                </div>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                <button onClick={function() { if (window.Clerk) { try{ window.Clerk.openSignIn({}); } catch(e){ window.location.href="https://accounts.nervousgeek.com/sign-in"; } } }}
+                  style={{ width:"100%", padding:"14px", borderRadius:50, border:"none", background:ORANGE, color:"#fff", fontWeight:800, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
+                  Sign In to Access
+                </button>
+                <button onClick={onBack}
+                  style={{ width:"100%", padding:"14px", borderRadius:50, border:"1px solid #2c2c26", background:"transparent", color:"#a09a8a", fontWeight:700, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
+                  Back to free stocks
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -5386,6 +5423,7 @@ export default function App() {
   const [focused, setFocused] = useState(false);
   const [clerkUser, setClerkUser] = useState(null);
   const [clerkLoaded, setClerkLoaded] = useState(false);
+  const [isPaid, setIsPaid] = useState(false);
 
   // Mount UserButton on landing page when signed in
   // Uses MutationObserver to detect when the div appears in DOM after navigation
@@ -5416,15 +5454,29 @@ export default function App() {
         setClerkLoaded(true);
         // Store token for API calls
         if (window.Clerk.session) {
-          window.Clerk.session.getToken().then(function(t) { window.__clerkToken = t; });
+          window.Clerk.session.getToken().then(function(t) {
+            window.__clerkToken = t;
+            fetch("/stripe?action=status", { headers: { "Authorization": "Bearer " + t } })
+              .then(function(r){ return r.json(); })
+              .then(function(d){ setIsPaid(!!(d && d.paid)); })
+              .catch(function(){ setIsPaid(false); });
+          });
         }
         window.Clerk.addListener(function(evt) {
           setClerkUser(evt.user || null);
           // Refresh token on auth state change
           if (evt.session) {
-            evt.session.getToken().then(function(t) { window.__clerkToken = t; });
+            evt.session.getToken().then(function(t) {
+              window.__clerkToken = t;
+              // Check subscription status
+              fetch("/stripe?action=status", { headers: { "Authorization": "Bearer " + t } })
+                .then(function(r){ return r.json(); })
+                .then(function(d){ setIsPaid(!!(d && d.paid)); })
+                .catch(function(){ setIsPaid(false); });
+            });
           } else {
             window.__clerkToken = null;
+            setIsPaid(false);
           }
         });
       }).catch(function(e) {
@@ -5489,11 +5541,13 @@ export default function App() {
 
   if (hashSym) {
     var _onBack = function() { window.location.hash = ""; };
-    var _isFree = FREE_TICKERS.indexOf(hashSym) !== -1;
+    var _isFree     = FREE_TICKERS.indexOf(hashSym) !== -1;
+    var _isInSP500  = !!NAMES[hashSym];
     var _isSignedIn = !!clerkUser;
-    // Free tickers: always accessible
-    // Signed-in users: full access to all supported tickers
-    // Signed-out + premium ticker: show paywall
+    // Tier 1: Not signed in -> free tickers only, paywall for rest
+    // Tier 2: Signed in (free) -> all S&P 500, paywall for non-S&P500
+    // Tier 3: Signed in + paid -> any ticker on any exchange
+    // Tier 4: Admin -> everything
     if (!_isFree && !_isSignedIn) {
       return (
         <PaywallCard
@@ -5501,6 +5555,22 @@ export default function App() {
           name={NAMES[hashSym]}
           onBack={_onBack}
           clerkLoaded={clerkLoaded}
+          isPaid={isPaid}
+          clerkUser={clerkUser}
+          mode="signin"
+        />
+      );
+    }
+    if (_isSignedIn && !_isInSP500 && !isPaid) {
+      return (
+        <PaywallCard
+          sym={hashSym}
+          name={hashSym}
+          onBack={_onBack}
+          clerkLoaded={clerkLoaded}
+          isPaid={isPaid}
+          clerkUser={clerkUser}
+          mode="upgrade"
         />
       );
     }
@@ -5510,7 +5580,8 @@ export default function App() {
         name={NAMES[hashSym] || hashSym}
         onBack={_onBack}
         clerkUser={clerkUser}
-        supported={!!NAMES[hashSym]}
+        isPaid={isPaid}
+        supported={_isInSP500 || isPaid}
       />
     );
   }
@@ -5538,7 +5609,21 @@ export default function App() {
         {(function() {
           if (!clerkLoaded) return null;
           if (clerkUser) {
-            return <div id="clerk-user-button-landing" style={{ position:"absolute", right:32, top:"50%", transform:"translateY(-50%)" }}></div>;
+            return (
+              <div style={{ position:"absolute", right:32, top:"50%", transform:"translateY(-50%)", display:"flex", alignItems:"center", gap:8 }}>
+                {isPaid && (
+                  <button onClick={function(){
+                    var hdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
+                    fetch("/stripe?action=portal", { headers: hdrs })
+                      .then(function(r){ return r.json(); })
+                      .then(function(d){ if (d.url) window.location.href = d.url; });
+                  }} style={{ background:"none", border:"1px solid rgba(0,0,0,0.2)", borderRadius:20, padding:"5px 14px", fontSize:11, fontWeight:700, color:"#1a1a14", fontFamily:FONT, cursor:"pointer" }}>
+                    {"Manage Plan"}
+                  </button>
+                )}
+                <div id="clerk-user-button-landing"></div>
+              </div>
+            );
           }
           return (
             <button
