@@ -5336,6 +5336,71 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 }
 
 
+// -- Upgrade page -------------------------------------------------------------
+function UpgradePage({ onBack, clerkUser }) {
+  function doUpgrade(plan) {
+    var hdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
+    fetch("/stripe?action=checkout&plan=" + plan, { headers: hdrs })
+      .then(function(r){ return r.json(); })
+      .then(function(d){ if (d.url) window.location.href = d.url; });
+  }
+  return (
+    <div style={{ minHeight:"100vh", background:"#0e0e0c", fontFamily:FONT, display:"flex", flexDirection:"column" }}>
+      <nav style={{ height:52, padding:"0 24px", display:"flex", alignItems:"center", gap:12, background:LIME }}>
+        <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", color:"#0e0e0c", fontWeight:800, fontSize:13, fontFamily:FONT, padding:0 }}>
+          {"< Back"}
+        </button>
+        <span style={{ fontWeight:800, fontSize:15, color:"#0e0e0c" }}>nervousgeek.com</span>
+      </nav>
+      <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
+        <div style={{ maxWidth:520, width:"100%", textAlign:"center" }}>
+          <div style={{ fontSize:13, color:"#7abd00", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:12 }}>nervousgeek Premium</div>
+          <div style={{ fontSize:32, fontWeight:900, color:"#f0ede6", marginBottom:8, letterSpacing:"-1px" }}>Unlock every US stock</div>
+          <div style={{ fontSize:15, color:"#a09a8a", lineHeight:1.7, marginBottom:36 }}>
+            {"AI analysis for any ticker " + String.fromCharCode(0x2014) + " NYSE, NASDAQ, OTC and more. Cancel anytime."}
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:20 }}>
+            {/* Monthly */}
+            <div style={{ background:"#1c1c1e", border:"1px solid #2c2c26", borderRadius:16, padding:"28px 20px", textAlign:"center" }}>
+              <div style={{ fontSize:12, color:"#7abd00", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>Monthly</div>
+              <div style={{ fontSize:40, fontWeight:900, color:"#f0ede6", lineHeight:1 }}>$10</div>
+              <div style={{ fontSize:12, color:"#555", marginBottom:24 }}>per month</div>
+              <button onClick={function(){ doUpgrade("monthly"); }}
+                style={{ width:"100%", padding:"13px", borderRadius:50, border:"1px solid #2c2c26", background:"transparent", color:"#f0ede6", fontWeight:700, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
+                Start Monthly
+              </button>
+            </div>
+            {/* Annual */}
+            <div style={{ background:"#1e2a1e", border:"2px solid #7abd00", borderRadius:16, padding:"28px 20px", textAlign:"center", position:"relative" }}>
+              <div style={{ position:"absolute", top:-12, left:"50%", transform:"translateX(-50%)", background:LIME, color:"#0e0e0c", fontSize:10, fontWeight:800, padding:"3px 14px", borderRadius:20, whiteSpace:"nowrap" }}>BEST VALUE</div>
+              <div style={{ fontSize:12, color:"#7abd00", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>Annual</div>
+              <div style={{ fontSize:40, fontWeight:900, color:"#f0ede6", lineHeight:1 }}>$96</div>
+              <div style={{ fontSize:12, color:"#555", marginBottom:4 }}>per year</div>
+              <div style={{ fontSize:11, color:"#7abd00", marginBottom:20 }}>Save 20% {"(" + String.fromCharCode(0x7E) + "$8/mo)"}</div>
+              <button onClick={function(){ doUpgrade("annual"); }}
+                style={{ width:"100%", padding:"13px", borderRadius:50, border:"none", background:LIME, color:"#0e0e0c", fontWeight:800, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
+                Start Annual
+              </button>
+            </div>
+          </div>
+          {/* Feature list */}
+          <div style={{ background:"#1c1c1e", border:"1px solid #2c2c26", borderRadius:12, padding:"18px 20px", marginBottom:20, textAlign:"left" }}>
+            {["All 496 S&P 500 companies", "All US stocks (NYSE, NASDAQ, OTC)", "AI Moat, Financial + Insight analysis", "Intrinsic Value with 4 DCF models", "Market Signal + Reversal Indicator", "TradingView charts + news"].map(function(f, i) {
+              return (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 0", borderBottom: i < 5 ? "1px solid #252525" : "none" }}>
+                  <span style={{ color:"#7abd00", fontSize:14, flexShrink:0 }}>{String.fromCharCode(0x2713)}</span>
+                  <span style={{ fontSize:13, color:"#a09a8a" }}>{f}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize:11, color:"#555" }}>Secure payment by Stripe. Cancel anytime from your account.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // -- Paywall card -------------------------------------------------------------
 function PaywallCard({ sym, name, onBack, isPaid, clerkUser, mode }) {
   var ORANGE = "#F05A1A";
@@ -5435,6 +5500,7 @@ export default function App() {
   const [clerkUser, setClerkUser] = useState(null);
   const [clerkLoaded, setClerkLoaded] = useState(false);
   const [isPaid, setIsPaid] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   // Mount UserButton on landing page when signed in
   // Uses MutationObserver to detect when the div appears in DOM after navigation
@@ -5548,6 +5614,10 @@ export default function App() {
     if (!s) return;
     setFocused(false);
     window.location.hash = s;
+  }
+
+  if (showUpgrade) {
+    return <UpgradePage onBack={function(){ setShowUpgrade(false); }} clerkUser={clerkUser} />;
   }
 
   if (hashSym) {
@@ -5780,7 +5850,7 @@ export default function App() {
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:10, maxWidth:420, margin:"0 auto 10px" }}>
                 <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
-                <span style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.1em", whiteSpace:"nowrap" }}>highest volume outside S&P 500</span>
+                <span style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.1em", whiteSpace:"nowrap" }}>All US Stocks</span>
                 <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
               </div>
               <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16, opacity:0.25 }}>
@@ -5789,12 +5859,7 @@ export default function App() {
                 })}
               </div>
               <button
-                onClick={function(){
-                  var hdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
-                  fetch("/stripe?action=checkout&plan=monthly", { headers: hdrs })
-                    .then(function(r){ return r.json(); })
-                    .then(function(d){ if (d.url) window.location.href = d.url; });
-                }}
+                onClick={function(){ setShowUpgrade(true); }}
                 style={{ background:LIME, color:"#0e0e0c", border:"none", borderRadius:24, padding:"10px 32px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:FONT }}>
                 {"Upgrade to unlock all US stocks"}
               </button>
