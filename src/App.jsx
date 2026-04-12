@@ -2345,7 +2345,7 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                                 var active = revArr3[i];
                                 return (
                                   <span key={i} style={{
-                                    fontSize:10, fontWeight:500,
+                                    fontSize:10,
                                     color:active?label3Col:"#444", fontWeight:active?500:400,
                                     background:active?dotFilled3+"22":"transparent",
                                     border:"0.5px solid "+(active?dotFilled3+"88":"#333"),
@@ -3937,7 +3937,6 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                         <div style={{marginTop:10,fontSize:11,color:"#bbb"}}>
                           AI analysis by Claude Haiku. Data from Yahoo Finance + Massive.com. Not financial advice.
                         </div>
-                        }
                       </div>
                     );
                   })()}
@@ -4966,7 +4965,6 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                         <div style={{marginTop:10,fontSize:11,color:"#bbb"}}>
                           Powered by Massive.com real-time data. Weekly/monthly horizon. Not financial advice.
                         </div>
-                        }
                       </div>
                     );
                   })()}
@@ -5075,7 +5073,6 @@ function Detail({ sym, name, onBack, clerkUser, supported }) {
                         <div style={{ marginTop:14, padding:"8px 12px", background:"#fff8e6", borderRadius:6, fontSize:11, color:"#854F0B" }}>
                           Remove or hide this tab before going to production.
                         </div>
-                        }
                       </div>
                     );
                   })()}
