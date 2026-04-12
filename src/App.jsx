@@ -5503,7 +5503,7 @@ function PaywallCard({ sym, name, onBack, isPaid, clerkUser, mode }) {
 export default function App() {
   const [input,   setInput]   = useState("");
   const [focused, setFocused] = useState(false);
-  const [clerkUser, setClerkUser] = useState(null);
+  const [clerkUser, setClerkUser] = useState(window.__clerkUser || null);
   const [clerkLoaded, setClerkLoaded] = useState(false);
   const [isPaid, setIsPaid] = useState(!!(window.__isPaid));
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -5533,7 +5533,7 @@ export default function App() {
         ? { ui: { ClerkUI: window.__internal_ClerkUICtor } }
         : {};
       window.Clerk.load(loadOpts).then(function() {
-        setClerkUser(window.Clerk.user || null);
+        window.__clerkUser = window.Clerk.user || null; setClerkUser(window.__clerkUser);
         setClerkLoaded(true);
         // Store token for API calls
         if (window.Clerk.session) {
@@ -5541,12 +5541,12 @@ export default function App() {
             window.__clerkToken = t;
             fetch("/stripe?action=status", { headers: { "Authorization": "Bearer " + t } })
               .then(function(r){ return r.json(); })
-              .then(function(d){ setIsPaid(!!(d && d.paid)); })
+              .then(function(d){ var p = !!(d && d.paid); window.__isPaid = p; setIsPaid(p); })
               .catch(function(){ setIsPaid(false); });
           });
         }
         window.Clerk.addListener(function(evt) {
-          setClerkUser(evt.user || null);
+          window.__clerkUser = evt.user || null; setClerkUser(window.__clerkUser);
           // Refresh token on auth state change
           if (evt.session) {
             evt.session.getToken().then(function(t) {
