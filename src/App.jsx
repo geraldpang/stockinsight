@@ -1995,15 +1995,15 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
               {sigs.concat(sigs).map(function(sig, i) {
                 var isStrong = sig.verdict && sig.verdict.toLowerCase().indexOf("strong") !== -1;
-                var col = isStrong ? "#7abd00" : "#5a9a40";
+                var col = isStrong ? "#c8f000" : "#60b8f0";
+                var priceStr = sig.price > 0 ? "$" + sig.price.toFixed(2) : "";
                 return (
                   <span key={i}
                     onClick={function(){ window.location.hash = sig.sym; }}
-                    style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"0 28px", cursor:"pointer", flexShrink:0, lineHeight:"28px" }}>
+                    style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"0 24px", cursor:"pointer", flexShrink:0, lineHeight:"28px", borderRight:"1px solid #1e1e18" }}>
                     <span style={{ width:5, height:5, borderRadius:"50%", background:col, display:"inline-block", flexShrink:0 }}></span>
-                    <span style={{ fontSize:11, fontWeight:800, color:"#f0ede6" }}>{sig.sym}</span>
-                    <span style={{ fontSize:10, color:col }}>{sig.verdict}</span>
-                    {sig.confidence && <span style={{ fontSize:10, color:"#555" }}>{sig.confidence}</span>}
+                    <span style={{ fontSize:11, fontWeight:800, color:col }}>{sig.sym}</span>
+                    {priceStr && <span style={{ fontSize:10, color:"#666" }}>{priceStr}</span>}
                   </span>
                 );
               })}
@@ -5635,13 +5635,22 @@ export default function App() {
         .then(function(r){ return r.json(); })
         .then(function(d){
           if (!d || !d.hit || !d.value) return null;
-          var verdict    = parseVerdict(d.value);
-          var confidence = parseConfidence(d.value);
+          var verdict = parseVerdict(d.value);
           if (!verdict) return null;
           var vl = verdict.toLowerCase();
           var isBull = GOOD_VERDICTS.some(function(g){ return vl.indexOf(g) !== -1; });
           if (!isBull) return null;
-          return { sym: sym, verdict: verdict, confidence: confidence };
+          // Fetch live price
+          var ySym = sym === "BRKB" ? "BRK-B" : sym;
+          return fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=1d"))
+            .then(function(r2){ return r2.json(); })
+            .then(function(q){
+              var meta = q && q.chart && q.chart.result && q.chart.result[0] && q.chart.result[0].meta;
+              var price = meta ? (meta.regularMarketPrice || 0) : 0;
+              var prev  = meta ? (meta.chartPreviousClose || meta.previousClose || price) : price;
+              var pct   = prev > 0 ? ((price - prev) / prev * 100) : 0;
+              return { sym: sym, verdict: verdict, price: price, pct: pct };
+            }).catch(function(){ return { sym: sym, verdict: verdict, price: 0, pct: 0 }; });
         }).catch(function(){ return null; });
     }
 
@@ -5855,15 +5864,15 @@ export default function App() {
             <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
               {sigs.concat(sigs).map(function(sig, i) {
                 var isStrong = sig.verdict && sig.verdict.toLowerCase().indexOf("strong") !== -1;
-                var col = isStrong ? "#7abd00" : "#5a9a40";
+                var col = isStrong ? "#c8f000" : "#60b8f0";
+                var priceStr = sig.price > 0 ? "$" + sig.price.toFixed(2) : "";
                 return (
                   <span key={i}
                     onClick={function(){ window.location.hash = sig.sym; }}
-                    style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"0 28px", cursor:"pointer", flexShrink:0, lineHeight:"28px" }}>
+                    style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"0 24px", cursor:"pointer", flexShrink:0, lineHeight:"28px", borderRight:"1px solid #1e1e18" }}>
                     <span style={{ width:5, height:5, borderRadius:"50%", background:col, display:"inline-block", flexShrink:0 }}></span>
-                    <span style={{ fontSize:11, fontWeight:800, color:"#f0ede6" }}>{sig.sym}</span>
-                    <span style={{ fontSize:10, color:col }}>{sig.verdict}</span>
-                    {sig.confidence && <span style={{ fontSize:10, color:"#555" }}>{sig.confidence}</span>}
+                    <span style={{ fontSize:11, fontWeight:800, color:col }}>{sig.sym}</span>
+                    {priceStr && <span style={{ fontSize:10, color:"#666" }}>{priceStr}</span>}
                   </span>
                 );
               })}
