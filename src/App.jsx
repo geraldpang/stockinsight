@@ -5282,9 +5282,34 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
         </div>
       </div>
+      {/* Scrolling AI Signal Ticker Bar */}
+      {tickerSignals.length > 0 && (
+        <div style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:99, background:"#0a0a08", borderTop:"1px solid #1e1e18", height:32, overflow:"hidden", display:"flex", alignItems:"center" }}>
+          <style>{"@keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}"}</style>
+          <div style={{ display:"flex", animation:"tickerScroll " + Math.max(30, tickerSignals.length * 6) + "s linear infinite", whiteSpace:"nowrap" }}>
+            {(function() {
+              var items = tickerSignals.concat(tickerSignals);
+              return items.map(function(sig, i) {
+                var isStrongBuy = sig.verdict && sig.verdict.toLowerCase().indexOf("strong") !== -1;
+                var col = isStrongBuy ? "#7abd00" : "#5a9a40";
+                return (
+                  <span key={i} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"0 24px", cursor:"pointer", flexShrink:0 }}
+                    onClick={function(){ window.location.hash = sig.sym; }}>
+                    <span style={{ width:5, height:5, borderRadius:"50%", background:col, flexShrink:0, display:"inline-block" }}></span>
+                    <span style={{ fontSize:11, fontWeight:700, color:"#f0ede6" }}>{sig.sym}</span>
+                    <span style={{ fontSize:10, color:col }}>{sig.verdict}</span>
+                    {sig.confidence && <span style={{ fontSize:10, color:"#444" }}>{sig.confidence}</span>}
+                  </span>
+                );
+              });
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* Sticky disclaimer footer */}
       <div style={{
-        position:"fixed", bottom:0, left:0, right:0, zIndex:100,
+        position:"fixed", bottom: tickerSignals.length > 0 ? 32 : 0, left:0, right:0, zIndex:100,
         background:"#111",
         borderTop:"1px solid #333",
       }}>
@@ -5507,6 +5532,7 @@ export default function App() {
   const [clerkLoaded, setClerkLoaded] = useState(false);
   const [isPaid, setIsPaid] = useState(!!(window.__isPaid));
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [tickerSignals, setTickerSignals] = useState([]);
 
   // Mount UserButton on landing page when signed in
   // Uses MutationObserver to detect when the div appears in DOM after navigation
@@ -5582,6 +5608,74 @@ export default function App() {
       clearInterval(poll);
       window.removeEventListener("clerk-loaded", doLoad);
     };
+  }, []);
+
+  // Batch load AI signals for scrolling ticker bar
+  useEffect(function() {
+    var FREE = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
+    var GOOD_VERDICTS = ["strong buy", "buy"];
+    var loaded = [];
+
+    function parseVerdict(text) {
+      if (!text) return null;
+      var m = text.match(/Overall Verdict:\s*(.+)/);
+      return m ? m[1].trim() : null;
+    }
+    function parseConfidence(text) {
+      if (!text) return null;
+      var m = text.match(/Confidence:\s*(.+)/);
+      return m ? m[1].trim() : null;
+    }
+
+    function fetchSignal(sym) {
+      return fetch("/cache?sym=" + sym + "&tab=aiinsight")
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (!d || !d.hit || !d.value) return null;
+          var verdict    = parseVerdict(d.value);
+          var confidence = parseConfidence(d.value);
+          if (!verdict) return null;
+          var vl = verdict.toLowerCase();
+          var isBull = GOOD_VERDICTS.some(function(g){ return vl.indexOf(g) !== -1; });
+          if (!isBull) return null;
+          return { sym: sym, verdict: verdict, confidence: confidence };
+        }).catch(function(){ return null; });
+    }
+
+    function loadBatch(syms, delay) {
+      setTimeout(function() {
+        Promise.all(syms.map(fetchSignal)).then(function(results) {
+          var valid = results.filter(Boolean);
+          if (valid.length > 0) {
+            loaded = loaded.concat(valid);
+            setTickerSignals(loaded.slice());
+          }
+        });
+      }, delay);
+    }
+
+    // Batch 1: 10 free tickers immediately
+    loadBatch(FREE, 100);
+
+    // Batch 2+: rest of S&P 500 in chunks of 20
+    fetch("/cache?action=stats")
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || !d.keys) return;
+        // Get all tickers that have aiinsight cached, excluding FREE
+        var cached = [];
+        d.keys.forEach(function(k) {
+          if (k.key && k.key.indexOf(":aiinsight") !== -1) {
+            var sym = k.key.replace("insight:","").replace(":aiinsight","");
+            if (FREE.indexOf(sym) === -1) cached.push(sym);
+          }
+        });
+        // Load in batches of 20 with 2s delay between each
+        var BATCH = 20;
+        for (var bi = 0; bi < cached.length; bi += BATCH) {
+          loadBatch(cached.slice(bi, bi + BATCH), 2000 + (bi / BATCH) * 2000);
+        }
+      }).catch(function(){});
   }, []);
 
   function getHash() {
@@ -5749,7 +5843,7 @@ export default function App() {
       </nav>
 
       {/* Hero */}
-      <div style={{ position:"relative", zIndex:5, display:"flex", flexDirection:"column", alignItems:"center", paddingTop:70, paddingBottom:80 }}>
+      <div style={{ position:"relative", zIndex:5, display:"flex", flexDirection:"column", alignItems:"center", paddingTop:70, paddingBottom: tickerSignals.length > 0 ? 130 : 100 }}>
 
         {/* Headline */}
         <div style={{ textAlign:"center", marginBottom:16 }}>
