@@ -5283,12 +5283,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         </div>
       </div>
       {/* Scrolling AI Signal Ticker Bar */}
-      {tickerSignals.length > 0 && (
+      {window.__tickerSignals && window.__tickerSignals.length > 0 && (
         <div style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:99, background:"#0a0a08", borderTop:"1px solid #1e1e18", height:32, overflow:"hidden", display:"flex", alignItems:"center" }}>
           <style>{"@keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}"}</style>
-          <div style={{ display:"flex", animation:"tickerScroll " + Math.max(30, tickerSignals.length * 6) + "s linear infinite", whiteSpace:"nowrap" }}>
+          <div style={{ display:"flex", animation:"tickerScroll " + Math.max(30, (window.__tickerSignals||[]).length * 6) + "s linear infinite", whiteSpace:"nowrap" }}>
             {(function() {
-              var items = tickerSignals.concat(tickerSignals);
+              var items = (window.__tickerSignals||[]).concat(window.__tickerSignals||[]);
               return items.map(function(sig, i) {
                 var isStrongBuy = sig.verdict && sig.verdict.toLowerCase().indexOf("strong") !== -1;
                 var col = isStrongBuy ? "#7abd00" : "#5a9a40";
@@ -5309,7 +5309,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
       {/* Sticky disclaimer footer */}
       <div style={{
-        position:"fixed", bottom: tickerSignals.length > 0 ? 32 : 0, left:0, right:0, zIndex:100,
+        position:"fixed", bottom: (window.__tickerSignals && window.__tickerSignals.length > 0) ? 32 : 0, left:0, right:0, zIndex:100,
         background:"#111",
         borderTop:"1px solid #333",
       }}>
@@ -5648,7 +5648,7 @@ export default function App() {
           var valid = results.filter(Boolean);
           if (valid.length > 0) {
             loaded = loaded.concat(valid);
-            setTickerSignals(loaded.slice());
+            window.__tickerSignals = loaded.slice(); setTickerSignals(window.__tickerSignals);
           }
         });
       }, delay);
@@ -5843,7 +5843,7 @@ export default function App() {
       </nav>
 
       {/* Hero */}
-      <div style={{ position:"relative", zIndex:5, display:"flex", flexDirection:"column", alignItems:"center", paddingTop:70, paddingBottom: tickerSignals.length > 0 ? 130 : 100 }}>
+      <div style={{ position:"relative", zIndex:5, display:"flex", flexDirection:"column", alignItems:"center", paddingTop:70, paddingBottom: (window.__tickerSignals && window.__tickerSignals.length > 0) ? 130 : 100 }}>
 
         {/* Headline */}
         <div style={{ textAlign:"center", marginBottom:16 }}>
