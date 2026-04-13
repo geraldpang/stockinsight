@@ -5283,29 +5283,31 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         </div>
       </div>
       {/* Scrolling AI Signal Ticker Bar */}
-      {window.__tickerSignals && window.__tickerSignals.length > 0 && (
-        <div style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:99, background:"#0a0a08", borderTop:"1px solid #1e1e18", height:32, overflow:"hidden", display:"flex", alignItems:"center" }}>
-          <style>{"@keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}"}</style>
-          <div style={{ display:"flex", animation:"tickerScroll " + Math.max(30, (window.__tickerSignals||[]).length * 6) + "s linear infinite", whiteSpace:"nowrap" }}>
-            {(function() {
-              var items = (window.__tickerSignals||[]).concat(window.__tickerSignals||[]);
-              return items.map(function(sig, i) {
-                var isStrongBuy = sig.verdict && sig.verdict.toLowerCase().indexOf("strong") !== -1;
-                var col = isStrongBuy ? "#7abd00" : "#5a9a40";
+      {window.__tickerSignals && window.__tickerSignals.length > 0 && (function() {
+        var sigs = window.__tickerSignals || [];
+        var speed = Math.max(20, sigs.length * 5);
+        return (
+          <div style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:99, background:"#0a0a08", borderTop:"1px solid #1e1e18", height:32, overflow:"hidden", display:"flex", alignItems:"center" }}>
+            <style>{"@keyframes ng-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}"}</style>
+            <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
+              {sigs.concat(sigs).map(function(sig, i) {
+                var isStrong = sig.verdict && sig.verdict.toLowerCase().indexOf("strong") !== -1;
+                var col = isStrong ? "#7abd00" : "#5a9a40";
                 return (
-                  <span key={i} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"0 24px", cursor:"pointer", flexShrink:0 }}
-                    onClick={function(){ window.location.hash = sig.sym; }}>
-                    <span style={{ width:5, height:5, borderRadius:"50%", background:col, flexShrink:0, display:"inline-block" }}></span>
-                    <span style={{ fontSize:11, fontWeight:700, color:"#f0ede6" }}>{sig.sym}</span>
+                  <span key={i}
+                    onClick={function(){ window.location.hash = sig.sym; }}
+                    style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"0 28px", cursor:"pointer", flexShrink:0, lineHeight:"32px" }}>
+                    <span style={{ width:5, height:5, borderRadius:"50%", background:col, display:"inline-block", flexShrink:0 }}></span>
+                    <span style={{ fontSize:11, fontWeight:800, color:"#f0ede6" }}>{sig.sym}</span>
                     <span style={{ fontSize:10, color:col }}>{sig.verdict}</span>
-                    {sig.confidence && <span style={{ fontSize:10, color:"#444" }}>{sig.confidence}</span>}
+                    {sig.confidence && <span style={{ fontSize:10, color:"#555" }}>{sig.confidence}</span>}
                   </span>
                 );
-              });
-            })()}
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Sticky disclaimer footer */}
       <div style={{
