@@ -2246,61 +2246,28 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             return (
               <div style={{ marginBottom:16 }}>
 
-                {/* Overall Rating */}
-                {_star > 0 && (
-                  <div style={{ marginBottom:12, padding:"10px 12px", background:"#1a1a14", border:"0.5px solid #2c2c26", borderRadius:8 }}>
-                    <div style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6 }}>Overall Rating</div>
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                      <span style={{ display:"inline-flex" }}>{_StarRow(_star)}</span>
-                      <div style={{ textAlign:"right" }}>
-                        <div style={{ fontSize:12, fontWeight:700, color:_col }}>{_lbl}</div>
-                        <div style={{ fontSize:10, color:"#555" }}>{_star.toFixed(1)} / 5.0</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+
 
                 {/* FUNDAMENTAL ANALYSIS */}
                 <SectionLabel label="Fundamental Analysis" top={true} />
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:0 }}>
-                  <Card label="Economic Moat"     value={moatRating} score={moatScore}  colors={moatColors} loading={!moatRating && insightLoading} />
-                  <Card label="Financial Strength" value={finRating}  score={finScore}   colors={finColors}  loading={!finRating && insightLoading} />
-                </div>
-                <div style={{ marginTop:6 }}>
-                {(function() {
-                  var loading = !ivLabel; var c = ivColors;
-                  return (
-                    <div style={{ padding:"9px 12px", background:loading?"#222":c.bg, border:"0.5px solid "+(loading?"#333":c.border), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column" }}>
-                      <div style={{ fontSize:9, color:loading?"#555":c.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Intrinsic Value</div>
-                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                        {loading && !ov
-                          ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                              <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div>
-                              <span style={{ fontSize:10, color:"#555" }}>Loading...</span>
-                            </div>
-                          : <span style={{ fontSize:13, fontWeight:700, color:loading?"#555":c.fg }}>{loading?"---":ivLabel}</span>
-                        }
-                        {!loading && ivScore > 0 && <Dots score={ivScore} filled={c.dot} empty={c.dotEmpty} />}
-                      </div>
-                      {!loading && ivSublabel && <div style={{ fontSize:10, color:c.fg, marginTop:3, opacity:0.75 }}>{ivSublabel}</div>}
-                    </div>
-                  );
-                })()}
-                </div>
-
-                {/* ANALYST CONSENSUS */}
-                <SectionLabel label="Analyst Consensus" />
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
+                  <Card label="Economic Moat" value={moatRating} score={moatScore} colors={moatColors} loading={!moatRating && insightLoading} />
                   {(function() {
-                    if (!ov) return <Card label="Analyst Rating" value={null} score={0} colors={pillColor(null)} loading={true} />;
+                    var loading = !ivLabel; var c = ivColors;
                     return (
-                      <div style={{ padding:"9px 12px", background:recLabel?recColors.bg:"#222", border:"0.5px solid "+(recLabel?recColors.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column" }}>
-                        <div style={{ fontSize:9, color:recLabel?recColors.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Analyst Rating</div>
+                      <div style={{ padding:"9px 12px", background:loading?"#222":c.bg, border:"0.5px solid "+(loading?"#333":c.border), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column" }}>
+                        <div style={{ fontSize:9, color:loading?"#555":c.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Intrinsic Value</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                          <span style={{ fontSize:13, fontWeight:700, color:recLabel?recColors.fg:"#555" }}>{recDisplay || "---"}</span>
-                          {recDots > 0 && <Dots score={recDots} filled={recColors.dot} empty={recColors.dotEmpty} />}
+                          {loading && !ov
+                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                                <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div>
+                                <span style={{ fontSize:10, color:"#555" }}>Loading...</span>
+                              </div>
+                            : <span style={{ fontSize:13, fontWeight:700, color:loading?"#555":c.fg }}>{loading?"---":ivLabel}</span>
+                          }
+                          {!loading && ivScore > 0 && <Dots score={ivScore} filled={c.dot} empty={c.dotEmpty} />}
                         </div>
-                        {recLabel && <div style={{ fontSize:10, color:recColors.fg, marginTop:3, opacity:0.75 }}>{recLabel}</div>}
+                        {!loading && ivSublabel && <div style={{ fontSize:10, color:c.fg, marginTop:3, opacity:0.75 }}>{ivSublabel}</div>}
                       </div>
                     );
                   })()}
@@ -2318,6 +2285,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       </div>
                     );
                   })()}
+                  <Card label="Financial Strength" value={finRating} score={finScore} colors={finColors} loading={!finRating && insightLoading} />
                 </div>
                 {/* TECHNICAL ANALYSIS */}
                 <SectionLabel label="Technical Analysis" />
