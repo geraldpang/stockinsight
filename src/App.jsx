@@ -2111,6 +2111,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             var moatScore  = moatParsed.score || 0;
             var finRating  = finParsed.classification || null;
             var finScore   = finParsed.score || 0;
+            var moatColors = pillColor(moatRating || null);
+            var finColors  = pillColor(finRating  || null);
             window.__moatDots = moatScore; window.__finDots = finScore;
 
             // -- Intrinsic Value --
