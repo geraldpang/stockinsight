@@ -2261,8 +2261,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
                 {/* FUNDAMENTAL ANALYSIS */}
                 <SectionLabel label="Fundamental Analysis" top={true} />
-                <Card label="Economic Moat"     value={moatRating} score={moatScore}  colors={moatColors} loading={!moatRating && insightLoading} />
-                <Card label="Financial Strength" value={finRating}  score={finScore}   colors={finColors}  loading={!finRating && insightLoading} />
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:0 }}>
+                  <Card label="Economic Moat"     value={moatRating} score={moatScore}  colors={moatColors} loading={!moatRating && insightLoading} />
+                  <Card label="Financial Strength" value={finRating}  score={finScore}   colors={finColors}  loading={!finRating && insightLoading} />
+                </div>
+                <div style={{ marginTop:6 }}>
                 {(function() {
                   var loading = !ivLabel; var c = ivColors;
                   return (
@@ -2284,71 +2287,75 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     </div>
                   );
                 })()}
+                </div>
 
                 {/* ANALYST CONSENSUS */}
                 <SectionLabel label="Analyst Consensus" />
-                {(function() {
-                  if (!ov) return <Card label="Analyst Rating" value={null} score={0} colors={pillColor(null)} loading={true} />;
-                  return (
-                    <div style={{ padding:"9px 12px", background:recLabel?recColors.bg:"#222", border:"0.5px solid "+(recLabel?recColors.border:"#333"), borderRadius:8, marginBottom:6 }}>
-                      <div style={{ fontSize:10, color:recLabel?recColors.fg:"#555", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>Analyst Rating</div>
-                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                        <div>
-                          <span style={{ fontSize:13, fontWeight:700, color:recLabel?recColors.fg:"#555" }}>{recKey ? recKey.charAt(0).toUpperCase()+recKey.slice(1) : "---"}</span>
-                          {recLabel && <div style={{ fontSize:10, color:recColors.fg, marginTop:2, opacity:0.8 }}>{recLabel}</div>}
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
+                  {(function() {
+                    if (!ov) return <Card label="Analyst Rating" value={null} score={0} colors={pillColor(null)} loading={true} />;
+                    return (
+                      <div style={{ padding:"9px 12px", background:recLabel?recColors.bg:"#222", border:"0.5px solid "+(recLabel?recColors.border:"#333"), borderRadius:8 }}>
+                        <div style={{ fontSize:10, color:recLabel?recColors.fg:"#555", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>Analyst Rating</div>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                          <div>
+                            <span style={{ fontSize:13, fontWeight:700, color:recLabel?recColors.fg:"#555" }}>{recKey ? recKey.charAt(0).toUpperCase()+recKey.slice(1) : "---"}</span>
+                            {recLabel && <div style={{ fontSize:10, color:recColors.fg, marginTop:2, opacity:0.8 }}>{recLabel}</div>}
+                          </div>
+                          {recDots > 0 && <Dots score={recDots} filled={recColors.dot} empty={recColors.dotEmpty} />}
                         </div>
-                        {recDots > 0 && <Dots score={recDots} filled={recColors.dot} empty={recColors.dotEmpty} />}
                       </div>
-                    </div>
-                  );
-                })()}
-                {(function() {
-                  if (!aiLabel) return <Card label="AI Insight" value={null} score={0} colors={pillColor(null)} loading={insightLoading} />;
-                  var c = aiColors;
-                  return (
-                    <div style={{ padding:"9px 12px", background:c.bg, border:"0.5px solid "+c.border, borderRadius:8, marginBottom:6 }}>
-                      <div style={{ fontSize:10, color:c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>AI Insight</div>
-                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                        <div>
-                          <span style={{ fontSize:13, fontWeight:700, color:c.fg }}>{aiLabel}</span>
-                          {aiConf && <div style={{ fontSize:10, color:c.fg, marginTop:2, opacity:0.8 }}>Confidence: {aiConf}</div>}
+                    );
+                  })()}
+                  {(function() {
+                    if (!aiLabel) return <Card label="AI Insight" value={null} score={0} colors={pillColor(null)} loading={insightLoading} />;
+                    var c = aiColors;
+                    return (
+                      <div style={{ padding:"9px 12px", background:c.bg, border:"0.5px solid "+c.border, borderRadius:8 }}>
+                        <div style={{ fontSize:10, color:c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>AI Insight</div>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                          <div>
+                            <span style={{ fontSize:13, fontWeight:700, color:c.fg }}>{aiLabel}</span>
+                            {aiConf && <div style={{ fontSize:10, color:c.fg, marginTop:2, opacity:0.8 }}>Conf: {aiConf}</div>}
+                          </div>
+                          {aiDots > 0 && <Dots score={aiDots} filled={c.dot} empty={c.dotEmpty} />}
                         </div>
-                        {aiDots > 0 && <Dots score={aiDots} filled={c.dot} empty={c.dotEmpty} />}
                       </div>
-                    </div>
-                  );
-                })()}
-
+                    );
+                  })()}
+                </div>
                 {/* TECHNICAL ANALYSIS */}
                 <SectionLabel label="Technical Analysis" />
-                {ind2 && p2
-                  ? <Card label="Market Signal" value={msLabel} score={msDots} colors={msColors} />
-                  : <Card label="Market Signal" value={null} score={0} colors={pillColor(null)} loading={addlLoading} />
-                }
-                {(function() {
-                  var c3bg=revBg3; var c3bd=revBorder3; var c3fg=revCol3;
-                  return (
-                    <div style={{ padding:"9px 12px", background:c3bg, border:"0.5px solid "+c3bd, borderRadius:8, marginBottom:6 }}>
-                      <div style={{ fontSize:10, color:c3fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>Reversal Indicator</div>
-                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: revCount3>0?6:0 }}>
-                        <span style={{ fontSize:13, fontWeight:700, color:c3fg }}>{revLabel3}</span>
-                        <Dots score={revCount3} filled={revDot3} empty={revEmpty3} />
-                      </div>
-                      {revCount3 > 0 && (
-                        <div style={{ display:"flex", flexWrap:"wrap", gap:3 }}>
-                          {sigNames3.map(function(name, i) {
-                            var active = revArr3[i];
-                            return (
-                              <span key={i} style={{ fontSize:9, color:active?c3fg:"#444", background:active?revDot3+"22":"transparent", border:"0.5px solid "+(active?revDot3+"88":"#333"), padding:"2px 6px", borderRadius:8, opacity:active?1:0.4 }}>
-                                {active && String.fromCharCode(0x2713) + " "}{name}
-                              </span>
-                            );
-                          })}
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
+                  {ind2 && p2
+                    ? <Card label="Market Signal" value={msLabel} score={msDots} colors={msColors} />
+                    : <Card label="Market Signal" value={null} score={0} colors={pillColor(null)} loading={addlLoading} />
+                  }
+                  {(function() {
+                    var c3bg=revBg3; var c3bd=revBorder3; var c3fg=revCol3;
+                    return (
+                      <div style={{ padding:"9px 12px", background:c3bg, border:"0.5px solid "+c3bd, borderRadius:8 }}>
+                        <div style={{ fontSize:10, color:c3fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>Reversal</div>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: revCount3>0?5:0 }}>
+                          <span style={{ fontSize:12, fontWeight:700, color:c3fg }}>{revLabel3}</span>
+                          <Dots score={revCount3} filled={revDot3} empty={revEmpty3} />
                         </div>
-                      )}
-                    </div>
-                  );
-                })()}
+                        {revCount3 > 0 && (
+                          <div style={{ display:"flex", flexWrap:"wrap", gap:3 }}>
+                            {sigNames3.map(function(name, i) {
+                              var active = revArr3[i];
+                              return (
+                                <span key={i} style={{ fontSize:8, color:active?c3fg:"#444", background:active?revDot3+"22":"transparent", border:"0.5px solid "+(active?revDot3+"88":"#333"), padding:"2px 5px", borderRadius:6, opacity:active?1:0.4 }}>
+                                  {active && String.fromCharCode(0x2713) + " "}{name}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
 
               </div>
             );
