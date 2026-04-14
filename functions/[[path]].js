@@ -703,6 +703,17 @@ export async function onRequest(context) {
           .sort(function(a,b){ return (b.open_interest||0) - (a.open_interest||0); }).slice(0, 10)
           .map(function(o){ return { type: o.details.contract_type, strike: o.details.strike_price, expiry: o.details.expiration_date, oi: o.open_interest, iv: o.implied_volatility ? (o.implied_volatility*100).toFixed(1)+"%" : null, last: o.day && o.day.close ? o.day.close : null }; });
         var idxList = indices && indices.results ? indices.results.map(function(ix){ return { ticker: ix.ticker, name: ix.name, value: ix.session && ix.session.close ? ix.session.close : null, change: ix.session && ix.session.change_percent ? ix.session.change_percent.toFixed(2) : null }; }) : [];
+        // Try EOD daily aggs for first contract if contracts available
+        var contractSample = contracts && contracts.results && contracts.results.length > 0 ? contracts.results.slice(0,3) : [];
+        var contractCount  = contracts && contracts.results ? contracts.results.length : 0;
+
+        // Count puts vs calls from reference contracts
+        var refPuts = 0; var refCalls = 0;
+        (contracts && contracts.results ? contracts.results : []).forEach(function(c) {
+          if (c.contract_type === "put") refPuts++;
+          if (c.contract_type === "call") refCalls++;
+        });
+
         return new Response(JSON.stringify({
           ok: true, sym: optSym,
           putCallVol: callVol > 0 ? (putVol/callVol).toFixed(2) : null,
@@ -713,6 +724,9 @@ export async function onRequest(context) {
           snapshotStatus: snapOptions ? (snapOptions.status||"ok") : "null",
           indicesStatus: indices ? (indices.status||"ok") : "null",
           snapshotCount: snapList.length,
+          contractCount: contractCount,
+          refPuts: refPuts, refCalls: refCalls,
+          contractSample: contractSample,
         }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
       } catch(e) {
         return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
