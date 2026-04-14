@@ -2085,21 +2085,20 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               var c = props.colors;
               var loading = !props.value;
               return (
-                <div style={{ padding:"9px 12px", background: loading ? "#222" : c.bg, border:"0.5px solid " + (loading ? "#333" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1, boxSizing:"border-box", marginBottom:6 }}>
-                  <div style={{ fontSize:10, color: loading ? "#555" : c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>{props.label}</div>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                    <div>
-                      {props.loading
-                        ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                            <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div>
-                            <span style={{ fontSize:10, color:"#555" }}>Loading...</span>
-                          </div>
-                        : <span style={{ fontSize:13, fontWeight:700, color: loading ? "#555" : c.fg }}>{loading ? "---" : props.value}</span>
-                      }
-                      {!loading && props.sublabel && <div style={{ fontSize:10, color:c.fg, marginTop:2, opacity:0.8 }}>{props.sublabel}</div>}
-                    </div>
+                <div style={{ padding:"9px 12px", background: loading ? "#222" : c.bg, border:"0.5px solid " + (loading ? "#333" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1, boxSizing:"border-box", minHeight:72, display:"flex", flexDirection:"column" }}>
+                  <div style={{ fontSize:9, color: loading ? "#555" : c.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>{props.label}</div>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
+                    {props.loading
+                      ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                          <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div>
+                          <span style={{ fontSize:10, color:"#555" }}>Loading...</span>
+                        </div>
+                      : <span style={{ fontSize:13, fontWeight:700, color: loading ? "#555" : c.fg }}>{loading ? "---" : props.value}</span>
+                    }
                     {!loading && props.score > 0 && <Dots score={props.score} filled={c.dot} empty={c.dotEmpty} />}
                   </div>
+                  {!loading && props.sublabel && <div style={{ fontSize:10, color:c.fg, marginTop:3, opacity:0.75, lineHeight:1.3 }}>{props.sublabel}</div>}
+                  {loading && !props.loading && <div style={{ fontSize:10, color:"#555", marginTop:3 }}>&nbsp;</div>}
                 </div>
               );
             }
@@ -2269,21 +2268,19 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                 {(function() {
                   var loading = !ivLabel; var c = ivColors;
                   return (
-                    <div style={{ padding:"9px 12px", background:loading?"#222":c.bg, border:"0.5px solid "+(loading?"#333":c.border), borderRadius:8, marginBottom:6 }}>
-                      <div style={{ fontSize:10, color:loading?"#555":c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>Intrinsic Value</div>
-                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                        <div>
-                          {loading && !ov
-                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                                <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div>
-                                <span style={{ fontSize:10, color:"#555" }}>Loading...</span>
-                              </div>
-                            : <span style={{ fontSize:13, fontWeight:700, color:loading?"#555":c.fg }}>{loading?"---":ivLabel}</span>
-                          }
-                          {!loading && ivSublabel && <div style={{ fontSize:10, color:c.fg, marginTop:2, opacity:0.8 }}>{ivSublabel}</div>}
-                        </div>
+                    <div style={{ padding:"9px 12px", background:loading?"#222":c.bg, border:"0.5px solid "+(loading?"#333":c.border), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column" }}>
+                      <div style={{ fontSize:9, color:loading?"#555":c.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Intrinsic Value</div>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
+                        {loading && !ov
+                          ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                              <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div>
+                              <span style={{ fontSize:10, color:"#555" }}>Loading...</span>
+                            </div>
+                          : <span style={{ fontSize:13, fontWeight:700, color:loading?"#555":c.fg }}>{loading?"---":ivLabel}</span>
+                        }
                         {!loading && ivScore > 0 && <Dots score={ivScore} filled={c.dot} empty={c.dotEmpty} />}
                       </div>
+                      {!loading && ivSublabel && <div style={{ fontSize:10, color:c.fg, marginTop:3, opacity:0.75 }}>{ivSublabel}</div>}
                     </div>
                   );
                 })()}
@@ -2295,15 +2292,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   {(function() {
                     if (!ov) return <Card label="Analyst Rating" value={null} score={0} colors={pillColor(null)} loading={true} />;
                     return (
-                      <div style={{ padding:"9px 12px", background:recLabel?recColors.bg:"#222", border:"0.5px solid "+(recLabel?recColors.border:"#333"), borderRadius:8 }}>
-                        <div style={{ fontSize:10, color:recLabel?recColors.fg:"#555", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>Analyst Rating</div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                          <div>
-                            <span style={{ fontSize:13, fontWeight:700, color:recLabel?recColors.fg:"#555" }}>{recKey ? recKey.charAt(0).toUpperCase()+recKey.slice(1) : "---"}</span>
-                            {recLabel && <div style={{ fontSize:10, color:recColors.fg, marginTop:2, opacity:0.8 }}>{recLabel}</div>}
-                          </div>
+                      <div style={{ padding:"9px 12px", background:recLabel?recColors.bg:"#222", border:"0.5px solid "+(recLabel?recColors.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column" }}>
+                        <div style={{ fontSize:9, color:recLabel?recColors.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Analyst Rating</div>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
+                          <span style={{ fontSize:13, fontWeight:700, color:recLabel?recColors.fg:"#555" }}>{recKey ? recKey.charAt(0).toUpperCase()+recKey.slice(1) : "---"}</span>
                           {recDots > 0 && <Dots score={recDots} filled={recColors.dot} empty={recColors.dotEmpty} />}
                         </div>
+                        {recLabel && <div style={{ fontSize:10, color:recColors.fg, marginTop:3, opacity:0.75 }}>{recLabel}</div>}
                       </div>
                     );
                   })()}
@@ -2311,15 +2306,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     if (!aiLabel) return <Card label="AI Insight" value={null} score={0} colors={pillColor(null)} loading={insightLoading} />;
                     var c = aiColors;
                     return (
-                      <div style={{ padding:"9px 12px", background:c.bg, border:"0.5px solid "+c.border, borderRadius:8 }}>
-                        <div style={{ fontSize:10, color:c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>AI Insight</div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                          <div>
-                            <span style={{ fontSize:13, fontWeight:700, color:c.fg }}>{aiLabel}</span>
-                            {aiConf && <div style={{ fontSize:10, color:c.fg, marginTop:2, opacity:0.8 }}>Conf: {aiConf}</div>}
-                          </div>
+                      <div style={{ padding:"9px 12px", background:c.bg, border:"0.5px solid "+c.border, borderRadius:8, minHeight:72, display:"flex", flexDirection:"column" }}>
+                        <div style={{ fontSize:9, color:c.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>AI Insight</div>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
+                          <span style={{ fontSize:13, fontWeight:700, color:c.fg }}>{aiLabel}</span>
                           {aiDots > 0 && <Dots score={aiDots} filled={c.dot} empty={c.dotEmpty} />}
                         </div>
+                        {aiConf && <div style={{ fontSize:10, color:c.fg, marginTop:3, opacity:0.75 }}>{"Conf: " + aiConf}</div>}
                       </div>
                     );
                   })()}
@@ -2328,28 +2321,21 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                 <SectionLabel label="Technical Analysis" />
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
                   {ind2 && p2
-                    ? <Card label="Market Signal" value={msLabel} score={msDots} colors={msColors} />
+                    ? <Card label="Market Signal" value={vl2} score={msDots} colors={msColors} sublabel={"Score: " + final2 + " / 100"} />
                     : <Card label="Market Signal" value={null} score={0} colors={pillColor(null)} loading={addlLoading} />
                   }
                   {(function() {
                     var c3bg=revBg3; var c3bd=revBorder3; var c3fg=revCol3;
                     return (
-                      <div style={{ padding:"9px 12px", background:c3bg, border:"0.5px solid "+c3bd, borderRadius:8 }}>
-                        <div style={{ fontSize:10, color:c3fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>Reversal</div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: revCount3>0?5:0 }}>
-                          <span style={{ fontSize:12, fontWeight:700, color:c3fg }}>{revLabel3}</span>
+                      <div style={{ padding:"9px 12px", background:c3bg, border:"0.5px solid "+c3bd, borderRadius:8, minHeight:72, display:"flex", flexDirection:"column" }}>
+                        <div style={{ fontSize:9, color:c3fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Reversal</div>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
+                          <span style={{ fontSize:13, fontWeight:700, color:c3fg }}>{revLabel3}</span>
                           <Dots score={revCount3} filled={revDot3} empty={revEmpty3} />
                         </div>
                         {revCount3 > 0 && (
-                          <div style={{ display:"flex", flexWrap:"wrap", gap:3 }}>
-                            {sigNames3.map(function(name, i) {
-                              var active = revArr3[i];
-                              return (
-                                <span key={i} style={{ fontSize:8, color:active?c3fg:"#444", background:active?revDot3+"22":"transparent", border:"0.5px solid "+(active?revDot3+"88":"#333"), padding:"2px 5px", borderRadius:6, opacity:active?1:0.4 }}>
-                                  {active && String.fromCharCode(0x2713) + " "}{name}
-                                </span>
-                              );
-                            })}
+                          <div style={{ fontSize:10, color:c3fg, marginTop:3, opacity:0.75, lineHeight:1.4 }}>
+                            {sigNames3.filter(function(_,i){ return revArr3[i]; }).join(" " + String.fromCharCode(0xB7) + " ")}
                           </div>
                         )}
                       </div>
