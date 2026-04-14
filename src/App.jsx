@@ -2219,9 +2219,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             var recSell = ov ? (ov.recSell || 0) : 0;
             var recTotal = recBuy + recHold + recSell;
             var recKey  = ov ? (ov.recKey  || "") : "";
+            var recKeyN = recKey.toLowerCase().replace(/_/g," ").trim();
+            var recDisplay = recKeyN ? recKeyN.split(" ").map(function(w){ return w.charAt(0).toUpperCase()+w.slice(1); }).join(" ") : "";
             var recLabel = recTotal > 0 ? (recBuy + "B / " + recHold + "H / " + recSell + "S") : null;
-            var recDots = recKey.toLowerCase().includes("strong buy")?5:recKey.toLowerCase().includes("buy")?4:recKey.toLowerCase().includes("hold")?3:recKey.toLowerCase().includes("sell")?2:0;
-            var recColors = pillColor(recKey.toLowerCase().includes("buy")?"buy":recKey.toLowerCase().includes("sell")?"avoid":"hold");
+            var recDots = recKeyN.includes("strong buy")?5:recKeyN.includes("buy")?4:recKeyN.includes("hold")?3:recKeyN.includes("sell")?2:0;
+            var recColors = pillColor(recKeyN.includes("buy")?"buy":recKeyN.includes("sell")?"avoid":"hold");
 
             // -- Star rating --
             var _aiD2=aiDots||0; var _msD2=msDots||0; var _ivD2=ivScore||0;
@@ -2295,7 +2297,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       <div style={{ padding:"9px 12px", background:recLabel?recColors.bg:"#222", border:"0.5px solid "+(recLabel?recColors.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column" }}>
                         <div style={{ fontSize:9, color:recLabel?recColors.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Analyst Rating</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                          <span style={{ fontSize:13, fontWeight:700, color:recLabel?recColors.fg:"#555" }}>{recKey ? recKey.charAt(0).toUpperCase()+recKey.slice(1) : "---"}</span>
+                          <span style={{ fontSize:13, fontWeight:700, color:recLabel?recColors.fg:"#555" }}>{recDisplay || "---"}</span>
                           {recDots > 0 && <Dots score={recDots} filled={recColors.dot} empty={recColors.dotEmpty} />}
                         </div>
                         {recLabel && <div style={{ fontSize:10, color:recColors.fg, marginTop:3, opacity:0.75 }}>{recLabel}</div>}
