@@ -2023,7 +2023,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       )}
 
       {/* Body grid */}
-      <div className={"body-grid" + (mobilePanel === "right" ? " show-right" : " show-left")} style={{ display:"grid", gridTemplateColumns:"minmax(280px,400px) 1fr", minWidth:0, overflowX:"hidden", overflowY:"visible" }}>
+      <div className={"body-grid" + (mobilePanel === "right" ? " show-right" : " show-left")} style={{ display:"grid", gridTemplateColumns:"minmax(280px,400px) 1fr", minWidth:0 }}>
 
         {/* LEFT PANEL */}
         <div className="panel-left" style={{ padding:"24px 20px", borderRight:"1px solid #111", background:"#1c1c1e" }}>
@@ -2762,7 +2762,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden" }}>
 
                 {/* Tab bar */}
-                <div className="tab-scroll" style={{ display:"flex", background:"#faf8f4", borderBottom:"1px solid #e0dbd0", overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
+                <div style={{ position:"relative" }}><div className="tab-scroll" style={{ display:"flex", background:"#faf8f4", borderBottom:"1px solid #e0dbd0", overflowX:"auto", WebkitOverflowScrolling:"touch", paddingRight:40 }}><style>{".tab-scroll::-webkit-scrollbar{display:none}"}</style>
                   {TABS.map(function(tab) {
                     var active = insightTab === tab.id;
                     return (
@@ -2780,7 +2780,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       </button>
                     );
                   })}
-                </div>
+                </div><div style={{ position:"absolute", right:0, top:0, bottom:0, width:40, background:"linear-gradient(to right, transparent, #faf8f4)", pointerEvents:"none", zIndex:1 }}></div></div>
 
                 {/* Cache status strip */}
                 {(function() {
