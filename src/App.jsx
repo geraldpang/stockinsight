@@ -2762,7 +2762,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden" }}>
 
                 {/* Tab bar */}
-                <div style={{ position:"relative" }}><div className="tab-scroll" style={{ display:"flex", background:"#faf8f4", borderBottom:"1px solid #e0dbd0", overflowX:"auto", WebkitOverflowScrolling:"touch", paddingRight:40 }}><style>{".tab-scroll::-webkit-scrollbar{display:none}"}</style>
+                <div style={{ position:"relative" }}><div className="tab-scroll" style={{ display:"flex", background:"#faf8f4", borderBottom:"1px solid #e0dbd0", overflowX:"auto", WebkitOverflowScrolling:"touch", paddingRight:8, paddingBottom:4 }}><style>{".tab-scroll::-webkit-scrollbar{height:3px}.tab-scroll::-webkit-scrollbar-track{background:#e0dbd0}.tab-scroll::-webkit-scrollbar-thumb{background:#999;border-radius:3px}"}</style>
                   {TABS.map(function(tab) {
                     var active = insightTab === tab.id;
                     return (
