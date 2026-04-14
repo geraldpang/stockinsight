@@ -1834,7 +1834,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   ] : [];
 
   return (
-    <div style={{ minHeight:"100vh", background:"#f5f2ec", fontFamily:FONT, overflowX:"hidden", maxWidth:"100vw" }}>
+    <div style={{ minHeight:"100vh", background:"#f5f2ec", fontFamily:FONT, overflowX:"hidden", width:"100%" }}>
 
       {/* Nav */}
       {(function() {
@@ -1888,7 +1888,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         return (
           <div>
             {/* Desktop nav: 1 row - Back / Logo / centred search / Live badge */}
-            <style>{"*{box-sizing:border-box}.nav-desktop{display:flex}.nav-mobile{display:none}@media(max-width:768px){.nav-desktop{display:none!important}.nav-mobile{display:block!important}.body-grid{display:block!important}.panel-left{width:100%!important;border-right:none!important}.panel-right{width:100%!important;padding:16px!important}.view-analysis-btn{display:block!important}.mobile-back-btn{display:block!important}.show-right .panel-left{display:none!important}.show-right .panel-right{display:block!important}.show-left .panel-right{display:none!important}.show-left .panel-left{display:block!important}}"}</style>
+            <style>{"*{box-sizing:border-box}.nav-desktop{display:flex}.nav-mobile{display:none}@media(max-width:1100px){.body-grid{grid-template-columns:280px 1fr!important}}@media(max-width:768px){.nav-desktop{display:none!important}.nav-mobile{display:block!important}.body-grid{display:block!important}.panel-left{width:100%!important;border-right:none!important}.panel-right{width:100%!important;padding:16px!important}.view-analysis-btn{display:block!important}.mobile-back-btn{display:block!important}.show-right .panel-left{display:none!important}.show-right .panel-right{display:block!important}.show-left .panel-right{display:none!important}.show-left .panel-left{display:block!important}}"}</style>
 
             {/* DESKTOP */}
             <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"minmax(0,200px) 1fr auto", alignItems:"center", gap:0, minWidth:0 }}>
@@ -2023,7 +2023,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       )}
 
       {/* Body grid */}
-      <div className={"body-grid" + (mobilePanel === "right" ? " show-right" : " show-left")} style={{ display:"grid", gridTemplateColumns:"400px 1fr" }}>
+      <div className={"body-grid" + (mobilePanel === "right" ? " show-right" : " show-left")} style={{ display:"grid", gridTemplateColumns:"minmax(280px,400px) 1fr", minWidth:0, overflow:"hidden" }}>
 
         {/* LEFT PANEL */}
         <div className="panel-left" style={{ padding:"24px 20px", borderRight:"1px solid #111", background:"#1c1c1e" }}>
@@ -2615,7 +2615,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         </div>
 
         {/* RIGHT PANEL */}
-        <div className="panel-right" style={{ padding:"24px", background:"#fff", minHeight:"100vh" }}>
+        <div className="panel-right" style={{ padding:"24px", background:"#fff", minHeight:"100vh", minWidth:0, overflow:"hidden" }}>
           {/* Mobile back button */}
           <div style={{ display:"none" }} className="mobile-back-btn">
             <button
@@ -2762,7 +2762,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden" }}>
 
                 {/* Tab bar */}
-                <div style={{ display:"flex", background:"#faf8f4", borderBottom:"1px solid #e0dbd0", overflowX:"auto" }}>
+                <div style={{ display:"flex", background:"#faf8f4", borderBottom:"1px solid #e0dbd0", overflowX:"auto", WebkitOverflowScrolling:"touch", scrollbarWidth:"none", msOverflowStyle:"none" }}>
                   {TABS.map(function(tab) {
                     var active = insightTab === tab.id;
                     return (
