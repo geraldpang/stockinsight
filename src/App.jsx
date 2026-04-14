@@ -2049,495 +2049,310 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             <div style={{ color:"#aaa", fontSize:14, marginBottom:16 }}>Loading price...</div>
           )}
 
-          {/* Analysis Summary -- 2x2 grid */}
+          {/* Analysis Summary -- grouped */}
           {(function() {
             function pillColor(text) {
-              if (!text) return { bg:"#f5f2ec", fg:"#888", border:"#ddd", dot:"#7abd00", dotEmpty:"#2a5020" };
+              if (!text) return { bg:"#222", fg:"#555", border:"#333", dot:"#444", dotEmpty:"#2a2a2a" };
               var v = (text+"").toLowerCase().replace(/[^a-z ]/g,"").trim();
-              if (v.includes("strong buy") || v === "buy" || v.startsWith("buy") || v.includes("wide") || v.includes("strong bullish") || v === "strong" || v.startsWith("strong"))
-                return { bg:"#EAF3DE", fg:"#2a7a2a", border:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" };
-              if (v.includes("strong avoid"))
-                return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#e05050", dotEmpty:"#4a2020" };
-              if (v.includes("avoid"))
-                return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#e05050", dotEmpty:"#4a2020" };
-              if (v.includes("narrow") || v.includes("moderate") || v.includes("bullish"))
-                return { bg:"#f0f7e6", fg:"#2a7a2a", border:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" };
-              if (v.includes("neutral") || v.includes("fairly") || v === "hold" || v.startsWith("hold"))
-                return { bg:"#FAEEDA", fg:"#b88000", border:"#d4a800", dot:"#EF9F27", dotEmpty:"#4a3810" };
-              if (v === "premium")
-                return { bg:"#FAEEDA", fg:"#b88000", border:"#d4a800", dot:"#EF9F27", dotEmpty:"#4a3810" };
-              if (v === "undervalued")
-                return { bg:"#EAF3DE", fg:"#2a7a2a", border:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" };
-              if (v === "fairlyvalued")
-                return { bg:"#f0f7e6", fg:"#3a6a1a", border:"#5a9020", dot:"#9acd50", dotEmpty:"#2a4020" };
-              if (v.includes("none") || v.includes("weak") || v.includes("bearish") || v.includes("overvalued") || v === "overvalued")
-                return { bg:"#FCEBEB", fg:"#c03030", border:"#e08080", dot:"#e05050", dotEmpty:"#4a2020" };
-              return { bg:"#f5f2ec", fg:"#555", border:"#ccc", dot:"#7abd00", dotEmpty:"#2a5020" };
+              if (v.includes("strong buy")||v==="buy"||v.startsWith("buy")||v.includes("wide")||v.includes("strong bullish")||v.startsWith("strong"))
+                return { bg:"#1e2a1e", fg:"#7abd00", border:"#2a5020", dot:"#7abd00", dotEmpty:"#2a5020" };
+              if (v.includes("avoid")) return { bg:"#2a1e1e", fg:"#e05050", border:"#4a2020", dot:"#e05050", dotEmpty:"#4a2020" };
+              if (v.includes("narrow")||v.includes("moderate")||v.includes("bullish"))
+                return { bg:"#1e2a1e", fg:"#7abd00", border:"#2a5020", dot:"#7abd00", dotEmpty:"#2a5020" };
+              if (v.includes("neutral")||v.includes("fairly")||v==="hold"||v.startsWith("hold")||v==="premium")
+                return { bg:"#2a2010", fg:"#EF9F27", border:"#4a3810", dot:"#EF9F27", dotEmpty:"#4a3810" };
+              if (v==="undervalued") return { bg:"#1e2a1e", fg:"#7abd00", border:"#2a5020", dot:"#7abd00", dotEmpty:"#2a5020" };
+              if (v==="fairlyvalued") return { bg:"#1e2a1e", fg:"#9acd50", border:"#2a4020", dot:"#9acd50", dotEmpty:"#2a4020" };
+              if (v.includes("none")||v.includes("weak")||v.includes("bearish")||v.includes("overvalued"))
+                return { bg:"#2a1e1e", fg:"#e05050", border:"#4a2020", dot:"#e05050", dotEmpty:"#4a2020" };
+              return { bg:"#222", fg:"#555", border:"#333", dot:"#444", dotEmpty:"#2a2a2a" };
             }
             function Dots(props) {
               var dots = [];
               for (var d = 1; d <= 5; d++) {
-                dots.push(
-                  <span key={d} style={{ display:"inline-block", width:7, height:7, borderRadius:"50%", background: d <= props.score ? props.filled : props.empty, marginRight:2 }} />
-                );
+                dots.push(<span key={d} style={{ display:"inline-block", width:7, height:7, borderRadius:"50%", background: d <= props.score ? props.filled : props.empty, marginRight:2 }} />);
               }
               return <span style={{ display:"inline-flex", alignItems:"center" }}>{dots}</span>;
             }
-            // Read directly from parsedInsights -- single source of truth
-            var moatParsed  = parsedInsights["moat"]      || {};
-            var finParsed   = parsedInsights["financial"]  || {};
-            var moatRating  = moatParsed.classification || null;
-            var moatScore   = moatParsed.score          || 0;
-            var finRating   = finParsed.classification  || null;
-            var finScore    = finParsed.score           || 0;
-
-            // Graduated IV scoring: 5 tiers based on discount/premium %
-            var ivOracle = vals.length > 0 ? parseFloat(oracle) : 0;
-            var ivPct    = (price > 0 && ivOracle > 0) ? Math.round(Math.abs(ivOracle - price) / price * 100) : 0;
-            var ivIsUnder = ivOracle > price;
-            var ivLabel  = null; var ivScore = 0; var ivColors = pillColor(null);
-            var ivSublabel = null;
-            if (ivOracle > 0 && price > 0) {
-              if (ivIsUnder && ivPct > 20) {
-                ivLabel = "Exceptional"; ivScore = 5;
-                ivColors = pillColor("undervalued");
-              } else if (ivIsUnder && ivPct >= 5) {
-                ivLabel = "Undervalued"; ivScore = 4;
-                ivColors = pillColor("undervalued");
-              } else if (ivIsUnder && ivPct >= 0) {
-                ivLabel = "Fair"; ivScore = 3;
-                ivColors = pillColor("fairlyvalued");
-              } else if (!ivIsUnder && ivPct <= 10) {
-                ivLabel = "Premium"; ivScore = 2;
-                ivColors = pillColor("premium");
-              } else {
-                ivLabel = "Overvalued"; ivScore = 1;
-                ivColors = pillColor("overvalued");
-              }
-              ivSublabel = ivPct + "% " + (ivIsUnder ? "discount" : "premium") + " ($" + Math.round(parseFloat(oracle)) + ")";
-            }
-            var moatColors    = moatRating  ? pillColor(moatRating)  : pillColor(null);
-            var finColors     = finRating   ? pillColor(finRating)   : pillColor(null);
-            function darkify(c) {
-              var bg = c.bg;
-              if (bg === "#EAF3DE" || bg === "#f0f7e6") return Object.assign({}, c, { bg:"#1e2a1e", border:"#2a5020", fg:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" });
-              if (bg === "#FAEEDA") return Object.assign({}, c, { bg:"#2a2010", border:"#4a3810", fg:"#EF9F27", dot:"#EF9F27", dotEmpty:"#4a3810" });
-              if (bg === "#FCEBEB") return Object.assign({}, c, { bg:"#2a1e1e", border:"#4a2020", fg:"#e05050", dot:"#e05050", dotEmpty:"#4a2020" });
-              return Object.assign({}, c, { bg:"#222", border:"#333", fg:"#555", dot:"#444", dotEmpty:"#333" });
+            function SectionLabel(props) {
+              return (
+                <div style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6, marginTop: props.top ? 0 : 14, paddingBottom:5, borderBottom:"1px solid #2c2c2e" }}>
+                  {props.label}
+                </div>
+              );
             }
             function Card(props) {
-              var c = darkify(props.colors);
+              var c = props.colors;
               var loading = !props.value;
-              var isSpinning = props.loading === true;
               return (
-                <div style={{ padding:"10px 12px", background: loading ? "#222" : c.bg, border:"0.5px solid " + (loading ? "#333" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1, minHeight:72, boxSizing:"border-box" }}>
-                  <div style={{ fontSize:10, color: loading ? "#aaa" : c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>{props.label}</div>
-                  <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
+                <div style={{ padding:"9px 12px", background: loading ? "#222" : c.bg, border:"0.5px solid " + (loading ? "#333" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1, boxSizing:"border-box", marginBottom:6 }}>
+                  <div style={{ fontSize:10, color: loading ? "#555" : c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>{props.label}</div>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                     <div>
-                      <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                        {isSpinning
-                          ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                              <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite", flexShrink:0 }}></div>
-                              <span style={{ fontSize:10, color:"#555", fontWeight:600 }}>Loading...</span>
-                            </div>
-                          : <span style={{ fontSize:14, fontWeight:700, color: loading ? "#555" : c.fg }}>{loading ? "..." : props.value}</span>
-                        }
-                      </div>
-                      {!loading && props.sublabel && (
-                        <div style={{ fontSize:10, fontWeight:600, color:c.fg, marginTop:2, opacity:0.85 }}>{props.sublabel}</div>
-                      )}
+                      {props.loading
+                        ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                            <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div>
+                            <span style={{ fontSize:10, color:"#555" }}>Loading...</span>
+                          </div>
+                        : <span style={{ fontSize:13, fontWeight:700, color: loading ? "#555" : c.fg }}>{loading ? "---" : props.value}</span>
+                      }
+                      {!loading && props.sublabel && <div style={{ fontSize:10, color:c.fg, marginTop:2, opacity:0.8 }}>{props.sublabel}</div>}
                     </div>
-                    {!loading && props.score > 0 && (
-                      <Dots score={props.score} filled={c.dot} empty={c.dotEmpty} />
-                    )}
+                    {!loading && props.score > 0 && <Dots score={props.score} filled={c.dot} empty={c.dotEmpty} />}
                   </div>
                 </div>
               );
             }
-            //  Star rating computed inline (before JSX return) 
-            var _aiP2 = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null;
-            var _aiD2 = _aiP2 ? (_aiP2.dots||0) : 0;
-            var _msD2 = (typeof window.__msDots!=="undefined") ? window.__msDots : 0;
-            var _ivD2 = ivScore || 0;
-            var _ind2 = massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
-            var _mcdH = _ind2?(_ind2.macdHistory||[]):[];
-            var _rsiH = _ind2?(_ind2.rsiHistory||[]):[];
-            var _mcdT = (function(){if(_mcdH.length<3)return false;var h0=_mcdH[0]&&_mcdH[0].histogram,h1=_mcdH[1]&&_mcdH[1].histogram,h2=_mcdH[2]&&_mcdH[2].histogram;return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2;})();
-            var _wCrs = _ind2&&_ind2.wsma10&&_ind2.wsma40?(_ind2.wsma10<_ind2.wsma40&&Math.abs(_ind2.wsma10-_ind2.wsma40)/_ind2.wsma40<0.05):false;
-            var _rBas = _rsiH.length>=3?_rsiH.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;}):false;
-            var _lBas = (ov||{}).lo52>0&&price>0&&_ind2&&_ind2.rsi14!=null?((price-(ov||{}).lo52)/Math.max(((ov||{}).hi52-(ov||{}).lo52),1)<0.20&&_ind2.rsi14>20&&_ind2.rsi14<45):false;
-            var _revC = [_mcdT,_wCrs,_rBas,_lBas].filter(Boolean).length;
+
+            // -- Moat + Financial --
+            var moatParsed = parsedInsights["moat"]     || {};
+            var finParsed  = parsedInsights["financial"] || {};
+            var moatRating = moatParsed.classification || null;
+            var moatScore  = moatParsed.score || 0;
+            var finRating  = finParsed.classification || null;
+            var finScore   = finParsed.score || 0;
+            window.__moatDots = moatScore; window.__finDots = finScore;
+
+            // -- Intrinsic Value --
+            var ivOracle  = vals.length > 0 ? parseFloat(oracle) : 0;
+            var ivPct     = (price > 0 && ivOracle > 0) ? Math.round(Math.abs(ivOracle - price) / price * 100) : 0;
+            var ivIsUnder = ivOracle > price;
+            var ivLabel = null; var ivScore = 0; var ivSublabel = null;
+            if (ivOracle > 0 && price > 0) {
+              if (ivIsUnder && ivPct > 20)       { ivLabel = "Exceptional"; ivScore = 5; }
+              else if (ivIsUnder && ivPct >= 5)   { ivLabel = "Undervalued"; ivScore = 4; }
+              else if (ivIsUnder)                 { ivLabel = "Fair";        ivScore = 3; }
+              else if (!ivIsUnder && ivPct <= 10) { ivLabel = "Premium";     ivScore = 2; }
+              else                                { ivLabel = "Overvalued";  ivScore = 1; }
+              ivSublabel = ivPct + "% " + (ivIsUnder ? "discount" : "premium") + " ($" + Math.round(parseFloat(oracle)) + ")";
+            }
+            var ivColors = pillColor(ivLabel ? ivLabel.toLowerCase() : null);
+
+            // -- Market Signal --
+            var ind2 = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
+            var agg2 = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
+            var p2   = q ? q.price : 0;
+            var hi2  = ov ? ov.hi52 : 0; var lo2 = ov ? ov.lo52 : 0;
+            var pos2 = (hi2-lo2) > 0 ? (p2-lo2)/(hi2-lo2) : 0.5;
+            var vol5b  = agg2.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(agg2.slice(0,5).length,1);
+            var vol20b = agg2.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(agg2.slice(0,20).length,1);
+            var vr2 = vol20b > 0 ? vol5b/vol20b : 1;
+            var msLabel = null; var msDots = 0; var msColors = pillColor(null);
+            if (ind2 && p2) {
+              function sc2(key) {
+                var wsmaG = ind2.wsma10&&ind2.wsma40?(ind2.wsma10-ind2.wsma40)/ind2.wsma40*100:0;
+                var s200g = ind2.sma200?(p2-ind2.sma200)/ind2.sma200*100:0;
+                var crsG  = ind2.sma50&&ind2.sma200?(ind2.sma50-ind2.sma200)/ind2.sma200*100:0;
+                var ema2g = ind2.ema20?(p2-ind2.ema20)/ind2.ema20*100:0;
+                var r2=ind2.rsi14; var h2=ind2.macd?ind2.macd.histogram:null;
+                if (key==="wsma")   return !ind2.wsma10||!ind2.wsma40?3:wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
+                if (key==="sma200") return !ind2.sma200?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
+                if (key==="cross")  return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
+                if (key==="pos52")  return pos2>0.80?5:pos2>0.55?4:pos2>0.35?3:pos2>0.15?2:1;
+                if (key==="rsi")    return !r2?3:(r2>=50&&r2<=75)?5:(r2>=40&&r2<50)?4:(r2>=30&&r2<40||r2>75)?3:(r2>=20&&r2<30)?2:1;
+                if (key==="macd")   return !h2?3:h2>0.05?5:h2>0?4:h2>-0.05?3:h2>-0.5?2:1;
+                if (key==="ema20")  return !ind2.ema20?3:ema2g>5?5:ema2g>1?4:ema2g>-5?3:ema2g>-15?2:1;
+                if (key==="vol")    return vr2>1.4?5:vr2>1.1?4:vr2>0.9?3:vr2>0.7?2:1;
+                return 3;
+              }
+              var W2={wsma:25,sma200:15,cross:10,pos52:5,rsi:20,macd:15,ema20:5,vol:5};
+              var base2=0; ["wsma","sma200","cross","pos52","rsi","macd","ema20","vol"].forEach(function(k){base2+=(sc2(k)/5)*W2[k];});
+              base2=Math.round(base2);
+              var macdH2=ind2.macdHistory||[]; var mT2=macdH2.length>=3&&macdH2[0]&&macdH2[1]&&macdH2[2]&&macdH2[0].histogram<0&&macdH2[0].histogram>macdH2[1].histogram&&macdH2[1].histogram>macdH2[2].histogram;
+              var rsiH2=ind2.rsiHistory||[]; var rsiB2=rsiH2.length>=3&&rsiH2.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;});
+              var lb2=pos2<0.20&&ind2.rsi14!=null&&ind2.rsi14>20&&ind2.rsi14<45;
+              var rev2=[mT2,rsiB2,lb2].filter(Boolean).length;
+              var bonus2=base2<50?Math.min(rev2*4,12):0;
+              var final2=Math.min(base2+bonus2,base2<50?49:100);
+              var vl2=final2>=70?"Strong Bullish":final2>=55?"Bullish":final2>=40?"Neutral":final2>=25?"Bearish":"Strong Bearish";
+              msDots=final2>=70?5:final2>=55?4:final2>=40?3:final2>=25?2:1;
+              msLabel=vl2+" ("+final2+")";
+              msColors=pillColor(vl2);
+              window.__msDots=msDots; window.__msScore=final2;
+            }
+
+            // -- Reversal --
+            var ind3=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
+            var aggs3=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
+            var price3=q?q.price:0;
+            var ov3=ov||{}; var hi3=ov3.hi52||0; var lo3=ov3.lo52||0;
+            var pos3=(hi3>0&&hi3-lo3)>0?(price3-lo3)/(hi3-lo3):0.5;
+            var rsiH3=ind3?(ind3.rsiHistory||[]):[];
+            var macdH3=ind3?(ind3.macdHistory||[]):[];
+            var rsiDiv3=(function(){
+              if (!ind3||rsiH3.length<10||aggs3.length<10) return false;
+              var rPL=Math.min.apply(null,aggs3.slice(0,5).map(function(a){return a.l||0;}));
+              var pPL=Math.min.apply(null,aggs3.slice(5,10).map(function(a){return a.l||0;}));
+              var rRL=Math.min.apply(null,rsiH3.slice(0,5));
+              var pRL=Math.min.apply(null,rsiH3.slice(5,10));
+              return rPL<pPL&&rRL>pRL;
+            })();
+            var macdTurn3=(function(){
+              if (macdH3.length<3) return false;
+              var h0=macdH3[0]&&macdH3[0].histogram,h1=macdH3[1]&&macdH3[1].histogram,h2=macdH3[2]&&macdH3[2].histogram;
+              return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2;
+            })();
+            var weeklyCross3=ind3&&ind3.wsma10&&ind3.wsma40?(ind3.wsma10<ind3.wsma40&&Math.abs(ind3.wsma10-ind3.wsma40)/ind3.wsma40<0.05):false;
+            var rsiBase3=rsiH3.length>=3?rsiH3.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;}):false;
+            var lowBase3=pos3<0.20&&ind3&&ind3.rsi14!=null&&ind3.rsi14>20&&ind3.rsi14<45;
+            var revArr3=[rsiDiv3,macdTurn3,weeklyCross3,rsiBase3,lowBase3];
+            var revCount3=revArr3.filter(Boolean).length;
+            var revBg3=revCount3>=4?"#1e2a1e":revCount3>=2?"#1e2a1e":revCount3===1?"#2a2010":"#222";
+            var revBorder3=revCount3>=2?"#2a5020":revCount3===1?"#4a3810":"#333";
+            var revCol3=revCount3>=2?"#7abd00":revCount3===1?"#EF9F27":"#555";
+            var revDot3=revCount3>=2?"#7abd00":revCount3===1?"#EF9F27":"#444";
+            var revEmpty3=revCount3>=2?"#2a5020":revCount3===1?"#4a3810":"#2a2a2a";
+            var revLabel3=revCount3>=4?"Strong Reversal":revCount3>=2?"Reversal Watch":revCount3===1?"Early Signal":"No Signals";
+            var sigNames3=["RSI Divergence","MACD Turning","Weekly Cross","RSI Base","52W Low Base"];
+
+            // -- AI Insight --
+            var aiP = null; try { aiP = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null; } catch(e) {}
+            var aiLabel  = aiP && aiP.verdict ? aiP.verdict : null;
+            var aiConf   = aiP && aiP.confidence ? aiP.confidence : null;
+            var aiDots   = aiP ? (aiP.dots||3) : 0;
+            var aiColors = aiLabel ? pillColor(aiLabel.toLowerCase()) : pillColor(null);
+
+            // -- Analyst from ov --
+            var recBuy  = ov ? (ov.recBuy  || 0) : 0;
+            var recHold = ov ? (ov.recHold || 0) : 0;
+            var recSell = ov ? (ov.recSell || 0) : 0;
+            var recTotal = recBuy + recHold + recSell;
+            var recKey  = ov ? (ov.recKey  || "") : "";
+            var recLabel = recTotal > 0 ? (recBuy + "B / " + recHold + "H / " + recSell + "S") : null;
+            var recDots = recKey.toLowerCase().includes("strong buy")?5:recKey.toLowerCase().includes("buy")?4:recKey.toLowerCase().includes("hold")?3:recKey.toLowerCase().includes("sell")?2:0;
+            var recColors = pillColor(recKey.toLowerCase().includes("buy")?"buy":recKey.toLowerCase().includes("sell")?"avoid":"hold");
+
+            // -- Star rating --
+            var _aiD2=aiDots||0; var _msD2=msDots||0; var _ivD2=ivScore||0;
+            var _revC=revCount3;
             function _toStar(d){return d>=4?1:d===3?0.5:0;}
-            var _core = [moatScore,finScore,_ivD2,_msD2,_aiD2].filter(function(d){return d>0;}).reduce(function(s,d){return s+_toStar(d);},0);
-            var _bonus= _revC>=3?1:_revC>=1?0.5:0;
-            var _star = Math.round(Math.min(5,_core+_bonus)*2)/2;
-            var _lbl  = _star>=4.5?"Exceptional":_star>=4?"Strong Buy":_star>=3.5?"Buy":_star>=3?"Hold":_star>=2?"Caution":"Avoid";
-            var _col  = _star>=4?"#1a6a1a":_star>=3?"#b88000":"#c03030";
+            var _core=[moatScore,finScore,_ivD2,_msD2,_aiD2].filter(function(d){return d>0;}).reduce(function(s,d){return s+_toStar(d);},0);
+            var _bonus=_revC>=3?1:_revC>=1?0.5:0;
+            var _star=Math.round(Math.min(5,_core+_bonus)*2)/2;
+            var _lbl=_star>=4.5?"Exceptional":_star>=4?"Strong Buy":_star>=3.5?"Buy":_star>=3?"Hold":_star>=2?"Caution":"Avoid";
+            var _col=_star>=4?"#7abd00":_star>=3?"#EF9F27":"#e05050";
             function _StarRow(rating){
               var spans=[];
               for(var i=1;i<=5;i++){
                 var d=rating-(i-1);
-                spans.push(<span key={i} style={{fontSize:20,color:d>=0.5?"#f5a623":"#d8d3ca",opacity:d>=0.5&&d<1?0.5:1,lineHeight:1,display:"inline-block"}}>{d>=0.5?String.fromCharCode(9733):String.fromCharCode(9734)}</span>);
+                spans.push(<span key={i} style={{fontSize:18,color:d>=0.5?"#f5a623":"#333",opacity:d>=0.5&&d<1?0.5:1,lineHeight:1}}>{d>=0.5?String.fromCharCode(9733):String.fromCharCode(9734)}</span>);
               }
               return spans;
             }
 
             return (
               <div style={{ marginBottom:16 }}>
-                {_star>0&&(
-                  <div>
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-                      <span style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em" }}>Analysis Rating</span>
-                      <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                        <span style={{ display:"inline-flex" }}>{_StarRow(_star)}</span>
-                        <span style={{ fontSize:12, fontWeight:500, color:_col }}>{_lbl}{String.fromCharCode(0xA0)}{String.fromCharCode(0xA0)}{_star.toFixed(1)}{String.fromCharCode(0xA0)}/{String.fromCharCode(0xA0)}5.0</span>
+
+                {/* Overall Rating */}
+                {_star > 0 && (
+                  <div style={{ marginBottom:12, padding:"10px 12px", background:"#1a1a14", border:"0.5px solid #2c2c26", borderRadius:8 }}>
+                    <div style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6 }}>Overall Rating</div>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                      <span style={{ display:"inline-flex" }}>{_StarRow(_star)}</span>
+                      <div style={{ textAlign:"right" }}>
+                        <div style={{ fontSize:12, fontWeight:700, color:_col }}>{_lbl}</div>
+                        <div style={{ fontSize:10, color:"#555" }}>{_star.toFixed(1)} / 5.0</div>
                       </div>
                     </div>
                   </div>
                 )}
-                <div style={{ borderTop:"1px solid #2c2c2e", margin:"10px 0 16px" }}></div>
-                <div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:600, marginBottom:7 }}>Analysis Summary</div>
-                <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr)", gap:7, alignItems:"stretch" }}>
-                  <Card label="Economic Moat"    value={moatRating}  score={moatScore}  colors={moatColors}    loading={!moatRating && insightLoading} />
-                  {(function(){ window.__moatDots=moatScore; window.__finDots=finScore; return null; })()}
-                  <Card label="Financial Strength" value={finRating}  score={finScore}   colors={finColors}     loading={!finRating && insightLoading} />
-                  {(function(){
-                    var loading   = !ivLabel;
-                    var ovLoading = !ov;
-                    var c = darkify(ivColors);
-                    return (
-                      <div style={{ padding:"10px 12px", background:loading?"#252525":c.bg, border:"0.5px solid "+(loading?"#333":c.border), borderRadius:8, opacity:loading?0.6:1, minHeight:72, boxSizing:"border-box" }}>
-                        <div style={{ fontSize:10, color:loading?"#aaa":c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>Intrinsic Value</div>
-                        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
-                          <div style={{ flex:1, minWidth:0 }}>
-                            {loading && ovLoading
-                              ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                                  <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite", flexShrink:0 }}></div>
-                                  <span style={{ fontSize:10, color:"#555", fontWeight:600 }}>Loading...</span>
-                                </div>
-                              : <span style={{ fontSize:15, fontWeight:500, color:loading?"#ccc":c.fg }}>{loading?"...":ivLabel}</span>
-                            }
-                            {!loading && ivSublabel && <div style={{ fontSize:11, color:c.fg, marginTop:2, opacity:0.85, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{ivSublabel}</div>}
-                          </div>
-                          {!loading && <div style={{ flexShrink:0, marginLeft:6, marginTop:2 }}><Dots score={ivScore} filled={c.dot} empty={c.dotEmpty} /></div>}
+
+                {/* FUNDAMENTAL ANALYSIS */}
+                <SectionLabel label="Fundamental Analysis" top={true} />
+                <Card label="Economic Moat"     value={moatRating} score={moatScore}  colors={moatColors} loading={!moatRating && insightLoading} />
+                <Card label="Financial Strength" value={finRating}  score={finScore}   colors={finColors}  loading={!finRating && insightLoading} />
+                {(function() {
+                  var loading = !ivLabel; var c = ivColors;
+                  return (
+                    <div style={{ padding:"9px 12px", background:loading?"#222":c.bg, border:"0.5px solid "+(loading?"#333":c.border), borderRadius:8, marginBottom:6 }}>
+                      <div style={{ fontSize:10, color:loading?"#555":c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>Intrinsic Value</div>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                        <div>
+                          {loading && !ov
+                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                                <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div>
+                                <span style={{ fontSize:10, color:"#555" }}>Loading...</span>
+                              </div>
+                            : <span style={{ fontSize:13, fontWeight:700, color:loading?"#555":c.fg }}>{loading?"---":ivLabel}</span>
+                          }
+                          {!loading && ivSublabel && <div style={{ fontSize:10, color:c.fg, marginTop:2, opacity:0.8 }}>{ivSublabel}</div>}
                         </div>
+                        {!loading && ivScore > 0 && <Dots score={ivScore} filled={c.dot} empty={c.dotEmpty} />}
                       </div>
-                    );
-                  })()}
-                  {(function() {
-                    var ind2 = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
-                    var agg2 = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
-                    var p2   = q ? q.price : 0;
-                    var hi2  = ov ? ov.hi52 : 0; var lo2 = ov ? ov.lo52 : 0;
-                    var pos2 = (hi2 - lo2) > 0 ? (p2 - lo2) / (hi2 - lo2) : 0.5;
-                    var vol5b  = agg2.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(agg2.slice(0,5).length,1);
-                    var vol20b = agg2.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(agg2.slice(0,20).length,1);
-                    var vr2 = vol20b > 0 ? vol5b/vol20b : 1;
-                    if (!ind2 || !p2) return <Card label="Market Signal" value={null} score={0} colors={pillColor(null)} loading={addlLoading} />;
-                    function sc2(key) {
-                      var wsmaG = ind2.wsma10 && ind2.wsma40 ? (ind2.wsma10-ind2.wsma40)/ind2.wsma40*100 : 0;
-                      var s200g = ind2.sma200 ? (p2-ind2.sma200)/ind2.sma200*100 : 0;
-                      var crsG  = ind2.sma50 && ind2.sma200 ? (ind2.sma50-ind2.sma200)/ind2.sma200*100 : 0;
-                      var ema2g = ind2.ema20 ? (p2-ind2.ema20)/ind2.ema20*100 : 0;
-                      var r2 = ind2.rsi14; var h2 = ind2.macd ? ind2.macd.histogram : null;
-                      if (key==="wsma")   return !ind2.wsma10||!ind2.wsma40?3:wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
-                      if (key==="sma200") return !ind2.sma200?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
-                      if (key==="cross")  return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
-                      if (key==="pos52")  return pos2>0.80?5:pos2>0.55?4:pos2>0.35?3:pos2>0.15?2:1;
-                      if (key==="rsi")    return !r2?3:(r2>=50&&r2<=75)?5:(r2>=40&&r2<50)?4:(r2>=30&&r2<40||r2>75)?3:(r2>=20&&r2<30)?2:1;
-                      if (key==="macd")   return !h2?3:h2>0.05?5:h2>0?4:h2>-0.05?3:h2>-0.5?2:1;
-                      if (key==="ema20")  return !ind2.ema20?3:ema2g>5?5:ema2g>1?4:ema2g>-5?3:ema2g>-15?2:1;
-                      if (key==="vol")    return vr2>1.4?5:vr2>1.1?4:vr2>0.9?3:vr2>0.7?2:1;
-                      return 3;
-                    }
-                    var W2={wsma:25,sma200:15,cross:10,pos52:5,rsi:20,macd:15,ema20:5,vol:5};
-                    var keys2=["wsma","sma200","cross","pos52","rsi","macd","ema20","vol"];
-                    var base2=0; keys2.forEach(function(k){base2+=(sc2(k)/5)*W2[k];});
-                    base2=Math.round(base2);
-                    var macdH2=ind2&&ind2.macdHistory||[]; var mT2=macdH2.length>=3&&macdH2[0]&&macdH2[1]&&macdH2[2]&&macdH2[0].histogram<0&&macdH2[0].histogram>macdH2[1].histogram&&macdH2[1].histogram>macdH2[2].histogram;
-                    var rsiH2=ind2&&ind2.rsiHistory||[]; var rsiB2=rsiH2.length>=3&&rsiH2.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;});
-                    var lb2=pos2<0.20&&ind2.rsi14!=null&&ind2.rsi14>20&&ind2.rsi14<45;
-                    var rev2=[mT2,rsiB2,lb2].filter(Boolean).length;
-                    var bonus2=base2<50?Math.min(rev2*4,12):0;
-                    var final2=Math.min(base2+bonus2,base2<50?49:100);
-                    var vl2=final2>=70?"Strong Bullish":final2>=55?"Bullish":final2>=40?"Neutral":final2>=25?"Bearish":"Strong Bearish";
-                    var showRW=rev2>=2&&final2<50;
-                    var sigLabel2=vl2+(showRW?" + Reversal Watch":"")+" ("+final2+")";
-                    var msDots=final2>=70?5:final2>=55?4:final2>=40?3:final2>=25?2:1;
-                    // Store for star rating access
-                    if (typeof window.__msDots === "undefined" || window.__msDots !== msDots) window.__msDots = msDots;
-                    if (typeof window.__msScore === "undefined" || window.__msScore !== final2) window.__msScore = final2;
-                    return <Card label="Market Signal" value={sigLabel2} score={msDots} sublabel={null} colors={pillColor(vl2)} />;
-                  })()}
+                    </div>
+                  );
+                })()}
 
-                  {(function() {
-                    var aiP = null; try { aiP = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null; } catch(e) { aiP = null; }
-                    if (!aiP || !aiP.verdict) return <Card label="AI Insight" value={insightLoading?"Loading...":"-"} score={0} colors={pillColor(null)} loading={insightLoading} />;
-                    var vl = aiP.verdict;
-                    var aiDots = aiP.dots || 3;
-                    var vlc = vl ? vl.toLowerCase().replace(/[^a-z ]/g,"").trim() : "";
-                    var aiC = (vlc==="strong buy"||vlc==="buy")
-                            ? {bg:"#1e2a1e",border:"#2a5020",fg:"#7abd00",dot:"#7abd00",dotEmpty:"#2a5020"}
-                            : vlc==="hold"
-                            ? {bg:"#2a2010",border:"#4a3810",fg:"#EF9F27",dot:"#EF9F27",dotEmpty:"#4a3810"}
-                            : (vlc==="avoid"||vlc==="strong avoid")
-                            ? {bg:"#2a1e1e",border:"#4a2020",fg:"#e05050",dot:"#e05050",dotEmpty:"#4a2020"}
-                            : {bg:"#222",   border:"#333",   fg:"#555",   dot:"#444",   dotEmpty:"#333"};
-                    return (function(){
-                      return (
-                        <div style={{ padding:"10px 12px", background:aiC.bg, border:"0.5px solid "+aiC.border, borderRadius:8 }}>
-                          <div style={{ fontSize:10, color:aiC.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>AI Insight</div>
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                            <div style={{ fontSize:14, fontWeight:700, color:aiC.fg }}>{vl}</div>
-                            <Dots score={aiDots} filled={aiC.dot} empty={aiC.dotEmpty} />
-                          </div>
-                          {aiP.confidence && <div style={{ fontSize:10, color:aiC.fg, marginTop:3, opacity:0.85 }}>Conf: {aiP.confidence}</div>}
+                {/* ANALYST CONSENSUS */}
+                <SectionLabel label="Analyst Consensus" />
+                {(function() {
+                  if (!ov) return <Card label="Analyst Rating" value={null} score={0} colors={pillColor(null)} loading={true} />;
+                  return (
+                    <div style={{ padding:"9px 12px", background:recLabel?recColors.bg:"#222", border:"0.5px solid "+(recLabel?recColors.border:"#333"), borderRadius:8, marginBottom:6 }}>
+                      <div style={{ fontSize:10, color:recLabel?recColors.fg:"#555", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>Analyst Rating</div>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                        <div>
+                          <span style={{ fontSize:13, fontWeight:700, color:recLabel?recColors.fg:"#555" }}>{recKey ? recKey.charAt(0).toUpperCase()+recKey.slice(1) : "---"}</span>
+                          {recLabel && <div style={{ fontSize:10, color:recColors.fg, marginTop:2, opacity:0.8 }}>{recLabel}</div>}
                         </div>
-                      );
-                    })();
-                  })()}                  
-                </div>
-                  {/* Reversal Detector */}
-                  {(function() {
-                    var ind3      = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
-                    var aggs3     = massiveInfo && massiveInfo.aggs        ? massiveInfo.aggs        : [];
-                    var price3    = q ? q.price : 0;
-                    var ov3       = ov || {};
-                    var hi3       = ov3.hi52 || 0; var lo3 = ov3.lo52 || 0;
-                    var pos3      = (hi3>0&&hi3-lo3) > 0 ? (price3-lo3)/(hi3-lo3) : 0.5;
-                    var rsiH3     = ind3 ? (ind3.rsiHistory  || []) : [];
-                    var macdH3    = ind3 ? (ind3.macdHistory || []) : [];
-
-                    // Reversal signal detection
-                    var rsiDiv3 = (function() {
-                      if (!ind3 || rsiH3.length < 10 || aggs3.length < 10) return false;
-                      var rPL = Math.min.apply(null, aggs3.slice(0,5).map(function(a){return a.l||0;}));
-                      var pPL = Math.min.apply(null, aggs3.slice(5,10).map(function(a){return a.l||0;}));
-                      var rRL = Math.min.apply(null, rsiH3.slice(0,5));
-                      var pRL = Math.min.apply(null, rsiH3.slice(5,10));
-                      return rPL < pPL && rRL > pRL;
-                    })();
-                    var macdTurn3 = (function() {
-                      if (macdH3.length < 3) return false;
-                      var h0=macdH3[0]&&macdH3[0].histogram, h1=macdH3[1]&&macdH3[1].histogram, h2=macdH3[2]&&macdH3[2].histogram;
-                      return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2;
-                    })();
-                    var weeklyCross3 = ind3&&ind3.wsma10&&ind3.wsma40 ? (ind3.wsma10<ind3.wsma40&&Math.abs(ind3.wsma10-ind3.wsma40)/ind3.wsma40<0.05) : false;
-                    var rsiBase3     = rsiH3.length>=3 ? rsiH3.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;}) : false;
-                    var lowBase3     = pos3<0.20&&ind3&&ind3.rsi14!=null&&ind3.rsi14>20&&ind3.rsi14<45;
-
-                    var revArr3   = [rsiDiv3, macdTurn3, weeklyCross3, rsiBase3, lowBase3];
-                    var revCount3 = revArr3.filter(Boolean).length;
-
-                    var isNone   = revCount3 === 0;
-                    var isEarly  = revCount3 === 1;
-                    var isWatch  = revCount3 >= 2 && revCount3 <= 3;
-                    var isStrong = revCount3 >= 4;
-
-                    var bg3, border3, label3Col, pulse3, verdict3, dotFilled3, dotEmpty3, sub3;
-                    if (isNone) {
-                      bg3="#222";    border3="#333";
-                      label3Col="#555"; pulse3=null; verdict3=null;
-                      dotFilled3="#444"; dotEmpty3="#2a2a2a"; sub3=null;
-                    } else if (isEarly) {
-                      bg3="#2a2010"; border3="#4a3810";
-                      label3Col="#EF9F27"; pulse3="#EF9F27"; verdict3="Early Signal";
-                      dotFilled3="#EF9F27"; dotEmpty3="#4a3810";
-                      sub3=null;
-                    } else if (isWatch) {
-                      bg3="#1e2a1e"; border3="#2a5020";
-                      label3Col="#7abd00"; pulse3="#7abd00"; verdict3="Reversal Watch";
-                      dotFilled3="#7abd00"; dotEmpty3="#2a5020";
-                      sub3=null;
-                    } else {
-                      bg3="#1e2a1e"; border3="#2a5020";
-                      label3Col="#7abd00"; pulse3="#7abd00"; verdict3="Strong Reversal";
-                      dotFilled3="#7abd00"; dotEmpty3="#2a5020";
-                      sub3=null;
-                    }
-
-                    var sigNames3 = ["RSI Divergence","MACD Turning","Weekly SMA Cross","RSI Base","52-Wk Low Base"];
-                    var activeNames3 = sigNames3.filter(function(_,i){ return revArr3[i]; });
-                    if (!isNone) sub3 = activeNames3.join(" | ");
-
-                    return (
-                      <div style={{ marginTop:12 }}>
-                        <div style={{ fontSize:10, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em", marginTop:16, marginBottom:6 }}>Reversal Indicator</div>
-                        {!massiveInfo
-                          ? <div style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 12px", background:"#222", borderRadius:8, border:"0.5px solid #333" }}>
-                              <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite", flexShrink:0 }}></div>
-                              <span style={{ fontSize:10, color:"#555", fontWeight:600 }}>Loading...</span>
-                            </div>
-                          : <div style={{ padding:"9px 12px", background:bg3, borderRadius:8, border:"0.5px solid "+border3 }}>
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                              {pulse3 && <span style={{ width:7, height:7, borderRadius:"50%", background:pulse3, flexShrink:0, display:"inline-block" }} />}
-                              <span style={{ fontSize:10, fontWeight:600, color:label3Col, textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Indicator</span>
-                            </div>
-                            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                              <span style={{ display:"inline-flex", gap:3 }}>
-                                {[1,2,3,4,5].map(function(i) {
-                                  return <span key={i} style={{ width:8, height:8, borderRadius:"50%", background:i<=revCount3?dotFilled3:dotEmpty3, display:"inline-block" }} />;
-                                })}
-                              </span>
-                              <span style={{ fontSize:11, fontWeight:600, color:label3Col, background:isNone?"#1c1c1c":dotFilled3+"22", padding:"2px 10px", borderRadius:20, border:"0.5px solid "+border3 }}>
-                                {verdict3 || "No signals"}
-                              </span>
-                            </div>
-                          </div>
-                          {!isNone && (
-                            <div style={{ marginTop:6, paddingTop:6, borderTop:"0.5px solid "+border3+"44", display:"flex", flexWrap:"wrap", gap:4 }}>
-                              {sigNames3.map(function(name, i) {
-                                var active = revArr3[i];
-                                return (
-                                  <span key={i} style={{
-                                    fontSize:10,
-                                    color:active?label3Col:"#444", fontWeight:active?500:400,
-                                    background:active?dotFilled3+"22":"transparent",
-                                    border:"0.5px solid "+(active?dotFilled3+"88":"#333"),
-                                    padding:"2px 7px", borderRadius:10,
-                                    textDecoration:active?"none":"none",
-                                    opacity:active?1:0.5,
-                                  }}>
-                                    {active && <span style={{marginRight:3}}>{String.fromCharCode(0x2713)}</span>}{name}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                        }
+                        {recDots > 0 && <Dots score={recDots} filled={recColors.dot} empty={recColors.dotEmpty} />}
                       </div>
-                    );
-                  })()}
+                    </div>
+                  );
+                })()}
+                {(function() {
+                  if (!aiLabel) return <Card label="AI Insight" value={null} score={0} colors={pillColor(null)} loading={insightLoading} />;
+                  var c = aiColors;
+                  return (
+                    <div style={{ padding:"9px 12px", background:c.bg, border:"0.5px solid "+c.border, borderRadius:8, marginBottom:6 }}>
+                      <div style={{ fontSize:10, color:c.fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>AI Insight</div>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                        <div>
+                          <span style={{ fontSize:13, fontWeight:700, color:c.fg }}>{aiLabel}</span>
+                          {aiConf && <div style={{ fontSize:10, color:c.fg, marginTop:2, opacity:0.8 }}>Confidence: {aiConf}</div>}
+                        </div>
+                        {aiDots > 0 && <Dots score={aiDots} filled={c.dot} empty={c.dotEmpty} />}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* TECHNICAL ANALYSIS */}
+                <SectionLabel label="Technical Analysis" />
+                {ind2 && p2
+                  ? <Card label="Market Signal" value={msLabel} score={msDots} colors={msColors} />
+                  : <Card label="Market Signal" value={null} score={0} colors={pillColor(null)} loading={addlLoading} />
+                }
+                {(function() {
+                  var c3bg=revBg3; var c3bd=revBorder3; var c3fg=revCol3;
+                  return (
+                    <div style={{ padding:"9px 12px", background:c3bg, border:"0.5px solid "+c3bd, borderRadius:8, marginBottom:6 }}>
+                      <div style={{ fontSize:10, color:c3fg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>Reversal Indicator</div>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: revCount3>0?6:0 }}>
+                        <span style={{ fontSize:13, fontWeight:700, color:c3fg }}>{revLabel3}</span>
+                        <Dots score={revCount3} filled={revDot3} empty={revEmpty3} />
+                      </div>
+                      {revCount3 > 0 && (
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:3 }}>
+                          {sigNames3.map(function(name, i) {
+                            var active = revArr3[i];
+                            return (
+                              <span key={i} style={{ fontSize:9, color:active?c3fg:"#444", background:active?revDot3+"22":"transparent", border:"0.5px solid "+(active?revDot3+"88":"#333"), padding:"2px 6px", borderRadius:8, opacity:active?1:0.4 }}>
+                                {active && String.fromCharCode(0x2713) + " "}{name}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
               </div>
             );
           })()}
 
-          {/* Analysis Rating */}
-          {(function() {
-            // Gather scores from all available sources -- recompute locally
-            var mP2    = parsedInsights["moat"]      || {};
-            var fP2    = parsedInsights["financial"]  || {};
-            var ms2    = (typeof window.__moatDots !== 'undefined') ? window.__moatDots : (mP2.score||0);
-            var fs2    = (typeof window.__finDots  !== 'undefined') ? window.__finDots  : (fP2.score||0);
-
-            // IV dots: Undervalued=5, Overvalued=2, null=0
-            var price2x2 = q ? q.price : 0;
-            var oracle2  = (function() {
-              var ov2x = ov || {};
-              var vals2x = [];
-              var eps0x = ov2x.epsForward || ov2x.epsTTM || 0;
-              if (eps0x > 0) {
-                var g = Math.min(ov2x.ltGrowth || 0.08, 0.25);
-                var d = 0.09;
-                var total = 0; var fcf = eps0x;
-                for (var y = 1; y <= 10; y++) { fcf *= (1+g); total += fcf/Math.pow(1+d,y); }
-                total += fcf*12/Math.pow(1+d,10);
-                vals2x.push(Math.round(total*10)/10);
-              }
-              return vals2x.length > 0 ? vals2x[0] : 0;
-            })();
-            var ivD2 = oracle2 > 0 ? (oracle2 > price2x2 ? 5 : 2) : 0;
-
-            // Market Signal dots: read from insightCache via signal score
-            // We need to recompute from ind2 -- use ov and massiveInfo
-            var ind2x = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
-            var aggs2x = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
-            var price2x = q ? q.price : 0;
-            var vol5x  = aggs2x.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs2x.slice(0,5).length,1);
-            var vol20x = aggs2x.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs2x.slice(0,20).length,1);
-            var hi52x  = (ov||{}).hi52||0; var lo52x = (ov||{}).lo52||0;
-            var pos52x = (hi52x-lo52x)>0?(price2x-lo52x)/(hi52x-lo52x):0.5;
-            // Simple market signal proxy from available indicators
-            var rsi2x  = ind2x ? ind2x.rsi14 : null;
-            var sma50x = ind2x ? ind2x.sma50 : null;
-            var sma200x= ind2x ? ind2x.sma200: null;
-            var msProxy = 0; var msCount = 0;
-            if (sma50x&&sma200x&&price2x) { msProxy += price2x>sma200x?1:0; msCount++; }
-            if (sma50x&&sma200x) { msProxy += sma50x>sma200x?1:0; msCount++; }
-            if (rsi2x!=null) { msProxy += rsi2x>=50&&rsi2x<=75?1:rsi2x>=40?0.5:0; msCount++; }
-            var msScore2 = msCount>0 ? Math.round((msProxy/msCount)*4)+1 : 3;
-            var msD2 = (typeof window.__msDots !== "undefined") ? window.__msDots : Math.max(1,Math.min(5,msScore2));
-
-            // AI Insight dots
-            var aiP2  = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null;
-            var aiD2  = aiP2 ? (aiP2.dots||3) : 0;
-
-            // Reversal bonus dots
-            var ind3x = ind2x;
-            var rsiH3x = ind3x?(ind3x.rsiHistory||[]):[];
-            var macdH3x= ind3x?(ind3x.macdHistory||[]):[];
-            var ov3x   = ov||{};
-            var hi3x   = ov3x.hi52||0; var lo3x=ov3x.lo52||0;
-            var pos3x  = (hi3x>0&&hi3x-lo3x>0)?(price2x-lo3x)/(hi3x-lo3x):0.5;
-            var macdTx = (function(){
-              if(macdH3x.length<3) return false;
-              var h0=macdH3x[0]&&macdH3x[0].histogram,h1=macdH3x[1]&&macdH3x[1].histogram,h2=macdH3x[2]&&macdH3x[2].histogram;
-              return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2;
-            })();
-            var wCross = ind3x&&ind3x.wsma10&&ind3x.wsma40?(ind3x.wsma10<ind3x.wsma40&&Math.abs(ind3x.wsma10-ind3x.wsma40)/ind3x.wsma40<0.05):false;
-            var rBase  = rsiH3x.length>=3?rsiH3x.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;}):false;
-            var lBase  = pos3x<0.20&&ind3x&&ind3x.rsi14!=null&&ind3x.rsi14>20&&ind3x.rsi14<45;
-            var revC2  = [macdTx,wCross,rBase,lBase].filter(Boolean).length;
-            var revD2  = revC2>=4?5:revC2>=2?3:0;
-
-            //  Star calculation 
-            // Core inputs (each contributes up to 1 star): moat, financial, IV, marketSignal, AI
-            // Reversal is bonus (up to 1 star)
-            // Core: each signal = 1 star (4-5 dots), 0.5 star (3 dots), 0 (1-2 dots)
-            function toStar(dots) {
-              if (dots>=4) return 1;
-              if (dots===3) return 0.5;
-              return 0;
-            }
-            // Sum stars directly  max 5 core signals = max 5 stars
-            var coreInputs = [ms2, fs2, ivD2, msD2, aiD2].filter(function(d){return d>0;});
-            var coreStars  = coreInputs.reduce(function(s,d){return s+toStar(d);}, 0);
-
-            // Reversal bonus: 1-2 signals = +0.5, 3-5 signals = +1.0
-            var bonusStar  = revC2>=3 ? 1 : revC2>=1 ? 0.5 : 0;
-            var rawStars   = Math.min(5, coreStars + bonusStar);
-            // Round to nearest 0.5
-            var starRating = Math.round(rawStars * 2) / 2;
-
-            // Render star display
-            function StarDisplay(props) {
-              var stars = [];
-              for (var i=1; i<=5; i++) {
-                var diff = props.rating - (i-1);
-                var fill = diff>=1?"full":diff>=0.5?"half":"empty";
-                stars.push(
-                  <span key={i} style={{fontSize:22,lineHeight:1,color:fill==="empty"?"#ddd":"#f5a623",display:"inline-block",marginRight:1,opacity:fill==="half"?0.5:1}}>
-                    {fill==="empty"?String.fromCharCode(9734):String.fromCharCode(9733)}
-                  </span>
-                );
-              }
-              return <span>{stars}</span>;
-            }
-
-            var ratingLabel = starRating>=4.5?"Exceptional":starRating>=4?"Strong Buy":starRating>=3.5?"Buy":starRating>=3?"Hold":starRating>=2?"Caution":"Avoid";
-            var ratingCol   = starRating>=4?"#1a6a1a":starRating>=3?"#b88000":"#c03030";
-            var ratingBg    = starRating>=4?"#EAF3DE":starRating>=3?"#FAEEDA":"#FCEBEB";
-            var ratingBd    = starRating>=4?"#7abd00":starRating>=3?"#d4a800":"#e08080";
-
-            // Store rating for display above Analysis Summary
-            window.__starRating  = starRating;
-            window.__ratingLabel = ratingLabel;
-            window.__ratingCol   = ratingCol;
-            return null;
-          })()}
-
-          {/* Mobile: View Analysis button */}
-          <div className="view-analysis-btn" style={{ display:"none", marginBottom:12 }}>
-            <button
-              onClick={function(){ setMobilePanel("right"); }}
-              style={{ width:"100%", padding:"13px", background:"#c8f000", color:"#0e0e0c", border:"none", borderRadius:50, fontSize:14, fontWeight:800, fontFamily:FONT, cursor:"pointer" }}>
-              {"View Analysis " + String.fromCharCode(0x2192)}
-            </button>
-          </div>
-          <div style={{ borderTop:"1px solid #2c2c2e", margin:"12px 0" }}></div>
-          {/* Valuation Section */}
+                    {/* Valuation Section */}
           <div style={{ background:"#252525", border:"1px solid #2c2c2e", borderRadius:12, padding:"16px", marginBottom:12 }}>
             <div style={{ fontSize:12, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Valuation</div>
             {valRows.length > 0 ? (
