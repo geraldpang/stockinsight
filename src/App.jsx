@@ -1888,7 +1888,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         return (
           <div>
             {/* Desktop nav: 1 row - Back / Logo / centred search / Live badge */}
-            <style>{"*{box-sizing:border-box}.nav-desktop{display:flex}.nav-mobile{display:none}.tab-scroll::-webkit-scrollbar{height:4px}.tab-scroll::-webkit-scrollbar-track{background:#e8e4de}.tab-scroll::-webkit-scrollbar-thumb{background:#aaa;border-radius:4px}.tab-scroll{scrollbar-width:thin;scrollbar-color:#aaa #e8e4de}@media(max-width:1100px){.body-grid{grid-template-columns:260px 1fr!important}}@media(max-width:900px){.body-grid{grid-template-columns:220px 1fr!important}}@media(max-width:768px){.nav-desktop{display:none!important}.nav-mobile{display:block!important}.body-grid{display:block!important}.panel-left{width:100%!important;border-right:none!important}.panel-right{width:100%!important;padding:16px!important}.view-analysis-btn{display:block!important}.mobile-back-btn{display:block!important}.show-right .panel-left{display:none!important}.show-right .panel-right{display:block!important}.show-left .panel-right{display:none!important}.show-left .panel-left{display:block!important}}"}</style>
+            <style>{"*{box-sizing:border-box}.nav-desktop{display:flex}.nav-mobile{display:none}.tab-scroll::-webkit-scrollbar{height:4px}.tab-scroll::-webkit-scrollbar-track{background:#e8e4de}.tab-scroll::-webkit-scrollbar-thumb{background:#aaa;border-radius:4px}.tab-scroll{scrollbar-width:thin;scrollbar-color:#aaa #e8e4de}@media(max-width:1100px){.body-grid{grid-template-columns:260px 1fr!important}}@media(max-width:900px){.body-grid{grid-template-columns:220px 1fr!important}}@media(max-width:768px){.nav-desktop{display:none!important}.nav-mobile{display:block!important}.body-grid{display:block!important}.panel-left{width:100%!important;border-right:none!important}.panel-right{width:100%!important;padding:16px!important}.view-analysis-btn{display:block!important}.mobile-back-btn{display:block!important}.show-right .panel-left{display:none!important}.show-right .panel-right{display:block!important}.show-left .panel-right{display:none!important}.show-left .panel-left{display:block!important}.pill-grid{grid-template-columns:1fr 1fr!important;max-width:420px!important;margin:0 auto!important}.section-label{max-width:420px!important;margin-left:auto!important;margin-right:auto!important}.panel-left-inner{max-width:420px!important;margin:0 auto!important}}"}</style>
 
             {/* DESKTOP */}
             <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"minmax(0,200px) 1fr auto", alignItems:"center", gap:0, minWidth:0 }}>
@@ -2026,13 +2026,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       <div className={"body-grid" + (mobilePanel === "right" ? " show-right" : " show-left")} style={{ display:"grid", gridTemplateColumns:"minmax(280px,400px) 1fr", minWidth:0 }}>
 
         {/* LEFT PANEL */}
-        <div className="panel-left" style={{ padding:"24px 20px", borderRight:"1px solid #111", background:"#1c1c1e" }}>
+        <div className="panel-left" style={{ padding:"20px 16px", borderRight:"1px solid #111", background:"#1c1c1e" }}>
 
           <h2 style={{ fontSize:21, fontWeight:900, color:"#f0ede6", margin:"0 0 3px" }}>({sym}) {name}</h2>
           <div style={{ fontSize:13, color:"#555", marginBottom:14 }}>{ov ? ov.exchange : "NASDAQ"}</div>
 
 
 
+          <div className="panel-left-inner">
           {/* Price */}
           {price > 0 ? (
             <div style={{ marginBottom:16 }}>
@@ -2076,7 +2077,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             }
             function SectionLabel(props) {
               return (
-                <div style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6, marginTop: props.top ? 0 : 14, paddingBottom:5, borderBottom:"1px solid #2c2c2e" }}>
+                <div className="section-label" style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6, marginTop: props.top ? 0 : 14, paddingBottom:5, borderBottom:"1px solid #2c2c2e" }}>
                   {props.label}
                 </div>
               );
@@ -2085,7 +2086,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               var c = props.colors;
               var loading = !props.value;
               return (
-                <div style={{ padding:"9px 12px", background: loading ? "#222" : c.bg, border:"0.5px solid " + (loading ? "#333" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1, boxSizing:"border-box", minHeight:72, display:"flex", flexDirection:"column" }}>
+                <div onClick={props.tabId ? function(){ goToTab(props.tabId); } : undefined} style={{ padding:"9px 12px", background: loading ? "#222" : c.bg, border:"0.5px solid " + (loading ? "#333" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1, boxSizing:"border-box", minHeight:72, display:"flex", flexDirection:"column", cursor: props.tabId ? "pointer" : "default" }}>
                   <div style={{ fontSize:9, color: loading ? "#555" : c.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>{props.label}</div>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                     {props.loading
@@ -2250,12 +2251,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
                 {/* FUNDAMENTAL ANALYSIS */}
                 <SectionLabel label="Fundamental Analysis" top={true} />
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
-                  <Card label="Economic Moat" value={moatRating} score={moatScore} colors={moatColors} loading={!moatRating && insightLoading} />
+                <div className="pill-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
+                  <Card label="Economic Moat" value={moatRating} score={moatScore} colors={moatColors} loading={!moatRating && insightLoading} tabId="moat" />
                   {(function() {
                     var loading = !ivLabel; var c = ivColors;
                     return (
-                      <div style={{ padding:"9px 12px", background:loading?"#222":c.bg, border:"0.5px solid "+(loading?"#333":c.border), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column" }}>
+                      <div onClick={function(){ goToTab("intrinsic"); }} style={{ padding:"9px 12px", background:loading?"#222":c.bg, border:"0.5px solid "+(loading?"#333":c.border), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
                         <div style={{ fontSize:9, color:loading?"#555":c.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Intrinsic Value</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {loading && !ov
@@ -2275,7 +2276,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     if (!aiLabel) return <Card label="AI Insight" value={null} score={0} colors={pillColor(null)} loading={insightLoading} />;
                     var c = aiColors;
                     return (
-                      <div style={{ padding:"9px 12px", background:c.bg, border:"0.5px solid "+c.border, borderRadius:8, minHeight:72, display:"flex", flexDirection:"column" }}>
+                      <div onClick={function(){ goToTab("aiinsight"); }} style={{ padding:"9px 12px", background:c.bg, border:"0.5px solid "+c.border, borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
                         <div style={{ fontSize:9, color:c.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>AI Insight</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           <span style={{ fontSize:13, fontWeight:700, color:c.fg }}>{aiLabel}</span>
@@ -2285,19 +2286,19 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       </div>
                     );
                   })()}
-                  <Card label="Financial Strength" value={finRating} score={finScore} colors={finColors} loading={!finRating && insightLoading} />
+                  <Card label="Financial Strength" value={finRating} score={finScore} colors={finColors} loading={!finRating && insightLoading} tabId="financial" />
                 </div>
                 {/* TECHNICAL ANALYSIS */}
                 <SectionLabel label="Technical Analysis" />
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
+                <div className="pill-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
                   {ind2 && p2
-                    ? <Card label="Market Signal" value={vl2} score={msDots} colors={msColors} sublabel={"Score: " + final2 + " / 100"} />
-                    : <Card label="Market Signal" value={null} score={0} colors={pillColor(null)} loading={addlLoading} />
+                    ? <Card label="Market Signal" value={vl2} score={msDots} colors={msColors} sublabel={"Score: " + final2 + " / 100"} tabId="signal" />
+                    : <Card label="Market Signal" value={null} score={0} colors={pillColor(null)} loading={addlLoading} tabId="signal" />
                   }
                   {(function() {
                     var c3bg=revBg3; var c3bd=revBorder3; var c3fg=revCol3;
                     return (
-                      <div style={{ padding:"9px 12px", background:c3bg, border:"0.5px solid "+c3bd, borderRadius:8, minHeight:72, display:"flex", flexDirection:"column" }}>
+                      <div onClick={function(){ goToTab("signal"); }} style={{ padding:"9px 12px", background:c3bg, border:"0.5px solid "+c3bd, borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
                         <div style={{ fontSize:9, color:c3fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Reversal</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           <span style={{ fontSize:13, fontWeight:700, color:c3fg }}>{revLabel3}</span>
@@ -2395,6 +2396,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         </div>
 
         {/* RIGHT PANEL */}
+          </div>
         <div className="panel-right" style={{ padding:"24px", paddingBottom:80, background:"#fff", minHeight:"100vh", minWidth:0 }}>
           {/* Mobile back button */}
           <div style={{ display:"none" }} className="mobile-back-btn">
@@ -2452,6 +2454,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             function handleTab(id) {
               if (ADMIN_TABS.indexOf(id) !== -1 && !isAdmin) return;
               setInsightTab(id);
+            }
+            function goToTab(id) {
+              if (ADMIN_TABS.indexOf(id) !== -1 && !isAdmin) return;
+              setInsightTab(id);
+              // On mobile: also switch to right panel
+              var isMobile = window.innerWidth <= 768;
+              if (isMobile) setMobilePanel("right");
             }
             // Redirect if non-admin somehow lands on admin tab
             if (ADMIN_TABS.indexOf(insightTab) !== -1 && !isAdmin) {
