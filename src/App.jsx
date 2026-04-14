@@ -2061,8 +2061,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                 return { bg:"#1e2a1e", fg:"#7abd00", border:"#2a5020", dot:"#7abd00", dotEmpty:"#2a5020" };
               if (v.includes("neutral")||v.includes("fairly")||v==="hold"||v.startsWith("hold")||v==="premium")
                 return { bg:"#2a2010", fg:"#EF9F27", border:"#4a3810", dot:"#EF9F27", dotEmpty:"#4a3810" };
-              if (v==="undervalued") return { bg:"#1e2a1e", fg:"#7abd00", border:"#2a5020", dot:"#7abd00", dotEmpty:"#2a5020" };
-              if (v==="fairlyvalued") return { bg:"#1e2a1e", fg:"#9acd50", border:"#2a4020", dot:"#9acd50", dotEmpty:"#2a4020" };
+              if (v==="exceptional"||v==="undervalued") return { bg:"#1e2a1e", fg:"#7abd00", border:"#2a5020", dot:"#7abd00", dotEmpty:"#2a5020" };
+              if (v==="fairlyvalued"||v==="fair") return { bg:"#1e2a1e", fg:"#9acd50", border:"#2a4020", dot:"#9acd50", dotEmpty:"#2a4020" };
               if (v.includes("none")||v.includes("weak")||v.includes("bearish")||v.includes("overvalued"))
                 return { bg:"#2a1e1e", fg:"#e05050", border:"#4a2020", dot:"#e05050", dotEmpty:"#4a2020" };
               return { bg:"#222", fg:"#555", border:"#333", dot:"#444", dotEmpty:"#2a2a2a" };
