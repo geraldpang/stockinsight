@@ -1834,7 +1834,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   ] : [];
 
   return (
-    <div style={{ minHeight:"100vh", background:"#f5f2ec", fontFamily:FONT }}>
+    <div style={{ minHeight:"100vh", background:"#f5f2ec", fontFamily:FONT, overflowX:"hidden", maxWidth:"100vw" }}>
 
       {/* Nav */}
       {(function() {
@@ -1888,10 +1888,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         return (
           <div>
             {/* Desktop nav: 1 row - Back / Logo / centred search / Live badge */}
-            <style>{".nav-desktop{display:flex}.nav-mobile{display:none}@media(max-width:768px){.nav-desktop{display:none!important}.nav-mobile{display:block!important}.body-grid{display:block!important}.panel-left{width:100%!important;border-right:none!important}.panel-right{width:100%!important;padding:16px!important}.view-analysis-btn{display:block!important}.mobile-back-btn{display:block!important}.show-right .panel-left{display:none!important}.show-right .panel-right{display:block!important}.show-left .panel-right{display:none!important}.show-left .panel-left{display:block!important}}"}</style>
+            <style>{"*{box-sizing:border-box}.nav-desktop{display:flex}.nav-mobile{display:none}@media(max-width:768px){.nav-desktop{display:none!important}.nav-mobile{display:block!important}.body-grid{display:block!important}.panel-left{width:100%!important;border-right:none!important}.panel-right{width:100%!important;padding:16px!important}.view-analysis-btn{display:block!important}.mobile-back-btn{display:block!important}.show-right .panel-left{display:none!important}.show-right .panel-right{display:block!important}.show-left .panel-right{display:none!important}.show-left .panel-left{display:block!important}}"}</style>
 
             {/* DESKTOP */}
-            <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"400px 1fr auto", alignItems:"center", gap:0 }}>
+            <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"minmax(0,200px) 1fr auto", alignItems:"center", gap:0, minWidth:0 }}>
               {/* Left cell -- Logo + ticker (mirrors 400px left panel) */}
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <span style={{ fontWeight:800, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap" }}>nervousgeek</span>
@@ -1990,7 +1990,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         var sigs = window.__tickerSignals || [];
         var speed = Math.max(20, sigs.length * 5);
         return (
-          <div style={{ position:"relative", zIndex:10, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center" }}>
+          <div style={{ position:"relative", zIndex:10, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100%", maxWidth:"100vw" }}>
             <style>{"@keyframes ng-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}"}</style>
             <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
               {sigs.concat(sigs).map(function(sig, i) {
@@ -5859,7 +5859,7 @@ export default function App() {
         var sigs = window.__tickerSignals || [];
         var speed = Math.max(20, sigs.length * 5);
         return (
-          <div style={{ position:"relative", zIndex:10, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center" }}>
+          <div style={{ position:"relative", zIndex:10, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100%", maxWidth:"100vw" }}>
             <style>{"@keyframes ng-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}"}</style>
             <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
               {sigs.concat(sigs).map(function(sig, i) {
