@@ -918,12 +918,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   const [adminCfg,      setAdminCfg]      = useState(null);
   const [adminStats,    setAdminStats]    = useState({});
   const [mobilePanel,   setMobilePanel]   = useState("left"); // "left" | "right"
+  const [chartCollapsed, setChartCollapsed] = useState(false);
 
   // Expose goToTab globally for pill click navigation
   window.__goToTab = function(id) {
     var adminTabs = ["addlinfo", "debug", "admin"];
     if (adminTabs.indexOf(id) !== -1) return;
     setInsightTab(id);
+    setChartCollapsed(true);
     if (window.innerWidth <= 768) setMobilePanel("right");
   };
 
@@ -2409,36 +2411,47 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           {/* Mobile back button */}
           <div style={{ display:"none" }} className="mobile-back-btn">
             <button
-              onClick={function(){ setMobilePanel("left"); }}
-              style={{ display:"flex", alignItems:"center", gap:6, background:"none", border:"none", cursor:"pointer", color:"#555", fontSize:13, fontFamily:FONT, marginBottom:16, padding:0 }}>
-              <span style={{ fontSize:16 }}>{"<"}</span> Summary
+              onClick={function(){ setMobilePanel("left"); setChartCollapsed(false); }}
+              style={{ display:"flex", alignItems:"center", gap:8, background:LIME, border:"none", borderRadius:20, cursor:"pointer", color:"#0e0e0c", fontSize:12, fontFamily:FONT, fontWeight:800, marginBottom:14, padding:"8px 18px" }}>
+              <span style={{ fontSize:14, lineHeight:1 }}>{"<"}</span>
+              {"Summary"}
             </button>
           </div>
 
           {/* TradingView Chart */}
           <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden", marginBottom:20 }}>
-            <div style={{ background:"#faf8f4", borderBottom:"1px solid #e0dbd0", padding:"8px 14px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div
+              onClick={function(){ setChartCollapsed(function(v){ return !v; }); }}
+              style={{ background:"#faf8f4", borderBottom: chartCollapsed ? "none" : "1px solid #e0dbd0", padding:"8px 14px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", userSelect:"none" }}>
               <span style={{ fontSize:12, fontWeight:600, color:"#444" }}>
                 {name} . Daily . {ov ? ov.exchange : "NASDAQ"}
               </span>
-              {q && (
-                <span style={{ fontSize:11, color:"#999" }}>
-                  O{q.open} H{q.high} L{q.low}{" "}
-                  <span style={{ color:up?"#2a8a2a":"#c03030" }}>C{price.toFixed(2)} {chg}</span>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                {q && !chartCollapsed && (
+                  <span style={{ fontSize:11, color:"#999" }}>
+                    <span style={{ color:up?"#2a8a2a":"#c03030" }}>C{price.toFixed(2)} {chg}</span>
+                  </span>
+                )}
+                <span style={{ fontSize:11, color:"#aaa", fontWeight:600, transition:"transform 0.2s", display:"inline-block", transform: chartCollapsed ? "rotate(0deg)" : "rotate(180deg)" }}>
+                  {String.fromCharCode(0x25B2)}
                 </span>
-              )}
+              </div>
             </div>
-            <iframe
-              key={sym}
-              src={"https://s.tradingview.com/widgetembed/?frameElementId=tv_chart&symbol=" + (sym==="BRKB"?"BRK.B":sym) + "&interval=D&theme=light&style=1&timezone=Etc%2FUTC&withdateranges=1&hide_side_toolbar=0&allow_symbol_change=0&save_image=0"}
-              style={{ width:"100%", height:300, border:"none", display:"block" }}
-              title="TradingView Chart"
-            />
-            <div style={{ background:"#faf8f4", borderTop:"1px solid #e0dbd0", padding:"6px 14px", display:"flex", gap:16 }}>
-              {["1Y","3Y","5Y"].map(function(p) {
-                return <span key={p} style={{ fontSize:12, color:"#444", cursor:"pointer", fontWeight:600 }}>{p}</span>;
-              })}
-            </div>
+            {!chartCollapsed && (
+              <div>
+                <iframe
+                  key={sym}
+                  src={"https://s.tradingview.com/widgetembed/?frameElementId=tv_chart&symbol=" + (sym==="BRKB"?"BRK.B":sym) + "&interval=D&theme=light&style=1&timezone=Etc%2FUTC&withdateranges=1&hide_side_toolbar=0&allow_symbol_change=0&save_image=0"}
+                  style={{ width:"100%", height:300, border:"none", display:"block" }}
+                  title="TradingView Chart"
+                />
+                <div style={{ background:"#faf8f4", borderTop:"1px solid #e0dbd0", padding:"6px 14px", display:"flex", gap:16 }}>
+                  {["1Y","3Y","5Y"].map(function(p) {
+                    return <span key={p} style={{ fontSize:12, color:"#444", cursor:"pointer", fontWeight:600 }}>{p}</span>;
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
 
