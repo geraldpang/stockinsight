@@ -39,7 +39,7 @@ export async function onRequest(context) {
   try {
 
     // Only handle specific API routes -- pass everything else to the React app
-    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache", "/simfin", "/stripe"];
+    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache", "/simfin", "/stripe", "/options"];
     var isApiRoute  = false;
     for (var ri = 0; ri < knownRoutes.length; ri++) {
       if (url.pathname === knownRoutes[ri] || url.pathname.startsWith(knownRoutes[ri] + "?")) {
@@ -734,6 +734,94 @@ export async function onRequest(context) {
     // GET  /stripe?action=status                 -> check subscription status
     // POST /stripe?action=webhook                -> Stripe webhook handler
     // -------------------------------------------------------------------------
+
+
+    // -------------------------------------------------------------------------
+    // /options?sym=AAPL -- Polygon options + indices data probe
+    // -------------------------------------------------------------------------
+    if (url.pathname === "/options") {
+      var optSym    = (url.searchParams.get("sym") || "AAPL").toUpperCase().trim();
+      var massiveKey3 = context.env.MASSIVE_KEY;
+      if (!massiveKey3) return new Response(JSON.stringify({ error: "MASSIVE_KEY not set" }), {
+        status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+      var BASE3 = "https://api.polygon.io";
+      var HDR3  = { "User-Agent": UA };
+      var today3   = new Date();
+      var expFrom  = today3.toISOString().slice(0,10);
+      var expTo    = new Date(today3.getTime() + 60 * 86400000).toISOString().slice(0,10);
+
+      try {
+        var optResults = await Promise.all([
+          // Options contracts
+          fetch(BASE3 + "/v3/reference/options/contracts?underlying_ticker=" + optSym + "&expiration_date.gte=" + expFrom + "&expiration_date.lte=" + expTo + "&limit=250&apiKey=" + massiveKey3, { headers: HDR3 }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+          // Options snapshot - put/call aggregates
+          fetch(BASE3 + "/v3/snapshot/options/" + optSym + "?limit=250&apiKey=" + massiveKey3, { headers: HDR3 }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+          // Indices - S&P 500, Nasdaq, Dow
+          fetch(BASE3 + "/v3/snapshot/indices?ticker=I%3ASPX&ticker=I%3ANDX&ticker=I%3ADJI&apiKey=" + massiveKey3, { headers: HDR3 }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        ]);
+
+        var contracts    = optResults[0];
+        var snapOptions  = optResults[1];
+        var indices      = optResults[2];
+
+        // Compute put/call ratio from snapshot
+        var putVol = 0; var callVol = 0; var putOI = 0; var callOI = 0;
+        var snapList = snapOptions && snapOptions.results ? snapOptions.results : [];
+        snapList.forEach(function(o) {
+          var type = o.details && o.details.contract_type;
+          var vol  = o.day && o.day.volume ? o.day.volume : 0;
+          var oi   = o.open_interest || 0;
+          if (type === "put")  { putVol  += vol; putOI  += oi; }
+          if (type === "call") { callVol += vol; callOI += oi; }
+        });
+        var pcRatioVol = callVol > 0 ? (putVol / callVol).toFixed(2) : null;
+        var pcRatioOI  = callOI > 0 ? (putOI  / callOI).toFixed(2)  : null;
+
+        // Top open interest strikes
+        var topOI = snapList
+          .filter(function(o){ return o.open_interest > 0 && o.details; })
+          .sort(function(a,b){ return (b.open_interest||0) - (a.open_interest||0); })
+          .slice(0, 10)
+          .map(function(o){ return {
+            type:   o.details.contract_type,
+            strike: o.details.strike_price,
+            expiry: o.details.expiration_date,
+            oi:     o.open_interest,
+            iv:     o.implied_volatility ? (o.implied_volatility * 100).toFixed(1) + "%" : null,
+            last:   o.day && o.day.close ? o.day.close : null,
+          }; });
+
+        // Indices
+        var idxList = indices && indices.results ? indices.results.map(function(ix){ return {
+          ticker: ix.ticker,
+          name:   ix.name,
+          value:  ix.session && ix.session.close ? ix.session.close : null,
+          change: ix.session && ix.session.change_percent ? ix.session.change_percent.toFixed(2) : null,
+        }; }) : [];
+
+        return new Response(JSON.stringify({
+          ok:          true,
+          sym:         optSym,
+          putCallVol:  pcRatioVol,
+          putCallOI:   pcRatioOI,
+          putVol:      putVol,
+          callVol:     callVol,
+          putOI:       putOI,
+          callOI:      callOI,
+          topOI:       topOI,
+          indices:     idxList,
+          contractsStatus: contracts ? (contracts.status || "ok") : "null",
+          snapshotStatus:  snapOptions ? (snapOptions.status || "ok") : "null",
+          indicesStatus:   indices ? (indices.status || "ok") : "null",
+          snapshotCount:   snapList.length,
+        }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+      } catch(e) {
+        return new Response(JSON.stringify({ error: String(e) }), {
+          status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+    }
 
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), {
