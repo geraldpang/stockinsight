@@ -2001,22 +2001,25 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         var speed = Math.max(20, sigs.length * 5);
         return (
           <div style={{ position:"relative", zIndex:10, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100%", maxWidth:"100vw" }}>
-            <style>{"@keyframes ng-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}"}</style>
-            <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
-              {sigs.concat(sigs).map(function(sig, i) {
-                var isStrong = sig.verdict && sig.verdict.toLowerCase().indexOf("strong") !== -1;
-                var col = isStrong ? "#c8f000" : "#60b8f0";
-                var priceStr = sig.price > 0 ? "$" + sig.price.toFixed(2) : "";
-                return (
-                  <span key={i}
-                    onClick={function(){ window.location.hash = sig.sym; }}
-                    style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"0 24px", cursor:"pointer", flexShrink:0, lineHeight:"28px", borderRight:"1px solid #1e1e18" }}>
-                    <span style={{ width:5, height:5, borderRadius:"50%", background:col, display:"inline-block", flexShrink:0 }}></span>
-                    <span style={{ fontSize:11, fontWeight:800, color:col }}>{sig.sym}</span>
-                    {priceStr && <span style={{ fontSize:10, color:"#666" }}>{priceStr}</span>}
-                  </span>
-                );
-              })}
+            <style>{"@keyframes ng-ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}"}</style>
+            <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform", flexShrink:0 }}>
+              {(function(){
+                var items = sigs.concat(sigs).concat(sigs).concat(sigs);
+                return items.map(function(sig, i) {
+                  var isStrong = sig.verdict && sig.verdict.toLowerCase().indexOf("strong") !== -1;
+                  var col = isStrong ? "#c8f000" : "#60b8f0";
+                  var priceStr = sig.price > 0 ? "$" + sig.price.toFixed(2) : "";
+                  return (
+                    <span key={i}
+                      onClick={function(){ window.location.hash = sig.sym; }}
+                      style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"0 24px", cursor:"pointer", flexShrink:0, lineHeight:"28px", borderRight:"1px solid #1e1e18" }}>
+                      <span style={{ width:5, height:5, borderRadius:"50%", background:col, display:"inline-block", flexShrink:0 }}></span>
+                      <span style={{ fontSize:11, fontWeight:800, color:col }}>{sig.sym}</span>
+                      {priceStr && <span style={{ fontSize:10, color:"#666" }}>{priceStr}</span>}
+                    </span>
+                  );
+                });
+              })()}
             </div>
           </div>
         );
@@ -5663,22 +5666,25 @@ export default function App() {
         var speed = Math.max(20, sigs.length * 5);
         return (
           <div style={{ position:"relative", zIndex:10, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100%", maxWidth:"100vw" }}>
-            <style>{"@keyframes ng-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}"}</style>
-            <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
-              {sigs.concat(sigs).map(function(sig, i) {
-                var isStrong = sig.verdict && sig.verdict.toLowerCase().indexOf("strong") !== -1;
-                var col = isStrong ? "#c8f000" : "#60b8f0";
-                var priceStr = sig.price > 0 ? "$" + sig.price.toFixed(2) : "";
-                return (
-                  <span key={i}
-                    onClick={function(){ window.location.hash = sig.sym; }}
-                    style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"0 24px", cursor:"pointer", flexShrink:0, lineHeight:"28px", borderRight:"1px solid #1e1e18" }}>
-                    <span style={{ width:5, height:5, borderRadius:"50%", background:col, display:"inline-block", flexShrink:0 }}></span>
-                    <span style={{ fontSize:11, fontWeight:800, color:col }}>{sig.sym}</span>
-                    {priceStr && <span style={{ fontSize:10, color:"#666" }}>{priceStr}</span>}
-                  </span>
-                );
-              })}
+            <style>{"@keyframes ng-ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}"}</style>
+            <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform", flexShrink:0 }}>
+              {(function(){
+                var items = sigs.concat(sigs).concat(sigs).concat(sigs);
+                return items.map(function(sig, i) {
+                  var isStrong = sig.verdict && sig.verdict.toLowerCase().indexOf("strong") !== -1;
+                  var col = isStrong ? "#c8f000" : "#60b8f0";
+                  var priceStr = sig.price > 0 ? "$" + sig.price.toFixed(2) : "";
+                  return (
+                    <span key={i}
+                      onClick={function(){ window.location.hash = sig.sym; }}
+                      style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"0 24px", cursor:"pointer", flexShrink:0, lineHeight:"28px", borderRight:"1px solid #1e1e18" }}>
+                      <span style={{ width:5, height:5, borderRadius:"50%", background:col, display:"inline-block", flexShrink:0 }}></span>
+                      <span style={{ fontSize:11, fontWeight:800, color:col }}>{sig.sym}</span>
+                      {priceStr && <span style={{ fontSize:10, color:"#666" }}>{priceStr}</span>}
+                    </span>
+                  );
+                });
+              })()}
             </div>
           </div>
         );
