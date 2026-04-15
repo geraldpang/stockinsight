@@ -2951,8 +2951,61 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           if (v.includes("moderate")) return { text:"#b88000", bg:"#fdf8e6", border:"#d4a800" };
                           return { text:"#c03030", bg:"#fff0f0", border:"#e08080" };
                         }
-                        function metricScore(val, thresholds) {
+                        var _sector = ov ? (ov.sector || "") : "";
+                        var _isFinancial  = _sector.includes("Financial");
+                        var _isHealthcare = _sector.includes("Healthcare") || _sector.includes("Health");
+                        var _isEnergy     = _sector.includes("Energy") || _sector.includes("Mining") || _sector.includes("Basic Materials");
+                        var _isRetail     = _sector.includes("Consumer") || _sector.includes("Retail");
+                        var _isUtility    = _sector.includes("Utilities") || _sector.includes("Real Estate");
+                        var _isTech       = _sector.includes("Technology") || _sector.includes("Communication");
+
+                        // Sector-adjusted thresholds per metric
+                        // Format: [5-star, 4-star, 3-star, 2-star] cutoffs
+                        var THRESHOLDS = {
+                          grossMargin: _isTech       ? [60, 40, 25, 10]
+                                     : _isHealthcare ? [25, 15, 8,  3 ]
+                                     : _isFinancial  ? [40, 25, 15, 5 ]
+                                     : _isEnergy     ? [45, 30, 15, 5 ]
+                                     : _isRetail     ? [35, 20, 10, 5 ]
+                                     : _isUtility    ? [50, 35, 20, 10]
+                                     :                 [60, 40, 20, 10],
+                          opMargin:   _isTech        ? [30, 15, 5,  0 ]
+                                     : _isHealthcare ? [8,  5,  3,  0 ]
+                                     : _isFinancial  ? [30, 20, 10, 5 ]
+                                     : _isEnergy     ? [20, 10, 5,  0 ]
+                                     : _isRetail     ? [8,  4,  2,  0 ]
+                                     : _isUtility    ? [20, 12, 6,  2 ]
+                                     :                 [30, 15, 5,  0 ],
+                          netMargin:  _isTech        ? [20, 10, 5,  0 ]
+                                     : _isHealthcare ? [6,  3,  2,  0 ]
+                                     : _isFinancial  ? [20, 12, 6,  0 ]
+                                     : _isEnergy     ? [15, 8,  3,  0 ]
+                                     : _isRetail     ? [5,  3,  1,  0 ]
+                                     : _isUtility    ? [15, 8,  4,  0 ]
+                                     :                 [20, 10, 5,  0 ],
+                          roe:        _isTech        ? [25, 15, 8,  0 ]
+                                     : _isHealthcare ? [15, 10, 6,  0 ]
+                                     : _isFinancial  ? [12, 8,  5,  0 ]
+                                     : _isEnergy     ? [15, 10, 5,  0 ]
+                                     : _isRetail     ? [20, 12, 6,  0 ]
+                                     : _isUtility    ? [12, 8,  4,  0 ]
+                                     :                 [25, 15, 8,  0 ],
+                          currentRatio: _isFinancial  ? [1.2, 1.0, 0.8, 0.5]  // banks naturally low
+                                      : _isHealthcare ? [1.2, 1.0, 0.8, 0.5]  // insurers low
+                                      : _isUtility    ? [1.2, 1.0, 0.8, 0.5]  // utilities low
+                                      :                 [2.0, 1.5, 1.0, 0.5],
+                          quickRatio:  _isFinancial   ? [1.0, 0.8, 0.6, 0.3]
+                                     : _isHealthcare  ? [1.0, 0.8, 0.6, 0.3]
+                                     :                  [1.5, 1.0, 0.7, 0.3],
+                          revGrowth:  _isUtility      ? [8,  5,  2,  0 ]  // utilities grow slowly
+                                     : _isEnergy      ? [15, 8,  3,  0 ]  // cyclical
+                                     : _isFinancial   ? [10, 6,  3,  0 ]
+                                     :                  [20, 10, 5,  0 ],
+                        };
+
+                        function metricScore(val, key) {
                           if (val === null || val === undefined || val === 0) return 0;
+                          var thresholds = THRESHOLDS[key] || [60, 40, 20, 10];
                           for (var i = 0; i < thresholds.length; i++) {
                             if (val >= thresholds[i]) return thresholds.length - i;
                           }
@@ -3059,8 +3112,70 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                               </div>
                             )}
 
-                            {/* Raw Financial Data */}
-                            {ov && (
+                            {/* Metrics grid */}
+                            <div style={{ border:"1px solid #f0ede6", borderRadius:10, overflow:"hidden", marginBottom:14 }}>
+                              <div style={{ padding:"8px 14px", background:"#f5f2ec", borderBottom:"1px solid #e8e4de", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                                <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Financial Health</span>
+                                {_sector && (
+                                  <span style={{ fontSize:10, color:"#aaa", background:"#eee", padding:"2px 8px", borderRadius:10 }}>
+                                    {_isFinancial?"Financial Services benchmark":_isHealthcare?"Healthcare benchmark":_isEnergy?"Energy benchmark":_isRetail?"Retail benchmark":_isUtility?"Utility benchmark":_isTech?"Tech benchmark":"General benchmark"}
+                                  </span>
+                                )}
+                              </div>
+                              <MetricRow items={[
+                                { label:"Gross Margin",      val: pct(gm),  score: metricScore(gm,  "grossMargin") },
+                                { label:"Return on Equity",  val: pct(roe), score: metricScore(roe, "roe")   },
+                              ]} />
+                              <MetricRow items={[
+                                { label:"Operating Margin",  val: pct(om),  score: metricScore(om,  "opMargin")   },
+                                { label:"Current Ratio",     val: fmt2(cr), score: metricScore(cr,  "currentRatio") },
+                              ]} />
+                              <MetricRow items={[
+                                { label:"Net Profit Margin", val: pct(nm),  score: metricScore(nm,  "netMargin")   },
+                                { label:"Quick Ratio",       val: fmt2(qr), score: metricScore(qr,  "quickRatio") },
+                              ]} />
+                              <MetricRow items={[
+                                { label:"Free Cash Flow",    val: fmtB(fcf), score: fcf > 0 ? (fcf > 10e9 ? 5 : fcf > 1e9 ? 4 : fcf > 0 ? 3 : 0) : 0 },
+                                { label:"Total Debt/Equity", val: de > 0 ? de.toFixed(2)+"x" : "-", score: (function(){ if (!de||de<=0) return 0; return de<0.5?5:de<1?4:de<2?3:de<3?2:1; })() },
+                              ]} />
+                              <MetricRow items={[
+                                { label:"Debt / EBITDA",     val: (function(){ var eb = ov ? ov.ebitda : 0; var td = ov ? ov.totalDebt : 0; return (eb > 0 && td > 0) ? (td/eb).toFixed(2)+"x" : "-"; })(), score: (function(){ var eb = ov ? ov.ebitda : 0; var td = ov ? ov.totalDebt : 0; if (!eb || !td) return 0; var r = td/eb; return r < 1 ? 5 : r < 2 ? 4 : r < 3 ? 3 : r < 4 ? 2 : 1; })() },
+                                { label:"Debt / Cash Flow",  val: (function(){ var ocf = ov ? ov.ocfRaw : 0; var td = ov ? ov.totalDebt : 0; return (ocf > 0 && td > 0) ? (td/ocf).toFixed(2)+"x" : "-"; })(), score: (function(){ var ocf = ov ? ov.ocfRaw : 0; var td = ov ? ov.totalDebt : 0; if (!ocf || !td) return 0; var r = td/ocf; return r < 1 ? 5 : r < 2 ? 4 : r < 3 ? 3 : r < 5 ? 2 : 1; })() },
+                              ]} />
+                              <MetricRow items={[
+                                { label:"Net Income (TTM)",  val: ni || "-",  score: 0 },
+                                { label:"Revenue Growth YoY", val: pct(rg), score: metricScore(rg,  "revGrowth") },
+                              ]} />
+                              <div style={{ borderBottom:"none" }}>
+                                <MetricRow items={[
+                                  { label:"Revenue (TTM)",   val: rev || "-", score: 0 },
+                                  { label:"", val: "", score: 0 },
+                                ]} />
+                              </div>
+                            </div>
+
+                            {/* Benchmark disclaimer */}
+                            <div style={{ fontSize:10, color:"#aaa", lineHeight:1.5, marginBottom:14, padding:"8px 12px", background:"#faf8f4", borderRadius:8, border:"0.5px solid #e8e4de" }}>
+                              {"Benchmarks are approximate sector averages. Individual sub-sectors may vary significantly " + String.fromCharCode(0x2014) + " e.g. pharma vs insurer within Healthcare, or grocery vs luxury within Retail."}
+                            </div>
+
+                            {/* AI Commentary */}
+                            {aiText && (
+                              <div>
+                                <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>AI Analysis</div>
+                                <div style={{ fontSize:13, color:"#333", lineHeight:1.8 }}>{aiText}</div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                            {/* Financial Data (secondary) */}
+                            <div style={{ marginTop:16 }}>
+                              <div style={{ fontSize:10, fontWeight:700, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
+                                <span>Financial Data</span>
+                                <span style={{ fontSize:9, color:"#ccc" }}>(raw figures)</span>
+                              </div>
+{ov && (
                               <div style={{ border:"1px solid #f0ede6", borderRadius:10, overflow:"hidden", marginBottom:14 }}>
                                 <div style={{ padding:"8px 14px", background:"#f5f2ec", borderBottom:"1px solid #e8e4de" }}>
                                   <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Financial Data</span>
@@ -3139,53 +3254,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                               </div>
                             )}
 
-                            {/* Metrics grid */}
-                            <div style={{ border:"1px solid #f0ede6", borderRadius:10, overflow:"hidden", marginBottom:14 }}>
-                              <div style={{ padding:"8px 14px", background:"#f5f2ec", borderBottom:"1px solid #e8e4de" }}>
-                                <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Financial Health</span>
-                              </div>
-                              <MetricRow items={[
-                                { label:"Gross Margin",      val: pct(gm),  score: metricScore(gm,  [60,40,20,10]) },
-                                { label:"Return on Equity",  val: pct(roe), score: metricScore(roe, [25,15,8,0])   },
-                              ]} />
-                              <MetricRow items={[
-                                { label:"Operating Margin",  val: pct(om),  score: metricScore(om,  [30,15,5,0])   },
-                                { label:"Current Ratio",     val: fmt2(cr), score: metricScore(cr,  [2,1.5,1,0.5]) },
-                              ]} />
-                              <MetricRow items={[
-                                { label:"Net Profit Margin", val: pct(nm),  score: metricScore(nm,  [20,10,5,0])   },
-                                { label:"Quick Ratio",       val: fmt2(qr), score: metricScore(qr,  [1.5,1,0.7,0.3]) },
-                              ]} />
-                              <MetricRow items={[
-                                { label:"Free Cash Flow",    val: fmtB(fcf), score: fcf > 0 ? (fcf > 10e9 ? 5 : fcf > 1e9 ? 4 : fcf > 0 ? 3 : 0) : 0 },
-                                { label:"Total Debt/Equity", val: de > 0 ? de.toFixed(2)+"x" : "-", score: metricScore(de ? 5-de : 0, [3,2,1,0]) },
-                              ]} />
-                              <MetricRow items={[
-                                { label:"Debt / EBITDA",     val: (function(){ var eb = ov ? ov.ebitda : 0; var td = ov ? ov.totalDebt : 0; return (eb > 0 && td > 0) ? (td/eb).toFixed(2)+"x" : "-"; })(), score: (function(){ var eb = ov ? ov.ebitda : 0; var td = ov ? ov.totalDebt : 0; if (!eb || !td) return 0; var r = td/eb; return r < 1 ? 5 : r < 2 ? 4 : r < 3 ? 3 : r < 4 ? 2 : 1; })() },
-                                { label:"Debt / Cash Flow",  val: (function(){ var ocf = ov ? ov.ocfRaw : 0; var td = ov ? ov.totalDebt : 0; return (ocf > 0 && td > 0) ? (td/ocf).toFixed(2)+"x" : "-"; })(), score: (function(){ var ocf = ov ? ov.ocfRaw : 0; var td = ov ? ov.totalDebt : 0; if (!ocf || !td) return 0; var r = td/ocf; return r < 1 ? 5 : r < 2 ? 4 : r < 3 ? 3 : r < 5 ? 2 : 1; })() },
-                              ]} />
-                              <MetricRow items={[
-                                { label:"Net Income (TTM)",  val: ni || "-",  score: 0 },
-                                { label:"Revenue Growth YoY", val: pct(rg), score: metricScore(rg, [20,10,5,0]) },
-                              ]} />
-                              <div style={{ borderBottom:"none" }}>
-                                <MetricRow items={[
-                                  { label:"Revenue (TTM)",   val: rev || "-", score: 0 },
-                                  { label:"", val: "", score: 0 },
-                                ]} />
-                              </div>
+
                             </div>
 
-                            {/* AI Commentary */}
-                            {aiText && (
-                              <div>
-                                <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>AI Analysis</div>
-                                <div style={{ fontSize:13, color:"#333", lineHeight:1.8 }}>{aiText}</div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
 
                       {/* Technical Analysis */}
                       {insightTab === "technical" && (function() {
