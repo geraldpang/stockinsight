@@ -2407,10 +2407,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             )}
           </div>
 
+          </div>
         </div>
 
         {/* RIGHT PANEL */}
-          </div>
         <div className="panel-right" style={{ padding:"24px", paddingBottom:80, background:"#fff", minHeight:"100vh", minWidth:0 }}>
           {/* Mobile back button */}
           <div style={{ display:"none" }} className="mobile-back-btn">
