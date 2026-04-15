@@ -3139,6 +3139,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           };
                           return comments[label] || null;
                         }
+                        function MetricRow(props) {
+                          return (
                             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:0, borderBottom:"1px solid #f0ede6" }}>
                               {props.items.map(function(item, i) {
                                 var info = METRIC_INFO[item.label] || null;
@@ -3159,7 +3161,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                               })}
                             </div>
                           );
-                        }
+                        }  // end MetricRow
 
                         var gm   = ov ? ov.grossMargin  : null;
                         var om   = ov ? ov.opMargin     : null;
