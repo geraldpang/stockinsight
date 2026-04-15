@@ -634,6 +634,7 @@ async function getOverview(sym) {
     })(),
     fcfRaw:           (fd.freeCashflow && fd.freeCashflow.raw) || 0,
     ocfRaw:           (fd.operatingCashflow && fd.operatingCashflow.raw) || 0,
+    ebitda:           (fd.ebitda && fd.ebitda.raw) || 0,
     niRaw:            (fd.netIncomeToCommon && fd.netIncomeToCommon.raw)
                        || (fd.netIncome && fd.netIncome.raw)
                        || 0,
@@ -2941,57 +2942,167 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       })()}
 
                       {/* Financial Strength */}
-                      {insightTab === "financial" && tabContent && (function() {
-                        var parsed = parseFinancial(tabContent);
-                        function fsColor(c) {
-                          if (!c) return "#888";
+                      {insightTab === "financial" && (function() {
+                        var piF = parsedInsights["financial"] || {};
+                        function fsCol(c) {
+                          if (!c) return { text:"#888", bg:"#f5f5f5", border:"#ddd" };
                           var v = c.toLowerCase();
-                          if (v.includes("strong")) return "#1a6a1a";
-                          if (v.includes("moderate")) return "#b88000";
-                          return "#c03030";
+                          if (v.includes("strong")) return { text:"#1a6a1a", bg:"#e6f4e6", border:"#7abd00" };
+                          if (v.includes("moderate")) return { text:"#b88000", bg:"#fdf8e6", border:"#d4a800" };
+                          return { text:"#c03030", bg:"#fff0f0", border:"#e08080" };
                         }
-                        function fsScore(c) {
-                          if (!c) return 0;
-                          var v = c.toLowerCase();
-                          if (v.includes("strong")) return 4;
-                          if (v.includes("moderate")) return 3;
-                          return 2;
+                        function metricScore(val, thresholds) {
+                          if (val === null || val === undefined || val === 0) return 0;
+                          for (var i = 0; i < thresholds.length; i++) {
+                            if (val >= thresholds[i]) return thresholds.length - i;
+                          }
+                          return 1;
                         }
-                        function DotBar(props) {
+                        function MetricDots(props) {
+                          if (!props.score) return null;
+                          var col = props.score >= 4 ? "#1a6a1a" : props.score >= 3 ? "#b88000" : "#c03030";
                           var dots = [];
                           for (var d = 1; d <= 5; d++) {
-                            dots.push(
-                              <span key={d} style={{
-                                display:"inline-block", width:8, height:8, borderRadius:"50%",
-                                background: d <= props.score ? fsColor(props.label) : "#ddd",
-                                marginRight:3,
-                              }} />
-                            );
+                            dots.push(<span key={d} style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background: d <= props.score ? col : "#ddd", marginRight:2 }} />);
                           }
                           return <span style={{ display:"inline-flex", alignItems:"center" }}>{dots}</span>;
                         }
-                        var piF = parsedInsights["financial"] || {};
+                        var METRIC_INFO = {
+                          "Gross Margin":       { desc:"Revenue minus cost of goods sold. Higher = more pricing power.", thresh:"Great: >60% | Good: >40% | OK: >20%" },
+                          "Operating Margin":   { desc:"Profit after operating expenses. Shows operational efficiency.", thresh:"Great: >30% | Good: >15% | OK: >5%" },
+                          "Net Profit Margin":  { desc:"Final profit after all expenses and taxes.", thresh:"Great: >20% | Good: >10% | OK: >5%" },
+                          "Return on Equity":   { desc:"Net income relative to shareholders equity. Measures how well management uses investor capital.", thresh:"Great: >25% | Good: >15% | OK: >8%" },
+                          "Current Ratio":      { desc:"Current assets vs current liabilities. Measures ability to pay short-term obligations.", thresh:"Great: >2x | Good: >1.5x | OK: >1x" },
+                          "Quick Ratio":        { desc:"Like current ratio but excludes inventory. More conservative liquidity measure.", thresh:"Great: >1.5x | Good: >1x | OK: >0.7x" },
+                          "Free Cash Flow":     { desc:"Cash generated after capital expenditure. The real money the business produces.", thresh:"Great: >$10B | Good: >$1B | OK: positive" },
+                          "Total Debt/Equity":  { desc:"How much debt relative to equity. Lower is safer, but some debt is normal.", thresh:"Great: <0.5x | Good: <1x | OK: <2x" },
+                          "Revenue Growth YoY": { desc:"Year-over-year revenue growth rate. Indicates business momentum.", thresh:"Great: >20% | Good: >10% | OK: >5%" },
+                          "Net Income (TTM)":   { desc:"Total net profit over trailing twelve months.", thresh:"" },
+                          "Revenue (TTM)":      { desc:"Total revenue over trailing twelve months.", thresh:"" },
+                          "Debt / EBITDA":      { desc:"Total debt divided by EBITDA. Shows how many years of earnings needed to repay debt.", thresh:"Great: <1x | Good: <2x | OK: <3x | High: >4x" },
+                          "Debt / Cash Flow":   { desc:"Total debt divided by operating cash flow. How many years of cash generation to repay debt.", thresh:"Great: <1x | Good: <2x | OK: <3x | Risk: >5x" },
+                        };
+                        function getCommentary(label, val, score) {
+                          if (!val || val === "-") return null;
+                          var s = score || 0;
+                          var comments = {
+                            "Gross Margin": s>=5?"Exceptional pricing power  -  keeps most of each dollar earned":s>=4?"Strong margins  -  efficient at converting sales to profit":s>=3?"Adequate margins  -  covers costs with reasonable profit":s>=2?"Thin margins  -  limited pricing power or high costs":"Very low margins  -  struggling to cover cost of goods",
+                            "Operating Margin": s>=5?"Highly efficient operations  -  most revenue becomes operating profit":s>=4?"Strong operational efficiency":s>=3?"Reasonable operational control":s>=2?"Tight operations  -  limited room for error":"Loss-making at operating level  -  costs exceed revenue",
+                            "Net Profit Margin": s>=5?"Exceptional profitability  -  keeps a large share of every dollar earned":s>=4?"Strong bottom line after all expenses and taxes":s>=3?"Profitable  -  reasonable earnings after all costs":s>=2?"Slim profits  -  little room after all expenses":"Not profitable at the bottom line",
+                            "Return on Equity": s>=5?"Outstanding  -  generates exceptional returns for shareholders":s>=4?"Strong returns on shareholder investment":s>=3?"Decent returns  -  earns adequately on equity":s>=2?"Below average returns for shareholders":"Poor returns  -  not creating shareholder value",
+                            "Current Ratio": s>=5?"Very liquid  -  can easily cover short-term obligations":s>=4?"Comfortable liquidity  -  healthy short-term buffer":s>=3?"Adequate  -  can meet short-term obligations":s>=2?"Tight liquidity  -  close to minimum safe level":"Risk of difficulty meeting short-term payments",
+                            "Quick Ratio": s>=5?"Excellent  -  can cover obligations without selling inventory":s>=4?"Good immediate liquidity":s>=3?"Adequate liquid assets to cover near-term debts":s>=2?"Limited liquid assets  -  could be stretched":"May struggle to meet obligations without selling assets",
+                            "Free Cash Flow": s>=5?"Exceptional cash generation  -  business prints money":s>=4?"Strong free cash flow  -  healthy and self-funding":s>=3?"Positive cash flow  -  business funds itself":s>=2?"Modest cash generation":"Burning cash  -  spending more than it generates",
+                            "Total Debt/Equity": s>=5?"Minimal debt  -  very conservatively financed":s>=4?"Low leverage  -  comfortable debt levels":s>=3?"Moderate leverage  -  manageable debt load":s>=2?"Elevated leverage  -  debt is significant":"High leverage  -  significant financial risk",
+                            "Revenue Growth YoY": s>=5?"Exceptional growth  -  rapidly expanding revenue":s>=4?"Strong growth  -  business is scaling well":s>=3?"Solid growth  -  steady revenue expansion":s>=2?"Slow growth  -  modest revenue gains":"Declining or flat revenue  -  growth challenges",
+                            "Debt / EBITDA": s>=5?"Very low debt burden  -  could repay all debt in under 1 year of earnings":s>=4?"Low leverage  -  debt is easily manageable":s>=3?"Moderate debt load  -  serviceable but notable":s>=2?"High debt relative to earnings  -  requires monitoring":"Very high debt burden  -  potential serviceability risk",
+                            "Debt / Cash Flow": s>=5?"Minimal debt  -  repayable in under 1 year from cash flow":s>=4?"Low debt load  -  cash flow comfortably covers debt":s>=3?"Manageable  -  a few years of cash flow to clear debt":s>=2?"Heavy debt relative to cash flow":"Debt significantly exceeds annual cash generation",
+                          };
+                          return comments[label] || null;
+                        }
+                        function MetricRow(props) {
+                          return (
+                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:0, borderBottom:"1px solid #f0ede6" }}>
+                              {props.items.map(function(item, i) {
+                                var info = METRIC_INFO[item.label] || null;
+                                var comment = getCommentary(item.label, item.val, item.score);
+                                return (
+                                  <div key={i}
+                                    title={info ? (item.label + ": " + info.desc + (info.thresh ? " | " + info.thresh : "")) : ""}
+                                    style={{ padding:"10px 14px", borderRight: i === 0 ? "1px solid #f0ede6" : "none", cursor: info ? "help" : "default" }}>
+                                    <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:3 }}>
+                                      <span style={{ fontSize:11, color:"#999" }}>{item.label}</span>
+                                      {info && <span style={{ fontSize:9, color:"#ccc", fontWeight:700 }}>{"?"}</span>}
+                                    </div>
+                                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: comment ? 4 : 0 }}>
+                                      <span style={{ fontSize:14, fontWeight:700, color: item.val === "-" ? "#ccc" : "#111" }}>{item.val || "-"}</span>
+                                      {item.score > 0 && <MetricDots score={item.score} />}
+                                    </div>
+                                    {comment && <div style={{ fontSize:10, color:"#888", lineHeight:1.4 }}>{comment}</div>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        }
+
+                        var gm   = ov ? ov.grossMargin  : null;
+                        var om   = ov ? ov.opMargin     : null;
+                        var nm   = ov ? ov.netMargin    : null;
+                        var roe  = ov ? ov.roe          : null;
+                        var cr   = ov ? ov.currentRatio : null;
+                        var qr   = ov ? ov.quickRatio   : null;
+                        var de   = ov ? ov.de           : null;
+                        var rg   = ov ? ov.revGrowth    : null;
+                        var fcf  = ov ? ov.fcfRaw       : null;
+                        var rev  = ov ? ov.revenue      : null;
+                        var ni   = ov ? ov.netIncome    : null;
+
+                        function pct(v) { return v !== null && v !== undefined && v !== 0 ? v.toFixed(2) + "%" : "-"; }
+                        function fmt2(v) { return v > 0 ? v.toFixed(2) + "x" : "-"; }
+                        function fmtB(v) { return v && Math.abs(v) > 0 ? (v < 0 ? "-$" : "$") + (Math.abs(v) >= 1e12 ? (Math.abs(v)/1e12).toFixed(2)+"T" : Math.abs(v) >= 1e9 ? (Math.abs(v)/1e9).toFixed(1)+"B" : (Math.abs(v)/1e6).toFixed(0)+"M") : "-"; }
+
+                        var fc = fsCol(piF.classification);
+                        var parsed = tabContent ? parseFinancial(tabContent) : null;
+                        var aiText = parsed ? parsed.body.replace(/Financial Strength Classification:.+/i, "").trim() : null;
+
                         return (
                           <div>
+                            {/* Classification banner */}
                             {piF.classification && (
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background: piF.score >= 4 ? "#e6f4e6" : piF.score >= 3 ? "#fdf8e6" : "#fff0f0", borderRadius:8, marginBottom:16, border:"0.5px solid " + (piF.score >= 4 ? "#7abd00" : piF.score >= 3 ? "#d4a800" : "#e08080") }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:fc.bg, borderRadius:8, marginBottom:14, border:"0.5px solid "+fc.border }}>
                                 <div>
                                   <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Financial Strength</div>
-                                  <div style={{ fontSize:15, fontWeight:700, color:fsColor(piF.classification) }}>{piF.classification}</div>
+                                  <div style={{ fontSize:15, fontWeight:700, color:fc.text }}>{piF.classification}</div>
                                 </div>
-                                <DotBar score={fsScore(piF.classification)} label={piF.classification} />
+                                <div style={{ display:"flex", gap:3 }}>
+                                  {[1,2,3,4,5].map(function(d){ return <span key={d} style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background: d <= (piF.score||0) ? fc.text : "#ddd" }} />; })}
+                                </div>
                               </div>
                             )}
-                            <div style={{ fontSize:13, color:"#333", lineHeight:1.8, marginBottom:14 }}>
-                              {parsed.body.replace(/Financial Strength Classification:.+/, "").trim()}
+
+                            {/* Metrics grid */}
+                            <div style={{ border:"1px solid #f0ede6", borderRadius:10, overflow:"hidden", marginBottom:14 }}>
+                              <div style={{ padding:"8px 14px", background:"#f5f2ec", borderBottom:"1px solid #e8e4de" }}>
+                                <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Financial Health</span>
+                              </div>
+                              <MetricRow items={[
+                                { label:"Gross Margin",      val: pct(gm),  score: metricScore(gm,  [60,40,20,10]) },
+                                { label:"Return on Equity",  val: pct(roe), score: metricScore(roe, [25,15,8,0])   },
+                              ]} />
+                              <MetricRow items={[
+                                { label:"Operating Margin",  val: pct(om),  score: metricScore(om,  [30,15,5,0])   },
+                                { label:"Current Ratio",     val: fmt2(cr), score: metricScore(cr,  [2,1.5,1,0.5]) },
+                              ]} />
+                              <MetricRow items={[
+                                { label:"Net Profit Margin", val: pct(nm),  score: metricScore(nm,  [20,10,5,0])   },
+                                { label:"Quick Ratio",       val: fmt2(qr), score: metricScore(qr,  [1.5,1,0.7,0.3]) },
+                              ]} />
+                              <MetricRow items={[
+                                { label:"Free Cash Flow",    val: fmtB(fcf), score: fcf > 0 ? (fcf > 10e9 ? 5 : fcf > 1e9 ? 4 : fcf > 0 ? 3 : 0) : 0 },
+                                { label:"Total Debt/Equity", val: de > 0 ? de.toFixed(2)+"x" : "-", score: metricScore(de ? 5-de : 0, [3,2,1,0]) },
+                              ]} />
+                              <MetricRow items={[
+                                { label:"Debt / EBITDA",     val: (function(){ var eb = ov ? ov.ebitda : 0; var td = ov ? ov.totalDebt : 0; return (eb > 0 && td > 0) ? (td/eb).toFixed(2)+"x" : "-"; })(), score: (function(){ var eb = ov ? ov.ebitda : 0; var td = ov ? ov.totalDebt : 0; if (!eb || !td) return 0; var r = td/eb; return r < 1 ? 5 : r < 2 ? 4 : r < 3 ? 3 : r < 4 ? 2 : 1; })() },
+                                { label:"Debt / Cash Flow",  val: (function(){ var ocf = ov ? ov.ocfRaw : 0; var td = ov ? ov.totalDebt : 0; return (ocf > 0 && td > 0) ? (td/ocf).toFixed(2)+"x" : "-"; })(), score: (function(){ var ocf = ov ? ov.ocfRaw : 0; var td = ov ? ov.totalDebt : 0; if (!ocf || !td) return 0; var r = td/ocf; return r < 1 ? 5 : r < 2 ? 4 : r < 3 ? 3 : r < 5 ? 2 : 1; })() },
+                              ]} />
+                              <MetricRow items={[
+                                { label:"Net Income (TTM)",  val: ni || "-",  score: 0 },
+                                { label:"Revenue Growth YoY", val: pct(rg), score: metricScore(rg, [20,10,5,0]) },
+                              ]} />
+                              <div style={{ borderBottom:"none" }}>
+                                <MetricRow items={[
+                                  { label:"Revenue (TTM)",   val: rev || "-", score: 0 },
+                                  { label:"", val: "", score: 0 },
+                                ]} />
+                              </div>
                             </div>
-                            {parsed.classification && (
-                              <div style={{ padding:"12px 16px", background:"#f5f2ec", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                                <div>
-                                  <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Financial Strength</div>
-                                  <div style={{ fontSize:14, fontWeight:700, color:fsColor(parsed.classification) }}>{parsed.classification}</div>
-                                </div>
-                                <DotBar score={fsScore(parsed.classification)} label={parsed.classification} />
+
+                            {/* AI Commentary */}
+                            {aiText && (
+                              <div>
+                                <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>AI Analysis</div>
+                                <div style={{ fontSize:13, color:"#333", lineHeight:1.8 }}>{aiText}</div>
                               </div>
                             )}
                           </div>
