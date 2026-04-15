@@ -3008,11 +3008,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                 var comment = getCommentary(item.label, item.val, item.score);
                                 return (
                                   <div key={i}
-                                    title={info ? (item.label + ": " + info.desc + (info.thresh ? " | " + info.thresh : "")) : ""}
-                                    style={{ padding:"10px 14px", borderRight: i === 0 ? "1px solid #f0ede6" : "none", cursor: info ? "help" : "default" }}>
-                                    <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:3 }}>
+                                    style={{ padding:"10px 14px", borderRight: i === 0 ? "1px solid #f0ede6" : "none" }}>
+                                    <div style={{ marginBottom:3 }}>
                                       <span style={{ fontSize:11, color:"#999" }}>{item.label}</span>
-                                      {info && <span style={{ fontSize:9, color:"#ccc", fontWeight:700 }}>{"?"}</span>}
                                     </div>
                                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: comment ? 4 : 0 }}>
                                       <span style={{ fontSize:14, fontWeight:700, color: item.val === "-" ? "#ccc" : "#111" }}>{item.val || "-"}</span>
@@ -3058,6 +3056,86 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                 <div style={{ display:"flex", gap:3 }}>
                                   {[1,2,3,4,5].map(function(d){ return <span key={d} style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background: d <= (piF.score||0) ? fc.text : "#ddd" }} />; })}
                                 </div>
+                              </div>
+                            )}
+
+                            {/* Raw Financial Data */}
+                            {ov && (
+                              <div style={{ border:"1px solid #f0ede6", borderRadius:10, overflow:"hidden", marginBottom:14 }}>
+                                <div style={{ padding:"8px 14px", background:"#f5f2ec", borderBottom:"1px solid #e8e4de" }}>
+                                  <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Financial Data</span>
+                                </div>
+                                {(function() {
+                                  function fmtB(v) { if (!v) return "-"; var a=Math.abs(v); return (v<0?"-$":"$")+(a>=1e12?(a/1e12).toFixed(2)+"T":a>=1e9?(a/1e9).toFixed(1)+"B":a>=1e6?(a/1e6).toFixed(0)+"M":"$"+a.toFixed(0)); }
+                                  function fmtPct(v) { return v ? v.toFixed(2)+"%" : "-"; }
+                                  function fmtX(v) { return v > 0 ? v.toFixed(2)+"x" : "-"; }
+                                  var rows = [
+                                    { group:"Income", items:[
+                                      { label:"Revenue (TTM)",        val: ov.revenue || "-" },
+                                      { label:"Gross Profit",         val: fmtB(ov.ebitda && ov.grossMargin ? (ov.ebitda / ((ov.opMargin||1)/100)) * (ov.grossMargin/100) : null) },
+                                      { label:"Net Income (TTM)",     val: ov.netIncome || "-" },
+                                      { label:"EBITDA",               val: fmtB(ov.ebitda) },
+                                      { label:"Free Cash Flow",       val: fmtB(ov.fcfRaw) },
+                                      { label:"Operating Cash Flow",  val: fmtB(ov.ocfRaw) },
+                                      { label:"EPS (TTM)",            val: ov.epsTTM ? "$"+ov.epsTTM.toFixed(2) : "-" },
+                                      { label:"EPS Growth",           val: fmtPct(ov.epsG) },
+                                      { label:"Revenue Growth YoY",   val: fmtPct(ov.revGrowth) },
+                                    ]},
+                                    { group:"Margins", items:[
+                                      { label:"Gross Margin",         val: fmtPct(ov.grossMargin) },
+                                      { label:"Operating Margin",     val: fmtPct(ov.opMargin) },
+                                      { label:"Net Profit Margin",    val: fmtPct(ov.netMargin) },
+                                      { label:"EBITDA Margin",        val: ov.ebitda && ov.fcfRaw ? fmtPct(ov.opMargin ? ov.opMargin * 1.2 : null) : "-" },
+                                      { label:"Return on Equity",     val: fmtPct(ov.roe) },
+                                      { label:"Return on Assets",     val: fmtPct(ov.roic) },
+                                    ]},
+                                    { group:"Balance Sheet", items:[
+                                      { label:"Total Debt",           val: fmtB(ov.totalDebt) },
+                                      { label:"Cash & Equivalents",   val: fmtB(ov.cash) },
+                                      { label:"Net Cash",             val: fmtB(ov.cash && ov.totalDebt ? ov.cash - ov.totalDebt : null) },
+                                      { label:"Book Value",           val: fmtB(ov.bookValue) },
+                                      { label:"Debt / Equity",        val: fmtX(ov.de) },
+                                      { label:"Current Ratio",        val: fmtX(ov.currentRatio) },
+                                      { label:"Quick Ratio",          val: fmtX(ov.quickRatio) },
+                                    ]},
+                                    { group:"Valuation", items:[
+                                      { label:"Market Cap",           val: fmtB(ov.mc) },
+                                      { label:"P/E (Trailing)",       val: ov.pe > 0 ? ov.pe.toFixed(1)+"x" : "-" },
+                                      { label:"P/E (Forward)",        val: ov.fpe > 0 ? ov.fpe.toFixed(1)+"x" : "-" },
+                                      { label:"P/S Ratio",            val: ov.ps > 0 ? ov.ps.toFixed(1)+"x" : "-" },
+                                      { label:"P/B Ratio",            val: ov.pb > 0 ? ov.pb.toFixed(1)+"x" : "-" },
+                                      { label:"EV/EBITDA",            val: ov.evEbitda > 0 ? ov.evEbitda.toFixed(1)+"x" : "-" },
+                                      { label:"PEG Ratio",            val: ov.peg > 0 ? ov.peg.toFixed(2) : "-" },
+                                      { label:"Dividend Yield",       val: ov.divY > 0 ? fmtPct(ov.divY) : "None" },
+                                      { label:"Beta",                 val: ov.beta > 0 ? ov.beta.toFixed(2) : "-" },
+                                    ]},
+                                    { group:"Company", items:[
+                                      { label:"Sector",               val: ov.sector || "-" },
+                                      { label:"Industry",             val: ov.industry || "-" },
+                                      { label:"Employees",            val: ov.employees ? ov.employees.toLocaleString() : "-" },
+                                      { label:"52W High",             val: ov.hi52 > 0 ? "$"+ov.hi52.toFixed(2) : "-" },
+                                      { label:"52W Low",              val: ov.lo52 > 0 ? "$"+ov.lo52.toFixed(2) : "-" },
+                                      { label:"Shares Outstanding",   val: ov.sharesOut > 0 ? fmtB(ov.sharesOut) : "-" },
+                                    ]},
+                                  ];
+                                  return rows.map(function(group) {
+                                    return (
+                                      <div key={group.group}>
+                                        <div style={{ padding:"6px 14px", background:"#faf8f4", borderBottom:"1px solid #f0ede6", borderTop:"1px solid #f0ede6" }}>
+                                          <span style={{ fontSize:9, fontWeight:700, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.1em" }}>{group.group}</span>
+                                        </div>
+                                        {group.items.map(function(item, i) {
+                                          return (
+                                            <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 14px", borderBottom:"1px solid #f5f2ec" }}>
+                                              <span style={{ fontSize:12, color:"#666" }}>{item.label}</span>
+                                              <span style={{ fontSize:13, fontWeight:700, color: item.val === "-" ? "#ccc" : "#111" }}>{item.val}</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  });
+                                })()}
                               </div>
                             )}
 
