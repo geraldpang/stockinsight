@@ -2636,6 +2636,91 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                               <div style={{ fontSize:11, color:bannerFg, marginTop:2, opacity:0.85 }}>{bannerSub}</div>
                             </div>
                             <div style={{ fontSize:20, fontWeight:500, color:bannerFg }}>${oracle}</div>
+                          {/* Financial Data (secondary) */}
+                            {ov && (
+                            <div style={{ marginTop:16 }}>
+                              <div style={{ fontSize:10, fontWeight:700, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
+                                <span>Financial Data</span>
+                                <span style={{ fontSize:9, color:"#ccc" }}>(raw figures)</span>
+                              </div>
+                              <div style={{ border:"1px solid #f0ede6", borderRadius:10, overflow:"hidden", marginBottom:14 }}>
+                                <div style={{ padding:"8px 14px", background:"#f5f2ec", borderBottom:"1px solid #e8e4de" }}>
+                                  <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Financial Data</span>
+                                </div>
+                                {(function() {
+                                  function fmtB(v) { if (!v) return "-"; var a=Math.abs(v); return (v<0?"-$":"$")+(a>=1e12?(a/1e12).toFixed(2)+"T":a>=1e9?(a/1e9).toFixed(1)+"B":a>=1e6?(a/1e6).toFixed(0)+"M":"$"+a.toFixed(0)); }
+                                  function fmtPct(v) { return v ? v.toFixed(2)+"%" : "-"; }
+                                  function fmtX(v) { return v > 0 ? v.toFixed(2)+"x" : "-"; }
+                                  var rows = [
+                                    { group:"Income", items:[
+                                      { label:"Revenue (TTM)",        val: ov.revenue || "-" },
+                                      { label:"Gross Profit",         val: fmtB(ov.ebitda && ov.grossMargin ? (ov.ebitda / ((ov.opMargin||1)/100)) * (ov.grossMargin/100) : null) },
+                                      { label:"Net Income (TTM)",     val: ov.netIncome || "-" },
+                                      { label:"EBITDA",               val: fmtB(ov.ebitda) },
+                                      { label:"Free Cash Flow",       val: fmtB(ov.fcfRaw) },
+                                      { label:"Operating Cash Flow",  val: fmtB(ov.ocfRaw) },
+                                      { label:"EPS (TTM)",            val: ov.epsTTM ? "$"+ov.epsTTM.toFixed(2) : "-" },
+                                      { label:"EPS Growth",           val: fmtPct(ov.epsG) },
+                                      { label:"Revenue Growth YoY",   val: fmtPct(ov.revGrowth) },
+                                    ]},
+                                    { group:"Margins", items:[
+                                      { label:"Gross Margin",         val: fmtPct(ov.grossMargin) },
+                                      { label:"Operating Margin",     val: fmtPct(ov.opMargin) },
+                                      { label:"Net Profit Margin",    val: fmtPct(ov.netMargin) },
+                                      { label:"EBITDA Margin",        val: ov.ebitda && ov.fcfRaw ? fmtPct(ov.opMargin ? ov.opMargin * 1.2 : null) : "-" },
+                                      { label:"Return on Equity",     val: fmtPct(ov.roe) },
+                                      { label:"Return on Assets",     val: fmtPct(ov.roic) },
+                                    ]},
+                                    { group:"Balance Sheet", items:[
+                                      { label:"Total Debt",           val: fmtB(ov.totalDebt) },
+                                      { label:"Cash & Equivalents",   val: fmtB(ov.cash) },
+                                      { label:"Net Cash",             val: fmtB(ov.cash && ov.totalDebt ? ov.cash - ov.totalDebt : null) },
+                                      { label:"Book Value",           val: fmtB(ov.bookValue) },
+                                      { label:"Debt / Equity",        val: fmtX(ov.de) },
+                                      { label:"Current Ratio",        val: fmtX(ov.currentRatio) },
+                                      { label:"Quick Ratio",          val: fmtX(ov.quickRatio) },
+                                    ]},
+                                    { group:"Valuation", items:[
+                                      { label:"Market Cap",           val: fmtB(ov.mc) },
+                                      { label:"P/E (Trailing)",       val: ov.pe > 0 ? ov.pe.toFixed(1)+"x" : "-" },
+                                      { label:"P/E (Forward)",        val: ov.fpe > 0 ? ov.fpe.toFixed(1)+"x" : "-" },
+                                      { label:"P/S Ratio",            val: ov.ps > 0 ? ov.ps.toFixed(1)+"x" : "-" },
+                                      { label:"P/B Ratio",            val: ov.pb > 0 ? ov.pb.toFixed(1)+"x" : "-" },
+                                      { label:"EV/EBITDA",            val: ov.evEbitda > 0 ? ov.evEbitda.toFixed(1)+"x" : "-" },
+                                      { label:"PEG Ratio",            val: ov.peg > 0 ? ov.peg.toFixed(2) : "-" },
+                                      { label:"Dividend Yield",       val: ov.divY > 0 ? fmtPct(ov.divY) : "None" },
+                                      { label:"Beta",                 val: ov.beta > 0 ? ov.beta.toFixed(2) : "-" },
+                                    ]},
+                                    { group:"Company", items:[
+                                      { label:"Sector",               val: ov.sector || "-" },
+                                      { label:"Industry",             val: ov.industry || "-" },
+                                      { label:"Employees",            val: ov.employees ? ov.employees.toLocaleString() : "-" },
+                                      { label:"52W High",             val: ov.hi52 > 0 ? "$"+ov.hi52.toFixed(2) : "-" },
+                                      { label:"52W Low",              val: ov.lo52 > 0 ? "$"+ov.lo52.toFixed(2) : "-" },
+                                      { label:"Shares Outstanding",   val: ov.sharesOut > 0 ? fmtB(ov.sharesOut) : "-" },
+                                    ]},
+                                  ];
+                                  return rows.map(function(group) {
+                                    return (
+                                      <div key={group.group}>
+                                        <div style={{ padding:"6px 14px", background:"#faf8f4", borderBottom:"1px solid #f0ede6", borderTop:"1px solid #f0ede6" }}>
+                                          <span style={{ fontSize:9, fontWeight:700, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.1em" }}>{group.group}</span>
+                                        </div>
+                                        {group.items.map(function(item, i) {
+                                          return (
+                                            <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 14px", borderBottom:"1px solid #f5f2ec" }}>
+                                              <span style={{ fontSize:12, color:"#666" }}>{item.label}</span>
+                                              <span style={{ fontSize:13, fontWeight:700, color: item.val === "-" ? "#ccc" : "#111" }}>{item.val}</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  });
+                                })()}
+                              </div>
+                            </div>
+                            )}
                           </div>
                         );
                       })()}
@@ -3038,23 +3123,22 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         function getCommentary(label, val, score) {
                           if (!val || val === "-") return null;
                           var s = score || 0;
+                          var sectorNote = (_isHealthcare || _isFinancial || _isRetail || _isUtility) ? " (typical for this sector)" : "";
                           var comments = {
-                            "Gross Margin": s>=5?"Exceptional pricing power  -  keeps most of each dollar earned":s>=4?"Strong margins  -  efficient at converting sales to profit":s>=3?"Adequate margins  -  covers costs with reasonable profit":s>=2?"Thin margins  -  limited pricing power or high costs":"Very low margins  -  struggling to cover cost of goods",
-                            "Operating Margin": s>=5?"Highly efficient operations  -  most revenue becomes operating profit":s>=4?"Strong operational efficiency":s>=3?"Reasonable operational control":s>=2?"Tight operations  -  limited room for error":"Loss-making at operating level  -  costs exceed revenue",
-                            "Net Profit Margin": s>=5?"Exceptional profitability  -  keeps a large share of every dollar earned":s>=4?"Strong bottom line after all expenses and taxes":s>=3?"Profitable  -  reasonable earnings after all costs":s>=2?"Slim profits  -  little room after all expenses":"Not profitable at the bottom line",
-                            "Return on Equity": s>=5?"Outstanding  -  generates exceptional returns for shareholders":s>=4?"Strong returns on shareholder investment":s>=3?"Decent returns  -  earns adequately on equity":s>=2?"Below average returns for shareholders":"Poor returns  -  not creating shareholder value",
-                            "Current Ratio": s>=5?"Very liquid  -  can easily cover short-term obligations":s>=4?"Comfortable liquidity  -  healthy short-term buffer":s>=3?"Adequate  -  can meet short-term obligations":s>=2?"Tight liquidity  -  close to minimum safe level":"Risk of difficulty meeting short-term payments",
-                            "Quick Ratio": s>=5?"Excellent  -  can cover obligations without selling inventory":s>=4?"Good immediate liquidity":s>=3?"Adequate liquid assets to cover near-term debts":s>=2?"Limited liquid assets  -  could be stretched":"May struggle to meet obligations without selling assets",
+                            "Gross Margin": s>=5?"Exceptional pricing power  -  keeps most of each dollar earned":s>=4?"Strong margins  -  efficient at converting sales to profit":s>=3?"Adequate margins  -  covers costs with reasonable profit"+sectorNote:s>=2?"Thin margins  -  limited pricing power"+sectorNote:"Very low margins"+sectorNote,
+                            "Operating Margin": s>=5?"Highly efficient operations  -  most revenue becomes operating profit":s>=4?"Strong operational efficiency":s>=3?"Reasonable operational control"+sectorNote:s>=2?"Tight operations  -  limited room for error"+sectorNote:"Very slim operating margin"+sectorNote,
+                            "Net Profit Margin": s>=5?"Exceptional profitability  -  keeps a large share of every dollar earned":s>=4?"Strong bottom line after all expenses and taxes":s>=3?"Profitable  -  reasonable earnings after all costs"+sectorNote:s>=2?"Slim profits  -  little room after all expenses"+sectorNote:"Very thin net margin"+sectorNote,
+                            "Return on Equity": s>=5?"Outstanding  -  generates exceptional returns for shareholders":s>=4?"Strong returns on shareholder investment":s>=3?"Decent returns  -  earns adequately on equity"+sectorNote:s>=2?"Below average returns for shareholders"+sectorNote:"Low returns on equity"+sectorNote,
+                            "Current Ratio": s>=5?"Very liquid  -  can easily cover short-term obligations":s>=4?"Comfortable liquidity  -  healthy short-term buffer":s>=3?"Adequate  -  can meet short-term obligations"+sectorNote:s>=2?"Tight liquidity  -  near minimum safe level"+sectorNote:"Low liquidity ratio"+sectorNote,
+                            "Quick Ratio": s>=5?"Excellent  -  can cover obligations without selling inventory":s>=4?"Good immediate liquidity":s>=3?"Adequate liquid assets to cover near-term debts"+sectorNote:s>=2?"Limited liquid assets  -  could be stretched"+sectorNote:"Low quick ratio"+sectorNote,
                             "Free Cash Flow": s>=5?"Exceptional cash generation  -  business prints money":s>=4?"Strong free cash flow  -  healthy and self-funding":s>=3?"Positive cash flow  -  business funds itself":s>=2?"Modest cash generation":"Burning cash  -  spending more than it generates",
                             "Total Debt/Equity": s>=5?"Minimal debt  -  very conservatively financed":s>=4?"Low leverage  -  comfortable debt levels":s>=3?"Moderate leverage  -  manageable debt load":s>=2?"Elevated leverage  -  debt is significant":"High leverage  -  significant financial risk",
-                            "Revenue Growth YoY": s>=5?"Exceptional growth  -  rapidly expanding revenue":s>=4?"Strong growth  -  business is scaling well":s>=3?"Solid growth  -  steady revenue expansion":s>=2?"Slow growth  -  modest revenue gains":"Declining or flat revenue  -  growth challenges",
-                            "Debt / EBITDA": s>=5?"Very low debt burden  -  could repay all debt in under 1 year of earnings":s>=4?"Low leverage  -  debt is easily manageable":s>=3?"Moderate debt load  -  serviceable but notable":s>=2?"High debt relative to earnings  -  requires monitoring":"Very high debt burden  -  potential serviceability risk",
+                            "Revenue Growth YoY": s>=5?"Exceptional growth  -  rapidly expanding revenue":s>=4?"Strong growth  -  business is scaling well":s>=3?"Solid growth  -  steady revenue expansion"+sectorNote:s>=2?"Slow growth  -  modest revenue gains"+sectorNote:"Declining or flat revenue  -  growth challenges",
+                            "Debt / EBITDA": s>=5?"Very low debt  -  repayable in under 1 year of earnings":s>=4?"Low leverage  -  debt is easily manageable":s>=3?"Moderate debt load  -  serviceable but notable":s>=2?"High debt relative to earnings  -  requires monitoring":"Very high debt burden  -  potential serviceability risk",
                             "Debt / Cash Flow": s>=5?"Minimal debt  -  repayable in under 1 year from cash flow":s>=4?"Low debt load  -  cash flow comfortably covers debt":s>=3?"Manageable  -  a few years of cash flow to clear debt":s>=2?"Heavy debt relative to cash flow":"Debt significantly exceeds annual cash generation",
                           };
                           return comments[label] || null;
                         }
-                        function MetricRow(props) {
-                          return (
                             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:0, borderBottom:"1px solid #f0ede6" }}>
                               {props.items.map(function(item, i) {
                                 var info = METRIC_INFO[item.label] || null;
@@ -3169,93 +3253,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           </div>
                         );
                       })()}
-                            {/* Financial Data (secondary) */}
-                            <div style={{ marginTop:16 }}>
-                              <div style={{ fontSize:10, fontWeight:700, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
-                                <span>Financial Data</span>
-                                <span style={{ fontSize:9, color:"#ccc" }}>(raw figures)</span>
-                              </div>
-{ov && (
-                              <div style={{ border:"1px solid #f0ede6", borderRadius:10, overflow:"hidden", marginBottom:14 }}>
-                                <div style={{ padding:"8px 14px", background:"#f5f2ec", borderBottom:"1px solid #e8e4de" }}>
-                                  <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Financial Data</span>
-                                </div>
-                                {(function() {
-                                  function fmtB(v) { if (!v) return "-"; var a=Math.abs(v); return (v<0?"-$":"$")+(a>=1e12?(a/1e12).toFixed(2)+"T":a>=1e9?(a/1e9).toFixed(1)+"B":a>=1e6?(a/1e6).toFixed(0)+"M":"$"+a.toFixed(0)); }
-                                  function fmtPct(v) { return v ? v.toFixed(2)+"%" : "-"; }
-                                  function fmtX(v) { return v > 0 ? v.toFixed(2)+"x" : "-"; }
-                                  var rows = [
-                                    { group:"Income", items:[
-                                      { label:"Revenue (TTM)",        val: ov.revenue || "-" },
-                                      { label:"Gross Profit",         val: fmtB(ov.ebitda && ov.grossMargin ? (ov.ebitda / ((ov.opMargin||1)/100)) * (ov.grossMargin/100) : null) },
-                                      { label:"Net Income (TTM)",     val: ov.netIncome || "-" },
-                                      { label:"EBITDA",               val: fmtB(ov.ebitda) },
-                                      { label:"Free Cash Flow",       val: fmtB(ov.fcfRaw) },
-                                      { label:"Operating Cash Flow",  val: fmtB(ov.ocfRaw) },
-                                      { label:"EPS (TTM)",            val: ov.epsTTM ? "$"+ov.epsTTM.toFixed(2) : "-" },
-                                      { label:"EPS Growth",           val: fmtPct(ov.epsG) },
-                                      { label:"Revenue Growth YoY",   val: fmtPct(ov.revGrowth) },
-                                    ]},
-                                    { group:"Margins", items:[
-                                      { label:"Gross Margin",         val: fmtPct(ov.grossMargin) },
-                                      { label:"Operating Margin",     val: fmtPct(ov.opMargin) },
-                                      { label:"Net Profit Margin",    val: fmtPct(ov.netMargin) },
-                                      { label:"EBITDA Margin",        val: ov.ebitda && ov.fcfRaw ? fmtPct(ov.opMargin ? ov.opMargin * 1.2 : null) : "-" },
-                                      { label:"Return on Equity",     val: fmtPct(ov.roe) },
-                                      { label:"Return on Assets",     val: fmtPct(ov.roic) },
-                                    ]},
-                                    { group:"Balance Sheet", items:[
-                                      { label:"Total Debt",           val: fmtB(ov.totalDebt) },
-                                      { label:"Cash & Equivalents",   val: fmtB(ov.cash) },
-                                      { label:"Net Cash",             val: fmtB(ov.cash && ov.totalDebt ? ov.cash - ov.totalDebt : null) },
-                                      { label:"Book Value",           val: fmtB(ov.bookValue) },
-                                      { label:"Debt / Equity",        val: fmtX(ov.de) },
-                                      { label:"Current Ratio",        val: fmtX(ov.currentRatio) },
-                                      { label:"Quick Ratio",          val: fmtX(ov.quickRatio) },
-                                    ]},
-                                    { group:"Valuation", items:[
-                                      { label:"Market Cap",           val: fmtB(ov.mc) },
-                                      { label:"P/E (Trailing)",       val: ov.pe > 0 ? ov.pe.toFixed(1)+"x" : "-" },
-                                      { label:"P/E (Forward)",        val: ov.fpe > 0 ? ov.fpe.toFixed(1)+"x" : "-" },
-                                      { label:"P/S Ratio",            val: ov.ps > 0 ? ov.ps.toFixed(1)+"x" : "-" },
-                                      { label:"P/B Ratio",            val: ov.pb > 0 ? ov.pb.toFixed(1)+"x" : "-" },
-                                      { label:"EV/EBITDA",            val: ov.evEbitda > 0 ? ov.evEbitda.toFixed(1)+"x" : "-" },
-                                      { label:"PEG Ratio",            val: ov.peg > 0 ? ov.peg.toFixed(2) : "-" },
-                                      { label:"Dividend Yield",       val: ov.divY > 0 ? fmtPct(ov.divY) : "None" },
-                                      { label:"Beta",                 val: ov.beta > 0 ? ov.beta.toFixed(2) : "-" },
-                                    ]},
-                                    { group:"Company", items:[
-                                      { label:"Sector",               val: ov.sector || "-" },
-                                      { label:"Industry",             val: ov.industry || "-" },
-                                      { label:"Employees",            val: ov.employees ? ov.employees.toLocaleString() : "-" },
-                                      { label:"52W High",             val: ov.hi52 > 0 ? "$"+ov.hi52.toFixed(2) : "-" },
-                                      { label:"52W Low",              val: ov.lo52 > 0 ? "$"+ov.lo52.toFixed(2) : "-" },
-                                      { label:"Shares Outstanding",   val: ov.sharesOut > 0 ? fmtB(ov.sharesOut) : "-" },
-                                    ]},
-                                  ];
-                                  return rows.map(function(group) {
-                                    return (
-                                      <div key={group.group}>
-                                        <div style={{ padding:"6px 14px", background:"#faf8f4", borderBottom:"1px solid #f0ede6", borderTop:"1px solid #f0ede6" }}>
-                                          <span style={{ fontSize:9, fontWeight:700, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.1em" }}>{group.group}</span>
-                                        </div>
-                                        {group.items.map(function(item, i) {
-                                          return (
-                                            <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 14px", borderBottom:"1px solid #f5f2ec" }}>
-                                              <span style={{ fontSize:12, color:"#666" }}>{item.label}</span>
-                                              <span style={{ fontSize:13, fontWeight:700, color: item.val === "-" ? "#ccc" : "#111" }}>{item.val}</span>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    );
-                                  });
-                                })()}
-                              </div>
-                            )}
-
-
-                            </div>
+                            
 
 
                       {/* Technical Analysis */}
@@ -5430,7 +5428,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           </div>
           <span id="disc-tap" style={{ fontSize:10, color:"#555" }}>tap to read</span>
         </div>
-      </div>
     </div>
   );
 }
