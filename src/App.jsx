@@ -2769,8 +2769,43 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
                         </div>
                       ) : (
-                        <div style={{ textAlign:"center", padding:"28px 0", color:"#aaa", fontSize:13 }}>
-                          {msg ? "Data unavailable" : "Loading valuation data..."}
+                        <div>
+                          {!ov ? (
+                            <div style={{ textAlign:"center", padding:"28px 0" }}>
+                              <div style={{ width:24, height:24, border:"3px solid #e0dbd0", borderTop:"3px solid "+LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite", margin:"0 auto 12px" }} />
+                              <div style={{ color:"#aaa", fontSize:13 }}>Loading valuation data...</div>
+                            </div>
+                          ) : (
+                            <div style={{ padding:"20px 16px", background:"#faf8f4", borderRadius:10, border:"1px solid #e8e4de" }}>
+                              <div style={{ fontSize:14, fontWeight:600, color:"#888", marginBottom:8 }}>Intrinsic Value Not Available</div>
+                              <div style={{ fontSize:13, color:"#aaa", lineHeight:1.7 }}>
+                                {"DCF valuation requires positive earnings or free cash flow. " + (ov.sector ? ov.sector + " companies" : "Companies") + " with negative or near-zero profitability cannot be reliably valued using discounted cash flow models."}
+                              </div>
+                              <div style={{ marginTop:12, fontSize:12, color:"#bbb", lineHeight:1.6 }}>
+                                {"Consider alternative valuation approaches such as Price/Sales, EV/Revenue, or sector-specific metrics for growth-stage companies."}
+                              </div>
+                              {ov.ps > 0 && (
+                                <div style={{ marginTop:12, display:"flex", gap:12, flexWrap:"wrap" }}>
+                                  <div style={{ background:"#fff", border:"1px solid #e0dbd0", borderRadius:8, padding:"8px 14px" }}>
+                                    <div style={{ fontSize:10, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:2 }}>P/S Ratio</div>
+                                    <div style={{ fontSize:15, fontWeight:700, color:"#333" }}>{ov.ps.toFixed(1)+"x"}</div>
+                                  </div>
+                                  {ov.pb > 0 && (
+                                    <div style={{ background:"#fff", border:"1px solid #e0dbd0", borderRadius:8, padding:"8px 14px" }}>
+                                      <div style={{ fontSize:10, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:2 }}>P/B Ratio</div>
+                                      <div style={{ fontSize:15, fontWeight:700, color:"#333" }}>{ov.pb.toFixed(1)+"x"}</div>
+                                    </div>
+                                  )}
+                                  {ov.evEbitda > 0 && (
+                                    <div style={{ background:"#fff", border:"1px solid #e0dbd0", borderRadius:8, padding:"8px 14px" }}>
+                                      <div style={{ fontSize:10, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:2 }}>EV/EBITDA</div>
+                                      <div style={{ fontSize:15, fontWeight:700, color:"#333" }}>{ov.evEbitda.toFixed(1)+"x"}</div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
