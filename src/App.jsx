@@ -3103,7 +3103,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         );
                       })()}
 
-                      {/* Technical Analysis */}}
+                      {/* Technical Analysis */}
                       {insightTab === "technical" && (function() {
                         var ind  = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
                         var aggs = massiveInfo && massiveInfo.aggs        ? massiveInfo.aggs        : [];
@@ -4706,7 +4706,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     );
                   })()}
 
-                </div>
+
                   {/* Market Signal Tab */}
                   {insightTab === "signal" && (function() {
                     // Market Signal tab -- uses revised 8-signal scoring (weekly/monthly horizon)
