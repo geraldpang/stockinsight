@@ -921,7 +921,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   const [mobilePanel,   setMobilePanel]   = useState("left"); // "left" | "right"
   const [chartCollapsed, setChartCollapsed] = useState(false);
 
-  // Expose goToTab globally for pill click navigation
   window.__goToTab = function(id) {
     var adminTabs = ["addlinfo", "debug", "admin"];
     if (adminTabs.indexOf(id) !== -1) return;
@@ -1899,7 +1898,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         return (
           <div>
             {/* Desktop nav: 1 row - Back / Logo / centred search / Live badge */}
-            <style>{"*{box-sizing:border-box}.nav-desktop{display:flex}.nav-mobile{display:none}.tab-scroll::-webkit-scrollbar{height:4px}.tab-scroll::-webkit-scrollbar-track{background:#e8e4de}.tab-scroll::-webkit-scrollbar-thumb{background:#aaa;border-radius:4px}.tab-scroll{scrollbar-width:thin;scrollbar-color:#aaa #e8e4de}@media(max-width:1100px){.body-grid{grid-template-columns:260px 1fr!important}}@media(max-width:900px){.body-grid{grid-template-columns:220px 1fr!important}}@media(max-width:768px){.nav-desktop{display:none!important}.nav-mobile{display:block!important}.body-grid{display:block!important}.panel-left{width:100%!important;border-right:none!important}.panel-right{width:100%!important;padding:16px!important}.view-analysis-btn{display:block!important}.mobile-back-btn{display:block!important}.show-right .panel-left{display:none!important}.show-right .panel-right{display:block!important}.show-left .panel-right{display:none!important}.show-left .panel-left{display:block!important}.pill-grid{grid-template-columns:1fr 1fr!important;max-width:420px!important;margin:0 auto!important}.section-label{max-width:420px!important;margin-left:auto!important;margin-right:auto!important}.panel-left-inner{max-width:420px!important;margin:0 auto!important}}"}</style>
+            <style>{"*{box-sizing:border-box}.nav-desktop{display:flex}.nav-mobile{display:none}.tab-scroll::-webkit-scrollbar{height:4px}.tab-scroll::-webkit-scrollbar-track{background:#e8e4de}.tab-scroll::-webkit-scrollbar-thumb{background:#aaa;border-radius:4px}.tab-scroll{scrollbar-width:thin;scrollbar-color:#aaa #e8e4de}@media(max-width:1100px){.body-grid{grid-template-columns:260px 1fr!important}}@media(max-width:900px){.body-grid{grid-template-columns:220px 1fr!important}}@media(max-width:768px){.nav-desktop{display:none!important}.nav-mobile{display:block!important}.body-grid{display:block!important}.panel-left{width:100%!important;border-right:none!important}.panel-right{width:100%!important;padding:16px!important}.view-analysis-btn{display:block!important}.mobile-back-btn{display:block!important}.show-right .panel-left{display:none!important}.show-right .panel-right{display:block!important}.show-left .panel-right{display:none!important}.show-left .panel-left{display:block!important}}"}</style>
 
             {/* DESKTOP */}
             <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"minmax(0,200px) 1fr auto", alignItems:"center", gap:0, minWidth:0 }}>
@@ -2002,25 +2001,22 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         var speed = Math.max(20, sigs.length * 5);
         return (
           <div style={{ position:"relative", zIndex:10, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100%", maxWidth:"100vw" }}>
-            <style>{"@keyframes ng-ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}"}</style>
-            <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform", flexShrink:0 }}>
-              {(function(){
-                var items = sigs.concat(sigs).concat(sigs).concat(sigs);
-                return items.map(function(sig, i) {
-                  var isStrong = sig.verdict && sig.verdict.toLowerCase().indexOf("strong") !== -1;
-                  var col = isStrong ? "#c8f000" : "#60b8f0";
-                  var priceStr = sig.price > 0 ? "$" + sig.price.toFixed(2) : "";
-                  return (
-                    <span key={i}
-                      onClick={function(){ window.location.hash = sig.sym; }}
-                      style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"0 24px", cursor:"pointer", flexShrink:0, lineHeight:"28px", borderRight:"1px solid #1e1e18" }}>
-                      <span style={{ width:5, height:5, borderRadius:"50%", background:col, display:"inline-block", flexShrink:0 }}></span>
-                      <span style={{ fontSize:11, fontWeight:800, color:col }}>{sig.sym}</span>
-                      {priceStr && <span style={{ fontSize:10, color:"#666" }}>{priceStr}</span>}
-                    </span>
-                  );
-                });
-              })()}
+            <style>{"@keyframes ng-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}"}</style>
+            <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
+              {sigs.concat(sigs).concat(sigs).concat(sigs).map(function(sig, i) {
+                var isStrong = sig.verdict && sig.verdict.toLowerCase().indexOf("strong") !== -1;
+                var col = isStrong ? "#c8f000" : "#60b8f0";
+                var priceStr = sig.price > 0 ? "$" + sig.price.toFixed(2) : "";
+                return (
+                  <span key={i}
+                    onClick={function(){ window.location.hash = sig.sym; }}
+                    style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"0 24px", cursor:"pointer", flexShrink:0, lineHeight:"28px", borderRight:"1px solid #1e1e18" }}>
+                    <span style={{ width:5, height:5, borderRadius:"50%", background:col, display:"inline-block", flexShrink:0 }}></span>
+                    <span style={{ fontSize:11, fontWeight:800, color:col }}>{sig.sym}</span>
+                    {priceStr && <span style={{ fontSize:10, color:"#666" }}>{priceStr}</span>}
+                  </span>
+                );
+              })}
             </div>
           </div>
         );
@@ -2040,14 +2036,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       <div className={"body-grid" + (mobilePanel === "right" ? " show-right" : " show-left")} style={{ display:"grid", gridTemplateColumns:"minmax(280px,400px) 1fr", minWidth:0 }}>
 
         {/* LEFT PANEL */}
-        <div className="panel-left" style={{ padding:"20px 16px", borderRight:"1px solid #111", background:"#1c1c1e" }}>
+        <div className="panel-left" style={{ padding:"24px 20px", borderRight:"1px solid #111", background:"#1c1c1e" }}>
 
           <h2 style={{ fontSize:21, fontWeight:900, color:"#f0ede6", margin:"0 0 3px" }}>({sym}) {name}</h2>
           <div style={{ fontSize:13, color:"#555", marginBottom:14 }}>{ov ? ov.exchange : "NASDAQ"}</div>
 
 
 
-          <div className="panel-left-inner">
           {/* Price */}
           {price > 0 ? (
             <div style={{ marginBottom:16 }}>
@@ -2091,7 +2086,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             }
             function SectionLabel(props) {
               return (
-                <div className="section-label" style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6, marginTop: props.top ? 0 : 14, paddingBottom:5, borderBottom:"1px solid #2c2c2e" }}>
+                <div style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6, marginTop: props.top ? 0 : 14, paddingBottom:5, borderBottom:"1px solid #2c2c2e" }}>
                   {props.label}
                 </div>
               );
@@ -2265,7 +2260,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
                 {/* FUNDAMENTAL ANALYSIS */}
                 <SectionLabel label="Fundamental Analysis" top={true} />
-                <div className="pill-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
                   <Card label="Economic Moat" value={moatRating} score={moatScore} colors={moatColors} loading={!moatRating && insightLoading} tabId="moat" />
                   {(function() {
                     var loading = !ivLabel; var c = ivColors;
@@ -2304,10 +2299,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                 </div>
                 {/* TECHNICAL ANALYSIS */}
                 <SectionLabel label="Technical Analysis" />
-                <div className="pill-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
                   {ind2 && p2
                     ? <Card label="Market Signal" value={vl2} score={msDots} colors={msColors} sublabel={"Score: " + final2 + " / 100"} tabId="signal" />
-                    : <Card label="Market Signal" value={null} score={0} colors={pillColor(null)} loading={addlLoading} tabId="signal" />
+                    : <Card label="Market Signal" value={null} score={0} colors={pillColor(null)} loading={addlLoading} />
                   }
                   {(function() {
                     var c3bg=revBg3; var c3bd=revBorder3; var c3fg=revCol3;
@@ -2407,7 +2402,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             )}
           </div>
 
-          </div>
         </div>
 
         {/* RIGHT PANEL */}
@@ -2426,17 +2420,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden", marginBottom:20 }}>
             <div
               onClick={function(){ setChartCollapsed(function(v){ return !v; }); }}
-              style={{ background:"#faf8f4", borderBottom: chartCollapsed ? "none" : "1px solid #e0dbd0", padding:"8px 14px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", userSelect:"none" }}>
+              style={{ background:"#faf8f4", borderBottom:chartCollapsed?"none":"1px solid #e0dbd0", padding:"8px 14px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", userSelect:"none" }}>
               <span style={{ fontSize:12, fontWeight:600, color:"#444" }}>
                 {name} . Daily . {ov ? ov.exchange : "NASDAQ"}
               </span>
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                {q && !chartCollapsed && (
-                  <span style={{ fontSize:11, color:"#999" }}>
-                    <span style={{ color:up?"#2a8a2a":"#c03030" }}>C{price.toFixed(2)} {chg}</span>
-                  </span>
-                )}
-                <span style={{ fontSize:11, color:"#aaa", fontWeight:600, transition:"transform 0.2s", display:"inline-block", transform: chartCollapsed ? "rotate(0deg)" : "rotate(180deg)" }}>
+                {q && !chartCollapsed && <span style={{ fontSize:11, color:up?"#2a8a2a":"#c03030" }}>C{price.toFixed(2)} {chg}</span>}
+                <span style={{ fontSize:11, color:"#aaa", fontWeight:600, display:"inline-block", transform:chartCollapsed?"rotate(0deg)":"rotate(180deg)" }}>
                   {String.fromCharCode(0x25B2)}
                 </span>
               </div>
@@ -2636,91 +2626,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                               <div style={{ fontSize:11, color:bannerFg, marginTop:2, opacity:0.85 }}>{bannerSub}</div>
                             </div>
                             <div style={{ fontSize:20, fontWeight:500, color:bannerFg }}>${oracle}</div>
-                          {/* Financial Data (secondary) */}
-                            {ov && (
-                            <div style={{ marginTop:16 }}>
-                              <div style={{ fontSize:10, fontWeight:700, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
-                                <span>Financial Data</span>
-                                <span style={{ fontSize:9, color:"#ccc" }}>(raw figures)</span>
-                              </div>
-                              <div style={{ border:"1px solid #f0ede6", borderRadius:10, overflow:"hidden", marginBottom:14 }}>
-                                <div style={{ padding:"8px 14px", background:"#f5f2ec", borderBottom:"1px solid #e8e4de" }}>
-                                  <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Financial Data</span>
-                                </div>
-                                {(function() {
-                                  function fmtB(v) { if (!v) return "-"; var a=Math.abs(v); return (v<0?"-$":"$")+(a>=1e12?(a/1e12).toFixed(2)+"T":a>=1e9?(a/1e9).toFixed(1)+"B":a>=1e6?(a/1e6).toFixed(0)+"M":"$"+a.toFixed(0)); }
-                                  function fmtPct(v) { return v ? v.toFixed(2)+"%" : "-"; }
-                                  function fmtX(v) { return v > 0 ? v.toFixed(2)+"x" : "-"; }
-                                  var rows = [
-                                    { group:"Income", items:[
-                                      { label:"Revenue (TTM)",        val: ov.revenue || "-" },
-                                      { label:"Gross Profit",         val: fmtB(ov.ebitda && ov.grossMargin ? (ov.ebitda / ((ov.opMargin||1)/100)) * (ov.grossMargin/100) : null) },
-                                      { label:"Net Income (TTM)",     val: ov.netIncome || "-" },
-                                      { label:"EBITDA",               val: fmtB(ov.ebitda) },
-                                      { label:"Free Cash Flow",       val: fmtB(ov.fcfRaw) },
-                                      { label:"Operating Cash Flow",  val: fmtB(ov.ocfRaw) },
-                                      { label:"EPS (TTM)",            val: ov.epsTTM ? "$"+ov.epsTTM.toFixed(2) : "-" },
-                                      { label:"EPS Growth",           val: fmtPct(ov.epsG) },
-                                      { label:"Revenue Growth YoY",   val: fmtPct(ov.revGrowth) },
-                                    ]},
-                                    { group:"Margins", items:[
-                                      { label:"Gross Margin",         val: fmtPct(ov.grossMargin) },
-                                      { label:"Operating Margin",     val: fmtPct(ov.opMargin) },
-                                      { label:"Net Profit Margin",    val: fmtPct(ov.netMargin) },
-                                      { label:"EBITDA Margin",        val: ov.ebitda && ov.fcfRaw ? fmtPct(ov.opMargin ? ov.opMargin * 1.2 : null) : "-" },
-                                      { label:"Return on Equity",     val: fmtPct(ov.roe) },
-                                      { label:"Return on Assets",     val: fmtPct(ov.roic) },
-                                    ]},
-                                    { group:"Balance Sheet", items:[
-                                      { label:"Total Debt",           val: fmtB(ov.totalDebt) },
-                                      { label:"Cash & Equivalents",   val: fmtB(ov.cash) },
-                                      { label:"Net Cash",             val: fmtB(ov.cash && ov.totalDebt ? ov.cash - ov.totalDebt : null) },
-                                      { label:"Book Value",           val: fmtB(ov.bookValue) },
-                                      { label:"Debt / Equity",        val: fmtX(ov.de) },
-                                      { label:"Current Ratio",        val: fmtX(ov.currentRatio) },
-                                      { label:"Quick Ratio",          val: fmtX(ov.quickRatio) },
-                                    ]},
-                                    { group:"Valuation", items:[
-                                      { label:"Market Cap",           val: fmtB(ov.mc) },
-                                      { label:"P/E (Trailing)",       val: ov.pe > 0 ? ov.pe.toFixed(1)+"x" : "-" },
-                                      { label:"P/E (Forward)",        val: ov.fpe > 0 ? ov.fpe.toFixed(1)+"x" : "-" },
-                                      { label:"P/S Ratio",            val: ov.ps > 0 ? ov.ps.toFixed(1)+"x" : "-" },
-                                      { label:"P/B Ratio",            val: ov.pb > 0 ? ov.pb.toFixed(1)+"x" : "-" },
-                                      { label:"EV/EBITDA",            val: ov.evEbitda > 0 ? ov.evEbitda.toFixed(1)+"x" : "-" },
-                                      { label:"PEG Ratio",            val: ov.peg > 0 ? ov.peg.toFixed(2) : "-" },
-                                      { label:"Dividend Yield",       val: ov.divY > 0 ? fmtPct(ov.divY) : "None" },
-                                      { label:"Beta",                 val: ov.beta > 0 ? ov.beta.toFixed(2) : "-" },
-                                    ]},
-                                    { group:"Company", items:[
-                                      { label:"Sector",               val: ov.sector || "-" },
-                                      { label:"Industry",             val: ov.industry || "-" },
-                                      { label:"Employees",            val: ov.employees ? ov.employees.toLocaleString() : "-" },
-                                      { label:"52W High",             val: ov.hi52 > 0 ? "$"+ov.hi52.toFixed(2) : "-" },
-                                      { label:"52W Low",              val: ov.lo52 > 0 ? "$"+ov.lo52.toFixed(2) : "-" },
-                                      { label:"Shares Outstanding",   val: ov.sharesOut > 0 ? fmtB(ov.sharesOut) : "-" },
-                                    ]},
-                                  ];
-                                  return rows.map(function(group) {
-                                    return (
-                                      <div key={group.group}>
-                                        <div style={{ padding:"6px 14px", background:"#faf8f4", borderBottom:"1px solid #f0ede6", borderTop:"1px solid #f0ede6" }}>
-                                          <span style={{ fontSize:9, fontWeight:700, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.1em" }}>{group.group}</span>
-                                        </div>
-                                        {group.items.map(function(item, i) {
-                                          return (
-                                            <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 14px", borderBottom:"1px solid #f5f2ec" }}>
-                                              <span style={{ fontSize:12, color:"#666" }}>{item.label}</span>
-                                              <span style={{ fontSize:13, fontWeight:700, color: item.val === "-" ? "#ccc" : "#111" }}>{item.val}</span>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    );
-                                  });
-                                })()}
-                              </div>
-                            </div>
-                            )}
                           </div>
                         );
                       })()}
@@ -3029,13 +2934,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       {/* Financial Strength */}
                       {insightTab === "financial" && (function() {
                         var piF = parsedInsights["financial"] || {};
-                        function fsCol(c) {
-                          if (!c) return { text:"#888", bg:"#f5f5f5", border:"#ddd" };
-                          var v = c.toLowerCase();
-                          if (v.includes("strong")) return { text:"#1a6a1a", bg:"#e6f4e6", border:"#7abd00" };
-                          if (v.includes("moderate")) return { text:"#b88000", bg:"#fdf8e6", border:"#d4a800" };
-                          return { text:"#c03030", bg:"#fff0f0", border:"#e08080" };
-                        }
                         var _sector = ov ? (ov.sector || "") : "";
                         var _isFinancial  = _sector.includes("Financial");
                         var _isHealthcare = _sector.includes("Healthcare") || _sector.includes("Health");
@@ -3043,117 +2941,67 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         var _isRetail     = _sector.includes("Consumer") || _sector.includes("Retail");
                         var _isUtility    = _sector.includes("Utilities") || _sector.includes("Real Estate");
                         var _isTech       = _sector.includes("Technology") || _sector.includes("Communication");
-
-                        // Sector-adjusted thresholds per metric
-                        // Format: [5-star, 4-star, 3-star, 2-star] cutoffs
                         var THRESHOLDS = {
-                          grossMargin: _isTech       ? [60, 40, 25, 10]
-                                     : _isHealthcare ? [25, 15, 8,  3 ]
-                                     : _isFinancial  ? [40, 25, 15, 5 ]
-                                     : _isEnergy     ? [45, 30, 15, 5 ]
-                                     : _isRetail     ? [35, 20, 10, 5 ]
-                                     : _isUtility    ? [50, 35, 20, 10]
-                                     :                 [60, 40, 20, 10],
-                          opMargin:   _isTech        ? [30, 15, 5,  0 ]
-                                     : _isHealthcare ? [8,  5,  3,  0 ]
-                                     : _isFinancial  ? [30, 20, 10, 5 ]
-                                     : _isEnergy     ? [20, 10, 5,  0 ]
-                                     : _isRetail     ? [8,  4,  2,  0 ]
-                                     : _isUtility    ? [20, 12, 6,  2 ]
-                                     :                 [30, 15, 5,  0 ],
-                          netMargin:  _isTech        ? [20, 10, 5,  0 ]
-                                     : _isHealthcare ? [6,  3,  2,  0 ]
-                                     : _isFinancial  ? [20, 12, 6,  0 ]
-                                     : _isEnergy     ? [15, 8,  3,  0 ]
-                                     : _isRetail     ? [5,  3,  1,  0 ]
-                                     : _isUtility    ? [15, 8,  4,  0 ]
-                                     :                 [20, 10, 5,  0 ],
-                          roe:        _isTech        ? [25, 15, 8,  0 ]
-                                     : _isHealthcare ? [15, 10, 6,  0 ]
-                                     : _isFinancial  ? [12, 8,  5,  0 ]
-                                     : _isEnergy     ? [15, 10, 5,  0 ]
-                                     : _isRetail     ? [20, 12, 6,  0 ]
-                                     : _isUtility    ? [12, 8,  4,  0 ]
-                                     :                 [25, 15, 8,  0 ],
-                          currentRatio: _isFinancial  ? [1.2, 1.0, 0.8, 0.5]  // banks naturally low
-                                      : _isHealthcare ? [1.2, 1.0, 0.8, 0.5]  // insurers low
-                                      : _isUtility    ? [1.2, 1.0, 0.8, 0.5]  // utilities low
-                                      :                 [2.0, 1.5, 1.0, 0.5],
-                          quickRatio:  _isFinancial   ? [1.0, 0.8, 0.6, 0.3]
-                                     : _isHealthcare  ? [1.0, 0.8, 0.6, 0.3]
-                                     :                  [1.5, 1.0, 0.7, 0.3],
-                          revGrowth:  _isUtility      ? [8,  5,  2,  0 ]  // utilities grow slowly
-                                     : _isEnergy      ? [15, 8,  3,  0 ]  // cyclical
-                                     : _isFinancial   ? [10, 6,  3,  0 ]
-                                     :                  [20, 10, 5,  0 ],
+                          grossMargin:  _isHealthcare?[25,15,8,3]:_isFinancial?[40,25,15,5]:_isEnergy?[45,30,15,5]:_isRetail?[35,20,10,5]:_isUtility?[50,35,20,10]:[60,40,25,10],
+                          opMargin:     _isHealthcare?[8,5,3,0]:_isFinancial?[30,20,10,5]:_isEnergy?[20,10,5,0]:_isRetail?[8,4,2,0]:_isUtility?[20,12,6,2]:[30,15,5,0],
+                          netMargin:    _isHealthcare?[6,3,2,0]:_isFinancial?[20,12,6,0]:_isEnergy?[15,8,3,0]:_isRetail?[5,3,1,0]:_isUtility?[15,8,4,0]:[20,10,5,0],
+                          roe:          _isHealthcare?[15,10,6,0]:_isFinancial?[12,8,5,0]:_isEnergy?[15,10,5,0]:_isRetail?[20,12,6,0]:_isUtility?[12,8,4,0]:[25,15,8,0],
+                          currentRatio: (_isFinancial||_isHealthcare||_isUtility)?[1.2,1.0,0.8,0.5]:[2.0,1.5,1.0,0.5],
+                          quickRatio:   (_isFinancial||_isHealthcare)?[1.0,0.8,0.6,0.3]:[1.5,1.0,0.7,0.3],
+                          revGrowth:    _isUtility?[8,5,2,0]:_isEnergy?[15,8,3,0]:_isFinancial?[10,6,3,0]:[20,10,5,0],
                         };
-
                         function metricScore(val, key) {
-                          if (val === null || val === undefined || val === 0) return 0;
-                          var thresholds = THRESHOLDS[key] || [60, 40, 20, 10];
-                          for (var i = 0; i < thresholds.length; i++) {
-                            if (val >= thresholds[i]) return thresholds.length - i;
-                          }
+                          if (!val || val === 0) return 0;
+                          var t = THRESHOLDS[key] || [60,40,20,10];
+                          for (var i=0; i<t.length; i++) { if (val >= t[i]) return t.length-i; }
                           return 1;
+                        }
+                        function fsCol(col) {
+                          if (!col) return { text:"#888", bg:"#f5f5f5", border:"#ddd" };
+                          var v = col.toLowerCase();
+                          if (v.includes("strong")) return { text:"#1a6a1a", bg:"#e6f4e6", border:"#7abd00" };
+                          if (v.includes("moderate")) return { text:"#b88000", bg:"#fdf8e6", border:"#d4a800" };
+                          return { text:"#c03030", bg:"#fff0f0", border:"#e08080" };
                         }
                         function MetricDots(props) {
                           if (!props.score) return null;
-                          var col = props.score >= 4 ? "#1a6a1a" : props.score >= 3 ? "#b88000" : "#c03030";
+                          var col = props.score>=4?"#1a6a1a":props.score>=3?"#b88000":"#c03030";
                           var dots = [];
-                          for (var d = 1; d <= 5; d++) {
-                            dots.push(<span key={d} style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background: d <= props.score ? col : "#ddd", marginRight:2 }} />);
-                          }
+                          for (var d=1;d<=5;d++) dots.push(<span key={d} style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background:d<=props.score?col:"#ddd", marginRight:2 }} />);
                           return <span style={{ display:"inline-flex", alignItems:"center" }}>{dots}</span>;
                         }
-                        var METRIC_INFO = {
-                          "Gross Margin":       { desc:"Revenue minus cost of goods sold. Higher = more pricing power.", thresh:"Great: >60% | Good: >40% | OK: >20%" },
-                          "Operating Margin":   { desc:"Profit after operating expenses. Shows operational efficiency.", thresh:"Great: >30% | Good: >15% | OK: >5%" },
-                          "Net Profit Margin":  { desc:"Final profit after all expenses and taxes.", thresh:"Great: >20% | Good: >10% | OK: >5%" },
-                          "Return on Equity":   { desc:"Net income relative to shareholders equity. Measures how well management uses investor capital.", thresh:"Great: >25% | Good: >15% | OK: >8%" },
-                          "Current Ratio":      { desc:"Current assets vs current liabilities. Measures ability to pay short-term obligations.", thresh:"Great: >2x | Good: >1.5x | OK: >1x" },
-                          "Quick Ratio":        { desc:"Like current ratio but excludes inventory. More conservative liquidity measure.", thresh:"Great: >1.5x | Good: >1x | OK: >0.7x" },
-                          "Free Cash Flow":     { desc:"Cash generated after capital expenditure. The real money the business produces.", thresh:"Great: >$10B | Good: >$1B | OK: positive" },
-                          "Total Debt/Equity":  { desc:"How much debt relative to equity. Lower is safer, but some debt is normal.", thresh:"Great: <0.5x | Good: <1x | OK: <2x" },
-                          "Revenue Growth YoY": { desc:"Year-over-year revenue growth rate. Indicates business momentum.", thresh:"Great: >20% | Good: >10% | OK: >5%" },
-                          "Net Income (TTM)":   { desc:"Total net profit over trailing twelve months.", thresh:"" },
-                          "Revenue (TTM)":      { desc:"Total revenue over trailing twelve months.", thresh:"" },
-                          "Debt / EBITDA":      { desc:"Total debt divided by EBITDA. Shows how many years of earnings needed to repay debt.", thresh:"Great: <1x | Good: <2x | OK: <3x | High: >4x" },
-                          "Debt / Cash Flow":   { desc:"Total debt divided by operating cash flow. How many years of cash generation to repay debt.", thresh:"Great: <1x | Good: <2x | OK: <3x | Risk: >5x" },
-                        };
                         function getCommentary(label, val, score) {
                           if (!val || val === "-") return null;
                           var s = score || 0;
-                          var sectorNote = (_isHealthcare || _isFinancial || _isRetail || _isUtility) ? " (typical for this sector)" : "";
-                          var comments = {
-                            "Gross Margin": s>=5?"Exceptional pricing power  -  keeps most of each dollar earned":s>=4?"Strong margins  -  efficient at converting sales to profit":s>=3?"Adequate margins  -  covers costs with reasonable profit"+sectorNote:s>=2?"Thin margins  -  limited pricing power"+sectorNote:"Very low margins"+sectorNote,
-                            "Operating Margin": s>=5?"Highly efficient operations  -  most revenue becomes operating profit":s>=4?"Strong operational efficiency":s>=3?"Reasonable operational control"+sectorNote:s>=2?"Tight operations  -  limited room for error"+sectorNote:"Very slim operating margin"+sectorNote,
-                            "Net Profit Margin": s>=5?"Exceptional profitability  -  keeps a large share of every dollar earned":s>=4?"Strong bottom line after all expenses and taxes":s>=3?"Profitable  -  reasonable earnings after all costs"+sectorNote:s>=2?"Slim profits  -  little room after all expenses"+sectorNote:"Very thin net margin"+sectorNote,
-                            "Return on Equity": s>=5?"Outstanding  -  generates exceptional returns for shareholders":s>=4?"Strong returns on shareholder investment":s>=3?"Decent returns  -  earns adequately on equity"+sectorNote:s>=2?"Below average returns for shareholders"+sectorNote:"Low returns on equity"+sectorNote,
-                            "Current Ratio": s>=5?"Very liquid  -  can easily cover short-term obligations":s>=4?"Comfortable liquidity  -  healthy short-term buffer":s>=3?"Adequate  -  can meet short-term obligations"+sectorNote:s>=2?"Tight liquidity  -  near minimum safe level"+sectorNote:"Low liquidity ratio"+sectorNote,
-                            "Quick Ratio": s>=5?"Excellent  -  can cover obligations without selling inventory":s>=4?"Good immediate liquidity":s>=3?"Adequate liquid assets to cover near-term debts"+sectorNote:s>=2?"Limited liquid assets  -  could be stretched"+sectorNote:"Low quick ratio"+sectorNote,
-                            "Free Cash Flow": s>=5?"Exceptional cash generation  -  business prints money":s>=4?"Strong free cash flow  -  healthy and self-funding":s>=3?"Positive cash flow  -  business funds itself":s>=2?"Modest cash generation":"Burning cash  -  spending more than it generates",
+                          var sn = (_isHealthcare||_isFinancial||_isRetail||_isUtility) ? " (typical for this sector)" : "";
+                          var map = {
+                            "Gross Margin":      s>=5?"Exceptional pricing power  -  keeps most of each dollar earned":s>=4?"Strong margins  -  efficient at converting sales to profit":s>=3?"Adequate margins  -  covers costs with reasonable profit"+sn:s>=2?"Thin margins  -  limited pricing power"+sn:"Very low margins"+sn,
+                            "Operating Margin":  s>=5?"Highly efficient operations":s>=4?"Strong operational efficiency":s>=3?"Reasonable operational control"+sn:s>=2?"Tight operations  -  limited room for error"+sn:"Very slim operating margin"+sn,
+                            "Net Profit Margin": s>=5?"Exceptional profitability  -  keeps a large share of every dollar":s>=4?"Strong bottom line after all expenses and taxes":s>=3?"Profitable  -  reasonable earnings after all costs"+sn:s>=2?"Slim profits  -  little room after all expenses"+sn:"Very thin net margin"+sn,
+                            "Return on Equity":  s>=5?"Outstanding  -  exceptional returns for shareholders":s>=4?"Strong returns on shareholder investment":s>=3?"Decent returns  -  earns adequately on equity"+sn:s>=2?"Below average returns for shareholders"+sn:"Low returns on equity"+sn,
+                            "Current Ratio":     s>=5?"Very liquid  -  easily covers short-term obligations":s>=4?"Comfortable liquidity  -  healthy buffer":s>=3?"Adequate  -  can meet short-term obligations"+sn:s>=2?"Tight liquidity  -  near minimum safe level"+sn:"Low liquidity ratio"+sn,
+                            "Quick Ratio":       s>=5?"Excellent  -  covers obligations without selling inventory":s>=4?"Good immediate liquidity":s>=3?"Adequate liquid assets"+sn:s>=2?"Limited liquid assets  -  could be stretched"+sn:"Low quick ratio"+sn,
+                            "Free Cash Flow":    s>=5?"Exceptional cash generation  -  business prints money":s>=4?"Strong free cash flow  -  healthy and self-funding":s>=3?"Positive cash flow  -  business funds itself":s>=2?"Modest cash generation":"Burning cash  -  spending more than it generates",
                             "Total Debt/Equity": s>=5?"Minimal debt  -  very conservatively financed":s>=4?"Low leverage  -  comfortable debt levels":s>=3?"Moderate leverage  -  manageable debt load":s>=2?"Elevated leverage  -  debt is significant":"High leverage  -  significant financial risk",
-                            "Revenue Growth YoY": s>=5?"Exceptional growth  -  rapidly expanding revenue":s>=4?"Strong growth  -  business is scaling well":s>=3?"Solid growth  -  steady revenue expansion"+sectorNote:s>=2?"Slow growth  -  modest revenue gains"+sectorNote:"Declining or flat revenue  -  growth challenges",
-                            "Debt / EBITDA": s>=5?"Very low debt  -  repayable in under 1 year of earnings":s>=4?"Low leverage  -  debt is easily manageable":s>=3?"Moderate debt load  -  serviceable but notable":s>=2?"High debt relative to earnings  -  requires monitoring":"Very high debt burden  -  potential serviceability risk",
-                            "Debt / Cash Flow": s>=5?"Minimal debt  -  repayable in under 1 year from cash flow":s>=4?"Low debt load  -  cash flow comfortably covers debt":s>=3?"Manageable  -  a few years of cash flow to clear debt":s>=2?"Heavy debt relative to cash flow":"Debt significantly exceeds annual cash generation",
+                            "Revenue Growth YoY":s>=5?"Exceptional growth  -  rapidly expanding revenue":s>=4?"Strong growth  -  business scaling well":s>=3?"Solid growth  -  steady revenue expansion"+sn:s>=2?"Slow growth  -  modest revenue gains"+sn:"Declining or flat revenue  -  growth challenges",
+                            "Debt / EBITDA":     s>=5?"Very low debt  -  repayable under 1 year of earnings":s>=4?"Low leverage  -  debt easily manageable":s>=3?"Moderate debt load  -  serviceable":s>=2?"High debt relative to earnings  -  monitor carefully":"Very high debt burden  -  potential serviceability risk",
+                            "Debt / Cash Flow":  s>=5?"Minimal debt  -  repayable under 1 year from cash flow":s>=4?"Low debt  -  cash flow comfortably covers debt":s>=3?"Manageable  -  a few years of cash flow to clear debt":s>=2?"Heavy debt relative to cash flow":"Debt significantly exceeds annual cash generation",
                           };
-                          return comments[label] || null;
+                          return map[label] || null;
                         }
                         function MetricRow(props) {
                           return (
                             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:0, borderBottom:"1px solid #f0ede6" }}>
-                              {props.items.map(function(item, i) {
-                                var info = METRIC_INFO[item.label] || null;
+                              {props.items.map(function(item, ii) {
                                 var comment = getCommentary(item.label, item.val, item.score);
                                 return (
-                                  <div key={i}
-                                    style={{ padding:"10px 14px", borderRight: i === 0 ? "1px solid #f0ede6" : "none" }}>
+                                  <div key={ii} style={{ padding:"10px 14px", borderRight:ii===0?"1px solid #f0ede6":"none" }}>
                                     <div style={{ marginBottom:3 }}>
                                       <span style={{ fontSize:11, color:"#999" }}>{item.label}</span>
                                     </div>
-                                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: comment ? 4 : 0 }}>
-                                      <span style={{ fontSize:14, fontWeight:700, color: item.val === "-" ? "#ccc" : "#111" }}>{item.val || "-"}</span>
-                                      {item.score > 0 && <MetricDots score={item.score} />}
+                                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:comment?4:0 }}>
+                                      <span style={{ fontSize:14, fontWeight:700, color:item.val==="-"?"#ccc":"#111" }}>{item.val||"-"}</span>
+                                      {item.score>0 && <MetricDots score={item.score} />}
                                     </div>
                                     {comment && <div style={{ fontSize:10, color:"#888", lineHeight:1.4 }}>{comment}</div>}
                                   </div>
@@ -3161,31 +3009,26 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                               })}
                             </div>
                           );
-                        }  // end MetricRow
-
-                        var gm   = ov ? ov.grossMargin  : null;
-                        var om   = ov ? ov.opMargin     : null;
-                        var nm   = ov ? ov.netMargin    : null;
-                        var roe  = ov ? ov.roe          : null;
-                        var cr   = ov ? ov.currentRatio : null;
-                        var qr   = ov ? ov.quickRatio   : null;
-                        var de   = ov ? ov.de           : null;
-                        var rg   = ov ? ov.revGrowth    : null;
-                        var fcf  = ov ? ov.fcfRaw       : null;
-                        var rev  = ov ? ov.revenue      : null;
-                        var ni   = ov ? ov.netIncome    : null;
-
-                        function pct(v) { return v !== null && v !== undefined && v !== 0 ? v.toFixed(2) + "%" : "-"; }
-                        function fmt2(v) { return v > 0 ? v.toFixed(2) + "x" : "-"; }
-                        function fmtB(v) { return v && Math.abs(v) > 0 ? (v < 0 ? "-$" : "$") + (Math.abs(v) >= 1e12 ? (Math.abs(v)/1e12).toFixed(2)+"T" : Math.abs(v) >= 1e9 ? (Math.abs(v)/1e9).toFixed(1)+"B" : (Math.abs(v)/1e6).toFixed(0)+"M") : "-"; }
-
+                        }
+                        var gm  = ov ? ov.grossMargin  : null;
+                        var om  = ov ? ov.opMargin     : null;
+                        var nm  = ov ? ov.netMargin    : null;
+                        var roe = ov ? ov.roe          : null;
+                        var cr  = ov ? ov.currentRatio : null;
+                        var qr  = ov ? ov.quickRatio   : null;
+                        var de  = ov ? ov.de           : null;
+                        var rg  = ov ? ov.revGrowth    : null;
+                        var fcf = ov ? ov.fcfRaw       : null;
+                        var rev = ov ? ov.revenue      : null;
+                        var ni  = ov ? ov.netIncome    : null;
+                        function pct(v) { return v ? v.toFixed(2)+"%" : "-"; }
+                        function fmt2(v) { return v>0 ? v.toFixed(2)+"x" : "-"; }
+                        function fmtB(v) { if (!v||v===0) return "-"; var a=Math.abs(v); return (v<0?"-$":"$")+(a>=1e12?(a/1e12).toFixed(2)+"T":a>=1e9?(a/1e9).toFixed(1)+"B":(a/1e6).toFixed(0)+"M"); }
                         var fc = fsCol(piF.classification);
-                        var parsed = tabContent ? parseFinancial(tabContent) : null;
-                        var aiText = parsed ? parsed.body.replace(/Financial Strength Classification:.+/i, "").trim() : null;
-
+                        var rawText = insightCache["financial"] || "";
+                        var aiText = rawText.replace(/Financial Strength Classification:.+/i,"").trim();
                         return (
                           <div>
-                            {/* Classification banner */}
                             {piF.classification && (
                               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:fc.bg, borderRadius:8, marginBottom:14, border:"0.5px solid "+fc.border }}>
                                 <div>
@@ -3193,72 +3036,74 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                   <div style={{ fontSize:15, fontWeight:700, color:fc.text }}>{piF.classification}</div>
                                 </div>
                                 <div style={{ display:"flex", gap:3 }}>
-                                  {[1,2,3,4,5].map(function(d){ return <span key={d} style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background: d <= (piF.score||0) ? fc.text : "#ddd" }} />; })}
+                                  {[1,2,3,4,5].map(function(d){ return <span key={d} style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:d<=(piF.score||0)?fc.text:"#ddd" }} />; })}
                                 </div>
                               </div>
                             )}
-
-                            {/* Metrics grid */}
                             <div style={{ border:"1px solid #f0ede6", borderRadius:10, overflow:"hidden", marginBottom:14 }}>
                               <div style={{ padding:"8px 14px", background:"#f5f2ec", borderBottom:"1px solid #e8e4de", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                                 <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Financial Health</span>
-                                {_sector && (
-                                  <span style={{ fontSize:10, color:"#aaa", background:"#eee", padding:"2px 8px", borderRadius:10 }}>
-                                    {_isFinancial?"Financial Services benchmark":_isHealthcare?"Healthcare benchmark":_isEnergy?"Energy benchmark":_isRetail?"Retail benchmark":_isUtility?"Utility benchmark":_isTech?"Tech benchmark":"General benchmark"}
-                                  </span>
-                                )}
+                                {_sector && <span style={{ fontSize:10, color:"#aaa", background:"#eee", padding:"2px 8px", borderRadius:10 }}>{_isFinancial?"Financial Services":_isHealthcare?"Healthcare":_isEnergy?"Energy":_isRetail?"Retail/Consumer":_isUtility?"Utility":"General"}{" benchmark"}</span>}
                               </div>
-                              <MetricRow items={[
-                                { label:"Gross Margin",      val: pct(gm),  score: metricScore(gm,  "grossMargin") },
-                                { label:"Return on Equity",  val: pct(roe), score: metricScore(roe, "roe")   },
-                              ]} />
-                              <MetricRow items={[
-                                { label:"Operating Margin",  val: pct(om),  score: metricScore(om,  "opMargin")   },
-                                { label:"Current Ratio",     val: fmt2(cr), score: metricScore(cr,  "currentRatio") },
-                              ]} />
-                              <MetricRow items={[
-                                { label:"Net Profit Margin", val: pct(nm),  score: metricScore(nm,  "netMargin")   },
-                                { label:"Quick Ratio",       val: fmt2(qr), score: metricScore(qr,  "quickRatio") },
-                              ]} />
-                              <MetricRow items={[
-                                { label:"Free Cash Flow",    val: fmtB(fcf), score: fcf > 0 ? (fcf > 10e9 ? 5 : fcf > 1e9 ? 4 : fcf > 0 ? 3 : 0) : 0 },
-                                { label:"Total Debt/Equity", val: de > 0 ? de.toFixed(2)+"x" : "-", score: (function(){ if (!de||de<=0) return 0; return de<0.5?5:de<1?4:de<2?3:de<3?2:1; })() },
-                              ]} />
-                              <MetricRow items={[
-                                { label:"Debt / EBITDA",     val: (function(){ var eb = ov ? ov.ebitda : 0; var td = ov ? ov.totalDebt : 0; return (eb > 0 && td > 0) ? (td/eb).toFixed(2)+"x" : "-"; })(), score: (function(){ var eb = ov ? ov.ebitda : 0; var td = ov ? ov.totalDebt : 0; if (!eb || !td) return 0; var r = td/eb; return r < 1 ? 5 : r < 2 ? 4 : r < 3 ? 3 : r < 4 ? 2 : 1; })() },
-                                { label:"Debt / Cash Flow",  val: (function(){ var ocf = ov ? ov.ocfRaw : 0; var td = ov ? ov.totalDebt : 0; return (ocf > 0 && td > 0) ? (td/ocf).toFixed(2)+"x" : "-"; })(), score: (function(){ var ocf = ov ? ov.ocfRaw : 0; var td = ov ? ov.totalDebt : 0; if (!ocf || !td) return 0; var r = td/ocf; return r < 1 ? 5 : r < 2 ? 4 : r < 3 ? 3 : r < 5 ? 2 : 1; })() },
-                              ]} />
-                              <MetricRow items={[
-                                { label:"Net Income (TTM)",  val: ni || "-",  score: 0 },
-                                { label:"Revenue Growth YoY", val: pct(rg), score: metricScore(rg,  "revGrowth") },
-                              ]} />
-                              <div style={{ borderBottom:"none" }}>
-                                <MetricRow items={[
-                                  { label:"Revenue (TTM)",   val: rev || "-", score: 0 },
-                                  { label:"", val: "", score: 0 },
-                                ]} />
-                              </div>
+                              <MetricRow items={[{ label:"Gross Margin", val:pct(gm), score:metricScore(gm,"grossMargin") },{ label:"Return on Equity", val:pct(roe), score:metricScore(roe,"roe") }]} />
+                              <MetricRow items={[{ label:"Operating Margin", val:pct(om), score:metricScore(om,"opMargin") },{ label:"Current Ratio", val:fmt2(cr), score:metricScore(cr,"currentRatio") }]} />
+                              <MetricRow items={[{ label:"Net Profit Margin", val:pct(nm), score:metricScore(nm,"netMargin") },{ label:"Quick Ratio", val:fmt2(qr), score:metricScore(qr,"quickRatio") }]} />
+                              <MetricRow items={[{ label:"Free Cash Flow", val:fmtB(fcf), score:fcf>0?(fcf>10e9?5:fcf>1e9?4:3):0 },{ label:"Total Debt/Equity", val:de>0?de.toFixed(2)+"x":"-", score:de>0?(de<0.5?5:de<1?4:de<2?3:de<3?2:1):0 }]} />
+                              <MetricRow items={[{ label:"Debt / EBITDA", val:(function(){ var eb=ov?ov.ebitda:0; var td=ov?ov.totalDebt:0; return (eb>0&&td>0)?(td/eb).toFixed(2)+"x":"-"; })(), score:(function(){ var eb=ov?ov.ebitda:0; var td=ov?ov.totalDebt:0; if(!eb||!td) return 0; var r=td/eb; return r<1?5:r<2?4:r<3?3:r<4?2:1; })() },{ label:"Debt / Cash Flow", val:(function(){ var ocf=ov?ov.ocfRaw:0; var td=ov?ov.totalDebt:0; return (ocf>0&&td>0)?(td/ocf).toFixed(2)+"x":"-"; })(), score:(function(){ var ocf=ov?ov.ocfRaw:0; var td=ov?ov.totalDebt:0; if(!ocf||!td) return 0; var r=td/ocf; return r<1?5:r<2?4:r<3?3:r<5?2:1; })() }]} />
+                              <MetricRow items={[{ label:"Net Income (TTM)", val:ni||"-", score:0 },{ label:"Revenue Growth YoY", val:pct(rg), score:metricScore(rg,"revGrowth") }]} />
+                              <MetricRow items={[{ label:"Revenue (TTM)", val:rev||"-", score:0 },{ label:"", val:"", score:0 }]} />
                             </div>
-
-                            {/* Benchmark disclaimer */}
                             <div style={{ fontSize:10, color:"#aaa", lineHeight:1.5, marginBottom:14, padding:"8px 12px", background:"#faf8f4", borderRadius:8, border:"0.5px solid #e8e4de" }}>
-                              {"Benchmarks are approximate sector averages. Individual sub-sectors may vary significantly " + String.fromCharCode(0x2014) + " e.g. pharma vs insurer within Healthcare, or grocery vs luxury within Retail."}
+                              {"Benchmarks are approximate sector averages. Individual sub-sectors may vary  -  e.g. pharma vs insurer within Healthcare, or grocery vs luxury within Retail."}
                             </div>
-
-                            {/* AI Commentary */}
                             {aiText && (
-                              <div>
+                              <div style={{ marginBottom:14 }}>
                                 <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>AI Analysis</div>
                                 <div style={{ fontSize:13, color:"#333", lineHeight:1.8 }}>{aiText}</div>
+                              </div>
+                            )}
+                            {ov && (
+                              <div style={{ border:"1px solid #f0ede6", borderRadius:10, overflow:"hidden", marginBottom:14 }}>
+                                <div style={{ padding:"8px 14px", background:"#f5f2ec", borderBottom:"1px solid #e8e4de", display:"flex", alignItems:"center", gap:6 }}>
+                                  <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Financial Data</span>
+                                  <span style={{ fontSize:9, color:"#ccc" }}>(raw figures)</span>
+                                </div>
+                                {(function() {
+                                  function fB(v) { if (!v||v===0) return "-"; var a=Math.abs(v); return (v<0?"-$":"$")+(a>=1e12?(a/1e12).toFixed(2)+"T":a>=1e9?(a/1e9).toFixed(1)+"B":(a/1e6).toFixed(0)+"M"); }
+                                  function fP(v) { return v ? v.toFixed(2)+"%" : "-"; }
+                                  function fX(v) { return v>0 ? v.toFixed(2)+"x" : "-"; }
+                                  var rows = [
+                                    { group:"Income", items:[{ label:"Revenue (TTM)", val:rev||"-" },{ label:"Net Income (TTM)", val:ni||"-" },{ label:"EBITDA", val:fB(ov.ebitda) },{ label:"Free Cash Flow", val:fB(ov.fcfRaw) },{ label:"Operating Cash Flow", val:fB(ov.ocfRaw) },{ label:"EPS Growth", val:fP(ov.epsG) },{ label:"Revenue Growth YoY", val:fP(ov.revGrowth) }]},
+                                    { group:"Margins", items:[{ label:"Gross Margin", val:fP(ov.grossMargin) },{ label:"Operating Margin", val:fP(ov.opMargin) },{ label:"Net Profit Margin", val:fP(ov.netMargin) },{ label:"Return on Equity", val:fP(ov.roe) },{ label:"Return on Assets", val:fP(ov.roic) }]},
+                                    { group:"Balance Sheet", items:[{ label:"Total Debt", val:fB(ov.totalDebt) },{ label:"Cash & Equivalents", val:fB(ov.cash) },{ label:"Net Cash", val:fB(ov.cash&&ov.totalDebt?ov.cash-ov.totalDebt:null) },{ label:"Book Value", val:fB(ov.bookValue) },{ label:"Debt / Equity", val:fX(ov.de) },{ label:"Current Ratio", val:fX(ov.currentRatio) },{ label:"Quick Ratio", val:fX(ov.quickRatio) }]},
+                                    { group:"Valuation", items:[{ label:"Market Cap", val:fB(ov.mc) },{ label:"P/E (Trailing)", val:ov.pe>0?ov.pe.toFixed(1)+"x":"-" },{ label:"P/E (Forward)", val:ov.fpe>0?ov.fpe.toFixed(1)+"x":"-" },{ label:"P/S Ratio", val:ov.ps>0?ov.ps.toFixed(1)+"x":"-" },{ label:"P/B Ratio", val:ov.pb>0?ov.pb.toFixed(1)+"x":"-" },{ label:"EV/EBITDA", val:ov.evEbitda>0?ov.evEbitda.toFixed(1)+"x":"-" },{ label:"PEG Ratio", val:ov.peg>0?ov.peg.toFixed(2):"-" },{ label:"Dividend Yield", val:ov.divY>0?fP(ov.divY):"None" },{ label:"Beta", val:ov.beta>0?ov.beta.toFixed(2):"-" }]},
+                                    { group:"Company", items:[{ label:"Sector", val:ov.sector||"-" },{ label:"Industry", val:ov.industry||"-" },{ label:"Employees", val:ov.employees?ov.employees.toLocaleString():"-" },{ label:"52W High", val:ov.hi52>0?"$"+ov.hi52.toFixed(2):"-" },{ label:"52W Low", val:ov.lo52>0?"$"+ov.lo52.toFixed(2):"-" },{ label:"Shares Outstanding", val:ov.sharesOut>0?fB(ov.sharesOut):"-" }]},
+                                  ];
+                                  return rows.map(function(group) {
+                                    return (
+                                      <div key={group.group}>
+                                        <div style={{ padding:"6px 14px", background:"#faf8f4", borderBottom:"1px solid #f0ede6", borderTop:"1px solid #f0ede6" }}>
+                                          <span style={{ fontSize:9, fontWeight:700, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.1em" }}>{group.group}</span>
+                                        </div>
+                                        {group.items.map(function(item, iii) {
+                                          return (
+                                            <div key={iii} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 14px", borderBottom:"1px solid #f5f2ec" }}>
+                                              <span style={{ fontSize:12, color:"#666" }}>{item.label}</span>
+                                              <span style={{ fontSize:13, fontWeight:700, color:item.val==="-"?"#ccc":"#111" }}>{item.val}</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  });
+                                })()}
                               </div>
                             )}
                           </div>
                         );
                       })()}
-                            
 
-
-                      {/* Technical Analysis */}
+                      {/* Technical Analysis */}}
                       {insightTab === "technical" && (function() {
                         var ind  = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
                         var aggs = massiveInfo && massiveInfo.aggs        ? massiveInfo.aggs        : [];
@@ -5430,6 +5275,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           </div>
           <span id="disc-tap" style={{ fontSize:10, color:"#555" }}>tap to read</span>
         </div>
+      </div>
     </div>
   );
 }
@@ -5925,25 +5771,22 @@ export default function App() {
         var speed = Math.max(20, sigs.length * 5);
         return (
           <div style={{ position:"relative", zIndex:10, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100%", maxWidth:"100vw" }}>
-            <style>{"@keyframes ng-ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}"}</style>
-            <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform", flexShrink:0 }}>
-              {(function(){
-                var items = sigs.concat(sigs).concat(sigs).concat(sigs);
-                return items.map(function(sig, i) {
-                  var isStrong = sig.verdict && sig.verdict.toLowerCase().indexOf("strong") !== -1;
-                  var col = isStrong ? "#c8f000" : "#60b8f0";
-                  var priceStr = sig.price > 0 ? "$" + sig.price.toFixed(2) : "";
-                  return (
-                    <span key={i}
-                      onClick={function(){ window.location.hash = sig.sym; }}
-                      style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"0 24px", cursor:"pointer", flexShrink:0, lineHeight:"28px", borderRight:"1px solid #1e1e18" }}>
-                      <span style={{ width:5, height:5, borderRadius:"50%", background:col, display:"inline-block", flexShrink:0 }}></span>
-                      <span style={{ fontSize:11, fontWeight:800, color:col }}>{sig.sym}</span>
-                      {priceStr && <span style={{ fontSize:10, color:"#666" }}>{priceStr}</span>}
-                    </span>
-                  );
-                });
-              })()}
+            <style>{"@keyframes ng-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}"}</style>
+            <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
+              {sigs.concat(sigs).concat(sigs).concat(sigs).map(function(sig, i) {
+                var isStrong = sig.verdict && sig.verdict.toLowerCase().indexOf("strong") !== -1;
+                var col = isStrong ? "#c8f000" : "#60b8f0";
+                var priceStr = sig.price > 0 ? "$" + sig.price.toFixed(2) : "";
+                return (
+                  <span key={i}
+                    onClick={function(){ window.location.hash = sig.sym; }}
+                    style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"0 24px", cursor:"pointer", flexShrink:0, lineHeight:"28px", borderRight:"1px solid #1e1e18" }}>
+                    <span style={{ width:5, height:5, borderRadius:"50%", background:col, display:"inline-block", flexShrink:0 }}></span>
+                    <span style={{ fontSize:11, fontWeight:800, color:col }}>{sig.sym}</span>
+                    {priceStr && <span style={{ fontSize:10, color:"#666" }}>{priceStr}</span>}
+                  </span>
+                );
+              })}
             </div>
           </div>
         );
