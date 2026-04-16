@@ -1139,9 +1139,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
       if (_isLiveMode) {
         // LIVE: call Claude directly, no caching
+        setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "LIVE mode: calling Claude for " + sym + ":" + tabId + " (live ticker -- no cache)" }]); });
         _callClaude(function(text) {
           if (!window.__cacheStatus) window.__cacheStatus = {};
           window.__cacheStatus[sym + ":" + tabId] = "live";
+          if (!window.__aiCallCount) window.__aiCallCount = 0;
+          window.__aiCallCount++;
           _storeResult(text);
         });
       } else {
@@ -1168,6 +1171,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache MISS: " + sym + ":" + tabId + " -- calling Claude (no KV entry)" }]); });
               _callClaude(function(text) {
                 window.__cacheStatus[sym + ":" + tabId] = "written";
+                if (!window.__aiCallCount) window.__aiCallCount = 0;
+                window.__aiCallCount++;
                 _storeResult(text);
                 // Write to KV cache
                 fetch("/cache?sym=" + sym + "&tab=" + tabId, {
@@ -1186,9 +1191,21 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   }).catch(function() {});
               });
             }
-          }).catch(function() {
-            // KV read failed -- fall back to Claude
-            _callClaude(function(text) { _storeResult(text); });
+          }).catch(function(err) {
+            // KV read failed -- fall back to Claude (log this!)
+            if (!window.__cacheStatus) window.__cacheStatus = {};
+            window.__cacheStatus[sym + ":" + tabId] = "kv-error";
+            setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "WARN: KV read FAILED for " + sym + ":" + tabId + " -- falling back to live Claude call. Error: " + String(err), data: { error: String(err) } }]); });
+            _callClaude(function(text) {
+              window.__cacheStatus[sym + ":" + tabId] = "kv-error-fallback";
+              _storeResult(text);
+              // Still try to write to KV after recovery
+              fetch("/cache?sym=" + sym + "&tab=" + tabId, {
+                method: "POST", headers: { "Content-Type": "application/json" }, body: text,
+              }).then(function(r){ return r.json(); }).then(function(wr){
+                setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "Cache WRITE (after KV error recovery): " + sym + ":" + tabId + " -- " + (wr.ok?"OK":"FAIL"), data: wr }]); });
+              }).catch(function(){});
+            });
           });
       }
     }); // end aiTabs.forEach
@@ -4970,9 +4987,75 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       { key: "FMP_KEY",       note: "Optional - Financial Modeling Prep" },
                       { key: "AV_KEY",        note: "Optional - Alpha Vantage" },
                     ];
+                    var cacheStatus = window.__cacheStatus || {};
+                    var aiCallCount = window.__aiCallCount || 0;
+                    var aiTabs = ["moat", "financial", "aiinsight"];
+                    var symStatus = aiTabs.map(function(t) {
+                      return { tab: t, status: cacheStatus[sym + ":" + t] || "not-loaded" };
+                    });
+                    var totalHits    = Object.values(cacheStatus).filter(function(v){ return v === "hit"; }).length;
+                    var totalMisses  = Object.values(cacheStatus).filter(function(v){ return v === "miss" || v === "written"; }).length;
+                    var totalErrors  = Object.values(cacheStatus).filter(function(v){ return v === "kv-error" || v === "kv-error-fallback"; }).length;
+                    var totalLive    = Object.values(cacheStatus).filter(function(v){ return v === "live"; }).length;
+                    function statusPill(s) {
+                      var map = {
+                        "hit":              { bg:"#e6f4e6", color:"#1a6a1a", label:"CACHE HIT" },
+                        "miss":             { bg:"#fdf8e6", color:"#b88000", label:"CACHE MISS" },
+                        "written":          { bg:"#e6f0ff", color:"#2255cc", label:"WRITTEN TO KV" },
+                        "live":             { bg:"#f0f0f0", color:"#555",    label:"LIVE MODE" },
+                        "kv-error":         { bg:"#fff0f0", color:"#c03030", label:"KV ERROR" },
+                        "kv-error-fallback":{ bg:"#fff0f0", color:"#c03030", label:"KV ERROR + FALLBACK" },
+                        "not-loaded":       { bg:"#f5f5f5", color:"#aaa",    label:"NOT LOADED" },
+                      };
+                      var m = map[s] || { bg:"#f5f5f5", color:"#aaa", label:s };
+                      return <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:10, background:m.bg, color:m.color }}>{m.label}</span>;
+                    }
                     return (
                       <div style={{ fontSize:12 }}>
                         <div style={{ fontSize:13, fontWeight:700, color:"#111", marginBottom:12 }}>Debug Panel -- {sym}</div>
+
+                        {/* Cache Monitor */}
+                        <div style={{ background:"#f5f2ec", border:"1px solid #e0dbd0", borderRadius:10, padding:"12px 16px", marginBottom:16 }}>
+                          <div style={{ fontWeight:700, color:"#333", fontSize:12, marginBottom:10, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                            <span>Cache Monitor</span>
+                            <div style={{ display:"flex", gap:8 }}>
+                              <span style={{ fontSize:10, background: totalErrors>0?"#fff0f0":"#e6f4e6", color:totalErrors>0?"#c03030":"#1a6a1a", padding:"2px 8px", borderRadius:10, fontWeight:700 }}>
+                                {totalErrors > 0 ? (totalErrors + " KV ERROR" + (totalErrors>1?"S":"")) : "No KV Errors"}
+                              </span>
+                              <span style={{ fontSize:10, background:"#f0f0f0", color:"#555", padding:"2px 8px", borderRadius:10, fontWeight:700 }}>
+                                {aiCallCount + " AI call" + (aiCallCount!==1?"s":"") + " this session"}
+                              </span>
+                            </div>
+                          </div>
+                          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:10 }}>
+                            <div style={{ textAlign:"center", background:"#fff", borderRadius:8, padding:"8px" }}>
+                              <div style={{ fontSize:18, fontWeight:700, color:"#1a6a1a" }}>{totalHits}</div>
+                              <div style={{ fontSize:10, color:"#888" }}>Cache Hits</div>
+                            </div>
+                            <div style={{ textAlign:"center", background:"#fff", borderRadius:8, padding:"8px" }}>
+                              <div style={{ fontSize:18, fontWeight:700, color:"#b88000" }}>{totalMisses}</div>
+                              <div style={{ fontSize:10, color:"#888" }}>Cache Misses</div>
+                            </div>
+                            <div style={{ textAlign:"center", background:"#fff", borderRadius:8, padding:"8px" }}>
+                              <div style={{ fontSize:18, fontWeight:700, color: totalErrors>0?"#c03030":"#aaa" }}>{totalErrors}</div>
+                              <div style={{ fontSize:10, color:"#888" }}>KV Errors</div>
+                            </div>
+                          </div>
+                          <div style={{ fontSize:11, color:"#666", marginBottom:6, fontWeight:600 }}>This ticker ({sym}):</div>
+                          <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                            {symStatus.map(function(s) {
+                              return (
+                                <div key={s.tab} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"5px 10px", background:"#fff", borderRadius:6 }}>
+                                  <span style={{ color:"#555", textTransform:"uppercase", fontSize:10, letterSpacing:"0.05em" }}>{s.tab}</span>
+                                  {statusPill(s.status)}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div style={{ marginTop:10, fontSize:10, color:"#aaa", lineHeight:1.5 }}>
+                            {"TTL: Moat=90d | Financial=30d | AI Insight=7d | Technical=1d"}
+                          </div>
+                        </div>
 
                         {/* API Endpoint Status */}
                         <div style={{ fontWeight:700, color:"#555", fontSize:11, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>Quick Links -- test in browser</div>
