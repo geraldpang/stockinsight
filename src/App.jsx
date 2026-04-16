@@ -5212,7 +5212,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               );
             })()}
 
-
+                </div>
               </div>
             );
           })()}
