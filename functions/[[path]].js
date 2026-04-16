@@ -343,12 +343,22 @@ export async function onRequest(context) {
 
       var cacheKey = "insight:" + sym + ":" + tab;
 
+      // TTL per tab type
+      var TTL_MAP = {
+        "moat":      60 * 60 * 24 * 90,  // 90 days - moat rarely changes
+        "financial": 60 * 60 * 24 * 30,  // 30 days - quarterly earnings cycle
+        "aiinsight": 60 * 60 * 24 * 7,   // 7 days  - keep current
+        "technical": 60 * 60 * 24 * 1,   // 1 day   - technical is short-term
+        "business":  60 * 60 * 24 * 30,  // 30 days - business desc rarely changes
+      };
+      var cacheTtl = TTL_MAP[tab] || 60 * 60 * 24 * 7;
+
       // ── Write: store insight with metadata wrapper ────────────────────────
       if (context.request.method === "POST") {
         var bodyText = await context.request.text();
         var cachedAt = new Date().toISOString();
         var wrapped  = JSON.stringify({ text: bodyText, cachedAt: cachedAt, size: bodyText.length });
-        await CACHE.put(cacheKey, wrapped, { expirationTtl: 60 * 60 * 24 * 7 });
+        await CACHE.put(cacheKey, wrapped, { expirationTtl: cacheTtl });
         return new Response(JSON.stringify({ ok: true, key: cacheKey, cachedAt: cachedAt, size: bodyText.length }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
