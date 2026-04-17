@@ -3156,14 +3156,25 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         var _isRetail     = _sector.includes("Consumer") || _sector.includes("Retail");
                         var _isUtility    = _sector.includes("Utilities") || _sector.includes("Real Estate");
                         var _isTech       = _sector.includes("Technology") || _sector.includes("Communication");
+                        // Default = S&P 500 broad market medians (used when sector unknown)
+                        var DEFAULT_T = {
+                          grossMargin:  [45, 30, 15, 5 ],
+                          opMargin:     [15, 8,  3,  0 ],
+                          netMargin:    [10, 5,  2,  0 ],
+                          roe:          [18, 10, 5,  0 ],
+                          currentRatio: [1.8, 1.3, 1.0, 0.5],
+                          quickRatio:   [1.2, 0.8, 0.5, 0.3],
+                          revGrowth:    [12, 7,  3,  0 ],
+                        };
+                        var _hasSector = !!_sector;
                         var THRESHOLDS = {
-                          grossMargin:  _isHealthcare?[25,15,8,3]:_isFinancial?[40,25,15,5]:_isEnergy?[45,30,15,5]:_isRetail?[35,20,10,5]:_isUtility?[50,35,20,10]:[60,40,25,10],
-                          opMargin:     _isHealthcare?[8,5,3,0]:_isFinancial?[30,20,10,5]:_isEnergy?[20,10,5,0]:_isRetail?[8,4,2,0]:_isUtility?[20,12,6,2]:[30,15,5,0],
-                          netMargin:    _isHealthcare?[6,3,2,0]:_isFinancial?[20,12,6,0]:_isEnergy?[15,8,3,0]:_isRetail?[5,3,1,0]:_isUtility?[15,8,4,0]:[20,10,5,0],
-                          roe:          _isHealthcare?[15,10,6,0]:_isFinancial?[12,8,5,0]:_isEnergy?[15,10,5,0]:_isRetail?[20,12,6,0]:_isUtility?[12,8,4,0]:[25,15,8,0],
-                          currentRatio: (_isFinancial||_isHealthcare||_isUtility)?[1.2,1.0,0.8,0.5]:[2.0,1.5,1.0,0.5],
-                          quickRatio:   (_isFinancial||_isHealthcare)?[1.0,0.8,0.6,0.3]:[1.5,1.0,0.7,0.3],
-                          revGrowth:    _isUtility?[8,5,2,0]:_isEnergy?[15,8,3,0]:_isFinancial?[10,6,3,0]:[20,10,5,0],
+                          grossMargin:  !_hasSector?DEFAULT_T.grossMargin:_isHealthcare?[25,15,8,3]:_isFinancial?[40,25,15,5]:_isEnergy?[45,30,15,5]:_isRetail?[35,20,10,5]:_isUtility?[50,35,20,10]:_isTech?[60,40,25,10]:DEFAULT_T.grossMargin,
+                          opMargin:     !_hasSector?DEFAULT_T.opMargin:_isHealthcare?[8,5,3,0]:_isFinancial?[30,20,10,5]:_isEnergy?[20,10,5,0]:_isRetail?[8,4,2,0]:_isUtility?[20,12,6,2]:_isTech?[30,15,5,0]:DEFAULT_T.opMargin,
+                          netMargin:    !_hasSector?DEFAULT_T.netMargin:_isHealthcare?[6,3,2,0]:_isFinancial?[20,12,6,0]:_isEnergy?[15,8,3,0]:_isRetail?[5,3,1,0]:_isUtility?[15,8,4,0]:_isTech?[20,10,5,0]:DEFAULT_T.netMargin,
+                          roe:          !_hasSector?DEFAULT_T.roe:_isHealthcare?[15,10,6,0]:_isFinancial?[12,8,5,0]:_isEnergy?[15,10,5,0]:_isRetail?[20,12,6,0]:_isUtility?[12,8,4,0]:_isTech?[25,15,8,0]:DEFAULT_T.roe,
+                          currentRatio: !_hasSector?DEFAULT_T.currentRatio:(_isFinancial||_isHealthcare||_isUtility)?[1.2,1.0,0.8,0.5]:DEFAULT_T.currentRatio,
+                          quickRatio:   !_hasSector?DEFAULT_T.quickRatio:(_isFinancial||_isHealthcare)?[1.0,0.8,0.6,0.3]:DEFAULT_T.quickRatio,
+                          revGrowth:    !_hasSector?DEFAULT_T.revGrowth:_isUtility?[8,5,2,0]:_isEnergy?[15,8,3,0]:_isFinancial?[10,6,3,0]:_isTech?[20,10,5,0]:DEFAULT_T.revGrowth,
                         };
                         function metricScore(val, key) {
                           if (!val || val === 0) return 0;
@@ -3188,7 +3199,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         function getCommentary(label, val, score) {
                           if (!val || val === "-") return null;
                           var s = score || 0;
-                          var sn = (_isHealthcare||_isFinancial||_isRetail||_isUtility) ? " (typical for this sector)" : "";
+                          var sn = !_hasSector ? "" : (_isHealthcare||_isFinancial||_isRetail||_isUtility) ? " (typical for this sector)" : "";
                           var map = {
                             "Gross Margin":      s>=5?"Exceptional pricing power  -  keeps most of each dollar earned":s>=4?"Strong margins  -  efficient at converting sales to profit":s>=3?"Adequate margins  -  covers costs with reasonable profit"+sn:s>=2?"Thin margins  -  limited pricing power"+sn:"Very low margins"+sn,
                             "Operating Margin":  s>=5?"Highly efficient operations":s>=4?"Strong operational efficiency":s>=3?"Reasonable operational control"+sn:s>=2?"Tight operations  -  limited room for error"+sn:"Very slim operating margin"+sn,
@@ -3258,7 +3269,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                             <div style={{ border:"1px solid #f0ede6", borderRadius:10, overflow:"hidden", marginBottom:14 }}>
                               <div style={{ padding:"8px 14px", background:"#f5f2ec", borderBottom:"1px solid #e8e4de", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                                 <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Financial Health</span>
-                                {_sector && <span style={{ fontSize:10, color:"#aaa", background:"#eee", padding:"2px 8px", borderRadius:10 }}>{_isFinancial?"Financial Services":_isHealthcare?"Healthcare":_isEnergy?"Energy":_isRetail?"Retail/Consumer":_isUtility?"Utility":"General"}{" benchmark"}</span>}
+                                <span style={{ fontSize:10, color:"#aaa", background:"#eee", padding:"2px 8px", borderRadius:10 }}>{!_hasSector?"S&P 500 default benchmark":_isFinancial?"Financial Services benchmark":_isHealthcare?"Healthcare benchmark":_isEnergy?"Energy benchmark":_isRetail?"Retail/Consumer benchmark":_isUtility?"Utility benchmark":_isTech?"Technology benchmark":"General benchmark"}</span>
                               </div>
                               <MetricRow items={[{ label:"Gross Margin", val:pct(gm), score:metricScore(gm,"grossMargin") },{ label:"Return on Equity", val:pct(roe), score:metricScore(roe,"roe") }]} />
                               <MetricRow items={[{ label:"Operating Margin", val:pct(om), score:metricScore(om,"opMargin") },{ label:"Current Ratio", val:fmt2(cr), score:metricScore(cr,"currentRatio") }]} />
