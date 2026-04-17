@@ -2832,10 +2832,18 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                             <div style={{ padding:"20px 16px", background:"#faf8f4", borderRadius:10, border:"1px solid #e8e4de" }}>
                               <div style={{ fontSize:14, fontWeight:600, color:"#888", marginBottom:8 }}>Intrinsic Value Not Available</div>
                               <div style={{ fontSize:13, color:"#aaa", lineHeight:1.7 }}>
-                                {"DCF valuation requires positive earnings or free cash flow. " + (ov.sector ? ov.sector + " companies" : "Companies") + " with negative or near-zero profitability cannot be reliably valued using discounted cash flow models."}
+                                {"None of the 6 valuation models could be computed. This typically means the company has negative or zero earnings, free cash flow, and no P/S ratio available  --  common for early-stage or loss-making companies."}
+                              </div>
+                              <div style={{ marginTop:10, fontSize:11, color:"#ccc", lineHeight:1.6 }}>
+                                <div style={{ marginBottom:4, fontWeight:600, color:"#bbb" }}>Models attempted:</div>
+                                {["Cash Flow Model (20Y)", "Earnings Model (20Y)", "Net Income Model (20Y)", "Gordon Growth Model", "Revenue Valuation (PS)", "PEG Ratio"].map(function(m,i) {
+                                  return <div key={i} style={{ padding:"3px 0", borderBottom:"1px solid #f0ede6", display:"flex", justifyContent:"space-between" }}>
+                                    <span>{m}</span><span style={{ color:"#ddd", fontStyle:"italic" }}>N/A</span>
+                                  </div>;
+                                })}
                               </div>
                               <div style={{ marginTop:12, fontSize:12, color:"#bbb", lineHeight:1.6 }}>
-                                {"Consider alternative valuation approaches such as Price/Sales, EV/Revenue, or sector-specific metrics for growth-stage companies."}
+                                {"Consider P/S ratio, EV/Revenue, or sector-specific metrics for growth-stage companies."}
                               </div>
                               {ov.ps > 0 && (
                                 <div style={{ marginTop:12, display:"flex", gap:12, flexWrap:"wrap" }}>
