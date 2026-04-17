@@ -1822,16 +1822,28 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     const ps = psCalcIV;
     const pegVal  = ov.peg > 0 ? Math.min(baseEps * 15, maxVal) : 0;
 
-    vals.push({ label:"Cash Flow Model\n(20Y)",         value:dcf20,  color:"#d4a800" });
-    if (dcff20 > 0) vals.push({ label:"Earnings Model\n(20Y)",   value:dcff20, color:"#d4a800" });
-    if (dni20  > 0) vals.push({ label:"Net Income Model\n(20Y)",        value:dni20,  color:"#d4a800" });
-    if (dcffT  > 0) vals.push({ label:"Gordon Growth Model",  value:dcffT,  color:"#d4a800" });
-    vals.push({ label:"Revenue Valuation\n(PS)",                value:ps,     color:"#d4a800" });
-    if (pegVal > 0) vals.push({ label:"Price to Earnings Growth\n(PEG) Ratio Without NRI",     value:pegVal, color:"#c03030" });
+    // Only include models with valid (>0) values in chart and average
+    // Skipped models are tracked separately for display as N/A rows
+    var skipped = [];
+    if (dcf20  > 0) vals.push({ label:"Cash Flow Model\n(20Y)",      value:dcf20,  color:"#d4a800" });
+    else skipped.push("Cash Flow Model (20Y)");
+    if (dcff20 > 0) vals.push({ label:"Earnings Model\n(20Y)",       value:dcff20, color:"#d4a800" });
+    else skipped.push("Earnings Model (20Y)");
+    if (dni20  > 0) vals.push({ label:"Net Income Model\n(20Y)",     value:dni20,  color:"#d4a800" });
+    else skipped.push("Net Income Model (20Y)");
+    if (dcffT  > 0) vals.push({ label:"Gordon Growth Model",          value:dcffT,  color:"#d4a800" });
+    else skipped.push("Gordon Growth Model");
+    if (ps     > 0) vals.push({ label:"Revenue Valuation\n(PS)",     value:ps,     color:"#d4a800" });
+    else skipped.push("Revenue Valuation (PS)");
+    if (pegVal > 0) vals.push({ label:"Price to Earnings Growth\n(PEG) Ratio Without NRI", value:pegVal, color:"#c03030" });
+    else skipped.push("PEG Ratio");
 
-    const oracleAvg = vals.reduce(function(sum, v) { return sum + v.value; }, 0) / vals.length;
+    // Average only over valid models (already filtered above)
+    const oracleAvg = vals.length > 0
+      ? vals.reduce(function(sum, v) { return sum + v.value; }, 0) / vals.length
+      : 0;
     oracle = oracleAvg.toFixed(2);
-    vals.push({ label:"Intrinsic Value", value:oracleAvg, color:"#1a8a3a", bold:true });
+    if (oracleAvg > 0) vals.push({ label:"Intrinsic Value", value:oracleAvg, color:"#1a8a3a", bold:true, skippedModels:skipped });
   }
 
   const maxV = vals.length
@@ -2656,8 +2668,32 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           <div style={{ textAlign:"right", marginBottom:8 }}>
                             <span style={{ fontSize:11, color:"#aaa" }}>Intrinsic Value {oracle}</span>
                           </div>
-                          {vals.map(function(v, i) {
+                          {vals.filter(function(v){ return !v.bold; }).map(function(v, i) {
                             return <VBar key={i} label={v.label} value={v.value} maxV={maxV} color={v.color} bold={v.bold} />;
+                          })}
+                          {/* Skipped models -- shown as N/A rows */}
+                          {vals.length > 0 && vals[vals.length-1].skippedModels && vals[vals.length-1].skippedModels.length > 0 && (
+                            <div style={{ marginTop:6 }}>
+                              {vals[vals.length-1].skippedModels.map(function(m, i) {
+                                return (
+                                  <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"5px 8px", opacity:0.5, borderBottom:"1px solid #f0ede6" }}>
+                                    <span style={{ fontSize:11, color:"#aaa" }}>{m}</span>
+                                    <span style={{ fontSize:11, color:"#aaa", fontStyle:"italic" }}>N/A  --  insufficient data</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {/* Average note */}
+                          <div style={{ marginTop:8, padding:"6px 10px", background:"#f5f2ec", borderRadius:6, fontSize:10, color:"#888" }}>
+                            {"Average of " + vals.filter(function(v){ return !v.bold; }).length + " available model" + (vals.filter(function(v){ return !v.bold; }).length !== 1 ? "s" : "") + " = $" + oracle}
+                            {vals.length > 0 && vals[vals.length-1].skippedModels && vals[vals.length-1].skippedModels.length > 0 &&
+                              "  (" + vals[vals.length-1].skippedModels.length + " model" + (vals[vals.length-1].skippedModels.length!==1?"s":"") + " excluded  --  N/A)"
+                            }
+                          </div>
+                          {/* Intrinsic value bar */}
+                          {vals.filter(function(v){ return v.bold; }).map(function(v, i) {
+                            return <VBar key={"iv"+i} label={v.label} value={v.value} maxV={maxV} color={v.color} bold={v.bold} />;
                           })}
                           <div style={{ marginTop:10, paddingTop:8, borderTop:"1px solid #e0dbd0", textAlign:"right" }}>
                             <span style={{ fontSize:11, color:"#aaa" }}>Stock price: ${price.toFixed(2)}</span>
