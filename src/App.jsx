@@ -921,6 +921,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   const [mobilePanel,   setMobilePanel]   = useState("left"); // "left" | "right"
   const [chartCollapsed, setChartCollapsed] = useState(false);
 
+  // Expose computed financial strength for left panel pill
+  // Will be set by financial tab when it renders
+  if (!window.__computedFinStrength) window.__computedFinStrength = {};
+
   window.__goToTab = function(id) {
     var adminTabs = ["addlinfo", "debug", "admin"];
     if (adminTabs.indexOf(id) !== -1) return;
@@ -3185,9 +3189,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         function fsCol(col) {
                           if (!col) return { text:"#888", bg:"#f5f5f5", border:"#ddd" };
                           var v = col.toLowerCase();
-                          if (v.includes("strong")) return { text:"#1a6a1a", bg:"#e6f4e6", border:"#7abd00" };
-                          if (v.includes("moderate")) return { text:"#b88000", bg:"#fdf8e6", border:"#d4a800" };
-                          return { text:"#c03030", bg:"#fff0f0", border:"#e08080" };
+                          if (v.includes("exceptional")) return { text:"#0d4f0d", bg:"#d4edda", border:"#7abd00" };
+                          if (v.includes("strong"))      return { text:"#1a6a1a", bg:"#e6f4e6", border:"#7abd00" };
+                          if (v.includes("moderate"))    return { text:"#b88000", bg:"#fdf8e6", border:"#d4a800" };
+                          if (v.includes("weak"))        return { text:"#b84000", bg:"#fff4ee", border:"#e08050" };
+                          if (v.includes("poor"))        return { text:"#c03030", bg:"#fff0f0", border:"#e08080" };
+                          return { text:"#888", bg:"#f5f5f5", border:"#ddd" };
                         }
                         function MetricDots(props) {
                           if (!props.score) return null;
@@ -3250,19 +3257,54 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         function pct(v) { return v ? v.toFixed(2)+"%" : "-"; }
                         function fmt2(v) { return v>0 ? v.toFixed(2)+"x" : "-"; }
                         function fmtB(v) { if (!v||v===0) return "-"; var a=Math.abs(v); return (v<0?"-$":"$")+(a>=1e12?(a/1e12).toFixed(2)+"T":a>=1e9?(a/1e9).toFixed(1)+"B":(a/1e6).toFixed(0)+"M"); }
-                        var fc = fsCol(piF.classification);
                         var rawText = insightCache["financial"] || "";
+                        // Expose computed strength so left panel pill stays consistent
+                        if (sym) {
+                          if (!window.__computedFinStrength) window.__computedFinStrength = {};
+                          // computed after metrics below - will be set at render time
+                        }
                         var aiText = rawText.replace(/Financial Strength Classification:.+/i,"").trim();
+
+                        // Compute classification from grid scores (sector-aware, excludes blanks)
+                        var _gridScores = [
+                          metricScore(gm,  "grossMargin"),
+                          metricScore(om,  "opMargin"),
+                          metricScore(nm,  "netMargin"),
+                          metricScore(roe, "roe"),
+                          metricScore(cr,  "currentRatio"),
+                          metricScore(qr,  "quickRatio"),
+                          metricScore(rg,  "revGrowth"),
+                          fcf > 0 ? (fcf > 10e9 ? 5 : fcf > 1e9 ? 4 : 3) : 0,
+                          (function(){ var eb=ov?ov.ebitda:0; var td=ov?ov.totalDebt:0; if(!eb||!td) return 0; var r=td/eb; return r<1?5:r<2?4:r<3?3:r<4?2:1; })(),
+                          (function(){ var ocf=ov?ov.ocfRaw:0; var td=ov?ov.totalDebt:0; if(!ocf||!td) return 0; var r=td/ocf; return r<1?5:r<2?4:r<3?3:r<5?2:1; })(),
+                          de > 0 ? (de<0.5?5:de<1?4:de<2?3:de<3?2:1) : 0,
+                        ].filter(function(s){ return s > 0; }); // exclude blanks (score=0)
+
+                        var _gridAvg = _gridScores.length > 0
+                          ? _gridScores.reduce(function(a,b){ return a+b; }, 0) / _gridScores.length
+                          : 0;
+                        var _computedClass = _gridAvg >= 4.5 ? "Exceptional" : _gridAvg >= 3.5 ? "Strong" : _gridAvg >= 2.5 ? "Moderate" : _gridAvg >= 1.5 ? "Weak" : _gridAvg > 0 ? "Poor" : null;
+                        var _computedScore = _gridAvg >= 4.5 ? 5 : _gridAvg >= 3.5 ? 4 : _gridAvg >= 2.5 ? 3 : _gridAvg >= 1.5 ? 2 : _gridAvg > 0 ? 1 : 0;
+                        var fc = fsCol(_computedClass);
+                        // Store for left panel pill consistency
+                        if (sym && _computedClass) {
+                          if (!window.__computedFinStrength) window.__computedFinStrength = {};
+                          window.__computedFinStrength[sym] = { classification: _computedClass, score: _computedScore };
+                        }
+
                         return (
                           <div>
-                            {piF.classification && (
+                            {_computedClass && (
                               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:fc.bg, borderRadius:8, marginBottom:14, border:"0.5px solid "+fc.border }}>
                                 <div>
                                   <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Financial Strength</div>
-                                  <div style={{ fontSize:15, fontWeight:700, color:fc.text }}>{piF.classification}</div>
+                                  <div style={{ fontSize:15, fontWeight:700, color:fc.text }}>{_computedClass}</div>
+                                  <div style={{ fontSize:10, color:fc.text, opacity:0.7, marginTop:2 }}>
+                                    {"avg score " + _gridAvg.toFixed(1) + " / 5  from " + _gridScores.length + " metric" + (_gridScores.length!==1?"s":"") + " with data"}
+                                  </div>
                                 </div>
                                 <div style={{ display:"flex", gap:3 }}>
-                                  {[1,2,3,4,5].map(function(d){ return <span key={d} style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:d<=(piF.score||0)?fc.text:"#ddd" }} />; })}
+                                  {[1,2,3,4,5].map(function(d){ return <span key={d} style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:d<=_computedScore?fc.text:"#ddd" }} />; })}
                                 </div>
                               </div>
                             )}
