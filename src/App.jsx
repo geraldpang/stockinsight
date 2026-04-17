@@ -1820,30 +1820,126 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     var psCalcIV      = psCalcRevPS > 0 && ov.ps > 0 ? cap(ov.ps * psCalcRevPS) : price > 0 ? cap(price) : 0;
     var psCalcRatio   = ov.ps > 0 ? ov.ps : 0;
     const ps = psCalcIV;
-    const pegVal  = ov.peg > 0 ? Math.min(baseEps * 15, maxVal) : 0;
+    const pegVal = ov.peg > 0 ? Math.min(baseEps * 15, maxVal) : 0;
 
-    // Only include models with valid (>0) values in chart and average
-    // Skipped models are tracked separately for display as N/A rows
-    var skipped = [];
-    if (dcf20  > 0) vals.push({ label:"Cash Flow Model\n(20Y)",      value:dcf20,  color:"#d4a800" });
-    else skipped.push("Cash Flow Model (20Y)");
-    if (dcff20 > 0) vals.push({ label:"Earnings Model\n(20Y)",       value:dcff20, color:"#d4a800" });
-    else skipped.push("Earnings Model (20Y)");
-    if (dni20  > 0) vals.push({ label:"Net Income Model\n(20Y)",     value:dni20,  color:"#d4a800" });
-    else skipped.push("Net Income Model (20Y)");
-    if (dcffT  > 0) vals.push({ label:"Gordon Growth Model",          value:dcffT,  color:"#d4a800" });
-    else skipped.push("Gordon Growth Model");
-    if (ps     > 0) vals.push({ label:"Revenue Valuation\n(PS)",     value:ps,     color:"#d4a800" });
-    else skipped.push("Revenue Valuation (PS)");
-    if (pegVal > 0) vals.push({ label:"Price to Earnings Growth\n(PEG) Ratio Without NRI", value:pegVal, color:"#c03030" });
-    else skipped.push("PEG Ratio");
+    // --- Sector detection ---
+    var _ivSector = ov.sector || "";
+    var _ivIsTech     = _ivSector.includes("Technology") || _ivSector.includes("Communication");
+    var _ivIsHealth   = _ivSector.includes("Healthcare") || _ivSector.includes("Health");
+    var _ivIsFinancial= _ivSector.includes("Financial");
+    var _ivIsEnergy   = _ivSector.includes("Energy") || _ivSector.includes("Basic Materials");
+    var _ivIsUtility  = _ivSector.includes("Utilities") || _ivSector.includes("Real Estate");
+    var _ivIsConsumer = _ivSector.includes("Consumer") || _ivSector.includes("Retail");
+    var _ivIsIndustrial = _ivSector.includes("Industrial");
 
-    // Average only over valid models (already filtered above)
+    // Is the company profitable? (at least one DCF base is positive)
+    var _ivIsProfitable = (dcf20 > 0 || dcff20 > 0 || dni20 > 0);
+
+    // --- Sector model applicability map ---
+    // true = include in average, false = grey out as "not applicable for sector"
+    var MODEL_APPLICABLE = {
+      "Cash Flow Model":   !_ivIsFinancial && !_ivIsUtility,
+      "Earnings Model":    !_ivIsUtility,
+      "Net Income Model":  true,
+      "Gordon Growth":     !_ivIsTech && !_ivIsEnergy,
+      "Revenue PS":        _ivIsTech || _ivIsConsumer || _ivSector === "",
+      "PEG Ratio":         !_ivIsUtility && !_ivIsEnergy && !_ivIsFinancial,
+      "EV/Revenue":        !_ivIsProfitable,
+      "Revenue DCF":       !_ivIsProfitable,
+      "Price/Book":        _ivIsFinancial || (!_ivIsProfitable),
+    };
+
+    // --- Compute new models ---
+
+    // EV/Revenue model (for unprofitable companies)
+    var evRevVal = 0;
+    var evRevMultiple = _ivIsHealth ? 6 : _ivIsTech ? 10 : _ivIsConsumer ? 2 : _ivIsFinancial ? 3 : _ivIsUtility ? 2 : 3;
+    var revTotal = (function(){
+      // Try to get total revenue from simfin, then yahoo
+      if (sfBalSum && sfBalSum.income && Array.isArray(sfBalSum.income) && sfBalSum.income[0]) {
+        var sfInc = sfBalSum.income[0].statements && sfBalSum.income[0].statements[0];
+        if (sfInc && sfInc.columns && sfInc.data && sfInc.data.length > 0) {
+          var ri = sfInc.columns.indexOf("Revenue");
+          var rr = sfInc.data[sfInc.data.length-1];
+          if (ri !== -1 && rr[ri] > 0) return rr[ri];
+        }
+      }
+      if (ov.fcfRaw && ov.ps > 0 && price > 0) return (price / ov.ps) * sharesSum;
+      return 0;
+    })();
+    if (MODEL_APPLICABLE["EV/Revenue"] && revTotal > 0 && sharesSum > 0) {
+      var revPS = revTotal / sharesSum;
+      evRevVal = cap(evRevMultiple * revPS);
+    }
+
+    // Revenue DCF model (for unprofitable companies)
+    var revDcfVal = 0;
+    var targetMargin = _ivIsTech ? 0.25 : _ivIsHealth ? 0.08 : _ivIsConsumer ? 0.05 : _ivIsFinancial ? 0.15 : 0.08;
+    if (MODEL_APPLICABLE["Revenue DCF"] && revTotal > 0 && sharesSum > 0) {
+      var revGrR  = ov.revGrowth > 0 ? Math.min(ov.revGrowth / 100, 0.40) : 0.10;
+      var revDecStep = (revGrR * 0.5 - termGrowth) / 4;
+      var revPerSh = revTotal / sharesSum;
+      var evRev = 0; var fRev = revPerSh * targetMargin;
+      for (var ry = 1; ry <= 20; ry++) {
+        var rg;
+        if (ry <= 5) rg = revGrR;
+        else if (ry <= 10) rg = revGrR * 0.5 - revDecStep * (ry - 6);
+        else rg = termGrowth;
+        fRev *= (1 + rg); evRev += fRev / Math.pow(1 + WACC_ADJ, ry);
+      }
+      revDcfVal = cap(evRev);
+    }
+
+    // Price/Book model
+    var pbVal = 0;
+    var sectorPB = _ivIsFinancial ? 1.2 : _ivIsHealth ? 3.0 : _ivIsConsumer ? 2.0 : 1.5;
+    if (MODEL_APPLICABLE["Price/Book"] && ov.bookValue > 0 && sharesSum > 0) {
+      var bvps = ov.bookValue / sharesSum;
+      pbVal = cap(sectorPB * bvps);
+    }
+
+    // --- Build vals with sector awareness ---
+    // Each entry: { label, value, color, applicable, reason }
+    // applicable = true -> include in chart + average
+    // applicable = false -> grey out as "not applicable for sector"
+    // value = 0 AND applicable = true -> show as "N/A - insufficient data"
+
+    var ALL_MODELS = [
+      { key:"Cash Flow Model",  label:"Cash Flow Model (20Y)",       value:dcf20,   color:"#d4a800" },
+      { key:"Earnings Model",   label:"Earnings Model (20Y)",        value:dcff20,  color:"#d4a800" },
+      { key:"Net Income Model", label:"Net Income Model (20Y)",      value:dni20,   color:"#d4a800" },
+      { key:"Gordon Growth",    label:"Gordon Growth Model",         value:dcffT,   color:"#d4a800" },
+      { key:"Revenue PS",       label:"Revenue Valuation (PS)",      value:ps,      color:"#d4a800" },
+      { key:"PEG Ratio",        label:"PEG Ratio",                   value:pegVal,  color:"#c03030" },
+      { key:"EV/Revenue",       label:"EV / Revenue Model",          value:evRevVal,color:"#5b8dde" },
+      { key:"Revenue DCF",      label:"Revenue DCF Model",           value:revDcfVal,color:"#5b8dde" },
+      { key:"Price/Book",       label:"Price / Book Model",          value:pbVal,   color:"#5b8dde" },
+    ];
+
+    // Filter: applicable + has value -> include in average
+    ALL_MODELS.forEach(function(m) {
+      m.applicable = MODEL_APPLICABLE[m.key] !== false;
+    });
+
+    // Push only applicable + valid models into vals for bar chart + average
+    var modelsMeta = []; // full list for display
+    ALL_MODELS.forEach(function(m) {
+      if (m.applicable && m.value > 0) {
+        vals.push({ label:m.label, value:m.value, color:m.color });
+        modelsMeta.push({ label:m.label, value:m.value, status:"ok", color:m.color });
+      } else if (m.applicable && m.value <= 0) {
+        modelsMeta.push({ label:m.label, value:0, status:"nodata", color:m.color });
+      } else {
+        modelsMeta.push({ label:m.label, value:0, status:"na", color:m.color });
+      }
+    });
+
+    // Average only over valid applicable models
     const oracleAvg = vals.length > 0
       ? vals.reduce(function(sum, v) { return sum + v.value; }, 0) / vals.length
       : 0;
     oracle = oracleAvg.toFixed(2);
-    if (oracleAvg > 0) vals.push({ label:"Intrinsic Value", value:oracleAvg, color:"#1a8a3a", bold:true, skippedModels:skipped });
+    if (oracleAvg > 0) vals.push({ label:"Intrinsic Value", value:oracleAvg, color:"#1a8a3a", bold:true, modelsMeta:modelsMeta, sectorLabel:_ivSector });
   }
 
   const maxV = vals.length
@@ -2668,29 +2764,52 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           <div style={{ textAlign:"right", marginBottom:8 }}>
                             <span style={{ fontSize:11, color:"#aaa" }}>Intrinsic Value {oracle}</span>
                           </div>
+                          {/* Bar chart - applicable + valid models only */}
                           {vals.filter(function(v){ return !v.bold; }).map(function(v, i) {
                             return <VBar key={i} label={v.label} value={v.value} maxV={maxV} color={v.color} bold={v.bold} />;
                           })}
-                          {/* Skipped models -- shown as N/A rows */}
-                          {vals.length > 0 && vals[vals.length-1].skippedModels && vals[vals.length-1].skippedModels.length > 0 && (
-                            <div style={{ marginTop:6 }}>
-                              {vals[vals.length-1].skippedModels.map(function(m, i) {
-                                return (
-                                  <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"5px 8px", opacity:0.5, borderBottom:"1px solid #f0ede6" }}>
-                                    <span style={{ fontSize:11, color:"#aaa" }}>{m}</span>
-                                    <span style={{ fontSize:11, color:"#aaa", fontStyle:"italic" }}>N/A  --  insufficient data</span>
+
+                          {/* Model status list */}
+                          {vals.length > 0 && vals[vals.length-1].modelsMeta && (function() {
+                            var meta = vals[vals.length-1].modelsMeta;
+                            var naData  = meta.filter(function(m){ return m.status === "nodata"; });
+                            var naSect  = meta.filter(function(m){ return m.status === "na"; });
+                            var okCount = meta.filter(function(m){ return m.status === "ok"; }).length;
+                            return (
+                              <div>
+                                {naData.length > 0 && (
+                                  <div style={{ marginTop:6 }}>
+                                    {naData.map(function(m, i) {
+                                      return (
+                                        <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"5px 10px", borderBottom:"1px solid #f5f2ec" }}>
+                                          <span style={{ fontSize:11, color:"#bbb" }}>{m.label}</span>
+                                          <span style={{ fontSize:10, color:"#ccc", fontStyle:"italic" }}>N/A  --  insufficient data</span>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                          {/* Average note */}
-                          <div style={{ marginTop:8, padding:"6px 10px", background:"#f5f2ec", borderRadius:6, fontSize:10, color:"#888" }}>
-                            {"Average of " + vals.filter(function(v){ return !v.bold; }).length + " available model" + (vals.filter(function(v){ return !v.bold; }).length !== 1 ? "s" : "") + " = $" + oracle}
-                            {vals.length > 0 && vals[vals.length-1].skippedModels && vals[vals.length-1].skippedModels.length > 0 &&
-                              "  (" + vals[vals.length-1].skippedModels.length + " model" + (vals[vals.length-1].skippedModels.length!==1?"s":"") + " excluded  --  N/A)"
-                            }
-                          </div>
+                                )}
+                                {naSect.length > 0 && (
+                                  <div style={{ marginTop:4 }}>
+                                    {naSect.map(function(m, i) {
+                                      return (
+                                        <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"5px 10px", borderBottom:"1px solid #f5f2ec", background:"#fafafa" }}>
+                                          <span style={{ fontSize:11, color:"#ddd", textDecoration:"line-through" }}>{m.label}</span>
+                                          <span style={{ fontSize:10, color:"#ddd", fontStyle:"italic" }}>Not applicable for this sector</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                                {/* Average note */}
+                                <div style={{ marginTop:8, padding:"6px 10px", background:"#f5f2ec", borderRadius:6, fontSize:10, color:"#888" }}>
+                                  {"Average of " + okCount + " applicable model" + (okCount !== 1 ? "s" : "") + " = $" + oracle}
+                                  {vals[vals.length-1].sectorLabel ? "  (sector: " + vals[vals.length-1].sectorLabel + ")" : ""}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
                           {/* Intrinsic value bar */}
                           {vals.filter(function(v){ return v.bold; }).map(function(v, i) {
                             return <VBar key={"iv"+i} label={v.label} value={v.value} maxV={maxV} color={v.color} bold={v.bold} />;
@@ -2836,7 +2955,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                               </div>
                               <div style={{ marginTop:10, fontSize:11, color:"#ccc", lineHeight:1.6 }}>
                                 <div style={{ marginBottom:4, fontWeight:600, color:"#bbb" }}>Models attempted:</div>
-                                {["Cash Flow Model (20Y)", "Earnings Model (20Y)", "Net Income Model (20Y)", "Gordon Growth Model", "Revenue Valuation (PS)", "PEG Ratio"].map(function(m,i) {
+                                {["Cash Flow Model (20Y)", "Earnings Model (20Y)", "Net Income Model (20Y)", "Gordon Growth Model", "Revenue Valuation (PS)", "PEG Ratio", "EV / Revenue Model", "Revenue DCF Model", "Price / Book Model"].map(function(m,i) {
                                   return <div key={i} style={{ padding:"3px 0", borderBottom:"1px solid #f0ede6", display:"flex", justifyContent:"space-between" }}>
                                     <span>{m}</span><span style={{ color:"#ddd", fontStyle:"italic" }}>N/A</span>
                                   </div>;
