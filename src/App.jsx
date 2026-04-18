@@ -1845,7 +1845,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       "Cash Flow Model":   !_ivIsFinancial && !_ivIsUtility,
       "Earnings Model":    !_ivIsUtility,
       "Net Income Model":  true,
-      "Gordon Growth":     !_ivIsTech && !_ivIsEnergy,
+      "Gordon Growth":     true,
       "Revenue PS":        _ivIsTech || _ivIsConsumer || _ivSector === "",
       "PEG Ratio":         !_ivIsUtility && !_ivIsEnergy && !_ivIsFinancial,
       "EV/Revenue":        !_ivIsProfitable,
