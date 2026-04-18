@@ -2468,22 +2468,60 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     {/* Valuation Section */}
           <div style={{ background:"#252525", border:"1px solid #2c2c2e", borderRadius:12, padding:"16px", marginBottom:12 }}>
             <div style={{ fontSize:12, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Valuation</div>
-            {valRows.length > 0 ? (
-              <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                <tbody>
-                  {valRows.map(function(row, i) {
-                    return (
-                      <tr key={i} style={{ borderBottom:i < valRows.length-1 ? "1px solid #2c2c2e" : "none" }}>
-                        <td style={{ padding:"6px 0", fontSize:11, color:"#888", width:"34%", lineHeight:1.4 }}>{row[0]}</td>
-                        <td style={{ padding:"6px 8px", fontSize:13, fontWeight:700, color:"#ddd", width:"16%" }}>{row[1]}</td>
-                        <td style={{ padding:"6px 0", fontSize:11, color:"#555", width:"34%", lineHeight:1.4 }}>{row[2]}</td>
-                        <td style={{ padding:"6px 0", fontSize:13, fontWeight:700, color:"#ddd", width:"16%", textAlign:"right" }}>{row[3]}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : (
+            {ov ? (function() {
+              var VAL_METRICS = [
+                {
+                  label:"P/E Ratio (TTM)", val:pe>0?fmt2(pe):"-",
+                  tip:"Price-to-Earnings: how much you pay for $1 of profit. " + (pe<=0?"No earnings available.":pe<15?"Below 15x -- looks cheap, but check why.":pe<25?"15-25x -- moderate, typical for steady companies.":pe<40?"25-40x -- premium pricing, implies strong growth expected.":"Above 40x -- very expensive or loss-making.")
+                },
+                {
+                  label:"Forward P/E", val:fpe>0?fmt2(fpe):"-",
+                  tip:"Based on next year estimated earnings. " + (fpe<=0?"No estimate available.":fpe<15?"Below 15x -- market expects little growth.":fpe<25?"15-25x -- reasonable for a growing company.":fpe<35?"25-35x -- market expects strong future earnings.":"Above 35x -- high expectations baked in.")
+                },
+                {
+                  label:"Price / Sales (TTM)", val:ov.ps>0?fmt2(ov.ps):"-",
+                  tip:"How much you pay per $1 of revenue. Useful when company has no earnings yet. " + (ov.ps<=0?"Not available.":ov.ps<2?"Below 2x -- cheap relative to revenue.":ov.ps<6?"2-6x -- moderate, common for profitable companies.":ov.ps<12?"6-12x -- high, typical for fast-growing tech.":"Above 12x -- very expensive relative to revenue.")
+                },
+                {
+                  label:"EV / EBITDA", val:ov.evEbitda>0?fmt2(ov.evEbitda):"-",
+                  tip:"Enterprise Value vs operating profit before interest and taxes. Good for comparing across companies with different debt levels. " + (ov.evEbitda<=0?"Not available.":ov.evEbitda<10?"Below 10x -- looks cheap.":ov.evEbitda<20?"10-20x -- fair value range.":ov.evEbitda<30?"20-30x -- premium, growth expected.":"Above 30x -- expensive, high growth priced in.")
+                },
+                {
+                  label:"Price / Book (P/B)", val:ov.pb>0?fmt2(ov.pb):"-",
+                  tip:"How much you pay vs the company net asset value. " + (ov.pb<=0?"Not available.":ov.pb<1?"Below 1x -- trading below asset value, could be a bargain or a warning sign.":ov.pb<3?"1-3x -- reasonable for most industries.":ov.pb<8?"3-8x -- high, typical for asset-light tech or strong brands.":"Above 8x -- very high, implies significant intangible value.")
+                },
+                {
+                  label:"Price / Free Cash Flow", val:ov.pFcf>0?fmt2(ov.pFcf):"-",
+                  tip:"How much you pay per $1 of free cash the company generates. Often more reliable than P/E. " + (ov.pFcf<=0?"Not available or negative FCF.":ov.pFcf<15?"Below 15x -- cheap, business generates strong cash.":ov.pFcf<25?"15-25x -- fair value.":ov.pFcf<40?"25-40x -- premium, high growth expected.":"Above 40x -- expensive relative to cash generation.")
+                },
+                {
+                  label:"PEG Ratio", val:ov.peg>0?ov.peg.toFixed(2):"-",
+                  tip:"P/E divided by earnings growth rate. Adjusts for growth. " + (ov.peg<=0?"Not available.":ov.peg<1?"Below 1 -- potentially undervalued relative to growth (Peter Lynch rule).":ov.peg<2?"1-2x -- fair value for a growing company.":"Above 2x -- may be expensive relative to its growth rate.")
+                },
+                {
+                  label:"Dividend Yield", val:ov.divY>0?fpct(ov.divY):"None",
+                  tip:"Annual dividend as a percentage of stock price. " + (ov.divY<=0?"Company pays no dividend -- typical for growth stocks reinvesting profits.":ov.divY<2?"Below 2% -- low yield, company prioritises growth.":ov.divY<4?"2-4% -- moderate yield, balanced approach.":ov.divY<6?"4-6% -- high yield, income-focused company.":"Above 6% -- very high yield, check if dividend is sustainable.")
+                },
+              ];
+              return (
+                <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                  <tbody>
+                    {VAL_METRICS.map(function(m, i) {
+                      return (
+                        <tr key={i} style={{ borderBottom:i < VAL_METRICS.length-1 ? "1px solid #2c2c2e" : "none" }}
+                          title={m.tip}>
+                          <td style={{ padding:"7px 0", fontSize:11, color:"#888", width:"50%", lineHeight:1.4, cursor:"help" }}>
+                            {m.label}
+                            <span style={{ fontSize:9, color:"#555", marginLeft:4 }}>{"?"}</span>
+                          </td>
+                          <td style={{ padding:"7px 0", fontSize:13, fontWeight:700, color:"#ddd", textAlign:"right", cursor:"help" }}>{m.val}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              );
+            })() : (
               <div style={{ color:"#aaa", fontSize:13, textAlign:"center", padding:"12px 0" }}>
                 {msg ? "Unavailable" : "Loading..."}
               </div>
