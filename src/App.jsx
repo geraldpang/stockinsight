@@ -2465,56 +2465,54 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             );
           })()}
 
+                    {/* Metric color helpers */}
+                    {(function() {
+                      window.__mc = function(val, good, warn, bad, reverse) {
+                        // reverse=true means lower is better (e.g. P/E, debt)
+                        if (val === null || val === undefined || val === 0 || val === "-") return "#ddd";
+                        if (reverse) {
+                          if (val <= good) return "#7abd00";
+                          if (val <= warn) return "#EF9F27";
+                          return "#e05050";
+                        }
+                        if (val >= good) return "#7abd00";
+                        if (val >= warn) return "#EF9F27";
+                        return "#e05050";
+                      };
+                    })()}
                     {/* Valuation Section */}
           <div style={{ background:"#252525", border:"1px solid #2c2c2e", borderRadius:12, padding:"16px", marginBottom:12 }}>
             <div style={{ fontSize:12, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Valuation</div>
             {ov ? (function() {
+              var mc = window.__mc || function(){ return "#ddd"; };
               var VAL_METRICS = [
-                {
-                  label:"P/E Ratio (TTM)", val:pe>0?fmt2(pe):"-",
-                  tip:"Price-to-Earnings: how much you pay for $1 of profit. " + (pe<=0?"No earnings available.":pe<15?"Below 15x -- looks cheap, but check why.":pe<25?"15-25x -- moderate, typical for steady companies.":pe<40?"25-40x -- premium pricing, implies strong growth expected.":"Above 40x -- very expensive or loss-making.")
-                },
-                {
-                  label:"Forward P/E", val:fpe>0?fmt2(fpe):"-",
-                  tip:"Based on next year estimated earnings. " + (fpe<=0?"No estimate available.":fpe<15?"Below 15x -- market expects little growth.":fpe<25?"15-25x -- reasonable for a growing company.":fpe<35?"25-35x -- market expects strong future earnings.":"Above 35x -- high expectations baked in.")
-                },
-                {
-                  label:"Price / Sales (TTM)", val:ov.ps>0?fmt2(ov.ps):"-",
-                  tip:"How much you pay per $1 of revenue. Useful when company has no earnings yet. " + (ov.ps<=0?"Not available.":ov.ps<2?"Below 2x -- cheap relative to revenue.":ov.ps<6?"2-6x -- moderate, common for profitable companies.":ov.ps<12?"6-12x -- high, typical for fast-growing tech.":"Above 12x -- very expensive relative to revenue.")
-                },
-                {
-                  label:"EV / EBITDA", val:ov.evEbitda>0?fmt2(ov.evEbitda):"-",
-                  tip:"Enterprise Value vs operating profit before interest and taxes. Good for comparing across companies with different debt levels. " + (ov.evEbitda<=0?"Not available.":ov.evEbitda<10?"Below 10x -- looks cheap.":ov.evEbitda<20?"10-20x -- fair value range.":ov.evEbitda<30?"20-30x -- premium, growth expected.":"Above 30x -- expensive, high growth priced in.")
-                },
-                {
-                  label:"Price / Book (P/B)", val:ov.pb>0?fmt2(ov.pb):"-",
-                  tip:"How much you pay vs the company net asset value. " + (ov.pb<=0?"Not available.":ov.pb<1?"Below 1x -- trading below asset value, could be a bargain or a warning sign.":ov.pb<3?"1-3x -- reasonable for most industries.":ov.pb<8?"3-8x -- high, typical for asset-light tech or strong brands.":"Above 8x -- very high, implies significant intangible value.")
-                },
-                {
-                  label:"Price / Free Cash Flow", val:ov.pFcf>0?fmt2(ov.pFcf):"-",
-                  tip:"How much you pay per $1 of free cash the company generates. Often more reliable than P/E. " + (ov.pFcf<=0?"Not available or negative FCF.":ov.pFcf<15?"Below 15x -- cheap, business generates strong cash.":ov.pFcf<25?"15-25x -- fair value.":ov.pFcf<40?"25-40x -- premium, high growth expected.":"Above 40x -- expensive relative to cash generation.")
-                },
-                {
-                  label:"PEG Ratio", val:ov.peg>0?ov.peg.toFixed(2):"-",
-                  tip:"P/E divided by earnings growth rate. Adjusts for growth. " + (ov.peg<=0?"Not available.":ov.peg<1?"Below 1 -- potentially undervalued relative to growth (Peter Lynch rule).":ov.peg<2?"1-2x -- fair value for a growing company.":"Above 2x -- may be expensive relative to its growth rate.")
-                },
-                {
-                  label:"Dividend Yield", val:ov.divY>0?fpct(ov.divY):"None",
-                  tip:"Annual dividend as a percentage of stock price. " + (ov.divY<=0?"Company pays no dividend -- typical for growth stocks reinvesting profits.":ov.divY<2?"Below 2% -- low yield, company prioritises growth.":ov.divY<4?"2-4% -- moderate yield, balanced approach.":ov.divY<6?"4-6% -- high yield, income-focused company.":"Above 6% -- very high yield, check if dividend is sustainable.")
-                },
+                { label:"P/E Ratio (TTM)", val:pe>0?fmt2(pe):"-", col:mc(pe,15,25,40,true),
+                  tip:"Price-to-Earnings: how much you pay for $1 of profit. " + (pe<=0?"No earnings available.":pe<15?"Below 15x -- looks cheap, but check why.":pe<25?"15-25x -- moderate, typical for steady companies.":pe<40?"25-40x -- premium pricing, implies strong growth expected.":"Above 40x -- very expensive or loss-making.") },
+                { label:"Forward P/E", val:fpe>0?fmt2(fpe):"-", col:mc(fpe,15,25,40,true),
+                  tip:"Based on next year estimated earnings. " + (fpe<=0?"No estimate available.":fpe<15?"Below 15x -- market expects little growth.":fpe<25?"15-25x -- reasonable for a growing company.":fpe<35?"25-35x -- market expects strong future earnings.":"Above 35x -- high expectations baked in.") },
+                { label:"Price / Sales (TTM)", val:ov.ps>0?fmt2(ov.ps):"-", col:mc(ov.ps,2,6,12,true),
+                  tip:"How much you pay per $1 of revenue. " + (ov.ps<=0?"Not available.":ov.ps<2?"Below 2x -- cheap relative to revenue.":ov.ps<6?"2-6x -- moderate.":ov.ps<12?"6-12x -- high, typical for fast-growing tech.":"Above 12x -- very expensive.") },
+                { label:"EV / EBITDA", val:ov.evEbitda>0?fmt2(ov.evEbitda):"-", col:mc(ov.evEbitda,10,20,30,true),
+                  tip:"Enterprise Value vs operating profit. " + (ov.evEbitda<=0?"Not available.":ov.evEbitda<10?"Below 10x -- looks cheap.":ov.evEbitda<20?"10-20x -- fair value range.":ov.evEbitda<30?"20-30x -- premium.":"Above 30x -- expensive.") },
+                { label:"Price / Book (P/B)", val:ov.pb>0?fmt2(ov.pb):"-", col:mc(ov.pb,3,8,20,true),
+                  tip:"How much you pay vs net asset value. " + (ov.pb<=0?"Not available.":ov.pb<1?"Below 1x -- trading below asset value.":ov.pb<3?"1-3x -- reasonable.":ov.pb<8?"3-8x -- high, typical for asset-light companies.":"Above 8x -- very high premium.") },
+                { label:"Price / Free Cash Flow", val:ov.pFcf>0?fmt2(ov.pFcf):"-", col:mc(ov.pFcf,15,30,50,true),
+                  tip:"How much you pay per $1 of free cash. " + (ov.pFcf<=0?"Not available or negative FCF.":ov.pFcf<15?"Below 15x -- cheap.":ov.pFcf<30?"15-30x -- fair value.":ov.pFcf<50?"30-50x -- premium.":"Above 50x -- expensive.") },
+                { label:"PEG Ratio", val:ov.peg>0?ov.peg.toFixed(2):"-", col:mc(ov.peg,1,2,3,true),
+                  tip:"P/E divided by earnings growth rate. " + (ov.peg<=0?"Not available.":ov.peg<1?"Below 1 -- potentially undervalued vs growth.":ov.peg<2?"1-2x -- fair value.":"Above 2x -- may be expensive vs growth rate.") },
+                { label:"Dividend Yield", val:ov.divY>0?fpct(ov.divY):"None", col:"#ddd",
+                  tip:"Annual dividend as % of stock price. " + (ov.divY<=0?"No dividend -- typical for growth stocks.":ov.divY<2?"Below 2% -- low yield.":ov.divY<4?"2-4% -- moderate yield.":ov.divY<6?"4-6% -- high yield.":"Above 6% -- very high, check sustainability.") },
               ];
               return (
                 <table style={{ width:"100%", borderCollapse:"collapse" }}>
                   <tbody>
                     {VAL_METRICS.map(function(m, i) {
                       return (
-                        <tr key={i} style={{ borderBottom:i < VAL_METRICS.length-1 ? "1px solid #2c2c2e" : "none" }}
-                          title={m.tip}>
-                          <td style={{ padding:"7px 0", fontSize:11, color:"#888", width:"50%", lineHeight:1.4, cursor:"help" }}>
-                            {m.label}
-                            <span style={{ fontSize:9, color:"#555", marginLeft:4 }}>{"?"}</span>
+                        <tr key={i} style={{ borderBottom:i < VAL_METRICS.length-1 ? "1px solid #2c2c2e" : "none" }} title={m.tip}>
+                          <td style={{ padding:"7px 0", fontSize:11, color:"#888", width:"60%", lineHeight:1.4, cursor:"help" }}>
+                            {m.label}<span style={{ fontSize:9, color:"#555", marginLeft:4 }}>{"?"}</span>
                           </td>
-                          <td style={{ padding:"7px 0", fontSize:13, fontWeight:700, color:"#ddd", textAlign:"right", cursor:"help" }}>{m.val}</td>
+                          <td style={{ padding:"7px 0", fontSize:13, fontWeight:700, color:m.col||"#ddd", textAlign:"right", cursor:"help" }}>{m.val}</td>
                         </tr>
                       );
                     })}
@@ -2535,18 +2533,19 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               var gm = ov.grossMargin; var om = ov.opMargin; var nm = ov.netMargin;
               var roe = ov.roe; var cr = ov.currentRatio; var qr = ov.quickRatio;
               var de = ov.de;
+              var mc2 = window.__mc || function(){ return "#ddd"; };
               var HEALTH_METRICS = [
-                { label:"Gross Margin", val:gm?fpct(gm):"-", tip:"Revenue minus cost of goods sold, as a percentage. Shows how efficiently the company produces its product. " + (!gm?"Not available.":gm>60?"Above 60% -- exceptional pricing power, keeps most of each dollar.":gm>40?"40-60% -- strong margins, efficient business.":gm>20?"20-40% -- adequate, covers costs with profit.":"Below 20% -- thin margins, common in retail or hardware.") },
-                { label:"Return on Equity", val:roe>0?fpct(roe):"-", tip:"Net profit as a percentage of shareholder equity. Measures how well management uses investor money. " + (!roe||roe<=0?"Not available or negative.":roe>25?"Above 25% -- exceptional, generating strong returns for shareholders.":roe>15?"15-25% -- solid returns.":roe>8?"8-15% -- decent, earns adequately on equity.":"Below 8% -- below average, limited value creation.") },
-                { label:"Operating Margin", val:om?fpct(om):"-", tip:"Profit after operating expenses, before interest and taxes. Shows core business efficiency. " + (!om?"Not available.":om>30?"Above 30% -- highly efficient, very profitable operations.":om>15?"15-30% -- strong operational control.":om>5?"5-15% -- reasonable for most industries.":om>0?"0-5% -- tight margins, limited room for error.":"Negative -- operating at a loss.") },
-                { label:"Current Ratio", val:cr>0?fmt2(cr):"-", tip:"Current assets divided by current liabilities. Measures ability to pay short-term bills. " + (!cr||cr<=0?"Not available.":cr>2?"Above 2x -- very liquid, easily covers short-term obligations.":cr>1.5?"1.5-2x -- healthy buffer.":cr>1?"1-1.5x -- adequate, can meet obligations.":"Below 1x -- tight, may struggle to cover short-term debts.") },
-                { label:"Net Profit Margin", val:nm?fpct(nm):"-", tip:"Final profit as a percentage of revenue, after all expenses and taxes. The ultimate bottom line. " + (!nm?"Not available.":nm>20?"Above 20% -- exceptional profitability.":nm>10?"10-20% -- strong bottom line.":nm>5?"5-10% -- profitable, reasonable margins.":nm>0?"0-5% -- slim profits, limited cushion.":"Negative -- losing money.") },
-                { label:"Quick Ratio", val:qr>0?fmt2(qr):"-", tip:"Like Current Ratio but excludes inventory. A stricter test of short-term liquidity. " + (!qr||qr<=0?"Not available.":qr>1.5?"Above 1.5x -- excellent, can cover obligations without selling inventory.":qr>1?"1-1.5x -- good immediate liquidity.":qr>0.7?"0.7-1x -- adequate, manageable.":"Below 0.7x -- limited liquid assets, could be stretched.") },
-                { label:"Free Cash Flow", val:ov.fcf||"-", tip:"Cash left after capital expenditures. The real money the business generates that can be returned to shareholders or reinvested. " + (!ov.fcfRaw?"Not available.":ov.fcfRaw>10e9?"Very strong -- generates billions in free cash, excellent financial health.":ov.fcfRaw>1e9?"Strong -- generates significant free cash flow.":ov.fcfRaw>0?"Positive -- business funds itself.":"Negative -- spending more cash than it generates.") },
-                { label:"Total Debt / Equity", val:de>0?fmt2(de):"-", tip:"Total debt divided by shareholder equity. Shows how much the company relies on debt vs owner funding. " + (!de||de<=0?"Not available or debt-free.":de<0.5?"Below 0.5x -- very low leverage, conservatively financed.":de<1?"0.5-1x -- moderate debt, comfortable levels.":de<2?"1-2x -- elevated, debt is significant but manageable.":"Above 2x -- high leverage, significant financial risk.") },
-                { label:"Net Income (TTM)", val:ov.netIncome||"-", tip:"Total net profit over the trailing twelve months. The bottom line after all expenses, interest and taxes." },
-                { label:"Revenue Growth YoY", val:ov.revGrowth?fpct(ov.revGrowth):"-", tip:"Year-over-year revenue growth rate. Indicates business momentum. " + (!ov.revGrowth?"Not available.":ov.revGrowth>20?"Above 20% -- rapid expansion.":ov.revGrowth>10?"10-20% -- strong, scaling well.":ov.revGrowth>5?"5-10% -- solid, steady growth.":ov.revGrowth>0?"0-5% -- slow but positive.":"Negative -- revenue is shrinking.") },
-                { label:"Revenue (TTM)", val:ov.revenue||"-", tip:"Total revenue over the trailing twelve months. The top line -- all money earned before any expenses." },
+                { label:"Gross Margin", val:gm?fpct(gm):"-", col:mc2(gm,40,20,0), tip:"Revenue minus cost of goods sold, as a percentage. Shows how efficiently the company produces its product. " + (!gm?"Not available.":gm>60?"Above 60% -- exceptional pricing power, keeps most of each dollar.":gm>40?"40-60% -- strong margins, efficient business.":gm>20?"20-40% -- adequate, covers costs with profit.":"Below 20% -- thin margins, common in retail or hardware.") },
+                { label:"Return on Equity", val:roe>0?fpct(roe):"-", col:mc2(roe,15,8,0), tip:"Net profit as a percentage of shareholder equity. Measures how well management uses investor money. " + (!roe||roe<=0?"Not available or negative.":roe>25?"Above 25% -- exceptional, generating strong returns for shareholders.":roe>15?"15-25% -- solid returns.":roe>8?"8-15% -- decent, earns adequately on equity.":"Below 8% -- below average, limited value creation.") },
+                { label:"Operating Margin", val:om?fpct(om):"-", col:mc2(om,15,5,0), tip:"Profit after operating expenses, before interest and taxes. Shows core business efficiency. " + (!om?"Not available.":om>30?"Above 30% -- highly efficient, very profitable operations.":om>15?"15-30% -- strong operational control.":om>5?"5-15% -- reasonable for most industries.":om>0?"0-5% -- tight margins, limited room for error.":"Negative -- operating at a loss.") },
+                { label:"Current Ratio", val:cr>0?fmt2(cr):"-", col:mc2(cr,1.5,1,0), tip:"Current assets divided by current liabilities. Measures ability to pay short-term bills. " + (!cr||cr<=0?"Not available.":cr>2?"Above 2x -- very liquid, easily covers short-term obligations.":cr>1.5?"1.5-2x -- healthy buffer.":cr>1?"1-1.5x -- adequate, can meet obligations.":"Below 1x -- tight, may struggle to cover short-term debts.") },
+                { label:"Net Profit Margin", val:nm?fpct(nm):"-", col:mc2(nm,10,3,0), tip:"Final profit as a percentage of revenue, after all expenses and taxes. The ultimate bottom line. " + (!nm?"Not available.":nm>20?"Above 20% -- exceptional profitability.":nm>10?"10-20% -- strong bottom line.":nm>5?"5-10% -- profitable, reasonable margins.":nm>0?"0-5% -- slim profits, limited cushion.":"Negative -- losing money.") },
+                { label:"Quick Ratio", val:qr>0?fmt2(qr):"-", col:mc2(qr,1,0.7,0), tip:"Like Current Ratio but excludes inventory. A stricter test of short-term liquidity. " + (!qr||qr<=0?"Not available.":qr>1.5?"Above 1.5x -- excellent, can cover obligations without selling inventory.":qr>1?"1-1.5x -- good immediate liquidity.":qr>0.7?"0.7-1x -- adequate, manageable.":"Below 0.7x -- limited liquid assets, could be stretched.") },
+                { label:"Free Cash Flow", val:ov.fcf||"-", col:mc2(ov.fcfRaw,1e9,0,-1e9), tip:"Cash left after capital expenditures. The real money the business generates that can be returned to shareholders or reinvested. " + (!ov.fcfRaw?"Not available.":ov.fcfRaw>10e9?"Very strong -- generates billions in free cash, excellent financial health.":ov.fcfRaw>1e9?"Strong -- generates significant free cash flow.":ov.fcfRaw>0?"Positive -- business funds itself.":"Negative -- spending more cash than it generates.") },
+                { label:"Total Debt / Equity", val:de>0?fmt2(de):"-", col:mc2(de,0.5,1.5,3,true), tip:"Total debt divided by shareholder equity. Shows how much the company relies on debt vs owner funding. " + (!de||de<=0?"Not available or debt-free.":de<0.5?"Below 0.5x -- very low leverage, conservatively financed.":de<1?"0.5-1x -- moderate debt, comfortable levels.":de<2?"1-2x -- elevated, debt is significant but manageable.":"Above 2x -- high leverage, significant financial risk.") },
+                { label:"Net Income (TTM)", val:ov.netIncome||"-", col:mc2(ov.niRaw,1e9,0,-1e9), tip:"Total net profit over the trailing twelve months. The bottom line after all expenses, interest and taxes." },
+                { label:"Revenue Growth YoY", val:ov.revGrowth?fpct(ov.revGrowth):"-", col:mc2(ov.revGrowth,10,3,0), tip:"Year-over-year revenue growth rate. Indicates business momentum. " + (!ov.revGrowth?"Not available.":ov.revGrowth>20?"Above 20% -- rapid expansion.":ov.revGrowth>10?"10-20% -- strong, scaling well.":ov.revGrowth>5?"5-10% -- solid, steady growth.":ov.revGrowth>0?"0-5% -- slow but positive.":"Negative -- revenue is shrinking.") },
+                { label:"Revenue (TTM)", val:ov.revenue||"-", col:"#ddd", tip:"Total revenue over the trailing twelve months. The top line -- all money earned before any expenses." },
               ];
               return (
                 <table style={{ width:"100%", borderCollapse:"collapse" }}>
@@ -2557,7 +2556,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           <td style={{ padding:"7px 0", fontSize:11, color:"#888", width:"60%", lineHeight:1.4, cursor:"help" }}>
                             {m.label}<span style={{ fontSize:9, color:"#555", marginLeft:4 }}>{"?"}</span>
                           </td>
-                          <td style={{ padding:"7px 0", fontSize:13, fontWeight:700, color:"#ddd", textAlign:"right", cursor:"help" }}>{m.val}</td>
+                          <td style={{ padding:"7px 0", fontSize:13, fontWeight:700, color:m.col||"#ddd", textAlign:"right", cursor:"help" }}>{m.val}</td>
                         </tr>
                       );
                     })}
@@ -2576,12 +2575,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             <div style={{ fontSize:12, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Growth & Profile</div>
             {ov ? (function() {
               var GROWTH_METRICS = [
-                { label:"EPS Growth (TTM)", val:ov.epsG?fpct(ov.epsG):"-", tip:"Earnings per share growth over the trailing twelve months. " + (!ov.epsG?"Not available.":ov.epsG>30?"Above 30% -- exceptional earnings growth.":ov.epsG>15?"15-30% -- strong growth, business is accelerating.":ov.epsG>5?"5-15% -- solid, steady earnings expansion.":ov.epsG>0?"0-5% -- modest growth.":"Negative -- earnings are shrinking, investigate why.") },
-                { label:"Revenue Growth YoY", val:ov.revGrowth?fpct(ov.revGrowth):"-", tip:"Year-over-year revenue growth rate. The top-line growth that drives everything else. " + (!ov.revGrowth?"Not available.":ov.revGrowth>20?"Above 20% -- rapid expansion, strong demand.":ov.revGrowth>10?"10-20% -- healthy growth.":ov.revGrowth>0?"Positive but modest growth.":"Negative -- revenue is contracting.") },
-                { label:"LT EPS Growth (5yr Est.)", val:ov.ltG?fpct(ov.ltG):"-", tip:"Analyst consensus estimate for long-term earnings growth over the next 5 years. Used in valuation models. " + (!ov.ltG?"Not available.":ov.ltG>20?"Above 20% -- high growth expected, likely a growth stock.":ov.ltG>10?"10-20% -- solid long-term growth outlook.":ov.ltG>5?"5-10% -- moderate, steady grower.":"Below 5% -- slow growth expected, typical for mature or utility companies.") },
-                { label:"Beta", val:ov.beta>0?ov.beta.toFixed(2):"-", tip:"Measures how much the stock moves relative to the overall market. " + (!ov.beta||ov.beta<=0?"Not available.":ov.beta<0.5?"Below 0.5 -- very low volatility, moves little with the market.":ov.beta<0.8?"0.5-0.8 -- lower than market volatility, defensive stock.":ov.beta<1.2?"0.8-1.2 -- moves roughly in line with the market.":ov.beta<1.5?"1.2-1.5 -- more volatile than market, amplified moves.":"Above 1.5 -- high volatility, swings much more than the market.") },
-                { label:"Market Cap", val:ov.marketCap||"-", tip:"Total market value of all shares outstanding. " + (!ov.mc?"Not available.":ov.mc>1e12?"Mega-cap (above $1T) -- one of the largest companies in the world.":ov.mc>200e9?"Large-cap -- established, stable company.":ov.mc>10e9?"Mid-cap -- growing company with some track record.":"Small-cap -- smaller company, higher growth potential but more risk.") },
-                { label:"Dividend Yield (TTM)", val:ov.divY>0?fpct(ov.divY):"None", tip:"Annual dividend paid as a percentage of current stock price. " + (!ov.divY||ov.divY<=0?"No dividend -- company reinvests all profits into growth.":ov.divY<2?"Below 2% -- token dividend, primarily a growth company.":ov.divY<4?"2-4% -- moderate income, balanced approach.":ov.divY<6?"4-6% -- strong income, typical for mature companies.":"Above 6% -- very high yield, verify dividend is sustainable.") },
+                { label:"EPS Growth (TTM)", val:ov.epsG?fpct(ov.epsG):"-", col:mc2(ov.epsG,15,5,0), tip:"Earnings per share growth over the trailing twelve months. " + (!ov.epsG?"Not available.":ov.epsG>30?"Above 30% -- exceptional earnings growth.":ov.epsG>15?"15-30% -- strong growth, business is accelerating.":ov.epsG>5?"5-15% -- solid, steady earnings expansion.":ov.epsG>0?"0-5% -- modest growth.":"Negative -- earnings are shrinking, investigate why.") },
+                { label:"Revenue Growth YoY", val:ov.revGrowth?fpct(ov.revGrowth):"-", col:mc2(ov.revGrowth,10,3,0), tip:"Year-over-year revenue growth rate. The top-line growth that drives everything else. " + (!ov.revGrowth?"Not available.":ov.revGrowth>20?"Above 20% -- rapid expansion, strong demand.":ov.revGrowth>10?"10-20% -- healthy growth.":ov.revGrowth>0?"Positive but modest growth.":"Negative -- revenue is contracting.") },
+                { label:"LT EPS Growth (5yr Est.)", val:ov.ltG?fpct(ov.ltG):"-", col:mc2(ov.ltG,10,5,0), tip:"Analyst consensus estimate for long-term earnings growth over the next 5 years. Used in valuation models. " + (!ov.ltG?"Not available.":ov.ltG>20?"Above 20% -- high growth expected, likely a growth stock.":ov.ltG>10?"10-20% -- solid long-term growth outlook.":ov.ltG>5?"5-10% -- moderate, steady grower.":"Below 5% -- slow growth expected, typical for mature or utility companies.") },
+                { label:"Beta", val:ov.beta>0?ov.beta.toFixed(2):"-", col:mc2(ov.beta,0,1.5,2,true), tip:"Measures how much the stock moves relative to the overall market. " + (!ov.beta||ov.beta<=0?"Not available.":ov.beta<0.5?"Below 0.5 -- very low volatility, moves little with the market.":ov.beta<0.8?"0.5-0.8 -- lower than market volatility, defensive stock.":ov.beta<1.2?"0.8-1.2 -- moves roughly in line with the market.":ov.beta<1.5?"1.2-1.5 -- more volatile than market, amplified moves.":"Above 1.5 -- high volatility, swings much more than the market.") },
+                { label:"Market Cap", val:ov.marketCap||"-", col:"#ddd", tip:"Total market value of all shares outstanding. " + (!ov.mc?"Not available.":ov.mc>1e12?"Mega-cap (above $1T) -- one of the largest companies in the world.":ov.mc>200e9?"Large-cap -- established, stable company.":ov.mc>10e9?"Mid-cap -- growing company with some track record.":"Small-cap -- smaller company, higher growth potential but more risk.") },
+                { label:"Dividend Yield (TTM)", val:ov.divY>0?fpct(ov.divY):"None", col:"#ddd", tip:"Annual dividend paid as a percentage of current stock price. " + (!ov.divY||ov.divY<=0?"No dividend -- company reinvests all profits into growth.":ov.divY<2?"Below 2% -- token dividend, primarily a growth company.":ov.divY<4?"2-4% -- moderate income, balanced approach.":ov.divY<6?"4-6% -- strong income, typical for mature companies.":"Above 6% -- very high yield, verify dividend is sustainable.") },
               ];
               return (
                 <table style={{ width:"100%", borderCollapse:"collapse" }}>
@@ -2592,7 +2591,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           <td style={{ padding:"7px 0", fontSize:11, color:"#888", width:"60%", lineHeight:1.4, cursor:"help" }}>
                             {m.label}<span style={{ fontSize:9, color:"#555", marginLeft:4 }}>{"?"}</span>
                           </td>
-                          <td style={{ padding:"7px 0", fontSize:13, fontWeight:700, color:"#ddd", textAlign:"right", cursor:"help" }}>{m.val}</td>
+                          <td style={{ padding:"7px 0", fontSize:13, fontWeight:700, color:m.col||"#ddd", textAlign:"right", cursor:"help" }}>{m.val}</td>
                         </tr>
                       );
                     })}
