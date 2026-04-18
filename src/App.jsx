@@ -1679,6 +1679,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   var dcf20Calc = null; var dcff20Calc = null; var dni20Calc = null; var ggCalc = null;
   var psCalcIV = price || 0; var psCalcRatio = 0; var psCalcRevPS = 0; var psCalcRevSrc = "";
   const vals = [];
+  var pegVal = 0;
+  var _pegGrowth = 0;
+  var _pegFairPE = 0;
   if (ov && baseEps > 0 && price > 0) {
     const termGrowth = 0.04;
     const grCapped   = Math.min(histGrowthRate, 0.25);
@@ -1826,9 +1829,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     const ps = psCalcIV;
     // PEG-based IV: fair P/E = EPS growth rate (Peter Lynch rule)
     // IV = EPS x fair P/E, where fair P/E = growth rate (capped at 25)
-    var _pegGrowth = ov.epsG > 0 ? ov.epsG : (ov.ltG > 0 ? ov.ltG : 0);
-    var _pegFairPE = Math.min(_pegGrowth, 25);  // cap fair P/E at 25x
-    const pegVal = (ov.peg > 0 && baseEps > 0 && _pegFairPE > 0)
+    _pegGrowth = ov.epsG > 0 ? ov.epsG : (ov.ltG > 0 ? ov.ltG : 0);
+    _pegFairPE = Math.min(_pegGrowth, 25);  // cap fair P/E at 25x
+    pegVal = (ov.peg > 0 && baseEps > 0 && _pegFairPE > 0)
       ? Math.min(baseEps * _pegFairPE, maxVal)
       : 0;
 
