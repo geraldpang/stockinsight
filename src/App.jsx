@@ -1943,7 +1943,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       ? vals.reduce(function(sum, v) { return sum + v.value; }, 0) / vals.length
       : 0;
     oracle = oracleAvg.toFixed(2);
-    if (oracleAvg > 0) vals.push({ label:"Intrinsic Value", value:oracleAvg, color:"#1a8a3a", bold:true, modelsMeta:modelsMeta, sectorLabel:_ivSector });
+    if (oracleAvg > 0) vals.push({ label:"Intrinsic Value", value:oracleAvg, color:"#1a8a3a", bold:true, modelsMeta:modelsMeta, sectorLabel:_ivSector, modelApplicable:MODEL_APPLICABLE });
   }
 
   const maxV = vals.length
@@ -2853,7 +2853,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                 <div style={{ fontSize:12, fontWeight:700, color:"#111", marginBottom:12 }}>Calculation Details</div>
 
                                 {/* DCF-20 - reads from dcf20Calc */}
-                                {dcf20Calc && (
+                                {dcf20Calc && vals.length>0 && vals[vals.length-1].modelApplicable && vals[vals.length-1].modelApplicable["Cash Flow Model"] && (
                                   <BdSection title="Cash Flow Model (20Y)">
                                     <BdRow label="Operating Cash Flow"        val={fmtM(dcf20Calc.ocf)} />
                                     <BdRow label="Total Debt (SimFin)"        val={fmtM(dcf20Calc.debt)} />
@@ -2873,7 +2873,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                 )}
 
                                 {/* DCFF-20 - reads from dcff20Calc */}
-                                {dcff20Calc && (
+                                {dcff20Calc && vals.length>0 && vals[vals.length-1].modelApplicable && vals[vals.length-1].modelApplicable["Earnings Model"] && (
                                   <BdSection title="Earnings Model (20Y)">
                                     <BdRow label={"Net Income (" + dcff20Calc.niSrc + ")"}  val={fmtM(dcff20Calc.niBase)} />
                                     <BdRow label="Total Debt (SimFin)"        val={fmtM(dcff20Calc.debt)} />
@@ -2893,7 +2893,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                 )}
 
                                 {/* DNI-20 - reads from dni20Calc */}
-                                {dni20Calc && (
+                                {dni20Calc && vals.length>0 && vals[vals.length-1].modelApplicable && vals[vals.length-1].modelApplicable["Net Income Model"] && (
                                   <BdSection title="Net Income Model (20Y)">
                                     <BdRow label={"Net Income per Share (" + dni20Calc.niSrc + ")"} val={"$" + dni20Calc.niPerShare.toFixed(4)} />
                                     <BdRow label="Shares Outstanding"         val={(dni20Calc.shares/1e6).toFixed(0) + "M"} />
@@ -2907,7 +2907,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                 )}
 
                                 {/* FCF-GG - reads from ggCalc */}
-                                {ggCalc && (
+                                {ggCalc && vals.length>0 && vals[vals.length-1].modelApplicable && vals[vals.length-1].modelApplicable["Gordon Growth"] && (
                                   <BdSection title="Gordon Growth Model">
                                     <BdRow label="Free Cash Flow (Yahoo)"         val={fmtM(ggCalc.fcfBase)} />
                                     <BdRow label="FCF per Share"                  val={"$" + ggCalc.fcfPS.toFixed(4)} />
@@ -2926,7 +2926,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                 )}
 
                                 {/* PS Breakdown - reads from psCalc* computed once in vals block above */}
-                                {price > 0 && (
+                                {price > 0 && vals.length>0 && vals[vals.length-1].modelApplicable && vals[vals.length-1].modelApplicable["Revenue PS"] && (
                                   <BdSection title="Revenue Valuation (PS)">
                                     <BdRow label="Current Price"                                  val={"$" + price.toFixed(2)} />
                                     <BdRow label="TTM Price / Sales (PS)"                         val={psCalcRatio > 0 ? psCalcRatio.toFixed(2) + "x" : "N/A"} />
