@@ -1824,7 +1824,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     var psCalcIV      = psCalcRevPS > 0 && ov.ps > 0 ? cap(ov.ps * psCalcRevPS) : price > 0 ? cap(price) : 0;
     var psCalcRatio   = ov.ps > 0 ? ov.ps : 0;
     const ps = psCalcIV;
-    const pegVal = ov.peg > 0 ? Math.min(baseEps * 15, maxVal) : 0;
+    // PEG-based IV: fair P/E = EPS growth rate (Peter Lynch rule)
+    // IV = EPS x fair P/E, where fair P/E = growth rate (capped at 25)
+    var _pegGrowth = ov.epsG > 0 ? ov.epsG : (ov.ltG > 0 ? ov.ltG : 0);
+    var _pegFairPE = Math.min(_pegGrowth, 25);  // cap fair P/E at 25x
+    const pegVal = (ov.peg > 0 && baseEps > 0 && _pegFairPE > 0)
+      ? Math.min(baseEps * _pegFairPE, maxVal)
+      : 0;
 
     // --- Sector detection ---
     var _ivSector = ov.sector || "";
@@ -2937,7 +2943,17 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                   </BdSection>
                                 )}
 
-
+                                {/* PEG Breakdown */}
+                                {pegVal > 0 && vals.length>0 && vals[vals.length-1].modelApplicable && vals[vals.length-1].modelApplicable["PEG Ratio"] && (
+                                  <BdSection title="PEG Ratio Model">
+                                    <BdRow label="EPS (Base)"                  val={"$" + baseEps.toFixed(4)} />
+                                    <BdRow label="EPS Growth Rate"             val={_pegGrowth > 0 ? _pegGrowth.toFixed(1)+"%" : "N/A"} />
+                                    <BdRow label="Fair P/E  [= growth rate, capped 25x]" val={_pegFairPE.toFixed(1)+"x"} />
+                                    <BdRow label="Yahoo PEG Ratio"             val={ov.peg > 0 ? ov.peg.toFixed(2) : "N/A"} />
+                                    <BdDivider />
+                                    <BdRow label="= Intrinsic Value  [EPS x Fair P/E]"  val={"$" + pegVal.toFixed(2)} bold={true} highlight={true} last={true} />
+                                  </BdSection>
+                                )}
 
                               </div>
                             );
