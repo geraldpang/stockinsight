@@ -1856,7 +1856,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       "Net Income Model":  true,
       "Gordon Growth":     true,
       "Revenue PS":        _ivIsTech || _ivIsConsumer || _ivSector === "",
-      "PEG Ratio":         !_ivIsUtility && !_ivIsEnergy && !_ivIsFinancial,
+
       "EV/Revenue":        !_ivIsProfitable,
       "Revenue DCF":       !_ivIsProfitable,
       "Price/Book":        _ivIsFinancial || (!_ivIsProfitable),
@@ -1923,7 +1923,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       { key:"Net Income Model", label:"Net Income Model (20Y)",      value:dni20,   color:"#d4a800" },
       { key:"Gordon Growth",    label:"Gordon Growth Model",         value:dcffT,   color:"#d4a800" },
       { key:"Revenue PS",       label:"Revenue Valuation (PS)",      value:ps,      color:"#d4a800" },
-      { key:"PEG Ratio",        label:"PEG Ratio",                   value:pegVal,  color:"#c03030" },
+
       { key:"EV/Revenue",       label:"EV / Revenue Model",          value:evRevVal,color:"#5b8dde" },
       { key:"Revenue DCF",      label:"Revenue DCF Model",           value:revDcfVal,color:"#5b8dde" },
       { key:"Price/Book",       label:"Price / Book Model",          value:pbVal,   color:"#5b8dde" },
@@ -2946,17 +2946,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                   </BdSection>
                                 )}
 
-                                {/* PEG Breakdown */}
-                                {pegVal > 0 && vals.length>0 && vals[vals.length-1].modelApplicable && vals[vals.length-1].modelApplicable["PEG Ratio"] && (
-                                  <BdSection title="PEG Ratio Model">
-                                    <BdRow label="EPS (Base)"                  val={"$" + baseEps.toFixed(4)} />
-                                    <BdRow label="EPS Growth Rate"             val={_pegGrowth > 0 ? _pegGrowth.toFixed(1)+"%" : "N/A"} />
-                                    <BdRow label="Fair P/E  [= growth rate, capped 25x]" val={_pegFairPE.toFixed(1)+"x"} />
-                                    <BdRow label="Yahoo PEG Ratio"             val={ov.peg > 0 ? ov.peg.toFixed(2) : "N/A"} />
-                                    <BdDivider />
-                                    <BdRow label="= Intrinsic Value  [EPS x Fair P/E]"  val={"$" + pegVal.toFixed(2)} bold={true} highlight={true} last={true} />
-                                  </BdSection>
-                                )}
+
 
                               </div>
                             );
