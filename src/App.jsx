@@ -3283,8 +3283,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         var _gridAvg = _gridScores.length > 0
                           ? _gridScores.reduce(function(a,b){ return a+b; }, 0) / _gridScores.length
                           : 0;
-                        var _computedClass = _gridAvg >= 4.5 ? "Exceptional" : _gridAvg >= 3.5 ? "Strong" : _gridAvg >= 2.5 ? "Moderate" : _gridAvg >= 1.5 ? "Weak" : _gridAvg > 0 ? "Poor" : null;
-                        var _computedScore = _gridAvg >= 4.5 ? 5 : _gridAvg >= 3.5 ? 4 : _gridAvg >= 2.5 ? 3 : _gridAvg >= 1.5 ? 2 : _gridAvg > 0 ? 1 : 0;
+                        var _computedClass = _gridAvg >= 4 ? "Exceptional" : _gridAvg >= 3 ? "Strong" : _gridAvg >= 2 ? "Moderate" : _gridAvg >= 1 ? "Weak" : _gridAvg > 0 ? "Poor" : null;
+                        var _computedScore = _gridAvg >= 4 ? 5 : _gridAvg >= 3 ? 4 : _gridAvg >= 2 ? 3 : _gridAvg >= 1 ? 2 : _gridAvg > 0 ? 1 : 0;
                         var fc = fsCol(_computedClass);
                         // Store for left panel pill consistency
                         if (sym && _computedClass) {
