@@ -873,6 +873,7 @@ function parseAiInsight(text) {
 
 function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   var isAdmin = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === "admin");
+  window.__clerkUser = clerkUser || null;
   // Unsupported ticker -- show friendly message
   if (supported === false) {
     return (
@@ -1132,8 +1133,24 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     if (massiveA) runTechAi(symA, massiveA, priceA, msDots2, msLabel2);
   }
   window.__goToPaywall = function() {
-    // Go to upgrade page (monthly/yearly plan selection)
-    window.__showUpgrade && window.__showUpgrade();
+    if (!window.__clerkUser) {
+      // Not signed in -- open Clerk sign-in first, then upgrade page after
+      if (window.Clerk) {
+        try {
+          window.Clerk.openSignIn({
+            afterSignInUrl: window.location.href,
+            afterSignUpUrl: window.location.href,
+          });
+        } catch(e) {
+          window.location.href = "https://accounts.nervousgeek.com/sign-in";
+        }
+      } else {
+        window.location.href = "https://accounts.nervousgeek.com/sign-in";
+      }
+    } else {
+      // Signed in -- go straight to upgrade page
+      window.__showUpgrade && window.__showUpgrade();
+    }
   };
 
   window.__goToTab = function(id) {
