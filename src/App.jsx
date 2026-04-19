@@ -975,7 +975,15 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           sector:_ov.sector, industry:_ov.industry,
           oracle:oracleA, ivPct: priceA>0&&parseFloat(oracleA)>0 ? Math.round(Math.abs(parseFloat(oracleA)-priceA)/priceA*100) : 0,
         };
-        var ivPctStr = snap.ivPct > 0 ? (parseFloat(oracleA) > priceA ? snap.ivPct+"% discount to IV ($"+Math.round(parseFloat(oracleA))+")" : snap.ivPct+"% premium to IV ($"+Math.round(parseFloat(oracleA))+")") : "Not computable";
+        var _ivNum = parseFloat(oracleA);
+        var _ivPct = priceA > 0 && _ivNum > 0 ? ((_ivNum - priceA) / priceA * 100) : 0;
+        var ivPctStr = (_ivNum > 0 && priceA > 0)
+          ? (_ivPct > 0
+              ? "Undervalued " + Math.abs(_ivPct).toFixed(1) + "% (IV $" + Math.round(_ivNum) + " vs price $" + Math.round(priceA) + ")"
+              : _ivPct < 0
+                ? "Overvalued " + Math.abs(_ivPct).toFixed(1) + "% (IV $" + Math.round(_ivNum) + " vs price $" + Math.round(priceA) + ")"
+                : "At fair value (IV $" + Math.round(_ivNum) + ")")
+          : "Not computable";
         var prompt = "You are a senior investment analyst. Analyse " + symA + " (" + (_ov.sector||"unknown sector") + ") based ONLY on the data below.\n\n" +
           "VALUATION:\n" +
           "- Price: $" + (priceA||0).toFixed(2) + "\n" +
@@ -987,7 +995,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           " | P/B: " + (_ov.pb>0?_ov.pb.toFixed(1)+"x":"N/A") + "\n\n" +
           "ECONOMIC MOAT:\n" +
           "- Classification: " + (moatR.classification||"Unknown") + " (" + (moatR.score||0) + "/5)\n" +
-          (moatR.entry ? "- Detail: " + moatR.entry + "\n" : "") + "\n" +
+          (moatR.sections && moatR.sections.length > 0 ? "- Drivers: " + moatR.sections.map(function(s){ return s.label+" "+s.score+"/5"; }).join(", ") + "\n" : "") +
+          (moatR.explanation ? "- Summary: " + moatR.explanation + "\n" : "") + "\n" +
           "FINANCIAL STRENGTH:\n" +
           "- Classification: " + (finR.classification||"Unknown") + " (" + (finR.score||0) + "/5)\n" +
           "- Gross Margin: " + (_ov.grossMargin?_ov.grossMargin.toFixed(1)+"%":"N/A") +
@@ -998,7 +1007,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           " | EPS Growth: " + (_ov.epsG?_ov.epsG.toFixed(1)+"%":"N/A") + "\n" +
           "- FCF: " + (_ov.fcfRaw>0?"$"+(_ov.fcfRaw/1e9).toFixed(1)+"B":"Negative/N/A") +
           " | Debt/Equity: " + (_ov.de>0?_ov.de.toFixed(2)+"x":"N/A") +
-          " | Current Ratio: " + (_ov.currentRatio>0?_ov.currentRatio.toFixed(2)+"x":"N/A") + "\n\n" +
+          " | Current Ratio: " + (_ov.currentRatio>0?_ov.currentRatio.toFixed(2)+"x":"N/A") + "\n" +
+          "- Quick Ratio: " + (_ov.quickRatio>0?_ov.quickRatio.toFixed(2)+"x":"N/A") +
+          " | Debt/EBITDA: " + (_ov.ebitda>0&&_ov.totalDebt>0?(_ov.totalDebt/_ov.ebitda).toFixed(2)+"x":"N/A") + "\n" +
+          (finR.body ? "- AI Assessment: " + finR.body.substring(0, 300) + "\n" : "") + "\n" +
           "Respond in EXACTLY this format:\n" +
           "Fundamental Verdict: Strong Buy / Buy / Hold / Caution / Avoid\n" +
           "Confidence: Low / Medium / High\n" +
@@ -4188,7 +4200,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                   <div style={{ padding:"8px 10px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0" }}>
                                     {(function() {
                                       var s = aiFundResult.dataSnapshot;
-                                      return [
+                                      var rows = [
                                         ["Price", s.priceVal ? "$"+(s.priceVal).toFixed(2) : "N/A"],
                                         ["Intrinsic Value", s.ivLabel||"N/A"],
                                         ["P/E", s.pe>0?s.pe.toFixed(1)+"x":"N/A"],
@@ -4197,7 +4209,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                         ["P/S", s.ps>0?s.ps.toFixed(1)+"x":"N/A"],
                                         ["P/B", s.pb>0?s.pb.toFixed(1)+"x":"N/A"],
                                         ["Economic Moat", s.moat ? s.moat+" ("+s.moatScore+"/5)" : "N/A"],
-                                        ["Financial Strength", s.finStrength ? s.finStrength+" ("+s.finScore+"/5)" : "N/A"],
+                                      ];
+                                      if (s.moatDrivers && s.moatDrivers.length > 0) {
+                                        s.moatDrivers.forEach(function(d){ rows.push(["  -- "+d.label, d.score+"/5  "+d.body]); });
+                                      }
+                                      if (s.moatExplanation) rows.push(["  -- Summary", s.moatExplanation]);
+                                      rows.push(["Financial Strength", s.finStrength ? s.finStrength+" ("+s.finScore+"/5)" : "N/A"]);
+                                      rows = rows.concat([
                                         ["Gross Margin", s.grossMargin ? s.grossMargin.toFixed(1)+"%" : "N/A"],
                                         ["Net Margin", s.netMargin ? s.netMargin.toFixed(1)+"%" : "N/A"],
                                         ["ROE", s.roe ? s.roe.toFixed(1)+"%" : "N/A"],
@@ -4205,7 +4223,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                         ["FCF", s.fcf > 0 ? "$"+(s.fcf/1e9).toFixed(1)+"B" : "Negative/N/A"],
                                         ["Debt/Equity", s.de > 0 ? s.de.toFixed(2)+"x" : "N/A"],
                                         ["Sector", s.sector||"Unknown"],
-                                      ].map(function(row,i){ return <SnapRow key={i} label={row[0]} val={row[1]} />; });
+                                      ]);
+                                      return rows.map(function(row,i){ return <SnapRow key={i} label={row[0]} val={row[1]} />; });
                                     })()}
                                   </div>
                                 </div>
