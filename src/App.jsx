@@ -2335,7 +2335,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"minmax(0,200px) 1fr auto", alignItems:"center", gap:0, minWidth:0 }}>
               {/* Left cell -- Logo + ticker (mirrors 400px left panel) */}
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontWeight:800, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap" }}>nervousgeek</span>
+                <img src="/logo.png" alt="nervousgeek" style={{ height:28, width:"auto", objectFit:"contain" }}
+                  onError={function(e){ e.target.style.display="none"; }} />
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
               {/* Right panel cell -- Back + Search aligned to chart panel edge */}
@@ -2378,7 +2379,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             <div className="nav-mobile" style={{ background:"#c8f000", padding:"8px 14px 7px" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:7 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <span style={{ fontWeight:800, fontSize:14, color:"#1a1a14" }}>nervousgeek.com</span>
+                  <img src="/logo.png" alt="nervousgeek" style={{ height:24, width:"auto", objectFit:"contain" }}
+                    onError={function(e){ e.target.style.display="none"; }} />
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
                 <button onClick={function(){ setMobilePanel("left"); onBack(); }} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"4px 10px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:11, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
