@@ -933,151 +933,172 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
   // -- AI Analysis (Fundamental + Technical) -----------------------------
   // Only for paid members. Two separate calls with different TTLs.
-  function runAiAnalysis(symA, ovA, massiveA, parsedA, valsA, oracleA, priceA, msDots2, msLabel2, revCount2) {
-    if (!symA) return;
-    var isPaid = window.__isPaid;
-    if (!isPaid) return; // PREMIUM only
+  function runAiAnalysis(symA, ovA, massiveA, parsedA, valsA, oracleA, priceA, msDots2, msLabel2) {
+    if (!symA || !window.__isPaid) return;
 
-    // --- Fundamental AI ---
-    if (!aiFundLoading && !aiFundResult) {
-      setAiFundLoading(true);
-      fetch("/cache?sym=" + symA + "&tab=ai-fund")
-        .then(function(r){ return r.json(); })
-        .then(function(d) {
-          if (d && d.hit && d.value) {
-            try {
-              var parsed = JSON.parse(d.value);
-              setAiFundResult(parsed);
-              setAiFundCachedAt(d.cachedAt || null);
-              setDebugLog(function(prev){ return prev.concat([{ time:new Date().toISOString(), label:"AI Fund CACHE HIT: "+symA, data:{ cachedAt:d.cachedAt } }]); });
-            } catch(e) {}
+    // -- Fundamental AI --
+    setAiFundLoading(true);
+    fetch("/cache?sym=" + symA + "&tab=ai-fund")
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d && d.hit && d.value) {
+          try {
+            var cached = JSON.parse(d.value);
+            setAiFundResult(cached);
+            setAiFundCachedAt(d.cachedAt || null);
+            setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund HIT: "+symA }]); });
+          } catch(e) {}
+          setAiFundLoading(false);
+          return;
+        }
+        // Cache miss -- call Claude
+        var _ov = ovA || ovCache[symA];
+        if (!_ov) { setAiFundLoading(false); return; }
+        var moatR = parsedA["moat"] || {};
+        var finR  = parsedA["financial"] || {};
+        var ivLab = valsA.length > 0 && valsA[valsA.length-1].bold ? (function(){
+          var iv = parseFloat(oracleA); var p = priceA;
+          var pct = p > 0 ? Math.round(Math.abs(iv-p)/p*100) : 0;
+          return (iv > p ? "Undervalued" : "Overvalued") + " " + pct + "% ($" + Math.round(iv) + " IV)";
+        })() : "Not computable";
+        var snap = {
+          price:_ov.pe, ivLabel:ivLab, pe:_ov.pe, fpe:_ov.fpe, evEbitda:_ov.evEbitda,
+          ps:_ov.ps, pb:_ov.pb, moat:moatR.classification, moatScore:moatR.score,
+          finStrength:finR.classification, finScore:finR.score,
+          grossMargin:_ov.grossMargin, netMargin:_ov.netMargin,
+          roe:_ov.roe, revGrowth:_ov.revGrowth, fcf:_ov.fcfRaw, de:_ov.de,
+          sector:_ov.sector, industry:_ov.industry, priceVal:priceA,
+        };
+        var prompt = "You are a senior investment analyst. Analyse " + symA + " based ONLY on the data below. Do not use external knowledge.\n\n" +
+          "VALUATION:\n- Price: $" + (priceA||0).toFixed(2) + "\n- Intrinsic Value: " + ivLab +
+          "\n- P/E: " + (_ov.pe>0?_ov.pe.toFixed(1)+"x":"N/A") +
+          " | Fwd P/E: " + (_ov.fpe>0?_ov.fpe.toFixed(1)+"x":"N/A") +
+          " | EV/EBITDA: " + (_ov.evEbitda>0?_ov.evEbitda.toFixed(1)+"x":"N/A") +
+          "\n- P/S: " + (_ov.ps>0?_ov.ps.toFixed(1)+"x":"N/A") +
+          " | P/B: " + (_ov.pb>0?_ov.pb.toFixed(1)+"x":"N/A") + "\n\n" +
+          "QUALITY:\n- Moat: " + (moatR.classification||"Unknown") + " (" + (moatR.score||0) + "/5)" +
+          "\n- Financial Strength: " + (finR.classification||"Unknown") + " (" + (finR.score||0) + "/5)" +
+          "\n- Gross Margin: " + (_ov.grossMargin?_ov.grossMargin.toFixed(1)+"%":"N/A") +
+          " | Net Margin: " + (_ov.netMargin?_ov.netMargin.toFixed(1)+"%":"N/A") +
+          "\n- ROE: " + (_ov.roe>0?_ov.roe.toFixed(1)+"%":"N/A") +
+          " | Rev Growth: " + (_ov.revGrowth?_ov.revGrowth.toFixed(1)+"%":"N/A") +
+          "\n- FCF: " + (_ov.fcfRaw>0?"$"+(_ov.fcfRaw/1e9).toFixed(1)+"B":"Negative/N/A") +
+          " | Debt/Equity: " + (_ov.de>0?_ov.de.toFixed(2)+"x":"N/A") +
+          "\n- Sector: " + (_ov.sector||"Unknown") + "\n\n" +
+          "Respond in EXACTLY this format:\n" +
+          "Fundamental Verdict: Strong Buy / Buy / Hold / Caution / Avoid\n" +
+          "Confidence: Low / Medium / High\n" +
+          "Key Strength: One sentence.\n" +
+          "Key Risk: One sentence.\n" +
+          "Summary (max 50 words): ...";
+        setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund MISS: "+symA+" -- calling Claude" }]); });
+        fetch("/anthropic", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:400, messages:[{ role:"user", content:prompt }] })
+        }).then(function(r){ return r.json(); })
+          .then(function(d2) {
+            var text = d2.content && d2.content[0] ? d2.content[0].text : "";
+            function ex(re) { var m=text.match(re); return m?m[1].trim():""; }
+            var result = {
+              verdict:    ex(/Fundamental Verdict:\s*(.+)/),
+              confidence: ex(/Confidence:\s*(.+)/),
+              strength:   ex(/Key Strength:\s*(.+)/),
+              risk:       ex(/Key Risk:\s*(.+)/),
+              summary:    ex(/Summary[^:]*:\s*([\s\S]+)/).slice(0,300),
+              dataSnapshot: snap,
+            };
+            setAiFundResult(result);
             setAiFundLoading(false);
-          } else {
-            // Cache miss - call Claude with fundamental data
-            if (!ovA) { setAiFundLoading(false); return; }
-            var moatR  = parsedA["moat"]      || {};
-            var finR   = parsedA["financial"] || {};
-            var ivLabel2 = valsA.length > 0 && valsA[valsA.length-1].bold ? (function(){
-              var iv = parseFloat(oracleA); var p = priceA;
-              var pct = p>0 ? Math.round(Math.abs(iv-p)/p*100) : 0;
-              return (iv>p?"Undervalued":"Overvalued") + " " + pct + "% ($" + Math.round(iv) + " IV)";
-            })() : "Not computable";
-var fundPrompt = "You are a senior investment analyst. Analyse " + symA + " (" + (ovA.bizSummary ? ovA.sector + " sector" : "unknown sector") + ") based ONLY on the data provided below. Do not use external knowledge.\n\n" + "VALUATION: " + "- Current Price: $" + (priceA||0).toFixed(2) + " " + "- Intrinsic Value: " + ivLabel2 + " " + "- P/E: " + (ovA.pe>0?ovA.pe.toFixed(1)+"x":"N/A") + " | Forward P/E: " + (ovA.fpe>0?ovA.fpe.toFixed(1)+"x":"N/A") + " | EV/EBITDA: " + (ovA.evEbitda>0?ovA.evEbitda.toFixed(1)+"x":"N/A") + " " + "- P/S: " + (ovA.ps>0?ovA.ps.toFixed(1)+"x":"N/A") + " | P/B: " + (ovA.pb>0?ovA.pb.toFixed(1)+"x":"N/A") + "  " + "QUALITY: " + "- Economic Moat: " + (moatR.classification||"Unknown") + " (" + (moatR.score||0) + "/5) " + "- Financial Strength: " + (finR.classification||"Unknown") + " (" + (finR.score||0) + "/5) " + "- Gross Margin: " + (ovA.grossMargin?ovA.grossMargin.toFixed(1)+"%":"N/A") + " | Net Margin: " + (ovA.netMargin?ovA.netMargin.toFixed(1)+"%":"N/A") + " " + "- ROE: " + (ovA.roe>0?ovA.roe.toFixed(1)+"%":"N/A") + " | Revenue Growth: " + (ovA.revGrowth?ovA.revGrowth.toFixed(1)+"%":"N/A") + " " + "- FCF: " + (ovA.fcfRaw>0?"$"+(ovA.fcfRaw/1e9).toFixed(1)+"B":"Negative/N/A") + " | Debt/Equity: " + (ovA.de>0?ovA.de.toFixed(2)+"x":"N/A") + " " + "- Sector: " + (ovA.sector||"Unknown") + " | Industry: " + (ovA.industry||"Unknown") + "  " + "Respond in EXACTLY this format: " + "Fundamental Verdict: Strong Buy / Buy / Hold / Caution / Avoid " + "Confidence: Low / Medium / High " + "Key Strength: One sentence. " + "Key Risk: One sentence. " + "Summary (max 50 words): ..."; 
-            var dataSnapshot = {
-              price: priceA, ivLabel: ivLabel2,
-              pe: ovA.pe, fpe: ovA.fpe, evEbitda: ovA.evEbitda, ps: ovA.ps, pb: ovA.pb,
-              moat: moatR.classification, moatScore: moatR.score,
-              finStrength: finR.classification, finScore: finR.score,
-              grossMargin: ovA.grossMargin, netMargin: ovA.netMargin,
-              roe: ovA.roe, revGrowth: ovA.revGrowth,
-              fcf: ovA.fcfRaw, de: ovA.de,
-              sector: ovA.sector, industry: ovA.industry,
-            };
-
-            setDebugLog(function(prev){ return prev.concat([{ time:new Date().toISOString(), label:"AI Fund MISS: "+symA+" -- calling Claude" }]); });
-            fetch("/anthropic", {
-              method:"POST",
-              headers:{"Content-Type":"application/json"},
-              body: JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:400, messages:[{ role:"user", content:fundPrompt }] })
+            fetch("/cache?sym="+symA+"&tab=ai-fund", {
+              method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(result)
             }).then(function(r){ return r.json(); })
-              .then(function(d) {
-                var text = d.content && d.content[0] ? d.content[0].text : "";
-                function ex(re) { var m=text.match(re); return m?m[1].trim():""; }
-                var result = {
-                  verdict:    ex(/Fundamental Verdict:\s*(.+)/),
-                  confidence: ex(/Confidence:\s*(.+)/),
-                  strength:   ex(/Key Strength:\s*(.+)/),
-                  risk:       ex(/Key Risk:\s*(.+)/),
-                  summary:    ex(/Summary.*?:\s*([\s\S]+)/).slice(0,300),
-                  dataSnapshot: dataSnapshot,
-                };
-                setAiFundResult(result);
-                setAiFundLoading(false);
-                // Cache it
-                fetch("/cache?sym="+symA+"&tab=ai-fund", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(result) })
-                  .then(function(r){ return r.json(); })
-                  .then(function(wr){ setAiFundCachedAt(wr.cachedAt||null); setDebugLog(function(prev){ return prev.concat([{ time:new Date().toISOString(), label:"AI Fund WRITE: "+symA+(wr.ok?" OK":" FAIL") }]); }); });
-              }).catch(function(e){ setAiFundLoading(false); });
-          }
-        }).catch(function(){ setAiFundLoading(false); });
-    }
+              .then(function(wr){ setAiFundCachedAt(wr.cachedAt||null); setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund WRITE: "+symA+(wr.ok?" OK":" FAIL") }]); }); });
+          }).catch(function(){ setAiFundLoading(false); });
+      }).catch(function(){ setAiFundLoading(false); });
 
-    // --- Technical AI ---
-    if (!aiTechLoading && !aiTechResult && massiveA) {
-      setAiTechLoading(true);
-      fetch("/cache?sym=" + symA + "&tab=ai-tech")
-        .then(function(r){ return r.json(); })
-        .then(function(d) {
-          if (d && d.hit && d.value) {
-            try {
-              var parsed = JSON.parse(d.value);
-              setAiTechResult(parsed);
-              setAiTechCachedAt(d.cachedAt || null);
-              setDebugLog(function(prev){ return prev.concat([{ time:new Date().toISOString(), label:"AI Tech CACHE HIT: "+symA, data:{ cachedAt:d.cachedAt } }]); });
-            } catch(e) {}
+    // -- Technical AI --
+    if (!massiveA) return;
+    setAiTechLoading(true);
+    fetch("/cache?sym=" + symA + "&tab=ai-tech")
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d && d.hit && d.value) {
+          try {
+            var cached = JSON.parse(d.value);
+            setAiTechResult(cached);
+            setAiTechCachedAt(d.cachedAt || null);
+            setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech HIT: "+symA }]); });
+          } catch(e) {}
+          setAiTechLoading(false);
+          return;
+        }
+        // Cache miss -- call Claude
+        var ind = massiveA.indicators || {};
+        var rsi = ind.rsi14 || 0;
+        var rsiCond = rsi > 70 ? "Overbought" : rsi < 30 ? "Oversold" : "Neutral";
+        var sma50  = ind.sma50  || 0;
+        var sma200 = ind.sma200 || 0;
+        var macdH  = ind.macdHistory && ind.macdHistory.length > 0 ? ind.macdHistory[0] : null;
+        var macdDir = macdH ? (macdH.histogram > 0 ? "Bullish" : "Bearish") : "Unknown";
+        var pSma50  = sma50  > 0 && priceA > 0 ? ((priceA-sma50)/sma50*100).toFixed(1)   : null;
+        var pSma200 = sma200 > 0 && priceA > 0 ? ((priceA-sma200)/sma200*100).toFixed(1) : null;
+        var rsiH     = ind.rsiHistory   || [];
+        var macdHist = ind.macdHistory  || [];
+        var aggs     = massiveA.aggs    || [];
+        var revNames = ["RSI Base","MACD Turning","Volume Surge","MA Reclaim","Price Structure"];
+        var revArr   = [
+          rsiH.length>=5 && rsiH[0]>rsiH[1] && rsiH[1]<35,
+          macdHist.length>=2 && macdHist[0].histogram>0 && macdHist[1].histogram<0,
+          aggs.length>=2 && aggs[0].v > aggs[1].v * 1.5,
+          sma50>0 && priceA>sma50 && aggs.length>=2 && aggs[1].l<sma50,
+          aggs.length>=5 && aggs[0].h > Math.max.apply(null,aggs.slice(1,5).map(function(a){return a.h;})),
+        ];
+        var activeRevs = revNames.filter(function(_,i){ return revArr[i]; });
+        var techSnap = {
+          price:priceA, rsi:rsi, rsiCond:rsiCond,
+          pctVsSma50:pSma50, pctVsSma200:pSma200,
+          macdDir:macdDir, msScore:msDots2*20, msLabel:msLabel2,
+          activeReversals:activeRevs,
+        };
+        var tprompt = "You are a senior technical analyst. Analyse " + symA + " based ONLY on the data below.\n\n" +
+          "TREND:\n- Price: $" + (priceA||0).toFixed(2) +
+          (pSma50  ? "\n- vs 50-day MA: "  + (pSma50>0?"+":"")  + pSma50  + "% (" + (pSma50>0?"above":"below")  + ")" : "") +
+          (pSma200 ? "\n- vs 200-day MA: " + (pSma200>0?"+":"") + pSma200 + "% (" + (pSma200>0?"above":"below") + ")" : "") +
+          "\n\nMOMENTUM:\n- RSI: " + (rsi||"N/A") + " (" + rsiCond + ")" +
+          "\n- MACD: " + macdDir +
+          "\n- Market Signal: " + (msDots2*20) + "/100 -- " + (msLabel2||"Unknown") +
+          "\n\nREVERSALS:\n- Active: " + (activeRevs.length>0?activeRevs.join(", "):"None") +
+          "\n\nRespond in EXACTLY this format:\n" +
+          "Technical Verdict: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish\n" +
+          "Short-term (1-3m): Buy / Hold / Avoid\n" +
+          "Confidence: Low / Medium / High\n" +
+          "Key Level: One sentence on key support or resistance.\n" +
+          "Summary (max 50 words): ...";
+        setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech MISS: "+symA+" -- calling Claude" }]); });
+        fetch("/anthropic", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:300, messages:[{ role:"user", content:tprompt }] })
+        }).then(function(r){ return r.json(); })
+          .then(function(d2) {
+            var text = d2.content && d2.content[0] ? d2.content[0].text : "";
+            function ex(re) { var m=text.match(re); return m?m[1].trim():""; }
+            var result = {
+              verdict:    ex(/Technical Verdict:\s*(.+)/),
+              stVerdict:  ex(/Short-term[^:]*:\s*(.+)/),
+              confidence: ex(/Confidence:\s*(.+)/),
+              keyLevel:   ex(/Key Level:\s*(.+)/),
+              summary:    ex(/Summary[^:]*:\s*([\s\S]+)/).slice(0,300),
+              dataSnapshot: techSnap,
+            };
+            setAiTechResult(result);
             setAiTechLoading(false);
-          } else {
-            var ind = massiveA.indicators || {};
-            var rsi = ind.rsi14 || 0;
-            var rsiCond = rsi > 70 ? "Overbought" : rsi < 30 ? "Oversold" : "Neutral";
-            var sma50  = ind.sma50  || 0;
-            var sma200 = ind.sma200 || 0;
-            var macd   = ind.macd   || 0;
-            var macdH  = ind.macdHistory && ind.macdHistory.length > 0 ? ind.macdHistory[0] : null;
-            var macdDir = macdH ? (macdH.histogram > 0 ? "Bullish" : "Bearish") : "Unknown";
-            var pSma50  = sma50  > 0 && priceA > 0 ? ((priceA-sma50)/sma50*100).toFixed(1) : null;
-            var pSma200 = sma200 > 0 && priceA > 0 ? ((priceA-sma200)/sma200*100).toFixed(1) : null;
-
-            // Active reversal signals
-            var revNames = ["RSI Base","MACD Turning","Volume Surge","MA Reclaim","Price Structure"];
-            var rsiH = ind.rsiHistory || [];
-            var macdHist = ind.macdHistory || [];
-            var aggs = massiveA.aggs || [];
-            var revArr = [
-              rsiH.length>=5 && rsiH[0]>rsiH[1] && rsiH[1]<35,
-              macdHist.length>=2 && macdHist[0].histogram>0 && macdHist[1].histogram<0,
-              aggs.length>=2 && aggs[0].v > aggs[1].v * 1.5,
-              sma50>0 && priceA>sma50 && aggs.length>=2 && aggs[1].l<sma50,
-              aggs.length>=5 && aggs[0].h > Math.max.apply(null,aggs.slice(1,5).map(function(a){return a.h;})),
-            ];
-            var activeRevs = revNames.filter(function(_,i){ return revArr[i]; });
-
-var techPrompt = "You are a senior technical analyst. Analyse " + symA + " based ONLY on the data provided.  " + "TREND: " + "- Price: $" + (priceA||0).toFixed(2) + " " + (pSma50  ? "- vs 50-day MA: " + (pSma50>0?"+":"") + pSma50 + "% (" + (pSma50>0?"above":"below") + ") " : "") + (pSma200 ? "- vs 200-day MA: " + (pSma200>0?"+":"") + pSma200 + "% (" + (pSma200>0?"above":"below") + ") " : "") + " " + "MOMENTUM: " + "- RSI: " + (rsi||"N/A") + " (" + rsiCond + ") " + "- MACD: " + macdDir + " " + "- Market Signal Score: " + (msDots2*20) + "/100 -- " + (msLabel2||"Unknown") + "  " + "REVERSALS: " + "- Active signals: " + (activeRevs.length>0?activeRevs.join(", "):"None") + "  " + "Respond in EXACTLY this format: " + "Technical Verdict: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish " + "Short-term (1-3m): Buy / Hold / Avoid " + "Confidence: Low / Medium / High " + "Key Level: One sentence on key support or resistance. " + "Summary (max 50 words): ..."; 
-            var techSnapshot = {
-              price: priceA, rsi: rsi, rsiCond: rsiCond,
-              pctVsSma50: pSma50, pctVsSma200: pSma200,
-              macdDir: macdDir, msScore: msDots2*20, msLabel: msLabel2,
-              activeReversals: activeRevs,
-            };
-
-            setDebugLog(function(prev){ return prev.concat([{ time:new Date().toISOString(), label:"AI Tech MISS: "+symA+" -- calling Claude" }]); });
-            fetch("/anthropic", {
-              method:"POST",
-              headers:{"Content-Type":"application/json"},
-              body: JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:300, messages:[{ role:"user", content:techPrompt }] })
+            fetch("/cache?sym="+symA+"&tab=ai-tech", {
+              method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(result)
             }).then(function(r){ return r.json(); })
-              .then(function(d) {
-                var text = d.content && d.content[0] ? d.content[0].text : "";
-                function ex(re) { var m=text.match(re); return m?m[1].trim():""; }
-                var result = {
-                  verdict:    ex(/Technical Verdict:\s*(.+)/),
-                  stVerdict:  ex(/Short-term.*?:\s*(.+)/),
-                  confidence: ex(/Confidence:\s*(.+)/),
-                  keyLevel:   ex(/Key Level:\s*(.+)/),
-                  summary:    ex(/Summary.*?:\s*([\s\S]+)/).slice(0,300),
-                  dataSnapshot: techSnapshot,
-                };
-                setAiTechResult(result);
-                setAiTechLoading(false);
-                fetch("/cache?sym="+symA+"&tab=ai-tech", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(result) })
-                  .then(function(r){ return r.json(); })
-                  .then(function(wr){ setAiTechCachedAt(wr.cachedAt||null); setDebugLog(function(prev){ return prev.concat([{ time:new Date().toISOString(), label:"AI Tech WRITE: "+symA+(wr.ok?" OK":" FAIL") }]); }); });
-              }).catch(function(e){ setAiTechLoading(false); });
-          }
-        }).catch(function(){ setAiTechLoading(false); });
-    }
+              .then(function(wr){ setAiTechCachedAt(wr.cachedAt||null); setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech WRITE: "+symA+(wr.ok?" OK":" FAIL") }]); }); });
+          }).catch(function(){ setAiTechLoading(false); });
+      }).catch(function(){ setAiTechLoading(false); });
   }
-
   window.__goToTab = function(id) {
     var adminTabs = ["addlinfo", "debug", "admin"];
     if (adminTabs.indexOf(id) !== -1) return;
