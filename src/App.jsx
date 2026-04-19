@@ -1634,8 +1634,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     if (!sym || !ov || !massiveInfo || !window.__isPaid) return;
     var moatReady    = parsedInsights["moat"] && parsedInsights["moat"].classification;
     var finReady     = parsedInsights["financial"] && parsedInsights["financial"].classification;
-    var moatCached   = insightCache["moat"] && insightCache["moat"].length > 10;
-    var finCached    = insightCache["financial"] && insightCache["financial"].length > 10;
+    var _ic = window.__insightCache || {};
+    var moatCached   = _ic["moat"] && _ic["moat"].length > 10;
+    var finCached    = _ic["financial"] && _ic["financial"].length > 10;
     if (!moatReady || !finReady || !moatCached || !finCached) return; // wait for all
     if (window.__aiFundRunning === sym || aiFundResult) return; // already done
     var curVals   = window.__curVals   || [];
@@ -1643,8 +1644,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     var curPrice  = window.__curPrice  || 0;
     var curMsDots = window.__msDots2   || 0;
     var curMsLabel= window.__msLabel2  || "";
-    runAiAnalysis(sym, ov, massiveInfo, parsedInsights, curVals, curOracle, curPrice, curMsDots, curMsLabel, insightCache);
-  }, [sym, ov, massiveInfo, parsedInsights, insightCache]);
+    runAiAnalysis(sym, ov, massiveInfo, parsedInsights, curVals, curOracle, curPrice, curMsDots, curMsLabel, _ic);
+  }, [sym, ov, massiveInfo, parsedInsights]);
 
   // -- Admin tab data load -----------------------------------------------------
   useEffect(function() {
@@ -1744,6 +1745,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           var next = {};
           Object.keys(prev).forEach(function(k) { next[k] = prev[k]; });
           next[tabId] = text || "Analysis unavailable.";
+          window.__insightCache = next;
           return next;
         });
         setInsightLoading(false);
@@ -1752,6 +1754,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           var next = {};
           Object.keys(prev).forEach(function(k) { next[k] = prev[k]; });
           next[tabId] = "Analysis unavailable. Please try again.";
+          window.__insightCache = next;
           return next;
         });
         setInsightLoading(false);
