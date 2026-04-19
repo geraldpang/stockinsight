@@ -1131,6 +1131,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     runFundAi(symA, ovA, parsedA, valsA, oracleA, priceA, insightCacheA);
     if (massiveA) runTechAi(symA, massiveA, priceA, msDots2, msLabel2);
   }
+  window.__goToPaywall = function() {
+    // Redirect to Stripe checkout directly
+    var hdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
+    fetch("/stripe?action=checkout&plan=monthly", { headers: hdrs })
+      .then(function(r){ return r.json(); })
+      .then(function(d){ if (d.url) window.location.href = d.url; });
+  };
+
   window.__goToTab = function(id) {
     var adminTabs = ["addlinfo", "debug", "admin"];
     if (adminTabs.indexOf(id) !== -1) return;
@@ -2712,9 +2720,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       </div>
                       {/* Body */}
                       {!window.__isPaid ? (
-                        <div style={{ padding:"14px 12px", textAlign:"center" }}>
-                          <div style={{ fontSize:11, color:"#555", marginBottom:4 }}>Unlock AI-powered investment analysis</div>
-                          <div style={{ fontSize:10, color:"#444" }}>Available to paid members</div>
+                        <div onClick={function(e){ e.stopPropagation(); window.__goToPaywall && window.__goToPaywall(); }}
+                          style={{ padding:"14px 12px", textAlign:"center", cursor:"pointer" }}>
+                          <div style={{ fontSize:12, color:"#888", marginBottom:6 }}>AI-powered investment analysis</div>
+                          <div style={{ display:"inline-block", background:"#c8f000", color:"#0e0e0c", fontSize:11, fontWeight:700, padding:"5px 16px", borderRadius:20, letterSpacing:"0.04em" }}>Upgrade to Premium</div>
                         </div>
                       ) : (
                         <div style={{ padding:"10px 12px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
@@ -4160,9 +4169,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   {insightTab === "aianalysis" && (function() {
                     if (!window.__isPaid) {
                       return (
-                        <div style={{ padding:"32px 16px", textAlign:"center" }}>
-                          <div style={{ fontSize:16, fontWeight:600, color:"#888", marginBottom:8 }}>PREMIUM Feature</div>
-                          <div style={{ fontSize:13, color:"#aaa" }}>AI Analysis is available to paid members only.</div>
+                        <div style={{ padding:"40px 16px", textAlign:"center" }}>
+                          <div style={{ fontSize:16, fontWeight:700, color:"#888", marginBottom:8 }}>PREMIUM Feature</div>
+                          <div style={{ fontSize:13, color:"#aaa", marginBottom:20, lineHeight:1.6 }}>{"AI Analysis provides fundamental and technical investment insights powered by Claude AI."}</div>
+                          <button onClick={function(){ window.__goToPaywall && window.__goToPaywall(); }}
+                            style={{ background:"#c8f000", color:"#0e0e0c", border:"none", borderRadius:24, padding:"12px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:FONT, letterSpacing:"0.04em" }}>
+                            Upgrade to Premium
+                          </button>
                         </div>
                       );
                     }
