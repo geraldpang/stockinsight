@@ -1536,6 +1536,19 @@ var techPrompt = "You are a senior technical analyst. Analyse " + symA + " based
         // Set massiveInfo if we got any useful data back
         if (data && (data.news || data.ticker || data.dividends || data.indicators || data.aggs)) {
           setMassiveInfo(data);
+          // Trigger AI Analysis for paid members
+          if (window.__isPaid) {
+            setTimeout(function() {
+              var curOv    = ovCache[sym] || null;
+              var curVals  = window.__curVals   || [];
+              var curOracle= window.__curOracle || "0";
+              var curPrice = window.__curPrice  || 0;
+              var curMsDots  = window.__msDots2  || 0;
+              var curMsLabel = window.__msLabel2 || "";
+              var curParsed  = window.__parsedInsights || {};
+              runAiAnalysis(sym, curOv, data, curParsed, curVals, curOracle, curPrice, curMsDots, curMsLabel);
+            }, 800);
+          }
         } else {
           debugEntries.push({ time: new Date().toISOString(), label: "Massive data empty or error", data: data });
         }
