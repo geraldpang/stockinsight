@@ -5918,9 +5918,20 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   })()}
 
             {insightTab === "admin" && (function() {
-              var ALL_SP500 = Object.keys(NAMES).sort();
-              var AI_TABS = ["moat","financial","aiinsight"];
+              // Build ticker list from ALL cached keys + S&P 500
+              var _cachedSyms = {};
+              Object.keys(adminStats).forEach(function(k) {
+                var parts = k.split(":");
+                if (parts.length === 3 && parts[0] === "insight" && parts[1]) {
+                  _cachedSyms[parts[1]] = true;
+                }
+              });
+              var ALL_SP500 = Object.keys(Object.assign({}, NAMES, _cachedSyms)).sort();
+              var AI_TABS = ["moat","financial","aiinsight","ai-fund","ai-tech"];
               var adminQ = (window.__adminSearch || "").toLowerCase();
+
+              // Manual clear for any ticker (including non-S&P500)
+              var _manualClearTicker = window.__adminManualClear || "";
               var FILTERED = ALL_SP500.filter(function(t) {
                 if (!adminQ) return true;
                 return t.toLowerCase().startsWith(adminQ) || (NAMES[t]||"").toLowerCase().includes(adminQ);
@@ -5963,6 +5974,35 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       {String.fromCharCode(0x21BA) + " Refresh"}
                     </button>
                   </div>
+                  {/* Manual clear for any ticker */}
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, padding:"10px 12px", background:"#faf8f4", borderRadius:8, border:"0.5px solid #e0dbd0" }}>
+                    <span style={{ fontSize:11, color:"#888", whiteSpace:"nowrap" }}>Clear any ticker:</span>
+                    <input
+                      placeholder="e.g. NIO, BABA, COIN..."
+                      defaultValue=""
+                      onChange={function(e){ window.__adminManualClear = e.target.value.toUpperCase().trim(); }}
+                      style={{ flex:1, background:"#fff", border:"1px solid #e0dbd0", borderRadius:6, padding:"5px 10px", fontSize:12, color:"#1a1a14", fontFamily:FONT, outline:"none" }}
+                    />
+                    <button onClick={function(){
+                      var t = (window.__adminManualClear||"").trim().toUpperCase();
+                      if (!t) return;
+                      if (!window.confirm("Clear all cache for "+t+"?")) return;
+                      fetch("/cache?sym="+t+"&tab=moat",{method:"DELETE"}).then(function(){
+                        fetch("/cache?sym="+t+"&tab=ai-fund",{method:"DELETE"});
+                        fetch("/cache?sym="+t+"&tab=ai-tech",{method:"DELETE"});
+                        if (t === sym) {
+                          setAiFundResult(null); setAiFundLoading(false);
+                          setAiTechResult(null); setAiTechLoading(false);
+                          window.__aiFundRunning=null; window.__aiTechRunning=null;
+                        }
+                        alert("Cache cleared for "+t);
+                      });
+                    }}
+                    style={{ fontSize:11, color:"#fff", background:"#e05050", border:"none", borderRadius:6, padding:"5px 14px", cursor:"pointer", fontFamily:FONT, whiteSpace:"nowrap" }}>
+                      Clear Cache
+                    </button>
+                  </div>
+
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
                     <div style={{ display:"flex", alignItems:"center", background:"#ffffff", border:"1px solid #e0dbd0", borderRadius:8, padding:"6px 12px", gap:8, flex:1 }}>
                       <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
@@ -6007,12 +6047,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           var sortDir = window.__adminSortDir || 1;
                           var SORTED = FILTERED.slice().sort(function(a, b) {
                             var getVal = function(t) {
-                              var ct = AI_TABS.filter(function(tab) { var m = statsMap["insight:"+t+":"+tab]; return !!(m&&(m.exists||m.cachedAt)); });
+                              var _coreTabs = ["moat","financial","aiinsight"];
+                              var ct = _coreTabs.filter(function(tab) { var m = statsMap["insight:"+t+":"+tab]; return !!(m&&(m.exists||m.cachedAt)); });
                               var ld = null;
                               AI_TABS.forEach(function(tab) { var m = statsMap["insight:"+t+":"+tab]; if (m&&m.cachedAt) { if (!ld||new Date(m.cachedAt)>new Date(ld)) ld=m.cachedAt; } });
                               if (sortKey==="ticker")     return t;
                               if (sortKey==="company")    return (NAMES[t]||"").toLowerCase();
-                              if (sortKey==="cache")      return ct.length===AI_TABS.length ? 0 : ct.length>0 ? 1 : 2;
+                              if (sortKey==="cache")      return ct.length===_coreTabs.length ? 0 : ct.length>0 ? 1 : 2;
                               if (sortKey==="lastCached") return ld ? new Date(ld).getTime() : 0;
                               if (sortKey==="mode")       return liveSet.indexOf(t)!==-1 ? 0 : 1;
                               return t;
@@ -6022,10 +6063,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           });
                           return SORTED.map(function(t) {
                             var isLive = liveSet.indexOf(t) !== -1;
-                            var cachedTabs = AI_TABS.filter(function(tab) { var m = statsMap["insight:"+t+":"+tab]; return !!(m&&(m.exists||m.cachedAt)); });
+                            var _coreTabs2 = ["moat","financial","aiinsight"];
+                            var cachedTabs = _coreTabs2.filter(function(tab) { var m = statsMap["insight:"+t+":"+tab]; return !!(m&&(m.exists||m.cachedAt)); });
                             var latestDate = null;
                             AI_TABS.forEach(function(tab) { var m = statsMap["insight:"+t+":"+tab]; if (m&&m.cachedAt) { if (!latestDate||new Date(m.cachedAt)>new Date(latestDate)) latestDate=m.cachedAt; } });
-                            var statusLabel = cachedTabs.length===AI_TABS.length ? "Full" : cachedTabs.length>0 ? "Partial" : "None";
+                            var statusLabel = cachedTabs.length===_coreTabs2.length ? "Full" : cachedTabs.length>0 ? "Partial" : "None";
                             var statusColor = cachedTabs.length===AI_TABS.length ? "#7abd00" : cachedTabs.length>0 ? "#EF9F27" : "#e05050";
                             var statusBg    = cachedTabs.length===AI_TABS.length ? "#1e2a1e" : cachedTabs.length>0 ? "#2a2010" : "#2a1e1e";
                             var age = "";
