@@ -920,10 +920,163 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   const [adminStats,    setAdminStats]    = useState({});
   const [mobilePanel,   setMobilePanel]   = useState("left"); // "left" | "right"
   const [chartCollapsed, setChartCollapsed] = useState(false);
+  const [aiFundResult,  setAiFundResult]  = useState(null); // { verdict, confidence, strength, risk, summary, dataSnapshot }
+  const [aiFundLoading, setAiFundLoading] = useState(false);
+  const [aiFundCachedAt,setAiFundCachedAt]= useState(null);
+  const [aiTechResult,  setAiTechResult]  = useState(null); // { verdict, stVerdict, confidence, keyLevel, summary, dataSnapshot }
+  const [aiTechLoading, setAiTechLoading] = useState(false);
+  const [aiTechCachedAt,setAiTechCachedAt]= useState(null);
 
   // Expose computed financial strength for left panel pill
   // Will be set by financial tab when it renders
   if (!window.__computedFinStrength) window.__computedFinStrength = {};
+
+  // -- AI Analysis (Fundamental + Technical) -----------------------------
+  // Only for paid members. Two separate calls with different TTLs.
+  function runAiAnalysis(symA, ovA, massiveA, parsedA, valsA, oracleA, priceA, msDots2, msLabel2, revCount2) {
+    if (!symA) return;
+    var isPaid = window.__isPaid;
+    if (!isPaid) return; // PREMIUM only
+
+    // --- Fundamental AI ---
+    if (!aiFundLoading && !aiFundResult) {
+      setAiFundLoading(true);
+      fetch("/cache?sym=" + symA + "&tab=ai-fund")
+        .then(function(r){ return r.json(); })
+        .then(function(d) {
+          if (d && d.hit && d.value) {
+            try {
+              var parsed = JSON.parse(d.value);
+              setAiFundResult(parsed);
+              setAiFundCachedAt(d.cachedAt || null);
+              setDebugLog(function(prev){ return prev.concat([{ time:new Date().toISOString(), label:"AI Fund CACHE HIT: "+symA, data:{ cachedAt:d.cachedAt } }]); });
+            } catch(e) {}
+            setAiFundLoading(false);
+          } else {
+            // Cache miss - call Claude with fundamental data
+            if (!ovA) { setAiFundLoading(false); return; }
+            var moatR  = parsedA["moat"]      || {};
+            var finR   = parsedA["financial"] || {};
+            var ivLabel2 = valsA.length > 0 && valsA[valsA.length-1].bold ? (function(){
+              var iv = parseFloat(oracleA); var p = priceA;
+              var pct = p>0 ? Math.round(Math.abs(iv-p)/p*100) : 0;
+              return (iv>p?"Undervalued":"Overvalued") + " " + pct + "% ($" + Math.round(iv) + " IV)";
+            })() : "Not computable";
+var fundPrompt = "You are a senior investment analyst. Analyse " + symA + " (" + (ovA.bizSummary ? ovA.sector + " sector" : "unknown sector") + ") based ONLY on the data provided below. Do not use external knowledge.\n\n" + "VALUATION: " + "- Current Price: $" + (priceA||0).toFixed(2) + " " + "- Intrinsic Value: " + ivLabel2 + " " + "- P/E: " + (ovA.pe>0?ovA.pe.toFixed(1)+"x":"N/A") + " | Forward P/E: " + (ovA.fpe>0?ovA.fpe.toFixed(1)+"x":"N/A") + " | EV/EBITDA: " + (ovA.evEbitda>0?ovA.evEbitda.toFixed(1)+"x":"N/A") + " " + "- P/S: " + (ovA.ps>0?ovA.ps.toFixed(1)+"x":"N/A") + " | P/B: " + (ovA.pb>0?ovA.pb.toFixed(1)+"x":"N/A") + "  " + "QUALITY: " + "- Economic Moat: " + (moatR.classification||"Unknown") + " (" + (moatR.score||0) + "/5) " + "- Financial Strength: " + (finR.classification||"Unknown") + " (" + (finR.score||0) + "/5) " + "- Gross Margin: " + (ovA.grossMargin?ovA.grossMargin.toFixed(1)+"%":"N/A") + " | Net Margin: " + (ovA.netMargin?ovA.netMargin.toFixed(1)+"%":"N/A") + " " + "- ROE: " + (ovA.roe>0?ovA.roe.toFixed(1)+"%":"N/A") + " | Revenue Growth: " + (ovA.revGrowth?ovA.revGrowth.toFixed(1)+"%":"N/A") + " " + "- FCF: " + (ovA.fcfRaw>0?"$"+(ovA.fcfRaw/1e9).toFixed(1)+"B":"Negative/N/A") + " | Debt/Equity: " + (ovA.de>0?ovA.de.toFixed(2)+"x":"N/A") + " " + "- Sector: " + (ovA.sector||"Unknown") + " | Industry: " + (ovA.industry||"Unknown") + "  " + "Respond in EXACTLY this format: " + "Fundamental Verdict: Strong Buy / Buy / Hold / Caution / Avoid " + "Confidence: Low / Medium / High " + "Key Strength: One sentence. " + "Key Risk: One sentence. " + "Summary (max 50 words): ..."; 
+            var dataSnapshot = {
+              price: priceA, ivLabel: ivLabel2,
+              pe: ovA.pe, fpe: ovA.fpe, evEbitda: ovA.evEbitda, ps: ovA.ps, pb: ovA.pb,
+              moat: moatR.classification, moatScore: moatR.score,
+              finStrength: finR.classification, finScore: finR.score,
+              grossMargin: ovA.grossMargin, netMargin: ovA.netMargin,
+              roe: ovA.roe, revGrowth: ovA.revGrowth,
+              fcf: ovA.fcfRaw, de: ovA.de,
+              sector: ovA.sector, industry: ovA.industry,
+            };
+
+            setDebugLog(function(prev){ return prev.concat([{ time:new Date().toISOString(), label:"AI Fund MISS: "+symA+" -- calling Claude" }]); });
+            fetch("/anthropic", {
+              method:"POST",
+              headers:{"Content-Type":"application/json"},
+              body: JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:400, messages:[{ role:"user", content:fundPrompt }] })
+            }).then(function(r){ return r.json(); })
+              .then(function(d) {
+                var text = d.content && d.content[0] ? d.content[0].text : "";
+                function ex(re) { var m=text.match(re); return m?m[1].trim():""; }
+                var result = {
+                  verdict:    ex(/Fundamental Verdict:\s*(.+)/),
+                  confidence: ex(/Confidence:\s*(.+)/),
+                  strength:   ex(/Key Strength:\s*(.+)/),
+                  risk:       ex(/Key Risk:\s*(.+)/),
+                  summary:    ex(/Summary.*?:\s*([\s\S]+)/).slice(0,300),
+                  dataSnapshot: dataSnapshot,
+                };
+                setAiFundResult(result);
+                setAiFundLoading(false);
+                // Cache it
+                fetch("/cache?sym="+symA+"&tab=ai-fund", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(result) })
+                  .then(function(r){ return r.json(); })
+                  .then(function(wr){ setAiFundCachedAt(wr.cachedAt||null); setDebugLog(function(prev){ return prev.concat([{ time:new Date().toISOString(), label:"AI Fund WRITE: "+symA+(wr.ok?" OK":" FAIL") }]); }); });
+              }).catch(function(e){ setAiFundLoading(false); });
+          }
+        }).catch(function(){ setAiFundLoading(false); });
+    }
+
+    // --- Technical AI ---
+    if (!aiTechLoading && !aiTechResult && massiveA) {
+      setAiTechLoading(true);
+      fetch("/cache?sym=" + symA + "&tab=ai-tech")
+        .then(function(r){ return r.json(); })
+        .then(function(d) {
+          if (d && d.hit && d.value) {
+            try {
+              var parsed = JSON.parse(d.value);
+              setAiTechResult(parsed);
+              setAiTechCachedAt(d.cachedAt || null);
+              setDebugLog(function(prev){ return prev.concat([{ time:new Date().toISOString(), label:"AI Tech CACHE HIT: "+symA, data:{ cachedAt:d.cachedAt } }]); });
+            } catch(e) {}
+            setAiTechLoading(false);
+          } else {
+            var ind = massiveA.indicators || {};
+            var rsi = ind.rsi14 || 0;
+            var rsiCond = rsi > 70 ? "Overbought" : rsi < 30 ? "Oversold" : "Neutral";
+            var sma50  = ind.sma50  || 0;
+            var sma200 = ind.sma200 || 0;
+            var macd   = ind.macd   || 0;
+            var macdH  = ind.macdHistory && ind.macdHistory.length > 0 ? ind.macdHistory[0] : null;
+            var macdDir = macdH ? (macdH.histogram > 0 ? "Bullish" : "Bearish") : "Unknown";
+            var pSma50  = sma50  > 0 && priceA > 0 ? ((priceA-sma50)/sma50*100).toFixed(1) : null;
+            var pSma200 = sma200 > 0 && priceA > 0 ? ((priceA-sma200)/sma200*100).toFixed(1) : null;
+
+            // Active reversal signals
+            var revNames = ["RSI Base","MACD Turning","Volume Surge","MA Reclaim","Price Structure"];
+            var rsiH = ind.rsiHistory || [];
+            var macdHist = ind.macdHistory || [];
+            var aggs = massiveA.aggs || [];
+            var revArr = [
+              rsiH.length>=5 && rsiH[0]>rsiH[1] && rsiH[1]<35,
+              macdHist.length>=2 && macdHist[0].histogram>0 && macdHist[1].histogram<0,
+              aggs.length>=2 && aggs[0].v > aggs[1].v * 1.5,
+              sma50>0 && priceA>sma50 && aggs.length>=2 && aggs[1].l<sma50,
+              aggs.length>=5 && aggs[0].h > Math.max.apply(null,aggs.slice(1,5).map(function(a){return a.h;})),
+            ];
+            var activeRevs = revNames.filter(function(_,i){ return revArr[i]; });
+
+var techPrompt = "You are a senior technical analyst. Analyse " + symA + " based ONLY on the data provided.  " + "TREND: " + "- Price: $" + (priceA||0).toFixed(2) + " " + (pSma50  ? "- vs 50-day MA: " + (pSma50>0?"+":"") + pSma50 + "% (" + (pSma50>0?"above":"below") + ") " : "") + (pSma200 ? "- vs 200-day MA: " + (pSma200>0?"+":"") + pSma200 + "% (" + (pSma200>0?"above":"below") + ") " : "") + " " + "MOMENTUM: " + "- RSI: " + (rsi||"N/A") + " (" + rsiCond + ") " + "- MACD: " + macdDir + " " + "- Market Signal Score: " + (msDots2*20) + "/100 -- " + (msLabel2||"Unknown") + "  " + "REVERSALS: " + "- Active signals: " + (activeRevs.length>0?activeRevs.join(", "):"None") + "  " + "Respond in EXACTLY this format: " + "Technical Verdict: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish " + "Short-term (1-3m): Buy / Hold / Avoid " + "Confidence: Low / Medium / High " + "Key Level: One sentence on key support or resistance. " + "Summary (max 50 words): ..."; 
+            var techSnapshot = {
+              price: priceA, rsi: rsi, rsiCond: rsiCond,
+              pctVsSma50: pSma50, pctVsSma200: pSma200,
+              macdDir: macdDir, msScore: msDots2*20, msLabel: msLabel2,
+              activeReversals: activeRevs,
+            };
+
+            setDebugLog(function(prev){ return prev.concat([{ time:new Date().toISOString(), label:"AI Tech MISS: "+symA+" -- calling Claude" }]); });
+            fetch("/anthropic", {
+              method:"POST",
+              headers:{"Content-Type":"application/json"},
+              body: JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:300, messages:[{ role:"user", content:techPrompt }] })
+            }).then(function(r){ return r.json(); })
+              .then(function(d) {
+                var text = d.content && d.content[0] ? d.content[0].text : "";
+                function ex(re) { var m=text.match(re); return m?m[1].trim():""; }
+                var result = {
+                  verdict:    ex(/Technical Verdict:\s*(.+)/),
+                  stVerdict:  ex(/Short-term.*?:\s*(.+)/),
+                  confidence: ex(/Confidence:\s*(.+)/),
+                  keyLevel:   ex(/Key Level:\s*(.+)/),
+                  summary:    ex(/Summary.*?:\s*([\s\S]+)/).slice(0,300),
+                  dataSnapshot: techSnapshot,
+                };
+                setAiTechResult(result);
+                setAiTechLoading(false);
+                fetch("/cache?sym="+symA+"&tab=ai-tech", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(result) })
+                  .then(function(r){ return r.json(); })
+                  .then(function(wr){ setAiTechCachedAt(wr.cachedAt||null); setDebugLog(function(prev){ return prev.concat([{ time:new Date().toISOString(), label:"AI Tech WRITE: "+symA+(wr.ok?" OK":" FAIL") }]); }); });
+              }).catch(function(e){ setAiTechLoading(false); });
+          }
+        }).catch(function(){ setAiTechLoading(false); });
+    }
+  }
 
   window.__goToTab = function(id) {
     var adminTabs = ["addlinfo", "debug", "admin"];
@@ -1039,7 +1192,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -1952,6 +2105,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       ? vals.reduce(function(sum, v) { return sum + v.value; }, 0) / vals.length
       : 0;
     oracle = oracleAvg.toFixed(2);
+    window.__curOracle = oracle;
+    window.__curVals = vals;
     if (oracleAvg > 0) vals.push({ label:"Intrinsic Value", value:oracleAvg, color:"#1a8a3a", bold:true, modelsMeta:modelsMeta, sectorLabel:_ivSector, modelApplicable:MODEL_APPLICABLE });
   }
 
@@ -2261,6 +2416,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             var moatColors = pillColor(moatRating || null);
             var finColors  = pillColor(finRating  || null);
             window.__moatDots = moatScore; window.__finDots = finScore;
+  window.__parsedInsights = parsedInsights;
 
             // -- Intrinsic Value --
             var ivOracle  = vals.length > 0 ? parseFloat(oracle) : 0;
@@ -2317,6 +2473,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               msDots=final2>=70?5:final2>=55?4:final2>=40?3:final2>=25?2:1;
               msLabel=vl2+" ("+final2+")";
               msColors=pillColor(vl2);
+              window.__msDots2 = msDots; window.__msLabel2 = vl2;
               window.__msDots=msDots; window.__msScore=final2;
             }
 
@@ -2397,7 +2554,71 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
 
                 {/* FUNDAMENTAL ANALYSIS */}
-                <SectionLabel label="Fundamental Analysis" top={true} />
+                {/* AI ANALYSIS section */}
+                <SectionLabel label="AI Analysis" top={true} />
+                {(function() {
+                  if (!window.__isPaid) {
+                    return (
+                      <div style={{ padding:"10px 12px", background:"#1a1a10", border:"0.5px solid #2c2c14", borderRadius:8, marginBottom:6, textAlign:"center" }}>
+                        <div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>AI Analysis</div>
+                        <div style={{ fontSize:11, color:"#444" }}>{"PREMIUM members only"}</div>
+                      </div>
+                    );
+                  }
+                  function aiVerdictColor(v) {
+                    if (!v) return pillColor(null);
+                    var vl = v.toLowerCase();
+                    if (vl.includes("strong buy")||vl.includes("strong bull")) return pillColor("buy");
+                    if (vl.includes("buy")||vl.includes("bull")) return pillColor("buy");
+                    if (vl.includes("caution")||vl.includes("bear")) return pillColor("hold");
+                    if (vl.includes("avoid")||vl.includes("strong bear")) return pillColor("avoid");
+                    return pillColor("hold");
+                  }
+                  function aiVerdictScore(v) {
+                    if (!v) return 0;
+                    var vl = v.toLowerCase();
+                    if (vl.includes("strong buy")||vl.includes("strong bull")) return 5;
+                    if (vl.includes("buy")||vl.includes("bull")) return 4;
+                    if (vl.includes("hold")||vl.includes("neutral")) return 3;
+                    if (vl.includes("caution")||vl.includes("bear")) return 2;
+                    if (vl.includes("avoid")||vl.includes("strong bear")) return 1;
+                    return 0;
+                  }
+                  var fundC  = aiVerdictColor(aiFundResult ? aiFundResult.verdict : null);
+                  var techC  = aiVerdictColor(aiTechResult ? aiTechResult.verdict : null);
+                  var fundSc = aiVerdictScore(aiFundResult ? aiFundResult.verdict : null);
+                  var techSc = aiVerdictScore(aiTechResult ? aiTechResult.verdict : null);
+                  return (
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
+                      <div onClick={function(){ window.__goToTab && window.__goToTab("aianalysis"); }}
+                        style={{ padding:"9px 12px", background:aiFundResult?fundC.bg:"#222", border:"0.5px solid "+(aiFundResult?fundC.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                        <div style={{ fontSize:9, color:aiFundResult?fundC.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Fundamental AI</div>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
+                          {aiFundLoading
+                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
+                            : <span style={{ fontSize:13, fontWeight:700, color:aiFundResult?fundC.fg:"#555" }}>{aiFundResult?aiFundResult.verdict:"--"}</span>
+                          }
+                          {aiFundResult && fundSc > 0 && <Dots score={fundSc} filled={fundC.dot} empty={fundC.dotEmpty} />}
+                        </div>
+                        {aiFundResult && aiFundResult.confidence && <div style={{ fontSize:10, color:fundC.fg, marginTop:3, opacity:0.75 }}>{"Conf: " + aiFundResult.confidence}</div>}
+                      </div>
+                      <div onClick={function(){ window.__goToTab && window.__goToTab("aianalysis"); }}
+                        style={{ padding:"9px 12px", background:aiTechResult?techC.bg:"#222", border:"0.5px solid "+(aiTechResult?techC.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                        <div style={{ fontSize:9, color:aiTechResult?techC.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Technical AI</div>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
+                          {aiTechLoading
+                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
+                            : <span style={{ fontSize:13, fontWeight:700, color:aiTechResult?techC.fg:"#555" }}>{aiTechResult?aiTechResult.verdict:"--"}</span>
+                          }
+                          {aiTechResult && techSc > 0 && <Dots score={techSc} filled={techC.dot} empty={techC.dotEmpty} />}
+                        </div>
+                        {aiTechResult && aiTechResult.stVerdict && <div style={{ fontSize:10, color:techC.fg, marginTop:3, opacity:0.75 }}>{"ST: " + aiTechResult.stVerdict + (aiTechResult.confidence ? " - Conf: " + aiTechResult.confidence : "")}</div>}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <SectionLabel label="Fundamental Analysis" />
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
                   <Card label="Economic Moat" value={moatRating} score={moatScore} colors={moatColors} loading={!moatRating && insightLoading} tabId="moat" />
                   {(function() {
@@ -2416,20 +2637,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           {!loading && ivScore > 0 && <Dots score={ivScore} filled={c.dot} empty={c.dotEmpty} />}
                         </div>
                         {!loading && ivSublabel && <div style={{ fontSize:10, color:c.fg, marginTop:3, opacity:0.75 }}>{ivSublabel}</div>}
-                      </div>
-                    );
-                  })()}
-                  {(function() {
-                    if (!aiLabel) return <Card label="AI Insight" value={null} score={0} colors={pillColor(null)} loading={insightLoading} />;
-                    var c = aiColors;
-                    return (
-                      <div onClick={function(){ window.__goToTab && window.__goToTab("aiinsight"); }} style={{ padding:"9px 12px", background:c.bg, border:"0.5px solid "+c.border, borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color:c.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>AI Insight</div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                          <span style={{ fontSize:13, fontWeight:700, color:c.fg }}>{aiLabel}</span>
-                          {aiDots > 0 && <Dots score={aiDots} filled={c.dot} empty={c.dotEmpty} />}
-                        </div>
-                        {aiConf && <div style={{ fontSize:10, color:c.fg, marginTop:3, opacity:0.75 }}>{"Conf: " + aiConf}</div>}
                       </div>
                     );
                   })()}
@@ -2657,6 +2864,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               { id:"business",  label:"Business Overview" },
               { id:"moat",      label:"Economic MOAT" },
               { id:"intrinsic", label:"Intrinsic Value" },
+              { id:"aianalysis", label:"AI Analysis" },
               { id:"aiinsight", label:"AI Insight" },
               { id:"financial", label:"Financial Strength" },
               { id:"signal",    label:"Market Signal" },
@@ -3070,7 +3278,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   {/* AI-powered tabs */}
                   {insightTab !== "intrinsic" && (
                     <div>
-                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && insightTab !== "aiinsight" && insightTab !== "admin" && (
+                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && insightTab !== "aiinsight" && insightTab !== "aianalysis" && insightTab !== "admin" && (
                         <div style={{ textAlign:"center", padding:"40px 0" }}>
                           <div style={{ fontSize:12, color:"#888", marginBottom:14 }}>Generating {insightTab} analysis for {sym}...</div>
                           <div style={{ display:"inline-block", width:26, height:26, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
@@ -3448,6 +3656,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         var ind  = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
                         var aggs = massiveInfo && massiveInfo.aggs        ? massiveInfo.aggs        : [];
                         var price = q ? q.price : 0;
+  window.__curPrice = price;
                         var hi52  = ov ? ov.hi52 : 0;
                         var lo52  = ov ? ov.lo52 : 0;
                         var rng52 = hi52 - lo52;
@@ -3817,6 +4026,178 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
                     </div>
                   )}
+
+                  {/* AI Analysis Tab */}
+                  {insightTab === "aianalysis" && (function() {
+                    if (!window.__isPaid) {
+                      return (
+                        <div style={{ padding:"32px 16px", textAlign:"center" }}>
+                          <div style={{ fontSize:16, fontWeight:600, color:"#888", marginBottom:8 }}>PREMIUM Feature</div>
+                          <div style={{ fontSize:13, color:"#aaa" }}>AI Analysis is available to paid members only.</div>
+                        </div>
+                      );
+                    }
+                    function fmtSnap(v, suffix) { return v !== null && v !== undefined ? (typeof v === "number" ? v.toFixed(2) + (suffix||"") : v) : "N/A"; }
+                    function SnapRow(props) {
+                      return (
+                        <div style={{ display:"flex", justifyContent:"space-between", padding:"3px 0", borderBottom:"1px solid #f5f2ec", fontSize:11 }}>
+                          <span style={{ color:"#aaa" }}>{props.label}</span>
+                          <span style={{ color:"#555", fontWeight:600 }}>{props.val}</span>
+                        </div>
+                      );
+                    }
+                    function VerdictBanner(props) {
+                      var vl = (props.verdict||"").toLowerCase();
+                      var isGood = vl.includes("buy")||vl.includes("bull");
+                      var isBad  = vl.includes("avoid")||vl.includes("strong bear");
+                      var bg     = isGood?"#EAF3DE":isBad?"#FCEBEB":"#FAEEDA";
+                      var border = isGood?"#7abd00":isBad?"#e08080":"#d4a800";
+                      var fg     = isGood?"#1a6a1a":isBad?"#c03030":"#b88000";
+                      var score  = vl.includes("strong buy")||vl.includes("strong bull")?5:vl.includes("buy")||vl.includes("bull")?4:vl.includes("hold")||vl.includes("neutral")?3:vl.includes("caution")||vl.includes("bear")?2:1;
+                      return (
+                        <div style={{ padding:"12px 14px", background:bg, borderRadius:8, marginBottom:12, border:"0.5px solid "+border }}>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+                            <div>
+                              <div style={{ fontSize:10, color:fg, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2, opacity:0.8 }}>{props.title}</div>
+                              <div style={{ fontSize:16, fontWeight:700, color:fg }}>{props.verdict||"--"}</div>
+                            </div>
+                            <div style={{ display:"flex", gap:3 }}>
+                              {[1,2,3,4,5].map(function(d){ return <span key={d} style={{ display:"inline-block", width:9, height:9, borderRadius:"50%", background:d<=score?fg:"#ddd" }}></span>; })}
+                            </div>
+                          </div>
+                          {props.sub && <div style={{ fontSize:11, color:fg, opacity:0.85 }}>{props.sub}</div>}
+                          {props.confidence && <div style={{ fontSize:10, color:fg, opacity:0.7, marginTop:2 }}>{"Confidence: " + props.confidence}</div>}
+                        </div>
+                      );
+                    }
+                    var cachedAtFundStr = aiFundCachedAt ? new Date(aiFundCachedAt).toLocaleDateString() : null;
+                    var cachedAtTechStr = aiTechCachedAt ? new Date(aiTechCachedAt).toLocaleDateString() : null;
+                    return (
+                      <div>
+                        {/* Fundamental AI Card */}
+                        <div style={{ marginBottom:20 }}>
+                          <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:12 }}>
+                            <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Fundamental AI</span>
+                            {cachedAtFundStr && <span style={{ fontSize:10, color:"#aaa", marginLeft:8 }}>{"cached " + cachedAtFundStr + " (30d TTL)"}</span>}
+                          </div>
+                          {aiFundLoading && (
+                            <div style={{ textAlign:"center", padding:"20px 0" }}>
+                              <div style={{ width:20, height:20, border:"3px solid #e0dbd0", borderTop:"3px solid #c8f000", borderRadius:"50%", animation:"spin 0.8s linear infinite", margin:"0 auto 8px" }}></div>
+                              <div style={{ fontSize:12, color:"#aaa" }}>Analysing fundamentals...</div>
+                            </div>
+                          )}
+                          {!aiFundLoading && aiFundResult && (
+                            <div>
+                              <VerdictBanner title="Fundamental Verdict" verdict={aiFundResult.verdict} confidence={aiFundResult.confidence} />
+                              {aiFundResult.strength && (
+                                <div style={{ marginBottom:8, padding:"8px 12px", background:"#f0f7e6", borderRadius:6, border:"0.5px solid #b0d080" }}>
+                                  <div style={{ fontSize:10, color:"#3a6a1a", fontWeight:700, marginBottom:2 }}>KEY STRENGTH</div>
+                                  <div style={{ fontSize:12, color:"#2a5010", lineHeight:1.5 }}>{aiFundResult.strength}</div>
+                                </div>
+                              )}
+                              {aiFundResult.risk && (
+                                <div style={{ marginBottom:8, padding:"8px 12px", background:"#FCEBEB", borderRadius:6, border:"0.5px solid #e08080" }}>
+                                  <div style={{ fontSize:10, color:"#c03030", fontWeight:700, marginBottom:2 }}>KEY RISK</div>
+                                  <div style={{ fontSize:12, color:"#a02020", lineHeight:1.5 }}>{aiFundResult.risk}</div>
+                                </div>
+                              )}
+                              {aiFundResult.summary && (
+                                <div style={{ marginBottom:12, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
+                                  <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:4 }}>SUMMARY</div>
+                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.7 }}>{aiFundResult.summary}</div>
+                                </div>
+                              )}
+                              {aiFundResult.dataSnapshot && (
+                                <div style={{ marginTop:12 }}>
+                                  <div style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Data sent to AI</div>
+                                  <div style={{ padding:"8px 10px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0" }}>
+                                    {(function() {
+                                      var s = aiFundResult.dataSnapshot;
+                                      return [
+                                        ["Price", s.price ? "$"+(s.price).toFixed(2) : "N/A"],
+                                        ["Intrinsic Value", s.ivLabel||"N/A"],
+                                        ["P/E", s.pe>0?s.pe.toFixed(1)+"x":"N/A"],
+                                        ["Forward P/E", s.fpe>0?s.fpe.toFixed(1)+"x":"N/A"],
+                                        ["EV/EBITDA", s.evEbitda>0?s.evEbitda.toFixed(1)+"x":"N/A"],
+                                        ["P/S", s.ps>0?s.ps.toFixed(1)+"x":"N/A"],
+                                        ["P/B", s.pb>0?s.pb.toFixed(1)+"x":"N/A"],
+                                        ["Economic Moat", s.moat ? s.moat+" ("+s.moatScore+"/5)" : "N/A"],
+                                        ["Financial Strength", s.finStrength ? s.finStrength+" ("+s.finScore+"/5)" : "N/A"],
+                                        ["Gross Margin", s.grossMargin ? s.grossMargin.toFixed(1)+"%" : "N/A"],
+                                        ["Net Margin", s.netMargin ? s.netMargin.toFixed(1)+"%" : "N/A"],
+                                        ["ROE", s.roe ? s.roe.toFixed(1)+"%" : "N/A"],
+                                        ["Revenue Growth", s.revGrowth ? s.revGrowth.toFixed(1)+"%" : "N/A"],
+                                        ["FCF", s.fcf > 0 ? "$"+(s.fcf/1e9).toFixed(1)+"B" : "Negative/N/A"],
+                                        ["Debt/Equity", s.de > 0 ? s.de.toFixed(2)+"x" : "N/A"],
+                                        ["Sector", s.sector||"Unknown"],
+                                      ].map(function(row,i){ return <SnapRow key={i} label={row[0]} val={row[1]} />; });
+                                    })()}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {!aiFundLoading && !aiFundResult && (
+                            <div style={{ textAlign:"center", padding:"20px 0", color:"#aaa", fontSize:12 }}>Fundamental AI data not yet available.</div>
+                          )}
+                        </div>
+
+                        {/* Technical AI Card */}
+                        <div>
+                          <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:12 }}>
+                            <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Technical AI</span>
+                            {cachedAtTechStr && <span style={{ fontSize:10, color:"#aaa", marginLeft:8 }}>{"cached " + cachedAtTechStr + " (1d TTL)"}</span>}
+                          </div>
+                          {aiTechLoading && (
+                            <div style={{ textAlign:"center", padding:"20px 0" }}>
+                              <div style={{ width:20, height:20, border:"3px solid #e0dbd0", borderTop:"3px solid #c8f000", borderRadius:"50%", animation:"spin 0.8s linear infinite", margin:"0 auto 8px" }}></div>
+                              <div style={{ fontSize:12, color:"#aaa" }}>Analysing technicals...</div>
+                            </div>
+                          )}
+                          {!aiTechLoading && aiTechResult && (
+                            <div>
+                              <VerdictBanner title="Technical Verdict" verdict={aiTechResult.verdict} confidence={aiTechResult.confidence}
+                                sub={aiTechResult.stVerdict ? "Short-term (1-3m): " + aiTechResult.stVerdict : null} />
+                              {aiTechResult.keyLevel && (
+                                <div style={{ marginBottom:8, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
+                                  <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:2 }}>KEY LEVEL</div>
+                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.5 }}>{aiTechResult.keyLevel}</div>
+                                </div>
+                              )}
+                              {aiTechResult.summary && (
+                                <div style={{ marginBottom:12, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
+                                  <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:4 }}>SUMMARY</div>
+                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.7 }}>{aiTechResult.summary}</div>
+                                </div>
+                              )}
+                              {aiTechResult.dataSnapshot && (
+                                <div style={{ marginTop:12 }}>
+                                  <div style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Data sent to AI</div>
+                                  <div style={{ padding:"8px 10px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0" }}>
+                                    {(function() {
+                                      var s = aiTechResult.dataSnapshot;
+                                      return [
+                                        ["Price", s.price ? "$"+(s.price).toFixed(2) : "N/A"],
+                                        ["RSI", s.rsi ? s.rsi.toFixed(1)+" ("+s.rsiCond+")" : "N/A"],
+                                        ["vs 50-day MA", s.pctVsSma50 ? (s.pctVsSma50>0?"+":"")+s.pctVsSma50+"%" : "N/A"],
+                                        ["vs 200-day MA", s.pctVsSma200 ? (s.pctVsSma200>0?"+":"")+s.pctVsSma200+"%" : "N/A"],
+                                        ["MACD", s.macdDir||"N/A"],
+                                        ["Market Signal", s.msScore ? s.msScore+"/100 -- "+(s.msLabel||"") : "N/A"],
+                                        ["Active Reversals", s.activeReversals && s.activeReversals.length>0 ? s.activeReversals.join(", ") : "None"],
+                                      ].map(function(row,i){ return <SnapRow key={i} label={row[0]} val={row[1]} />; });
+                                    })()}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {!aiTechLoading && !aiTechResult && (
+                            <div style={{ textAlign:"center", padding:"20px 0", color:"#aaa", fontSize:12 }}>Technical AI data not yet available.</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* AI Insight Tab */}
                   {insightTab === "aiinsight" && (function() {
