@@ -937,6 +937,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     if (!symA || !window.__isPaid) return;
 
     // -- Fundamental AI --
+    // Prevent re-entry if already running for this sym
+    if (window.__aiFundRunning === symA) return;
+    window.__aiFundRunning = symA;
     setAiFundLoading(true);
     fetch("/cache?sym=" + symA + "&tab=ai-fund")
       .then(function(r) { return r.json(); })
@@ -949,12 +952,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund HIT: "+symA }]); });
           } catch(e) {}
           setAiFundLoading(false);
+          window.__aiFundRunning = null;
           return;
         }
         // Cache miss -- call Claude
         var _ov = ovA || ovCache[symA];
-        if (!_ov) { setAiFundLoading(false); return; }
+        if (!_ov) { setAiFundLoading(false); window.__aiFundRunning = null; setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund ABORT: no ov data for "+symA }]); }); return; }
         var moatR = parsedA["moat"] || {};
+        setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund data check: "+symA, data:{ hasOv:!!_ov, hasMoat:!!moatR.classification, hasFinR:!!(parsedA["financial"]||{}).classification, priceA:priceA, valsLen:valsA.length } }]); });
         var finR  = parsedA["financial"] || {};
         var ivLab = valsA.length > 0 && valsA[valsA.length-1].bold ? (function(){
           var iv = parseFloat(oracleA); var p = priceA;
@@ -1009,12 +1014,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             };
             setAiFundResult(result);
             setAiFundLoading(false);
+            window.__aiFundRunning = null;
             fetch("/cache?sym="+symA+"&tab=ai-fund", {
               method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(result)
             }).then(function(r){ return r.json(); })
               .then(function(wr){ setAiFundCachedAt(wr.cachedAt||null); setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund WRITE: "+symA+(wr.ok?" OK":" FAIL") }]); }); });
-          }).catch(function(){ setAiFundLoading(false); });
-      }).catch(function(){ setAiFundLoading(false); });
+          }).catch(function(){ setAiFundLoading(false); window.__aiFundRunning = null; });
+      }).catch(function(){ setAiFundLoading(false); window.__aiFundRunning = null; });
 
     // -- Technical AI --
     if (!massiveA) return;
@@ -1568,7 +1574,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               var curMsLabel = window.__msLabel2 || "";
               var curParsed  = window.__parsedInsights || {};
               runAiAnalysis(sym, curOv, data, curParsed, curVals, curOracle, curPrice, curMsDots, curMsLabel);
-            }, 800);
+            }, 1500);
           }
         } else {
           debugEntries.push({ time: new Date().toISOString(), label: "Massive data empty or error", data: data });
@@ -2912,6 +2918,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     {/* 5-Tab Insight Panel */}
           {(function() {
             var ALL_TABS = [
+              { id:"aianalysis", label:"AI Analysis" },
               { id:"business",  label:"Business Overview" },
               { id:"moat",      label:"Economic MOAT" },
               { id:"intrinsic", label:"Intrinsic Value" },
