@@ -1054,6 +1054,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               summary:    ex(/Summary[^:]*:\s*([\s\S]+)/).slice(0,300),
               dataSnapshot: snap,
             };
+            result.promptSent = prompt;
             setAiFundResult(result);
             setAiFundLoading(false);
             window.__aiFundRunning = null;
@@ -1138,6 +1139,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               summary:    ex(/Summary[^:]*:\s*([\s\S]+)/).slice(0,300),
               dataSnapshot: techSnap,
             };
+            result.promptSent = tprompt;
             setAiTechResult(result);
             setAiTechLoading(false);
             fetch("/cache?sym="+symA+"&tab=ai-tech", {
@@ -1630,9 +1632,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   // -- AI Analysis trigger: wait for moat + financial + ov + massive all ready --
   useEffect(function() {
     if (!sym || !ov || !massiveInfo || !window.__isPaid) return;
-    var moatReady = parsedInsights["moat"] && parsedInsights["moat"].classification;
-    var finReady  = parsedInsights["financial"] && parsedInsights["financial"].classification;
-    if (!moatReady || !finReady) return; // wait for both
+    var moatReady    = parsedInsights["moat"] && parsedInsights["moat"].classification;
+    var finReady     = parsedInsights["financial"] && parsedInsights["financial"].classification;
+    var moatCached   = insightCache["moat"] && insightCache["moat"].length > 10;
+    var finCached    = insightCache["financial"] && insightCache["financial"].length > 10;
+    if (!moatReady || !finReady || !moatCached || !finCached) return; // wait for all
     if (window.__aiFundRunning === sym || aiFundResult) return; // already done
     var curVals   = window.__curVals   || [];
     var curOracle = window.__curOracle || "0";
@@ -1640,7 +1644,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     var curMsDots = window.__msDots2   || 0;
     var curMsLabel= window.__msLabel2  || "";
     runAiAnalysis(sym, ov, massiveInfo, parsedInsights, curVals, curOracle, curPrice, curMsDots, curMsLabel, insightCache);
-  }, [sym, ov, massiveInfo, parsedInsights]);
+  }, [sym, ov, massiveInfo, parsedInsights, insightCache]);
 
   // -- Admin tab data load -----------------------------------------------------
   useEffect(function() {
@@ -4215,39 +4219,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                   <div style={{ fontSize:12, color:"#444", lineHeight:1.7 }}>{aiFundResult.summary}</div>
                                 </div>
                               )}
-                              {aiFundResult.dataSnapshot && (
+                              {aiFundResult.promptSent && (
                                 <div style={{ marginTop:12 }}>
-                                  <div style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Data sent to AI</div>
-                                  <div style={{ padding:"8px 10px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0" }}>
-                                    {(function() {
-                                      var s = aiFundResult.dataSnapshot;
-                                      var rows = [
-                                        ["Price", s.priceVal ? "$"+(s.priceVal).toFixed(2) : "N/A"],
-                                        ["Intrinsic Value", s.ivLabel||"N/A"],
-                                        ["P/E", s.pe>0?s.pe.toFixed(1)+"x":"N/A"],
-                                        ["Forward P/E", s.fpe>0?s.fpe.toFixed(1)+"x":"N/A"],
-                                        ["EV/EBITDA", s.evEbitda>0?s.evEbitda.toFixed(1)+"x":"N/A"],
-                                        ["P/S", s.ps>0?s.ps.toFixed(1)+"x":"N/A"],
-                                        ["P/B", s.pb>0?s.pb.toFixed(1)+"x":"N/A"],
-                                        ["Economic Moat", s.moat ? s.moat+" ("+s.moatScore+"/5)" : "N/A"],
-                                      ];
-                                      if (s.moatDrivers && s.moatDrivers.length > 0) {
-                                        s.moatDrivers.forEach(function(d){ rows.push(["  -- "+d.label, d.score+"/5  "+d.body]); });
-                                      }
-                                      if (s.moatExplanation) rows.push(["  -- Summary", s.moatExplanation]);
-                                      rows.push(["Financial Strength", s.finStrength ? s.finStrength+" ("+s.finScore+"/5)" : "N/A"]);
-                                      rows = rows.concat([
-                                        ["Gross Margin", s.grossMargin ? s.grossMargin.toFixed(1)+"%" : "N/A"],
-                                        ["Net Margin", s.netMargin ? s.netMargin.toFixed(1)+"%" : "N/A"],
-                                        ["ROE", s.roe ? s.roe.toFixed(1)+"%" : "N/A"],
-                                        ["Revenue Growth", s.revGrowth ? s.revGrowth.toFixed(1)+"%" : "N/A"],
-                                        ["FCF", s.fcf > 0 ? "$"+(s.fcf/1e9).toFixed(1)+"B" : "Negative/N/A"],
-                                        ["Debt/Equity", s.de > 0 ? s.de.toFixed(2)+"x" : "N/A"],
-                                        ["Sector", s.sector||"Unknown"],
-                                      ]);
-                                      return rows.map(function(row,i){ return <SnapRow key={i} label={row[0]} val={row[1]} />; });
-                                    })()}
-                                  </div>
+                                  <div style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Exact prompt sent to AI</div>
+                                  <pre style={{ padding:"10px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:10, color:"#555", lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word", margin:0, fontFamily:"monospace" }}>{aiFundResult.promptSent}</pre>
                                 </div>
                               )}
                             </div>
@@ -4285,23 +4260,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                   <div style={{ fontSize:12, color:"#444", lineHeight:1.7 }}>{aiTechResult.summary}</div>
                                 </div>
                               )}
-                              {aiTechResult.dataSnapshot && (
+                              {aiTechResult.promptSent && (
                                 <div style={{ marginTop:12 }}>
-                                  <div style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Data sent to AI</div>
-                                  <div style={{ padding:"8px 10px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0" }}>
-                                    {(function() {
-                                      var s = aiTechResult.dataSnapshot;
-                                      return [
-                                        ["Price", s.price ? "$"+(s.price).toFixed(2) : "N/A"],
-                                        ["RSI", s.rsi ? s.rsi.toFixed(1)+" ("+s.rsiCond+")" : "N/A"],
-                                        ["vs 50-day MA", s.pctVsSma50 ? (s.pctVsSma50>0?"+":"")+s.pctVsSma50+"%" : "N/A"],
-                                        ["vs 200-day MA", s.pctVsSma200 ? (s.pctVsSma200>0?"+":"")+s.pctVsSma200+"%" : "N/A"],
-                                        ["MACD", s.macdDir||"N/A"],
-                                        ["Market Signal", s.msScore ? s.msScore+"/100 -- "+(s.msLabel||"") : "N/A"],
-                                        ["Active Reversals", s.activeReversals && s.activeReversals.length>0 ? s.activeReversals.join(", ") : "None"],
-                                      ].map(function(row,i){ return <SnapRow key={i} label={row[0]} val={row[1]} />; });
-                                    })()}
-                                  </div>
+                                  <div style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Exact prompt sent to AI</div>
+                                  <pre style={{ padding:"10px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:10, color:"#555", lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word", margin:0, fontFamily:"monospace" }}>{aiTechResult.promptSent}</pre>
                                 </div>
                               )}
                             </div>
