@@ -6265,7 +6265,7 @@ function UpgradePage({ onBack, clerkUser }) {
       <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
         <div style={{ maxWidth:520, width:"100%", textAlign:"center" }}>
           <div style={{ fontSize:13, color:"#7abd00", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:12 }}>nervousgeek Premium</div>
-          <div style={{ fontSize:32, fontWeight:900, color:"#f0ede6", marginBottom:8, letterSpacing:"-1px" }}>Unlock every US stock</div>
+          <div style={{ fontSize:32, fontWeight:900, color:"#f0ede6", marginBottom:8, letterSpacing:"-1px" }}>Unlock every US stock & AI Feature</div>
           <div style={{ fontSize:15, color:"#a09a8a", lineHeight:1.7, marginBottom:36 }}>
             {"AI analysis for any ticker " + String.fromCharCode(0x2014) + " NYSE, NASDAQ, OTC and more. Cancel anytime."}
           </div>
@@ -6882,7 +6882,7 @@ export default function App() {
               <button
                 onClick={function(){ setShowUpgrade(true); }}
                 style={{ background:LIME, color:"#0e0e0c", border:"none", borderRadius:24, padding:"10px 32px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:FONT }}>
-                {"Upgrade to unlock all US stocks"}
+                {"Upgrade to unlock all US stocks & AI Feature"}
               </button>
             </div>
           )}
