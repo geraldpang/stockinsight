@@ -2588,17 +2588,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
 
                 {/* FUNDAMENTAL ANALYSIS */}
-                {/* AI ANALYSIS section */}
-                <SectionLabel label="AI Analysis" top={true} />
+                {/* AI ANALYSIS section - hero card */}
                 {(function() {
-                  if (!window.__isPaid) {
-                    return (
-                      <div style={{ padding:"10px 12px", background:"#1a1a10", border:"0.5px solid #2c2c14", borderRadius:8, marginBottom:6, textAlign:"center" }}>
-                        <div style={{ fontSize:10, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>AI Analysis</div>
-                        <div style={{ fontSize:11, color:"#444" }}>{"PREMIUM members only"}</div>
-                      </div>
-                    );
-                  }
                   function aiVerdictColor(v) {
                     if (!v) return pillColor(null);
                     var vl = v.toLowerCase();
@@ -2623,31 +2614,50 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   var fundSc = aiVerdictScore(aiFundResult ? aiFundResult.verdict : null);
                   var techSc = aiVerdictScore(aiTechResult ? aiTechResult.verdict : null);
                   return (
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
-                      <div onClick={function(){ window.__goToTab && window.__goToTab("aianalysis"); }}
-                        style={{ padding:"9px 12px", background:aiFundResult?fundC.bg:"#222", border:"0.5px solid "+(aiFundResult?fundC.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color:aiFundResult?fundC.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Fundamental AI</div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                          {aiFundLoading
-                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
-                            : <span style={{ fontSize:13, fontWeight:700, color:aiFundResult?fundC.fg:"#555" }}>{aiFundResult?aiFundResult.verdict:"--"}</span>
-                          }
-                          {aiFundResult && fundSc > 0 && <Dots score={fundSc} filled={fundC.dot} empty={fundC.dotEmpty} />}
+                    <div onClick={function(){ window.__goToTab && window.__goToTab("aianalysis"); }}
+                      style={{ marginBottom:14, cursor:"pointer", background:"#141414", border:"1.5px solid #c8f000", borderRadius:12, overflow:"hidden" }}>
+                      {/* Header bar */}
+                      <div style={{ background:"#c8f000", padding:"6px 12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                          <div style={{ width:6, height:6, borderRadius:"50%", background:"#0e0e0c" }}></div>
+                          <span style={{ fontSize:10, fontWeight:800, color:"#0e0e0c", textTransform:"uppercase", letterSpacing:"0.1em" }}>AI Analysis</span>
                         </div>
-                        {aiFundResult && aiFundResult.confidence && <div style={{ fontSize:10, color:fundC.fg, marginTop:3, opacity:0.75 }}>{"Conf: " + aiFundResult.confidence}</div>}
+                        <span style={{ fontSize:9, fontWeight:700, color:"#0e0e0c", background:"rgba(0,0,0,0.15)", padding:"2px 8px", borderRadius:10, textTransform:"uppercase", letterSpacing:"0.06em" }}>Premium</span>
                       </div>
-                      <div onClick={function(){ window.__goToTab && window.__goToTab("aianalysis"); }}
-                        style={{ padding:"9px 12px", background:aiTechResult?techC.bg:"#222", border:"0.5px solid "+(aiTechResult?techC.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color:aiTechResult?techC.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Technical AI</div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                          {aiTechLoading
-                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
-                            : <span style={{ fontSize:13, fontWeight:700, color:aiTechResult?techC.fg:"#555" }}>{aiTechResult?aiTechResult.verdict:"--"}</span>
-                          }
-                          {aiTechResult && techSc > 0 && <Dots score={techSc} filled={techC.dot} empty={techC.dotEmpty} />}
+                      {/* Body */}
+                      {!window.__isPaid ? (
+                        <div style={{ padding:"14px 12px", textAlign:"center" }}>
+                          <div style={{ fontSize:11, color:"#555", marginBottom:4 }}>Unlock AI-powered investment analysis</div>
+                          <div style={{ fontSize:10, color:"#444" }}>Available to paid members</div>
                         </div>
-                        {aiTechResult && aiTechResult.stVerdict && <div style={{ fontSize:10, color:techC.fg, marginTop:3, opacity:0.75 }}>{"ST: " + aiTechResult.stVerdict + (aiTechResult.confidence ? " - Conf: " + aiTechResult.confidence : "")}</div>}
-                      </div>
+                      ) : (
+                        <div style={{ padding:"10px 12px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                          {/* Fundamental AI */}
+                          <div>
+                            <div style={{ fontSize:9, color:"#c8f000", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, opacity:0.7 }}>Fundamental</div>
+                            {aiFundLoading
+                              ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
+                              : <div>
+                                  <div style={{ fontSize:13, fontWeight:700, color:aiFundResult?fundC.fg:"#555", marginBottom:3 }}>{aiFundResult?aiFundResult.verdict:"--"}</div>
+                                  {aiFundResult && fundSc > 0 && <Dots score={fundSc} filled={fundC.dot} empty={fundC.dotEmpty} />}
+                                  {aiFundResult && aiFundResult.confidence && <div style={{ fontSize:9, color:"#555", marginTop:3 }}>{"Conf: " + aiFundResult.confidence}</div>}
+                                </div>
+                            }
+                          </div>
+                          {/* Technical AI */}
+                          <div>
+                            <div style={{ fontSize:9, color:"#c8f000", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, opacity:0.7 }}>Technical</div>
+                            {aiTechLoading
+                              ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
+                              : <div>
+                                  <div style={{ fontSize:13, fontWeight:700, color:aiTechResult?techC.fg:"#555", marginBottom:3 }}>{aiTechResult?aiTechResult.verdict:"--"}</div>
+                                  {aiTechResult && techSc > 0 && <Dots score={techSc} filled={techC.dot} empty={techC.dotEmpty} />}
+                                  {aiTechResult && aiTechResult.stVerdict && <div style={{ fontSize:9, color:"#555", marginTop:3 }}>{"ST: " + aiTechResult.stVerdict}</div>}
+                                </div>
+                            }
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
