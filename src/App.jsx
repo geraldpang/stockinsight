@@ -2979,7 +2979,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               { id:"business",  label:"Business Overview" },
               { id:"moat",      label:"Economic MOAT" },
               { id:"intrinsic", label:"Intrinsic Value" },
-              { id:"aianalysis", label:"AI Analysis" },
               { id:"aiinsight", label:"AI Insight" },
               { id:"financial", label:"Financial Strength" },
               { id:"signal",    label:"Market Signal" },
@@ -4222,12 +4221,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                   <div style={{ fontSize:12, color:"#444", lineHeight:1.7 }}>{aiFundResult.summary}</div>
                                 </div>
                               )}
-                              {aiFundResult.promptSent && (
-                                <div style={{ marginTop:12 }}>
-                                  <div style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Exact prompt sent to AI</div>
-                                  <pre style={{ padding:"10px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:10, color:"#555", lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word", margin:0, fontFamily:"monospace" }}>{aiFundResult.promptSent}</pre>
-                                </div>
-                              )}
+                              <div style={{ marginTop:12 }}>
+                                <div style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Exact prompt sent to AI</div>
+                                {aiFundResult.promptSent
+                                  ? <pre style={{ padding:"10px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:10, color:"#555", lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word", margin:0, fontFamily:"monospace" }}>{aiFundResult.promptSent}</pre>
+                                  : <div style={{ padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:11, color:"#aaa", fontStyle:"italic" }}>{"Prompt not available for cached results. Clear cache and reload to see the full prompt."}</div>
+                                }
+                              </div>
                             </div>
                           )}
                           {!aiFundLoading && !aiFundResult && (
@@ -4263,12 +4263,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                   <div style={{ fontSize:12, color:"#444", lineHeight:1.7 }}>{aiTechResult.summary}</div>
                                 </div>
                               )}
-                              {aiTechResult.promptSent && (
-                                <div style={{ marginTop:12 }}>
-                                  <div style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Exact prompt sent to AI</div>
-                                  <pre style={{ padding:"10px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:10, color:"#555", lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word", margin:0, fontFamily:"monospace" }}>{aiTechResult.promptSent}</pre>
-                                </div>
-                              )}
+                              <div style={{ marginTop:12 }}>
+                                <div style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Exact prompt sent to AI</div>
+                                {aiTechResult.promptSent
+                                  ? <pre style={{ padding:"10px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:10, color:"#555", lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word", margin:0, fontFamily:"monospace" }}>{aiTechResult.promptSent}</pre>
+                                  : <div style={{ padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:11, color:"#aaa", fontStyle:"italic" }}>{"Prompt not available for cached results. Clear cache and reload to see the full prompt."}</div>
+                                }
+                              </div>
                             </div>
                           )}
                           {!aiTechLoading && !aiTechResult && (
