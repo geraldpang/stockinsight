@@ -1246,7 +1246,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; if(window.__ivCache){delete window.__ivCache[sym];} setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -2209,18 +2209,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     window.__curVals = vals;
     if (oracleAvg > 0) {
       vals.push({ label:"Intrinsic Value", value:oracleAvg, color:"#1a8a3a", bold:true, modelsMeta:modelsMeta, sectorLabel:_ivSector, modelApplicable:MODEL_APPLICABLE });
-      // Persist IV result so it survives re-renders
-      window.__ivCache = window.__ivCache || {};
-      window.__ivCache[sym] = { oracle:oracle, vals:vals.slice(), oracleAvg:oracleAvg };
     }
-  }
-
-  // Restore IV from cache if current render couldn't compute it
-  if (vals.length === 0 && window.__ivCache && window.__ivCache[sym]) {
-    var _ivRestored = window.__ivCache[sym];
-    oracle = _ivRestored.oracle;
-    window.__curOracle = oracle;
-    window.__curVals = _ivRestored.vals;
   }
 
   const maxV = vals.length
