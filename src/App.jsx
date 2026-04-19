@@ -1246,7 +1246,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; if(window.__ivStore)delete window.__ivStore[sym]; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -2209,7 +2209,19 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     window.__curVals = vals;
     if (oracleAvg > 0) {
       vals.push({ label:"Intrinsic Value", value:oracleAvg, color:"#1a8a3a", bold:true, modelsMeta:modelsMeta, sectorLabel:_ivSector, modelApplicable:MODEL_APPLICABLE });
+      // Persist for re-renders
+      if (!window.__ivStore) window.__ivStore = {};
+      window.__ivStore[sym] = { oracle:oracle, vals:vals.slice() };
     }
+  }
+
+  // If this render couldn't compute IV but a previous one did, restore from store
+  if (vals.length === 0 && window.__ivStore && window.__ivStore[sym]) {
+    var _stored = window.__ivStore[sym];
+    oracle = _stored.oracle;
+    _stored.vals.forEach(function(v){ vals.push(v); });
+    window.__curOracle = oracle;
+    window.__curVals = vals;
   }
 
   const maxV = vals.length
