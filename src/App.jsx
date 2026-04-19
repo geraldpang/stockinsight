@@ -933,7 +933,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
   // -- AI Analysis (Fundamental + Technical) -----------------------------
   // Only for paid members. Two separate calls with different TTLs.
-  function runAiAnalysis(symA, ovA, massiveA, parsedA, valsA, oracleA, priceA, msDots2, msLabel2) {
+  function runAiAnalysis(symA, ovA, massiveA, parsedA, valsA, oracleA, priceA, msDots2, msLabel2, insightCacheA) {
     if (!symA || !window.__isPaid) return;
 
     // -- Fundamental AI --
@@ -959,6 +959,27 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         var _ov = ovA || ovCache[symA];
         if (!_ov) { setAiFundLoading(false); window.__aiFundRunning = null; setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund ABORT: no ov data for "+symA }]); }); return; }
         var moatR = parsedA["moat"] || {};
+        // Extract moat driver sections from raw insightCache text
+        var _moatRaw = (insightCacheA && insightCacheA["moat"]) || "";
+        if (_moatRaw && !moatR.sections) {
+          var _drvNames = ["Network Effects","Switching Costs","Cost Advantage","Intangible Assets","Efficient Scale","Ecosystem Lock-in"];
+          var _sections = [];
+          _drvNames.forEach(function(drv) {
+            var idx = _moatRaw.indexOf(drv);
+            if (idx === -1) return;
+            var block = _moatRaw.substring(idx, idx+200);
+            var sm = block.match(/([0-9])\/5/);
+            var rl = block.split("\n");
+            var body = "";
+            for (var li=0; li<rl.length; li++) { if (rl[li].indexOf("Result:")!==-1) { body=rl[li].replace(/^.*Result:\s*/,"").trim(); break; } }
+            if (sm) _sections.push({ label:drv, score:parseInt(sm[1],10), body:body });
+          });
+          if (_sections.length > 0) moatR = Object.assign({}, moatR, { sections:_sections });
+        }
+        // Extract financial body from raw text
+
+        var _finRaw = (insightCacheA && insightCacheA["financial"]) || "";
+        if (_finRaw && !finR.body) finR = Object.assign({}, finR, { body:_finRaw });
         setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund data check: "+symA, data:{ hasOv:!!_ov, hasMoat:!!moatR.classification, hasFinR:!!(parsedA["financial"]||{}).classification, priceA:priceA, valsLen:valsA.length } }]); });
         var finR  = parsedA["financial"] || {};
         var ivLab = valsA.length > 0 && valsA[valsA.length-1].bold ? (function(){
@@ -1618,7 +1639,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     var curPrice  = window.__curPrice  || 0;
     var curMsDots = window.__msDots2   || 0;
     var curMsLabel= window.__msLabel2  || "";
-    runAiAnalysis(sym, ov, massiveInfo, parsedInsights, curVals, curOracle, curPrice, curMsDots, curMsLabel);
+    runAiAnalysis(sym, ov, massiveInfo, parsedInsights, curVals, curOracle, curPrice, curMsDots, curMsLabel, insightCache);
   }, [sym, ov, massiveInfo, parsedInsights]);
 
   // -- Admin tab data load -----------------------------------------------------
