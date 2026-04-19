@@ -2613,16 +2613,23 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   var techC  = aiVerdictColor(aiTechResult ? aiTechResult.verdict : null);
                   var fundSc = aiVerdictScore(aiFundResult ? aiFundResult.verdict : null);
                   var techSc = aiVerdictScore(aiTechResult ? aiTechResult.verdict : null);
+                  // Card colour = worst of fund/tech verdict
+                  var _scores = [fundSc, techSc].filter(function(s){ return s > 0; });
+                  var _minScore = _scores.length > 0 ? Math.min.apply(null, _scores) : 0;
+                  var _cardCol = _minScore >= 4 ? { bg:"#1e2a1e", border:"#2a5020", header:"#2a5020", fg:"#7abd00" }
+                               : _minScore >= 3 ? { bg:"#2a2010", border:"#4a3810", header:"#4a3810", fg:"#EF9F27" }
+                               : _minScore >= 1 ? { bg:"#2a1e1e", border:"#4a2020", header:"#4a2020", fg:"#e05050" }
+                               :                  { bg:"#1e1e1e", border:"#333",    header:"#2a2a2a", fg:"#666"    };
                   return (
                     <div onClick={function(){ window.__goToTab && window.__goToTab("aianalysis"); }}
-                      style={{ marginBottom:14, cursor:"pointer", background:"#141414", border:"1.5px solid #c8f000", borderRadius:12, overflow:"hidden" }}>
+                      style={{ marginBottom:14, cursor:"pointer", background:_cardCol.bg, border:"1.5px solid "+_cardCol.border, borderRadius:12, overflow:"hidden" }}>
                       {/* Header bar */}
-                      <div style={{ background:"#c8f000", padding:"6px 12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                      <div style={{ background:_cardCol.header, padding:"6px 12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                          <div style={{ width:6, height:6, borderRadius:"50%", background:"#0e0e0c" }}></div>
-                          <span style={{ fontSize:10, fontWeight:800, color:"#0e0e0c", textTransform:"uppercase", letterSpacing:"0.1em" }}>AI Analysis</span>
+                          <div style={{ width:6, height:6, borderRadius:"50%", background:_cardCol.fg }}></div>
+                          <span style={{ fontSize:10, fontWeight:800, color:_cardCol.fg, textTransform:"uppercase", letterSpacing:"0.1em" }}>AI Analysis</span>
                         </div>
-                        <span style={{ fontSize:9, fontWeight:700, color:"#0e0e0c", background:"rgba(0,0,0,0.15)", padding:"2px 8px", borderRadius:10, textTransform:"uppercase", letterSpacing:"0.06em" }}>Premium</span>
+                        <span style={{ fontSize:9, fontWeight:700, color:_cardCol.fg, background:"rgba(0,0,0,0.2)", padding:"2px 8px", borderRadius:10, textTransform:"uppercase", letterSpacing:"0.06em" }}>Premium</span>
                       </div>
                       {/* Body */}
                       {!window.__isPaid ? (
@@ -2634,7 +2641,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         <div style={{ padding:"10px 12px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                           {/* Fundamental AI */}
                           <div>
-                            <div style={{ fontSize:9, color:"#c8f000", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, opacity:0.7 }}>Fundamental</div>
+                            <div style={{ fontSize:9, color:_cardCol.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, opacity:0.7 }}>Fundamental</div>
                             {aiFundLoading
                               ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
                               : <div>
@@ -2646,7 +2653,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           </div>
                           {/* Technical AI */}
                           <div>
-                            <div style={{ fontSize:9, color:"#c8f000", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, opacity:0.7 }}>Technical</div>
+                            <div style={{ fontSize:9, color:_cardCol.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, opacity:0.7 }}>Technical</div>
                             {aiTechLoading
                               ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
                               : <div>
