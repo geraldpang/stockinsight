@@ -1224,10 +1224,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       };
     } else if (tabId === "financial") {
       var mc = text.match(/Financial Strength Classification[^:]*:\s*(.+)/);
-      var cls = mc ? mc[1].trim().split(/[\s,]/)[0] : null;
-      if (!cls) {
-        if (text.indexOf("Strong") !== -1) cls = "Strong";
-        else if (text.indexOf("Moderate") !== -1) cls = "Moderate";
+      var cls = mc ? mc[1].trim().replace(/[*_#]/g,"").split(/[\s,]/)[0] : null;
+      if (!cls || cls.length < 2) {
+        if (text.match(/Strong/i)) cls = "Strong";
+        else if (text.match(/Moderate/i)) cls = "Moderate";
         else cls = "Weak";
       }
       var score2 = cls && cls.toLowerCase().includes("strong") ? 4 : cls && cls.toLowerCase().includes("moderate") ? 3 : 2;
@@ -1633,7 +1633,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   useEffect(function() {
     if (!sym || !ov || !massiveInfo || !window.__isPaid) return;
     var moatReady    = parsedInsights["moat"] && parsedInsights["moat"].classification;
-    var finReady     = parsedInsights["financial"] && parsedInsights["financial"].classification;
+    var _finCls      = parsedInsights["financial"] && parsedInsights["financial"].classification;
+    var finReady     = _finCls && _finCls.replace(/[^a-zA-Z]/g,"").length > 2;
     var _ic = window.__insightCache || {};
     var moatCached   = _ic["moat"] && _ic["moat"].length > 10;
     var finCached    = _ic["financial"] && _ic["financial"].length > 10;
@@ -1762,6 +1763,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   }
 
     const price = q ? q.price : 0;
+  window.__curPrice = price;
   const up    = q ? q.pct >= 0 : true;
   const sign  = up ? "+" : "";
   const chg   = q ? sign + q.change.toFixed(2) + " (" + sign + q.pct.toFixed(2) + "%)" : "-";
@@ -3770,7 +3772,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         var ind  = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
                         var aggs = massiveInfo && massiveInfo.aggs        ? massiveInfo.aggs        : [];
                         var price = q ? q.price : 0;
-  window.__curPrice = price;
                         var hi52  = ov ? ov.hi52 : 0;
                         var lo52  = ov ? ov.lo52 : 0;
                         var rng52 = hi52 - lo52;
