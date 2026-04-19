@@ -967,29 +967,38 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           return (iv > p ? "Undervalued" : "Overvalued") + " " + pct + "% ($" + Math.round(iv) + " IV)";
         })() : "Not computable";
         var snap = {
-          price:_ov.pe, ivLabel:ivLab, pe:_ov.pe, fpe:_ov.fpe, evEbitda:_ov.evEbitda,
+          priceVal:priceA, ivLabel:ivLab, pe:_ov.pe, fpe:_ov.fpe, evEbitda:_ov.evEbitda,
           ps:_ov.ps, pb:_ov.pb, moat:moatR.classification, moatScore:moatR.score,
           finStrength:finR.classification, finScore:finR.score,
           grossMargin:_ov.grossMargin, netMargin:_ov.netMargin,
           roe:_ov.roe, revGrowth:_ov.revGrowth, fcf:_ov.fcfRaw, de:_ov.de,
-          sector:_ov.sector, industry:_ov.industry, priceVal:priceA,
+          sector:_ov.sector, industry:_ov.industry,
+          oracle:oracleA, ivPct: priceA>0&&parseFloat(oracleA)>0 ? Math.round(Math.abs(parseFloat(oracleA)-priceA)/priceA*100) : 0,
         };
-        var prompt = "You are a senior investment analyst. Analyse " + symA + " based ONLY on the data below. Do not use external knowledge.\n\n" +
-          "VALUATION:\n- Price: $" + (priceA||0).toFixed(2) + "\n- Intrinsic Value: " + ivLab +
-          "\n- P/E: " + (_ov.pe>0?_ov.pe.toFixed(1)+"x":"N/A") +
+        var ivPctStr = snap.ivPct > 0 ? (parseFloat(oracleA) > priceA ? snap.ivPct+"% discount to IV ($"+Math.round(parseFloat(oracleA))+")" : snap.ivPct+"% premium to IV ($"+Math.round(parseFloat(oracleA))+")") : "Not computable";
+        var prompt = "You are a senior investment analyst. Analyse " + symA + " (" + (_ov.sector||"unknown sector") + ") based ONLY on the data below.\n\n" +
+          "VALUATION:\n" +
+          "- Price: $" + (priceA||0).toFixed(2) + "\n" +
+          "- Intrinsic Value: " + ivPctStr + "\n" +
+          "- P/E: " + (_ov.pe>0?_ov.pe.toFixed(1)+"x":"N/A") +
           " | Fwd P/E: " + (_ov.fpe>0?_ov.fpe.toFixed(1)+"x":"N/A") +
           " | EV/EBITDA: " + (_ov.evEbitda>0?_ov.evEbitda.toFixed(1)+"x":"N/A") +
           "\n- P/S: " + (_ov.ps>0?_ov.ps.toFixed(1)+"x":"N/A") +
           " | P/B: " + (_ov.pb>0?_ov.pb.toFixed(1)+"x":"N/A") + "\n\n" +
-          "QUALITY:\n- Moat: " + (moatR.classification||"Unknown") + " (" + (moatR.score||0) + "/5)" +
-          "\n- Financial Strength: " + (finR.classification||"Unknown") + " (" + (finR.score||0) + "/5)" +
-          "\n- Gross Margin: " + (_ov.grossMargin?_ov.grossMargin.toFixed(1)+"%":"N/A") +
-          " | Net Margin: " + (_ov.netMargin?_ov.netMargin.toFixed(1)+"%":"N/A") +
-          "\n- ROE: " + (_ov.roe>0?_ov.roe.toFixed(1)+"%":"N/A") +
+          "ECONOMIC MOAT:\n" +
+          "- Classification: " + (moatR.classification||"Unknown") + " (" + (moatR.score||0) + "/5)\n" +
+          (moatR.entry ? "- Detail: " + moatR.entry + "\n" : "") + "\n" +
+          "FINANCIAL STRENGTH:\n" +
+          "- Classification: " + (finR.classification||"Unknown") + " (" + (finR.score||0) + "/5)\n" +
+          "- Gross Margin: " + (_ov.grossMargin?_ov.grossMargin.toFixed(1)+"%":"N/A") +
+          " | Op Margin: " + (_ov.opMargin?_ov.opMargin.toFixed(1)+"%":"N/A") +
+          " | Net Margin: " + (_ov.netMargin?_ov.netMargin.toFixed(1)+"%":"N/A") + "\n" +
+          "- ROE: " + (_ov.roe>0?_ov.roe.toFixed(1)+"%":"N/A") +
           " | Rev Growth: " + (_ov.revGrowth?_ov.revGrowth.toFixed(1)+"%":"N/A") +
-          "\n- FCF: " + (_ov.fcfRaw>0?"$"+(_ov.fcfRaw/1e9).toFixed(1)+"B":"Negative/N/A") +
+          " | EPS Growth: " + (_ov.epsG?_ov.epsG.toFixed(1)+"%":"N/A") + "\n" +
+          "- FCF: " + (_ov.fcfRaw>0?"$"+(_ov.fcfRaw/1e9).toFixed(1)+"B":"Negative/N/A") +
           " | Debt/Equity: " + (_ov.de>0?_ov.de.toFixed(2)+"x":"N/A") +
-          "\n- Sector: " + (_ov.sector||"Unknown") + "\n\n" +
+          " | Current Ratio: " + (_ov.currentRatio>0?_ov.currentRatio.toFixed(2)+"x":"N/A") + "\n\n" +
           "Respond in EXACTLY this format:\n" +
           "Fundamental Verdict: Strong Buy / Buy / Hold / Caution / Avoid\n" +
           "Confidence: Low / Medium / High\n" +
@@ -1563,19 +1572,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         // Set massiveInfo if we got any useful data back
         if (data && (data.news || data.ticker || data.dividends || data.indicators || data.aggs)) {
           setMassiveInfo(data);
-          // Trigger AI Analysis for paid members
-          if (window.__isPaid) {
-            setTimeout(function() {
-              var curOv    = ovCache[sym] || null;
-              var curVals  = window.__curVals   || [];
-              var curOracle= window.__curOracle || "0";
-              var curPrice = window.__curPrice  || 0;
-              var curMsDots  = window.__msDots2  || 0;
-              var curMsLabel = window.__msLabel2 || "";
-              var curParsed  = window.__parsedInsights || {};
-              runAiAnalysis(sym, curOv, data, curParsed, curVals, curOracle, curPrice, curMsDots, curMsLabel);
-            }, 1500);
-          }
+          // AI Analysis now triggered by useEffect watching ov+massiveInfo+parsedInsights
         } else {
           debugEntries.push({ time: new Date().toISOString(), label: "Massive data empty or error", data: data });
         }
@@ -1588,6 +1585,29 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       });
 
   }, [sym]);
+
+  // -- Pre-fetch moat + financial for AI Analysis --
+  useEffect(function() {
+    if (!ov || !sym || !window.__isPaid) return;
+    // Pre-load moat and financial so AI Analysis has them ready
+    if (!insightCache["moat"] && !insightLoading)      fetchInsight("moat");
+    if (!insightCache["financial"] && !insightLoading)  fetchInsight("financial");
+  }, [ov, sym]);
+
+  // -- AI Analysis trigger: wait for moat + financial + ov + massive all ready --
+  useEffect(function() {
+    if (!sym || !ov || !massiveInfo || !window.__isPaid) return;
+    var moatReady = parsedInsights["moat"] && parsedInsights["moat"].classification;
+    var finReady  = parsedInsights["financial"] && parsedInsights["financial"].classification;
+    if (!moatReady || !finReady) return; // wait for both
+    if (window.__aiFundRunning === sym || aiFundResult) return; // already done
+    var curVals   = window.__curVals   || [];
+    var curOracle = window.__curOracle || "0";
+    var curPrice  = window.__curPrice  || 0;
+    var curMsDots = window.__msDots2   || 0;
+    var curMsLabel= window.__msLabel2  || "";
+    runAiAnalysis(sym, ov, massiveInfo, parsedInsights, curVals, curOracle, curPrice, curMsDots, curMsLabel);
+  }, [sym, ov, massiveInfo, parsedInsights]);
 
   // -- Admin tab data load -----------------------------------------------------
   useEffect(function() {
@@ -4169,7 +4189,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                     {(function() {
                                       var s = aiFundResult.dataSnapshot;
                                       return [
-                                        ["Price", s.price ? "$"+(s.price).toFixed(2) : "N/A"],
+                                        ["Price", s.priceVal ? "$"+(s.priceVal).toFixed(2) : "N/A"],
                                         ["Intrinsic Value", s.ivLabel||"N/A"],
                                         ["P/E", s.pe>0?s.pe.toFixed(1)+"x":"N/A"],
                                         ["Forward P/E", s.fpe>0?s.fpe.toFixed(1)+"x":"N/A"],
