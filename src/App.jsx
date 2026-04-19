@@ -2597,13 +2597,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                 {/* AI ANALYSIS section - hero card */}
                 {(function() {
                   function aiVerdictColor(v) {
-                    if (!v) return pillColor(null);
+                    if (!v) return { fg:"#444", dot:"#333", dotEmpty:"#2a2a2a" };
                     var vl = v.toLowerCase();
-                    if (vl.includes("strong buy")||vl.includes("strong bull")) return pillColor("buy");
-                    if (vl.includes("buy")||vl.includes("bull")) return pillColor("buy");
-                    if (vl.includes("caution")||vl.includes("bear")) return pillColor("hold");
-                    if (vl.includes("avoid")||vl.includes("strong bear")) return pillColor("avoid");
-                    return pillColor("hold");
+                    if (vl.includes("strong buy")||vl.includes("strong bull")) return { fg:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" };
+                    if (vl.includes("buy")||vl.includes("bull"))               return { fg:"#7abd00", dot:"#7abd00", dotEmpty:"#2a5020" };
+                    if (vl.includes("avoid")||vl.includes("strong bear"))      return { fg:"#e05050", dot:"#e05050", dotEmpty:"#4a2020" };
+                    if (vl.includes("caution")||vl.includes("bear"))           return { fg:"#EF9F27", dot:"#EF9F27", dotEmpty:"#4a3810" };
+                    return { fg:"#EF9F27", dot:"#EF9F27", dotEmpty:"#4a3810" };
                   }
                   function aiVerdictScore(v) {
                     if (!v) return 0;
@@ -2622,10 +2622,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   // Card colour = worst of fund/tech verdict
                   var _scores = [fundSc, techSc].filter(function(s){ return s > 0; });
                   var _minScore = _scores.length > 0 ? Math.min.apply(null, _scores) : 0;
-                  var _cardCol = _minScore >= 4 ? { bg:"#1e2a1e", border:"#2a5020", header:"#2a5020", fg:"#7abd00" }
-                               : _minScore >= 3 ? { bg:"#2a2010", border:"#4a3810", header:"#4a3810", fg:"#EF9F27" }
-                               : _minScore >= 1 ? { bg:"#2a1e1e", border:"#4a2020", header:"#4a2020", fg:"#e05050" }
-                               :                  { bg:"#1e1e1e", border:"#333",    header:"#2a2a2a", fg:"#666"    };
+                  var _cardCol = { bg:"#1e1e1e", border:"#3a3a3a", header:"#2a2a2a", fg:"#888" };
                   return (
                     <div onClick={function(){ window.__goToTab && window.__goToTab("aianalysis"); }}
                       style={{ marginBottom:14, cursor:"pointer", background:_cardCol.bg, border:"1.5px solid "+_cardCol.border, borderRadius:12, overflow:"hidden" }}>
@@ -2635,7 +2632,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           <div style={{ width:6, height:6, borderRadius:"50%", background:_cardCol.fg }}></div>
                           <span style={{ fontSize:10, fontWeight:800, color:_cardCol.fg, textTransform:"uppercase", letterSpacing:"0.1em" }}>AI Analysis</span>
                         </div>
-                        <span style={{ fontSize:9, fontWeight:700, color:_cardCol.fg, background:"rgba(0,0,0,0.2)", padding:"2px 8px", borderRadius:10, textTransform:"uppercase", letterSpacing:"0.06em" }}>Premium</span>
+                        <span style={{ fontSize:9, fontWeight:700, color:"#c8f000", background:"rgba(0,0,0,0.3)", padding:"2px 8px", borderRadius:10, textTransform:"uppercase", letterSpacing:"0.06em" }}>Premium</span>
                       </div>
                       {/* Body */}
                       {!window.__isPaid ? (
@@ -2647,7 +2644,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         <div style={{ padding:"10px 12px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                           {/* Fundamental AI */}
                           <div>
-                            <div style={{ fontSize:9, color:_cardCol.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, opacity:0.7 }}>Fundamental</div>
+                            <div style={{ fontSize:9, color:"#666", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4 }}>Fundamental</div>
                             {aiFundLoading
                               ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
                               : <div>
@@ -2659,7 +2656,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           </div>
                           {/* Technical AI */}
                           <div>
-                            <div style={{ fontSize:9, color:_cardCol.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, opacity:0.7 }}>Technical</div>
+                            <div style={{ fontSize:9, color:"#666", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4 }}>Technical</div>
                             {aiTechLoading
                               ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
                               : <div>
@@ -4148,15 +4145,15 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                             <div>
                               <VerdictBanner title="Fundamental Verdict" verdict={aiFundResult.verdict} confidence={aiFundResult.confidence} />
                               {aiFundResult.strength && (
-                                <div style={{ marginBottom:8, padding:"8px 12px", background:"#f0f7e6", borderRadius:6, border:"0.5px solid #b0d080" }}>
-                                  <div style={{ fontSize:10, color:"#3a6a1a", fontWeight:700, marginBottom:2 }}>KEY STRENGTH</div>
-                                  <div style={{ fontSize:12, color:"#2a5010", lineHeight:1.5 }}>{aiFundResult.strength}</div>
+                                <div style={{ marginBottom:8, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
+                                  <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:2 }}>KEY STRENGTH</div>
+                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.5 }}>{aiFundResult.strength}</div>
                                 </div>
                               )}
                               {aiFundResult.risk && (
-                                <div style={{ marginBottom:8, padding:"8px 12px", background:"#FCEBEB", borderRadius:6, border:"0.5px solid #e08080" }}>
-                                  <div style={{ fontSize:10, color:"#c03030", fontWeight:700, marginBottom:2 }}>KEY RISK</div>
-                                  <div style={{ fontSize:12, color:"#a02020", lineHeight:1.5 }}>{aiFundResult.risk}</div>
+                                <div style={{ marginBottom:8, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
+                                  <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:2 }}>KEY RISK</div>
+                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.5 }}>{aiFundResult.risk}</div>
                                 </div>
                               )}
                               {aiFundResult.summary && (
