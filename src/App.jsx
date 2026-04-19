@@ -1246,7 +1246,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; if(window.__ivStore)delete window.__ivStore[sym]; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; if(window.__ivStore)delete window.__ivStore[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -1634,8 +1634,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       var finCached  = _ic["financial"] && _ic["financial"].length > 10;
       if (!moatReady || !finReady || !moatCached || !finCached) return;
       clearInterval(interval);
-      var curVals   = window.__curVals   || [];
-      var curOracle = window.__curOracle || "0";
+      var curVals   = window.__curOracleSym === sym ? (window.__curVals || []) : [];
+      var curOracle = window.__curOracleSym === sym ? (window.__curOracle || "0") : "0";
       var curPrice  = window.__curPrice  || (window.__curOv ? window.__curOv._price : 0) || 0;
       var curMsDots = window.__msDots2   || 0;
       var curMsLabel= window.__msLabel2  || "";
@@ -2206,6 +2206,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       : 0;
     oracle = oracleAvg.toFixed(2);
     window.__curOracle = oracle;
+    window.__curOracleSym = sym;
     window.__curVals = vals;
     if (oracleAvg > 0) {
       vals.push({ label:"Intrinsic Value", value:oracleAvg, color:"#1a8a3a", bold:true, modelsMeta:modelsMeta, sectorLabel:_ivSector, modelApplicable:MODEL_APPLICABLE });
@@ -2221,6 +2222,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     oracle = _stored.oracle;
     _stored.vals.forEach(function(v){ vals.push(v); });
     window.__curOracle = oracle;
+    window.__curOracleSym = sym;
     window.__curVals = vals;
   }
 
