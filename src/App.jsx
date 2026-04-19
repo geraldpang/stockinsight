@@ -4,7 +4,7 @@ const FONT = "'Inter', system-ui, sans-serif";
 const LIME = "#c8f000";
 const BG   = "#0e0e0c";
 
-const NAMES = {
+const NAMES = window.NAMES = {
   "A":"Agilent Technologies",
   "AAL":"American Airlines",
   "AAPL":"Apple",
@@ -990,7 +990,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         function sfb(v){ return (v!==null&&v!==undefined&&!isNaN(v)&&v!==0)?"$"+(Math.abs(v)/1e9).toFixed(1)+"B "+(v<0?"(negative)":""):"N/A"; }
         function sfi(v){ return (v!==null&&v!==undefined&&!isNaN(v)&&v!==0)?Math.round(v).toString():"N/A"; }
         var prompt =
-          "You are a senior investment analyst. Analyse "+symA+" based on the data below. Use only what is provided; if a field shows N/A it was unavailable.\n\n"+
+          "You are a senior investment analyst providing an investment assessment for "+symA+(window.NAMES&&window.NAMES[symA]?" ("+window.NAMES[symA]+")":"")+".\n\n"+
+          "Below is the latest financial data from our system. Use this data as your primary source. "+
+          "Where data shows N/A it was unavailable from our feeds -- use your knowledge to fill gaps where appropriate.\n\n"+
           "COMPANY:\n"+
           "- Sector: "+(_ov.sector||"N/A")+"\n"+
           "- Industry: "+(_ov.industry||"N/A")+"\n"+
