@@ -1132,11 +1132,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     if (massiveA) runTechAi(symA, massiveA, priceA, msDots2, msLabel2);
   }
   window.__goToPaywall = function() {
-    // Redirect to Stripe checkout directly
-    var hdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
-    fetch("/stripe?action=checkout&plan=monthly", { headers: hdrs })
-      .then(function(r){ return r.json(); })
-      .then(function(d){ if (d.url) window.location.href = d.url; });
+    // Go to upgrade page (monthly/yearly plan selection)
+    window.__showUpgrade && window.__showUpgrade();
   };
 
   window.__goToTab = function(id) {
