@@ -6070,8 +6070,21 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                             delete next["insight:"+t+":moat"];
                                             delete next["insight:"+t+":financial"];
                                             delete next["insight:"+t+":aiinsight"];
+                                            delete next["insight:"+t+":ai-fund"];
+                                            delete next["insight:"+t+":ai-tech"];
                                             return next;
                                           });
+                                          // Also clear ai-fund and ai-tech separately
+                                          fetch("/cache?sym="+t+"&tab=ai-fund", { method:"DELETE" });
+                                          fetch("/cache?sym="+t+"&tab=ai-tech", { method:"DELETE" });
+                                          // Reset local AI state if clearing current sym
+                                          if (t === sym) {
+                                            setAiFundResult(null);
+                                            setAiFundLoading(false);
+                                            setAiTechResult(null);
+                                            setAiTechLoading(false);
+                                            window.__aiFundRunning = null;
+                                          }
                                         });
                                       }}
                                       style={{ fontSize:10, color:"#e05050", background:"rgba(224,80,80,0.1)", border:"none", borderRadius:6, padding:"3px 10px", cursor:"pointer", fontFamily:FONT }}>
