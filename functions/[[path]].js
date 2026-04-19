@@ -345,11 +345,13 @@ export async function onRequest(context) {
 
       // TTL per tab type
       var TTL_MAP = {
-        "moat":      60 * 60 * 24 * 90,  // 90 days - moat rarely changes
-        "financial": 60 * 60 * 24 * 30,  // 30 days - quarterly earnings cycle
-        "aiinsight": 60 * 60 * 24 * 7,   // 7 days  - keep current
-        "technical": 60 * 60 * 24 * 1,   // 1 day   - technical is short-term
-        "business":  60 * 60 * 24 * 30,  // 30 days - business desc rarely changes
+        "moat":           60 * 60 * 24 * 90,  // 90 days - moat rarely changes
+        "financial":      60 * 60 * 24 * 30,  // 30 days - quarterly earnings cycle
+        "aiinsight":      60 * 60 * 24 * 7,   // 7 days  - keep current
+        "technical":      60 * 60 * 24 * 1,   // 1 day   - technical is short-term
+        "business":       60 * 60 * 24 * 30,  // 30 days - business desc rarely changes
+        "ai-fund":        60 * 60 * 24 * 30,  // 30 days - fundamental AI analysis
+        "ai-tech":        60 * 60 * 24 * 1,   // 1 day   - technical AI analysis
       };
       var cacheTtl = TTL_MAP[tab] || 60 * 60 * 24 * 7;
 
@@ -367,7 +369,7 @@ export async function onRequest(context) {
       // ── Read: unwrap metadata if present ──────────────────────────────────
       // Delete: clear all cached insights for a ticker
       if (context.request.method === "DELETE") {
-        var delTabs = ["moat", "financial", "aiinsight"];
+        var delTabs = ["moat", "financial", "aiinsight", "ai-fund", "ai-tech"];
         for (var di = 0; di < delTabs.length; di++) {
           await CACHE.delete("insight:" + sym + ":" + delTabs[di]);
         }
