@@ -1258,6 +1258,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     setParsedInsights(function(prev) {
       var next = Object.assign({}, prev);
       next[tabId] = result;
+      window.__parsedInsights = next;
       return next;
     });
   }
@@ -1607,7 +1608,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         // Set massiveInfo if we got any useful data back
         if (data && (data.news || data.ticker || data.dividends || data.indicators || data.aggs)) {
           setMassiveInfo(data);
-          // AI Analysis now triggered by useEffect watching ov+massiveInfo+parsedInsights
+          window.__curMassive = data;
+          // AI Analysis now triggered by polling useEffect
         } else {
           debugEntries.push({ time: new Date().toISOString(), label: "Massive data empty or error", data: data });
         }
@@ -1629,24 +1631,37 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     if (!insightCache["financial"] && !insightLoading)  fetchInsight("financial");
   }, [ov, sym]);
 
-  // -- AI Analysis trigger: wait for moat + financial + ov + massive all ready --
+  // -- AI Analysis trigger: poll every 2s until all data ready --
   useEffect(function() {
-    if (!sym || !ov || !massiveInfo || !window.__isPaid) return;
-    var moatReady    = parsedInsights["moat"] && parsedInsights["moat"].classification;
-    var _finCls      = parsedInsights["financial"] && parsedInsights["financial"].classification;
-    var finReady     = _finCls && _finCls.replace(/[^a-zA-Z]/g,"").length > 2;
-    var _ic = window.__insightCache || {};
-    var moatCached   = _ic["moat"] && _ic["moat"].length > 10;
-    var finCached    = _ic["financial"] && _ic["financial"].length > 10;
-    if (!moatReady || !finReady || !moatCached || !finCached) return; // wait for all
-    if (window.__aiFundRunning === sym || aiFundResult) return; // already done
-    var curVals   = window.__curVals   || [];
-    var curOracle = window.__curOracle || "0";
-    var curPrice  = window.__curPrice  || 0;
-    var curMsDots = window.__msDots2   || 0;
-    var curMsLabel= window.__msLabel2  || "";
-    runAiAnalysis(sym, ov, massiveInfo, parsedInsights, curVals, curOracle, curPrice, curMsDots, curMsLabel, _ic);
-  }, [sym, ov, massiveInfo, parsedInsights]);
+    if (!sym || !window.__isPaid) return;
+    var attempts = 0;
+    var maxAttempts = 30; // 60 seconds max
+    var interval = setInterval(function() {
+      attempts++;
+      if (attempts > maxAttempts) { clearInterval(interval); return; }
+      if (window.__aiFundRunning === sym || aiFundResult) { clearInterval(interval); return; }
+      var _ic   = window.__insightCache || {};
+      var _pi   = window.__parsedInsights || {};
+      var _ov2  = window.__curOv || null;
+      var _mass = window.__curMassive || null;
+      if (!_ov2 || !_mass) return;
+      var moatReady  = _pi["moat"] && _pi["moat"].classification;
+      var _finCls    = _pi["financial"] && _pi["financial"].classification;
+      var finReady   = _finCls && _finCls.replace(/[^a-zA-Z]/g,"").length > 2;
+      var moatCached = _ic["moat"] && _ic["moat"].length > 10;
+      var finCached  = _ic["financial"] && _ic["financial"].length > 10;
+      if (!moatReady || !finReady || !moatCached || !finCached) return;
+      clearInterval(interval);
+      var curVals   = window.__curVals   || [];
+      var curOracle = window.__curOracle || "0";
+      var curPrice  = window.__curPrice  || (window.__curOv ? window.__curOv._price : 0) || 0;
+      var curMsDots = window.__msDots2   || 0;
+      var curMsLabel= window.__msLabel2  || "";
+      setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund trigger FIRED for "+sym, data:{ moatReady:!!moatReady, finReady:!!finReady, moatCached:!!moatCached, finCached:!!finCached, curPrice:curPrice } }]); });
+      runAiAnalysis(sym, _ov2, _mass, _pi, curVals, curOracle, curPrice, curMsDots, curMsLabel, _ic);
+    }, 2000);
+    return function() { clearInterval(interval); };
+  }, [sym]);
 
   // -- Admin tab data load -----------------------------------------------------
   useEffect(function() {
@@ -1764,6 +1779,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
     const price = q ? q.price : 0;
   window.__curPrice = price;
+  if (ov) { window.__curOv = ov; window.__curOv._price = price; }
   const up    = q ? q.pct >= 0 : true;
   const sign  = up ? "+" : "";
   const chg   = q ? sign + q.change.toFixed(2) + " (" + sign + q.pct.toFixed(2) + "%)" : "-";
