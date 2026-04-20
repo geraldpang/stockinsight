@@ -951,6 +951,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           } catch(e) { setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund cache parse error: "+e }]); }); }
           setAiFundLoading(false);
           window.__aiFundRunning = null;
+          window.__aiFundDone = symA;
           return;
         }
         var _ov = ovA;
@@ -1057,6 +1058,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             setAiFundResult(result);
             setAiFundLoading(false);
             window.__aiFundRunning = null;
+            window.__aiFundDone = symA;
             fetch("/cache?sym="+symA+"&tab=ai-fund",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(result)})
               .then(function(r){return r.json();})
               .then(function(wr){setAiFundCachedAt(wr.cachedAt||null);setDebugLog(function(p){return p.concat([{time:new Date().toISOString(),label:"AI Fund WRITE: "+symA+(wr.ok?" OK":" FAIL")}]);});});
@@ -1081,6 +1083,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           } catch(e) {}
           setAiTechLoading(false);
           window.__aiTechRunning = null;
+          window.__aiTechDone = symA;
           return;
         }
         var ind=massiveA.indicators||{};
@@ -1145,6 +1148,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             setAiTechResult(result);
             setAiTechLoading(false);
             window.__aiTechRunning = null;
+            window.__aiTechDone = symA;
             fetch("/cache?sym="+symA+"&tab=ai-tech",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(result)})
               .then(function(r){return r.json();})
               .then(function(wr){setAiTechCachedAt(wr.cachedAt||null);setDebugLog(function(p){return p.concat([{time:new Date().toISOString(),label:"AI Tech WRITE: "+symA+(wr.ok?" OK":" FAIL")}]);});});
@@ -1292,7 +1296,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; if(window.__ivStore)delete window.__ivStore[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; if(window.__ivStore)delete window.__ivStore[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -1660,38 +1664,66 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   }, [ov, sym]);
 
   // -- AI Analysis trigger: poll every 2s until all data ready --
+  // -- AI Analysis triggers: independent polling for fund and tech ─────────────
   useEffect(function() {
     if (!sym || !window.__isPaid) return;
-    var attempts = 0;
-    var maxAttempts = 30; // 60 seconds max
-    var interval = setInterval(function() {
-      attempts++;
-      if (attempts > maxAttempts) { clearInterval(interval); return; }
-      if (window.__aiFundRunning === sym || aiFundResult) { clearInterval(interval); return; }
-      var _ic   = window.__insightCache || {};
-      var _pi   = window.__parsedInsights || {};
+    var symSnap = sym; // snapshot sym so interval closure doesn't get stale
+
+    // Fund AI: poll every 2s, fire when ov + massive ready, wait up to 40s for moat/fin
+    var fundAttempts = 0;
+    var fundDone = false;
+    var fundInterval = setInterval(function() {
+      if (fundDone) { clearInterval(fundInterval); return; }
+      fundAttempts++;
+      if (fundAttempts > 30) { clearInterval(fundInterval); return; }
+      // Stop if already running or result stored in window
+      if (window.__aiFundRunning === symSnap) return;
+      if (window.__aiFundDone === symSnap) { clearInterval(fundInterval); return; }
       var _ov2  = window.__curOv || null;
       var _mass = window.__curMassive || null;
-      // Must have ov and massive as minimum
       if (!_ov2 || !_mass) return;
-      // Wait up to 20 attempts (40s) for moat+financial, then fire anyway
+      var _ic = window.__insightCache || {};
+      var _pi = window.__parsedInsights || {};
       var moatReady  = _pi["moat"] && _pi["moat"].classification;
       var _finCls    = _pi["financial"] && _pi["financial"].classification;
       var finReady   = _finCls && _finCls.replace(/[^a-zA-Z]/g,"").length > 2;
       var moatCached = _ic["moat"] && _ic["moat"].length > 10;
       var finCached  = _ic["financial"] && _ic["financial"].length > 10;
       var allReady   = moatReady && finReady && moatCached && finCached;
-      if (!allReady && attempts < 20) return; // wait up to 40s, then fire anyway
-      clearInterval(interval);
-      var curVals   = window.__curOracleSym === sym ? (window.__curVals || []) : [];
-      var curOracle = window.__curOracleSym === sym ? (window.__curOracle || "0") : "0";
-      var curPrice  = window.__curPrice  || (window.__curOv ? window.__curOv._price : 0) || 0;
-      var curMsDots = window.__msDots2   || 0;
-      var curMsLabel= window.__msLabel2  || "";
-      setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund trigger FIRED for "+sym, data:{ moatReady:!!moatReady, finReady:!!finReady, moatCached:!!moatCached, finCached:!!finCached, curPrice:curPrice } }]); });
-      runAiAnalysis(sym, _ov2, _mass, _pi, curVals, curOracle, curPrice, curMsDots, curMsLabel, _ic);
+      if (!allReady && fundAttempts < 20) return;
+      fundDone = true;
+      clearInterval(fundInterval);
+      var curVals   = window.__curOracleSym === symSnap ? (window.__curVals||[]) : [];
+      var curOracle = window.__curOracleSym === symSnap ? (window.__curOracle||"0") : "0";
+      var curPrice  = window.__curPrice || (_ov2?_ov2._price:0) || 0;
+      setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund TRIGGER: "+symSnap, data:{allReady:allReady,attempts:fundAttempts,price:curPrice} }]); });
+      runFundAi(symSnap, _ov2, _pi, curVals, curOracle, curPrice, _ic);
     }, 2000);
-    return function() { clearInterval(interval); };
+
+    // Tech AI: poll every 2s, fire as soon as ov + massive ready (no moat/fin dependency)
+    var techAttempts = 0;
+    var techDone = false;
+    var techInterval = setInterval(function() {
+      if (techDone) { clearInterval(techInterval); return; }
+      techAttempts++;
+      if (techAttempts > 30) { clearInterval(techInterval); return; }
+      if (window.__aiTechRunning === symSnap) return;
+      if (window.__aiTechDone === symSnap) { clearInterval(techInterval); return; }
+      var _mass = window.__curMassive || null;
+      if (!_mass) return;
+      var curPrice  = window.__curPrice || 0;
+      var curMsDots = window.__msDots2  || 0;
+      var curMsLabel= window.__msLabel2 || "";
+      techDone = true;
+      clearInterval(techInterval);
+      setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech TRIGGER: "+symSnap, data:{attempts:techAttempts,price:curPrice} }]); });
+      runTechAi(symSnap, _mass, curPrice, curMsDots, curMsLabel);
+    }, 2000);
+
+    return function() {
+      fundDone = true; techDone = true;
+      clearInterval(fundInterval); clearInterval(techInterval);
+    };
   }, [sym]);
 
   // -- Admin tab data load -----------------------------------------------------
