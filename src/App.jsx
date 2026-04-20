@@ -1043,7 +1043,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           "Confidence: Low / Medium / High\n"+
           "Key Strength: One sentence in plain English -- explain WHY it matters to an everyday investor.\n"+
           "Key Risk: One sentence in plain English -- explain WHY it matters to an everyday investor.\n"+
-          "Summary (max 80 words): Write as if explaining to a friend who knows nothing about stocks. Avoid terms like P/E, DCF, EBITDA without explaining them. Focus on what the business does well or poorly and what that means for their money.";
+          "Summary (2-3 sentences): Write as if explaining to a friend who knows nothing about stocks. First sentence: what the company does and whether it looks like a good or bad investment right now in plain English. Second sentence: explain what the key numbers mean in simple terms (e.g. instead of P/E of 28x say the stock costs $28 for every $1 of profit it makes). Third sentence: what should the investor do or watch out for.";
         setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund MISS: "+symA+" -- calling Claude" }]); });
         fetch("/anthropic",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:400, messages:[{role:"user",content:prompt}] }) })
           .then(function(r){ return r.json(); })
@@ -2338,9 +2338,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"minmax(0,200px) 1fr auto", alignItems:"center", gap:0, minWidth:0 }}>
               {/* Left cell -- Logo + ticker (mirrors 400px left panel) */}
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <img src="/logo.png" alt="nervousgeek" style={{ height:28, width:"auto", objectFit:"contain", display:"block" }}
-                  onError={function(e){ e.target.style.display="none"; }} />
-                <span style={{ fontWeight:800, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap" }}>nervousgeek</span>
+                <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px" }}>NervousGeek</span>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
               {/* Right panel cell -- Back + Search aligned to chart panel edge */}
@@ -2383,9 +2381,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             <div className="nav-mobile" style={{ background:"#c8f000", padding:"8px 14px 7px" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:7 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <img src="/logo.png" alt="nervousgeek" style={{ height:22, width:"auto", objectFit:"contain", display:"block" }}
-                    onError={function(e){ e.target.style.display="none"; }} />
-                  <span style={{ fontWeight:800, fontSize:14, color:"#1a1a14" }}>nervousgeek</span>
+                  <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px" }}>NervousGeek</span>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
                 <button onClick={function(){ setMobilePanel("left"); onBack(); }} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"4px 10px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:11, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
