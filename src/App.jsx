@@ -1038,12 +1038,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           "- Buy: "+sfi(_ov.recBuy)+" | Hold: "+sfi(_ov.recHold)+" | Sell: "+sfi(_ov.recSell)+"\n"+
           "- Target Price (median): "+(_ov.targetMedian?"$"+_ov.targetMedian.toFixed(2):"N/A")+"\n"+
           (finR.body?"\nAI FINANCIAL ASSESSMENT (summary):\n"+finR.body.replace(/[*#_]/g,"").substring(0,400)+"\n":"")+
-          "\nRespond in EXACTLY this format:\n"+
+          "\nRespond in EXACTLY this format. Write for a layman investor with no finance background -- avoid jargon, explain what numbers mean in plain English:\n"+
           "Fundamental Verdict: Strong Buy / Buy / Hold / Caution / Avoid\n"+
           "Confidence: Low / Medium / High\n"+
-          "Key Strength: One sentence.\n"+
-          "Key Risk: One sentence.\n"+
-          "Summary (max 60 words): ...";
+          "Key Strength: One sentence in plain English -- explain WHY it matters to an everyday investor.\n"+
+          "Key Risk: One sentence in plain English -- explain WHY it matters to an everyday investor.\n"+
+          "Summary (max 80 words): Write as if explaining to a friend who knows nothing about stocks. Avoid terms like P/E, DCF, EBITDA without explaining them. Focus on what the business does well or poorly and what that means for their money.";
         setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund MISS: "+symA+" -- calling Claude" }]); });
         fetch("/anthropic",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:400, messages:[{role:"user",content:prompt}] }) })
           .then(function(r){ return r.json(); })
@@ -1648,13 +1648,16 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       var _pi   = window.__parsedInsights || {};
       var _ov2  = window.__curOv || null;
       var _mass = window.__curMassive || null;
+      // Must have ov and massive as minimum
       if (!_ov2 || !_mass) return;
+      // Wait up to 20 attempts (40s) for moat+financial, then fire anyway
       var moatReady  = _pi["moat"] && _pi["moat"].classification;
       var _finCls    = _pi["financial"] && _pi["financial"].classification;
       var finReady   = _finCls && _finCls.replace(/[^a-zA-Z]/g,"").length > 2;
       var moatCached = _ic["moat"] && _ic["moat"].length > 10;
       var finCached  = _ic["financial"] && _ic["financial"].length > 10;
-      if (!moatReady || !finReady || !moatCached || !finCached) return;
+      var allReady   = moatReady && finReady && moatCached && finCached;
+      if (!allReady && attempts < 20) return; // wait up to 40s, then fire anyway
       clearInterval(interval);
       var curVals   = window.__curOracleSym === sym ? (window.__curVals || []) : [];
       var curOracle = window.__curOracleSym === sym ? (window.__curOracle || "0") : "0";
@@ -2335,8 +2338,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"minmax(0,200px) 1fr auto", alignItems:"center", gap:0, minWidth:0 }}>
               {/* Left cell -- Logo + ticker (mirrors 400px left panel) */}
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <img src="/logo.png" alt="nervousgeek" style={{ height:28, width:"auto", objectFit:"contain" }}
+                <img src="/logo.png" alt="nervousgeek" style={{ height:28, width:"auto", objectFit:"contain", display:"block" }}
                   onError={function(e){ e.target.style.display="none"; }} />
+                <span style={{ fontWeight:800, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap" }}>nervousgeek</span>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
               {/* Right panel cell -- Back + Search aligned to chart panel edge */}
@@ -2379,8 +2383,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             <div className="nav-mobile" style={{ background:"#c8f000", padding:"8px 14px 7px" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:7 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <img src="/logo.png" alt="nervousgeek" style={{ height:24, width:"auto", objectFit:"contain" }}
+                  <img src="/logo.png" alt="nervousgeek" style={{ height:22, width:"auto", objectFit:"contain", display:"block" }}
                     onError={function(e){ e.target.style.display="none"; }} />
+                  <span style={{ fontWeight:800, fontSize:14, color:"#1a1a14" }}>nervousgeek</span>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
                 <button onClick={function(){ setMobilePanel("left"); onBack(); }} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"4px 10px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:11, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
