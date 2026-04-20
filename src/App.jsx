@@ -1641,7 +1641,18 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         if (data && (data.news || data.ticker || data.dividends || data.indicators || data.aggs)) {
           setMassiveInfo(data);
           window.__curMassive = data;
-          // AI Analysis now triggered by polling useEffect
+          // Fire Tech AI immediately when massive arrives
+          if (window.__isPaid && !window.__aiTechRunning && !window.__aiTechDone) {
+            var _techSym = window.__curOv ? (window.__curOv._sym || "") : "";
+            var _techPrice = window.__curPrice || 0;
+            setTimeout(function() {
+              var _ts = window.__curOv ? (window.__curOv._sym || "") : "";
+              if (!_ts) return;
+              if (window.__aiTechRunning === _ts || window.__aiTechDone === _ts) return;
+              setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech TRIGGER (massive): "+_ts, data:{price:window.__curPrice||0} }]); });
+              runTechAi(_ts, data, window.__curPrice||0, window.__msDots2||0, window.__msLabel2||"");
+            }, 100);
+          }
         } else {
           debugEntries.push({ time: new Date().toISOString(), label: "Massive data empty or error", data: data });
         }
@@ -1700,29 +1711,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       runFundAi(symSnap, _ov2, _pi, curVals, curOracle, curPrice, _ic);
     }, 2000);
 
-    // Tech AI: poll every 2s, fire as soon as ov + massive ready (no moat/fin dependency)
-    var techAttempts = 0;
-    var techDone = false;
-    var techInterval = setInterval(function() {
-      if (techDone) { clearInterval(techInterval); return; }
-      techAttempts++;
-      if (techAttempts > 30) { clearInterval(techInterval); return; }
-      if (window.__aiTechRunning === symSnap) return;
-      if (window.__aiTechDone === symSnap) { clearInterval(techInterval); return; }
-      var _mass = window.__curMassive || null;
-      if (!_mass) return;
-      var curPrice  = window.__curPrice || 0;
-      var curMsDots = window.__msDots2  || 0;
-      var curMsLabel= window.__msLabel2 || "";
-      techDone = true;
-      clearInterval(techInterval);
-      setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech TRIGGER: "+symSnap, data:{attempts:techAttempts,price:curPrice} }]); });
-      runTechAi(symSnap, _mass, curPrice, curMsDots, curMsLabel);
-    }, 2000);
-
     return function() {
-      fundDone = true; techDone = true;
-      clearInterval(fundInterval); clearInterval(techInterval);
+      fundDone = true;
+      clearInterval(fundInterval);
     };
   }, [sym]);
 
@@ -1842,7 +1833,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
     const price = q ? q.price : 0;
   window.__curPrice = price;
-  if (ov) { window.__curOv = ov; window.__curOv._price = price; }
+  if (ov) { window.__curOv = ov; window.__curOv._price = price; window.__curOv._sym = sym; }
   const up    = q ? q.pct >= 0 : true;
   const sign  = up ? "+" : "";
   const chg   = q ? sign + q.change.toFixed(2) + " (" + sign + q.pct.toFixed(2) + "%)" : "-";
