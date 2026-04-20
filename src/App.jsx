@@ -2552,20 +2552,24 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             function Card(props) {
               var c = props.colors;
               var loading = !props.value;
+              var flat = props.flat; // flat=true: no background, just border
+              var bg     = flat ? "transparent" : (loading ? "#222" : c.bg);
+              var border = flat ? (loading ? "#333" : c.border) : (loading ? "#333" : c.border);
+              var fg     = loading ? "#555" : c.fg;
               return (
-                <div onClick={props.tabId ? function(){ window.__goToTab && window.__goToTab(props.tabId); } : undefined} style={{ padding:"9px 12px", background: loading ? "#222" : c.bg, border:"0.5px solid " + (loading ? "#333" : c.border), borderRadius:8, opacity: loading ? 0.6 : 1, boxSizing:"border-box", minHeight:72, display:"flex", flexDirection:"column", cursor: props.tabId ? "pointer" : "default" }}>
-                  <div style={{ fontSize:9, color: loading ? "#555" : c.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>{props.label}</div>
+                <div onClick={props.tabId ? function(){ window.__goToTab && window.__goToTab(props.tabId); } : undefined} style={{ padding:"9px 12px", background:bg, border:"0.5px solid "+border, borderRadius:8, opacity:loading?0.6:1, boxSizing:"border-box", minHeight:72, display:"flex", flexDirection:"column", cursor:props.tabId?"pointer":"default" }}>
+                  <div style={{ fontSize:9, color:fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>{props.label}</div>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                     {props.loading
                       ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
                           <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div>
                           <span style={{ fontSize:10, color:"#555" }}>Loading...</span>
                         </div>
-                      : <span style={{ fontSize:13, fontWeight:700, color: loading ? "#555" : c.fg }}>{loading ? "---" : props.value}</span>
+                      : <span style={{ fontSize:13, fontWeight:700, color:fg }}>{loading?"---":props.value}</span>
                     }
                     {!loading && props.score > 0 && <Dots score={props.score} filled={c.dot} empty={c.dotEmpty} />}
                   </div>
-                  {!loading && props.sublabel && <div style={{ fontSize:10, color:c.fg, marginTop:3, opacity:0.75, lineHeight:1.3 }}>{props.sublabel}</div>}
+                  {!loading && props.sublabel && <div style={{ fontSize:10, color:fg, marginTop:3, opacity:0.75, lineHeight:1.3 }}>{props.sublabel}</div>}
                   {loading && !props.loading && <div style={{ fontSize:10, color:"#555", marginTop:3 }}>&nbsp;</div>}
                 </div>
               );
@@ -2718,8 +2722,17 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
 
 
-                {/* AI ANALYSIS -- 2 colored pills like fund/tech pills */}
-                <SectionLabel label="AI Analysis" top={true} />
+                {/* AI ANALYSIS -- prominent header + 2 colored pills */}
+                <div style={{ background:"#1e1e1e", border:"1px solid #2c2c2e", borderRadius:12, overflow:"hidden", marginBottom:8 }}>
+                  <div style={{ background:"#c8f000", padding:"6px 12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      <div style={{ width:6, height:6, borderRadius:"50%", background:"#0e0e0c" }}></div>
+                      <span style={{ fontSize:10, fontWeight:800, color:"#0e0e0c", textTransform:"uppercase", letterSpacing:"0.1em" }}>AI Analysis</span>
+                    </div>
+                    <span style={{ fontSize:9, fontWeight:700, color:"#0e0e0c", background:"rgba(0,0,0,0.15)", padding:"2px 8px", borderRadius:10, textTransform:"uppercase", letterSpacing:"0.06em" }}>Premium</span>
+                  </div>
+                  <div style={{ padding:"8px" }}>
+                <div style={{ display:"none" }}></div>
                 {(function() {
                   function aiVerdictColor(v) {
                     if (!v) return pillColor(null);
@@ -2790,6 +2803,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     </div>
                   );
                 })()}
+                  </div>
+                </div>
 
                 {/* FUNDAMENTAL ANALYSIS -- neutral dark card */}
                 <div style={{ background:"#1e1e1e", border:"1px solid #2c2c2e", borderRadius:12, overflow:"hidden", marginBottom:8 }}>
@@ -2799,11 +2814,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   </div>
                   <div style={{ padding:"8px" }}>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
-                  <Card label="Economic Moat" value={moatRating} score={moatScore} colors={moatColors} loading={!moatRating && insightLoading} tabId="moat" />
+                  <Card label="Economic Moat" value={moatRating} score={moatScore} colors={moatColors} loading={!moatRating && insightLoading} tabId="moat" flat={true} />
                   {(function() {
                     var loading = !ivLabel; var c = ivColors;
                     return (
-                      <div onClick={function(){ window.__goToTab && window.__goToTab("intrinsic"); }} style={{ padding:"9px 12px", background:loading?"#222":c.bg, border:"0.5px solid "+(loading?"#333":c.border), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                      <div onClick={function(){ window.__goToTab && window.__goToTab("intrinsic"); }} style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid "+(loading?"#333":c.border), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
                         <div style={{ fontSize:9, color:loading?"#555":c.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Intrinsic Value</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {loading && !ov
@@ -2819,7 +2834,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       </div>
                     );
                   })()}
-                  <Card label="Financial Strength" value={finRating} score={finScore} colors={finColors} loading={!finRating && insightLoading} tabId="financial" />
+                  <Card label="Financial Strength" value={finRating} score={finScore} colors={finColors} loading={!finRating && insightLoading} tabId="financial" flat={true} />
                 </div>
                   </div>
                 </div>
@@ -2881,7 +2896,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   return (
                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
                       <div onClick={function(){ window.__goToTab && window.__goToTab("trend"); }}
-                        style={{ padding:"9px 12px", background:_hasTech?_trendCol.bg:"#222", border:"0.5px solid "+(_hasTech?_trendCol.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                        style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid "+(_hasTech?_trendCol.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
                         <div style={{ fontSize:9, color:_hasTech?_trendCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Trend</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {addlLoading && !_hasTech
@@ -2893,7 +2908,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         {_hasTech && <div style={{ fontSize:10, color:_trendCol.fg, marginTop:3, opacity:0.75 }}>{_trendScore + "/100"}</div>}
                       </div>
                       <div onClick={function(){ window.__goToTab && window.__goToTab("momentum"); }}
-                        style={{ padding:"9px 12px", background:_hasTech?_momCol.bg:"#222", border:"0.5px solid "+(_hasTech?_momCol.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                        style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid "+(_hasTech?_momCol.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
                         <div style={{ fontSize:9, color:_hasTech?_momCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Momentum</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {addlLoading && !_hasTech
@@ -2905,7 +2920,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         {_hasTech && <div style={{ fontSize:10, color:_momCol.fg, marginTop:3, opacity:0.75 }}>{_momScore + "/100"}</div>}
                       </div>
                       <div onClick={function(){ window.__goToTab && window.__goToTab("reversal"); }}
-                        style={{ padding:"9px 12px", background:_hasTech?_revCol.bg:"#222", border:"0.5px solid "+(_hasTech?_revCol.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                        style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid "+(_hasTech?_revCol.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
                         <div style={{ fontSize:9, color:_hasTech?_revCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Reversal Detection</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {addlLoading && !_hasTech
