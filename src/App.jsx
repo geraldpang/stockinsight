@@ -2898,7 +2898,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         {_hasTech && <div style={{ fontSize:10, color:_momCol.fg, marginTop:3, opacity:0.75 }}>{_momScore + "/100"}</div>}
                       </div>
                       <div onClick={function(){ window.__goToTab && window.__goToTab("reversal"); }}
-                        style={{ padding:"9px 12px", background:_hasTech?_revCol.bg:"#222", border:"0.5px solid "+(_hasTech?_revCol.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer", gridColumn:"1 / -1" }}>
+                        style={{ padding:"9px 12px", background:_hasTech?_revCol.bg:"#222", border:"0.5px solid "+(_hasTech?_revCol.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
                         <div style={{ fontSize:9, color:_hasTech?_revCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Reversal Detection</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {addlLoading && !_hasTech
