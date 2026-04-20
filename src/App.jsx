@@ -1101,13 +1101,34 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           aggs.length>=5&&aggs[0].h>Math.max.apply(null,aggs.slice(1,5).map(function(a){return a.h;})),
         ];
         var activeRevs=revNames.filter(function(_,i){return revArr[i];});
-        var tprompt="You are a senior technical analyst. Analyse "+symA+" based ONLY on the data below.\n\n"+
-          "TREND:\n- Price: $"+(priceA||0).toFixed(2)+
-          (pSma50?"\n- vs 50-day MA: "+(pSma50>0?"+":"")+pSma50+"% ("+(pSma50>0?"above":"below")+")":"")+
-          (pSma200?"\n- vs 200-day MA: "+(pSma200>0?"+":"")+pSma200+"% ("+(pSma200>0?"above":"below")+")":"")+
-          "\n\nMOMENTUM:\n- RSI: "+(rsi||"N/A")+" ("+rsiCond+")\n- MACD: "+macdDir+
-          "\n- Market Signal: "+(msDots2*20)+"/100 -- "+(msLabel2||"Unknown")+
-          "\n\nREVERSALS:\n- Active: "+(activeRevs.length>0?activeRevs.join(", "):"None")+
+        var _wsmaG2=massiveA.indicators&&massiveA.indicators.wsma10&&massiveA.indicators.wsma40?((massiveA.indicators.wsma10-massiveA.indicators.wsma40)/massiveA.indicators.wsma40*100).toFixed(1):null;
+        var _crsG2=massiveA.indicators&&massiveA.indicators.sma50&&massiveA.indicators.sma200?((massiveA.indicators.sma50-massiveA.indicators.sma200)/massiveA.indicators.sma200*100).toFixed(1):null;
+        var _hi52=massiveA._hi52||0; var _lo52=massiveA._lo52||0;
+        var _pos52pct=(_hi52>_lo52&&priceA>0)?Math.round((priceA-_lo52)/(_hi52-_lo52)*100):null;
+        var _macdLine=massiveA.indicators&&massiveA.indicators.macd?massiveA.indicators.macd.macd:null;
+        var _macdSig=massiveA.indicators&&massiveA.indicators.macd?massiveA.indicators.macd.signal:null;
+        var _macdHArr=massiveA.indicators&&massiveA.indicators.macdHistory?massiveA.indicators.macdHistory:[];
+        var _macdDir2=_macdHArr.length>=2?(_macdHArr[0]&&_macdHArr[1]&&_macdHArr[0].histogram>_macdHArr[1].histogram?"rising (buying pressure increasing)":"falling (buying pressure decreasing)"):"unknown";
+        var _ema20g2=massiveA.indicators&&massiveA.indicators.ema20?((priceA-massiveA.indicators.ema20)/massiveA.indicators.ema20*100).toFixed(1):null;
+        var _aggs2=massiveA.aggs||[];
+        var _vol5b=_aggs2.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(_aggs2.slice(0,5).length,1);
+        var _vol20b=_aggs2.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(_aggs2.slice(0,20).length,1);
+        var _volR2=_vol20b>0?(_vol5b/_vol20b*100).toFixed(0)+"% of normal":null;
+        var tprompt="You are a senior technical analyst. Analyse "+symA+" based ONLY on the data below. Write for a layman investor -- no jargon without explanation.\n\n"+
+          "TREND / PRICE ACTION:\n"+
+          "- Current Price: $"+(priceA||0).toFixed(2)+"\n"+
+          (pSma50?"- Price vs 200-day average: "+(pSma50>0?"+":"")+pSma50+"% -- stock is trading "+(pSma50>0?"above":"below")+" its long-term average ("+(pSma50>2?"generally bullish":pSma50>-10?"neutral":"bearish")+")\n":"")+
+          (pSma200?"- Price vs 50-day average: "+(pSma200>0?"+":"")+pSma200+"% -- "+(pSma200>2?"medium-term uptrend intact":"medium-term trend weak")+"\n":"")+
+          (_wsmaG2?"- Weekly trend (10-week vs 40-week MA): "+(_wsmaG2>0?"+":"")+_wsmaG2+"% -- medium-term weekly trend is "+(_wsmaG2>1?"up":"down or flat")+"\n":"")+
+          (_crsG2?"- Golden/Death Cross: "+(_crsG2>0?"Golden Cross (bullish long-term signal) by "+_crsG2+"%":"Death Cross (bearish long-term signal) by "+Math.abs(_crsG2)+"%")+"\n":"")+
+          (_pos52pct!==null?"- 52-week position: "+_pos52pct+"% of yearly range -- trading in the "+((_pos52pct>70)?"top 30% (strength)":(_pos52pct>40)?"middle":"bottom 40% (weakness)")+" of its range\n":"")+
+          "\nMOMENTUM:\n"+
+          "- RSI: "+(rsi||"N/A")+" -- "+(rsi?rsiCond+(" -- "+(rsi>75?"stock has been heavily bought, may be overheated":rsi>=50?"buying momentum is healthy and not overheated":rsi>=30?"momentum is weak, buyers not in control":"deeply oversold, heavily sold down")):"data unavailable")+"\n"+
+          "- MACD: histogram is "+_macdDir2+(macdDir&&macdH!==null?" (value: "+macdH.toFixed(4)+")":"")+"\n"+
+          (_ema20g2?"- Price vs 20-day average: "+(_ema20g2>0?"+":"")+_ema20g2+"% -- short-term momentum is "+(_ema20g2>1?"positive":"negative or flat")+"\n":"")+
+          (_volR2?"- Volume: recent trading volume is "+_volR2+" -- "+(parseInt(_volR2)>120?"above average activity, confirms the move":parseInt(_volR2)>90?"normal activity":"below average, move may lack conviction")+"\n":"")+
+          "\nREVERSAL SIGNALS ("+activeRevs.length+" of 5 active):\n"+
+          (activeRevs.length>0?"- Active: "+activeRevs.join(", ")+"\n":"- No reversal signals currently detected\n")+
           "\n\nRespond in EXACTLY this format:\n"+
           "Technical Verdict: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish\n"+
           "Short-term (1-3m): Buy / Hold / Avoid\n"+
@@ -2803,29 +2824,98 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                 </div>
                 {/* TECHNICAL ANALYSIS */}
                 <SectionLabel label="Technical Analysis" />
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
-                  {ind2 && p2
-                    ? <Card label="Market Signal" value={vl2} score={msDots} colors={msColors} sublabel={"Score: " + final2 + " / 100"} tabId="signal" />
-                    : <Card label="Market Signal" value={null} score={0} colors={pillColor(null)} loading={addlLoading} />
-                  }
-                  {(function() {
-                    var c3bg=revBg3; var c3bd=revBorder3; var c3fg=revCol3;
-                    return (
-                      <div onClick={function(){ window.__goToTab && window.__goToTab("signal"); }} style={{ padding:"9px 12px", background:c3bg, border:"0.5px solid "+c3bd, borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color:c3fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Reversal</div>
+                {(function() {
+                  // Compute trend, momentum, reversal scores from existing data
+                  var _hasTech = !!(ind2 && p2);
+                  // Trend score (wsma, sma200, cross, pos52) -- weighted avg -> 0-100
+                  var _trendScore = _hasTech ? (function(){
+                    var W={wsma:35,sma200:30,cross:20,pos52:15};
+                    var wsmaG=ind2.wsma10&&ind2.wsma40?(ind2.wsma10-ind2.wsma40)/ind2.wsma40*100:0;
+                    var s200g=ind2.sma200?(p2-ind2.sma200)/ind2.sma200*100:0;
+                    var crsG=ind2.sma50&&ind2.sma200?(ind2.sma50-ind2.sma200)/ind2.sma200*100:0;
+                    function sc(key){
+                      if(key==="wsma")   return !ind2.wsma10||!ind2.wsma40?3:wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
+                      if(key==="sma200") return !ind2.sma200?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
+                      if(key==="cross")  return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
+                      if(key==="pos52")  return pos2>0.80?5:pos2>0.55?4:pos2>0.35?3:pos2>0.15?2:1;
+                      return 3;
+                    }
+                    var tot=0; Object.keys(W).forEach(function(k){tot+=(sc(k)/5)*W[k];}); return Math.round(tot);
+                  })() : 0;
+                  var _trendLabel = _trendScore>=70?"Strong Uptrend":_trendScore>=55?"Uptrend":_trendScore>=40?"Sideways":_trendScore>=25?"Downtrend":"Strong Downtrend";
+                  var _trendDots  = _trendScore>=70?5:_trendScore>=55?4:_trendScore>=40?3:_trendScore>=25?2:1;
+                  var _trendCol   = pillColor(_trendScore>=55?"buy":_trendScore>=40?"hold":"avoid");
+
+                  // Momentum score (rsi, macd, ema20, vol) -- weighted avg -> 0-100
+                  var _momScore = _hasTech ? (function(){
+                    var W={rsi:35,macd:30,ema20:20,vol:15};
+                    var r=ind2.rsi14; var h=ind2.macd?ind2.macd.histogram:null;
+                    var ema2g=ind2.ema20?(p2-ind2.ema20)/ind2.ema20*100:0;
+                    function sc(key){
+                      if(key==="rsi")  return r==null?3:(r>=50&&r<=75)?5:(r>=40&&r<50)?4:(r>=30&&r<40||r>75)?3:(r>=20&&r<30)?2:1;
+                      if(key==="macd") return h==null?3:h>0.05?5:h>0?4:h>-0.05?3:h>-0.5?2:1;
+                      if(key==="ema20")return !ind2.ema20?3:ema2g>5?5:ema2g>1?4:ema2g>-5?3:ema2g>-15?2:1;
+                      if(key==="vol")  return vr2>1.4?5:vr2>1.1?4:vr2>0.9?3:vr2>0.7?2:1;
+                      return 3;
+                    }
+                    var tot=0; Object.keys(W).forEach(function(k){tot+=(sc(k)/5)*W[k];}); return Math.round(tot);
+                  })() : 0;
+                  var _momLabel = _momScore>=70?"Strong":_momScore>=55?"Building":_momScore>=40?"Neutral":_momScore>=25?"Fading":"Weak";
+                  var _momDots  = _momScore>=70?5:_momScore>=55?4:_momScore>=40?3:_momScore>=25?2:1;
+                  var _momCol   = pillColor(_momScore>=55?"buy":_momScore>=40?"hold":"avoid");
+
+                  // Reversal -- existing revCount3 and revLabel3
+                  var _revCol = pillColor(revCount3>=3?"buy":revCount3>=1?"hold":"avoid");
+
+                  // Store for AI
+                  window.__trendScore = _trendScore; window.__trendLabel = _trendLabel;
+                  window.__momScore   = _momScore;   window.__momLabel   = _momLabel;
+
+                  return (
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
+                      <div onClick={function(){ window.__goToTab && window.__goToTab("trend"); }}
+                        style={{ padding:"9px 12px", background:_hasTech?_trendCol.bg:"#222", border:"0.5px solid "+(_hasTech?_trendCol.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                        <div style={{ fontSize:9, color:_hasTech?_trendCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Trend</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                          <span style={{ fontSize:13, fontWeight:700, color:c3fg }}>{revLabel3}</span>
-                          <Dots score={revCount3} filled={revDot3} empty={revEmpty3} />
+                          {addlLoading && !_hasTech
+                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Loading...</span></div>
+                            : <span style={{ fontSize:13, fontWeight:700, color:_hasTech?_trendCol.fg:"#555" }}>{_hasTech?_trendLabel:"--"}</span>
+                          }
+                          {_hasTech && <Dots score={_trendDots} filled={_trendCol.dot} empty={_trendCol.dotEmpty} />}
                         </div>
-                        {revCount3 > 0 && (
-                          <div style={{ fontSize:10, color:c3fg, marginTop:3, opacity:0.75, lineHeight:1.4 }}>
+                        {_hasTech && <div style={{ fontSize:10, color:_trendCol.fg, marginTop:3, opacity:0.75 }}>{_trendScore + "/100"}</div>}
+                      </div>
+                      <div onClick={function(){ window.__goToTab && window.__goToTab("momentum"); }}
+                        style={{ padding:"9px 12px", background:_hasTech?_momCol.bg:"#222", border:"0.5px solid "+(_hasTech?_momCol.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                        <div style={{ fontSize:9, color:_hasTech?_momCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Momentum</div>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
+                          {addlLoading && !_hasTech
+                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Loading...</span></div>
+                            : <span style={{ fontSize:13, fontWeight:700, color:_hasTech?_momCol.fg:"#555" }}>{_hasTech?_momLabel:"--"}</span>
+                          }
+                          {_hasTech && <Dots score={_momDots} filled={_momCol.dot} empty={_momCol.dotEmpty} />}
+                        </div>
+                        {_hasTech && <div style={{ fontSize:10, color:_momCol.fg, marginTop:3, opacity:0.75 }}>{_momScore + "/100"}</div>}
+                      </div>
+                      <div onClick={function(){ window.__goToTab && window.__goToTab("reversal"); }}
+                        style={{ padding:"9px 12px", background:_hasTech?_revCol.bg:"#222", border:"0.5px solid "+(_hasTech?_revCol.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer", gridColumn:"1 / -1" }}>
+                        <div style={{ fontSize:9, color:_hasTech?_revCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Reversal Detection</div>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
+                          {addlLoading && !_hasTech
+                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Loading...</span></div>
+                            : <span style={{ fontSize:13, fontWeight:700, color:_hasTech?_revCol.fg:"#555" }}>{_hasTech?revLabel3:"--"}</span>
+                          }
+                          {_hasTech && <Dots score={revCount3} filled={_revCol.dot} empty={_revCol.dotEmpty} />}
+                        </div>
+                        {_hasTech && revCount3 > 0 && (
+                          <div style={{ fontSize:10, color:_revCol.fg, marginTop:3, opacity:0.75, lineHeight:1.4 }}>
                             {sigNames3.filter(function(_,i){ return revArr3[i]; }).join(" " + String.fromCharCode(0xB7) + " ")}
                           </div>
                         )}
                       </div>
-                    );
-                  })()}
-                </div>
+                    </div>
+                  );
+                })()}
 
               </div>
             );
@@ -3026,7 +3116,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               { id:"intrinsic", label:"Intrinsic Value" },
               { id:"aiinsight", label:"AI Insight" },
               { id:"financial", label:"Financial Strength" },
-              { id:"signal",    label:"Market Signal" },
+              { id:"trend",     label:"Trend" },
+              { id:"momentum",  label:"Momentum" },
+              { id:"reversal",  label:"Reversal" },
               { id:"addlinfo",  label:"Additional Information" },
               { id:"debug",     label:"Debug" },
               { id:"admin",     label:"Admin" },
@@ -3437,7 +3529,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   {/* AI-powered tabs */}
                   {insightTab !== "intrinsic" && (
                     <div>
-                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && insightTab !== "aiinsight" && insightTab !== "aianalysis" && insightTab !== "admin" && (
+                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && insightTab !== "trend" && insightTab !== "momentum" && insightTab !== "reversal" && insightTab !== "aiinsight" && insightTab !== "aianalysis" && insightTab !== "admin" && (
                         <div style={{ textAlign:"center", padding:"40px 0" }}>
                           <div style={{ fontSize:12, color:"#888", marginBottom:14 }}>Generating {insightTab} analysis for {sym}...</div>
                           <div style={{ display:"inline-block", width:26, height:26, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
@@ -5558,6 +5650,187 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
 
                   {/* Market Signal Tab */}
+                  {/* TREND TAB */}
+                  {insightTab === "trend" && (function() {
+                    var ind=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
+                    var price=q?q.price:0;
+                    var hi52=ov?ov.hi52:0; var lo52=ov?ov.lo52:0;
+                    var pos52=(hi52>lo52&&hi52>0)?(price-lo52)/(hi52-lo52):0.5;
+                    if (!ind||!price) return <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>Trend data requires Massive.com feed.</div>;
+                    var wsmaG=ind.wsma10&&ind.wsma40?(ind.wsma10-ind.wsma40)/ind.wsma40*100:null;
+                    var s200g=ind.sma200?(price-ind.sma200)/ind.sma200*100:null;
+                    var s50g=ind.sma50?(price-ind.sma50)/ind.sma50*100:null;
+                    var crsG=ind.sma50&&ind.sma200?(ind.sma50-ind.sma200)/ind.sma200*100:null;
+                    var pos52pct=Math.round(pos52*100);
+                    function TRow(p){ return (
+                      <div style={{padding:"10px 14px",borderBottom:"1px solid #f0ede6"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+                          <span style={{fontSize:12,fontWeight:600,color:"#333"}}>{p.label}</span>
+                          <span style={{fontSize:13,fontWeight:700,color:p.val===null?"#aaa":"#111"}}>{p.val===null?"N/A":p.val}</span>
+                        </div>
+                        <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{p.desc}</div>
+                      </div>
+                    ); }
+                    return (
+                      <div>
+                        <div style={{padding:"10px 14px",background:"#f5f2ec",borderRadius:"8px 8px 0 0",borderBottom:"1px solid #e0dbd0",marginBottom:0}}>
+                          <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.08em"}}>Trend / Price Action</div>
+                          <div style={{fontSize:12,color:"#555",marginTop:2}}>Where is the stock positioned long-term?</div>
+                        </div>
+                        <div style={{border:"1px solid #e0dbd0",borderTop:"none",borderRadius:"0 0 8px 8px",marginBottom:16}}>
+                          <TRow label="Weekly Trend (10-week vs 40-week MA)"
+                            val={wsmaG!==null?(wsmaG>0?"+":"")+wsmaG.toFixed(2)+"%":null}
+                            desc={wsmaG===null?"Data unavailable.":wsmaG>5?"10-week average is well above 40-week -- medium-term uptrend is strong and intact.":wsmaG>1?"10-week is above 40-week -- uptrend in place.":wsmaG>-1?"Both averages are flat -- stock is trending sideways.":wsmaG>-5?"10-week is below 40-week -- downtrend developing.":"10-week well below 40-week -- sustained downtrend."} />
+                          <TRow label="Price vs 200-day Average (long-term trend)"
+                            val={s200g!==null?(s200g>0?"+":"")+s200g.toFixed(2)+"%":null}
+                            desc={s200g===null?"Data unavailable.":s200g>10?"Stock is well above its long-term average -- strong bullish trend.":s200g>2?"Stock is above its long-term average -- healthy uptrend.":s200g>-10?"Stock is near its long-term average -- no clear direction.":s200g>-20?"Stock is below its long-term average -- weak trend.":"Stock is well below its long-term average -- strong downtrend."} />
+                          <TRow label="Price vs 50-day Average (medium-term trend)"
+                            val={s50g!==null?(s50g>0?"+":"")+s50g.toFixed(2)+"%":null}
+                            desc={s50g===null?"Data unavailable.":s50g>5?"Trading well above 50-day average -- medium-term momentum is strong.":s50g>1?"Above 50-day average -- medium-term uptrend intact.":s50g>-5?"Near 50-day average -- consolidating.":"Below 50-day average -- medium-term trend is weak."} />
+                          <TRow label="Golden/Death Cross (50-day vs 200-day MA)"
+                            val={crsG!==null?(crsG>0?"Golden Cross "+crsG.toFixed(1)+"%":"Death Cross "+Math.abs(crsG).toFixed(1)+"%"):null}
+                            desc={crsG===null?"Data unavailable.":crsG>5?"50-day is well above 200-day (Golden Cross) -- long-term bullish signal widely watched by investors.":crsG>0?"50-day is above 200-day -- mild Golden Cross, long-term trend positive.":crsG>-5?"50-day has crossed below 200-day (Death Cross) -- long-term bearish signal.":"50-day is well below 200-day (Death Cross) -- sustained bearish long-term signal."} />
+                          <TRow label={"52-Week Position ("+pos52pct+"% of range)"}
+                            val={pos52pct+"%"}
+                            desc={pos52pct>80?"Trading in the top 20% of its yearly range -- showing strong relative strength.":pos52pct>55?"Trading in the upper half of its yearly range -- price is healthy.":pos52pct>35?"Trading in the middle of its yearly range -- no strong directional bias.":pos52pct>15?"Trading in the lower half of its range -- relative weakness.":"Trading near its 52-week low -- significant weakness, but could be a contrarian opportunity."} />
+                        </div>
+                        <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de"}}>
+                          {"Trend signals use Massive.com data. Longer timeframe = more reliable signal. Not financial advice."}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* MOMENTUM TAB */}
+                  {insightTab === "momentum" && (function() {
+                    var ind=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
+                    var aggs=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
+                    var price=q?q.price:0;
+                    if (!ind||!price) return <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>Momentum data requires Massive.com feed.</div>;
+                    var rsi=ind.rsi14;
+                    var macdH=ind.macd?ind.macd.histogram:null;
+                    var macdLine=ind.macd?ind.macd.macd:null;
+                    var macdSig=ind.macd?ind.macd.signal:null;
+                    var ema20g=ind.ema20?(price-ind.ema20)/ind.ema20*100:null;
+                    var vol5=aggs.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs.slice(0,5).length,1);
+                    var vol20=aggs.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs.slice(0,20).length,1);
+                    var volRatio=vol20>0?vol5/vol20:1;
+                    var macdHist=ind.macdHistory||[];
+                    var macdDir=macdHist.length>=2?(macdHist[0]&&macdHist[1]&&macdHist[0].histogram>macdHist[1].histogram?"Rising":"Falling"):"Unknown";
+                    function MRow(p){ return (
+                      <div style={{padding:"10px 14px",borderBottom:"1px solid #f0ede6"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+                          <span style={{fontSize:12,fontWeight:600,color:"#333"}}>{p.label}</span>
+                          <span style={{fontSize:13,fontWeight:700,color:p.val===null?"#aaa":"#111"}}>{p.val===null?"N/A":p.val}</span>
+                        </div>
+                        <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{p.desc}</div>
+                      </div>
+                    ); }
+                    return (
+                      <div>
+                        <div style={{padding:"10px 14px",background:"#f5f2ec",borderRadius:"8px 8px 0 0",borderBottom:"1px solid #e0dbd0"}}>
+                          <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.08em"}}>Momentum</div>
+                          <div style={{fontSize:12,color:"#555",marginTop:2}}>How much energy is behind the current move?</div>
+                        </div>
+                        <div style={{border:"1px solid #e0dbd0",borderTop:"none",borderRadius:"0 0 8px 8px",marginBottom:16}}>
+                          <MRow label={"RSI -- Relative Strength Index ("+(rsi?rsi.toFixed(1):"N/A")+")"}
+                            val={rsi?rsi.toFixed(1):null}
+                            desc={rsi===null||rsi===undefined?"Data unavailable.":rsi>75?"RSI above 75 -- stock has been heavily bought and may be overheated. Often a signal to be cautious.":rsi>=50?"RSI between 50-75 -- healthy buying momentum, not overbought. Generally a positive sign.":rsi>=40?"RSI between 40-50 -- momentum is building but not yet strong. Could go either way.":rsi>=30?"RSI between 30-40 -- stock has been sold down. Potential for a bounce but trend is weak.":"RSI below 30 -- stock is oversold. Could be a buying opportunity but may continue falling."} />
+                          <MRow label={"MACD Histogram ("+(macdH!==null?macdH.toFixed(4):"N/A")+") -- "+macdDir}
+                            val={macdH!==null?macdH.toFixed(4):null}
+                            desc={macdH===null?"Data unavailable.":macdH>0&&macdDir==="Rising"?"MACD is positive and rising -- buying momentum is accelerating. Bullish signal.":macdH>0&&macdDir==="Falling"?"MACD is positive but fading -- upward momentum is slowing down. Watch closely.":macdH<0&&macdDir==="Rising"?"MACD is negative but improving -- selling pressure is easing. Potential early recovery.":"MACD is negative and falling -- selling momentum is accelerating. Bearish signal."} />
+                          <MRow label={"Price vs 20-day EMA (short-term momentum)"}
+                            val={ema20g!==null?(ema20g>0?"+":"")+ema20g.toFixed(2)+"%":null}
+                            desc={ema20g===null?"Data unavailable.":ema20g>5?"Well above 20-day average -- strong short-term momentum.":ema20g>1?"Above 20-day average -- short-term uptrend intact.":ema20g>-5?"Near 20-day average -- momentum is flat.":"Below 20-day average -- short-term momentum is weak."} />
+                          <MRow label={"Volume (5-day vs 20-day average)"}
+                            val={(volRatio*100).toFixed(0)+"%"}
+                            desc={volRatio>1.4?"Recent volume is "+Math.round(volRatio*100)+"% of normal -- significantly higher activity. Suggests conviction behind the move.":volRatio>1.1?"Volume slightly above average -- moderate interest. Move has some confirmation.":volRatio>0.9?"Volume near average -- normal activity, neither confirming nor denying the move.":"Volume below average -- low interest. Move may not have strong conviction behind it."} />
+                        </div>
+                        <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de"}}>
+                          {"Momentum signals use Massive.com real-time data. Not financial advice."}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* REVERSAL TAB */}
+                  {insightTab === "reversal" && (function() {
+                    var ind=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
+                    var aggs=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
+                    var price=q?q.price:0;
+                    var hi52=ov?ov.hi52:0; var lo52=ov?ov.lo52:0;
+                    var pos52=(hi52>lo52&&hi52>0)?(price-lo52)/(hi52-lo52):0.5;
+                    if (!ind||!price) return <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>Reversal data requires Massive.com feed.</div>;
+                    var rsiHist=ind.rsiHistory||[];
+                    var macdHist=ind.macdHistory||[];
+                    var vol5=aggs.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs.slice(0,5).length,1);
+                    var vol20=aggs.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs.slice(0,20).length,1);
+                    var volRatio=vol20>0?vol5/vol20:1;
+                    // Reversal signals with plain English explanations
+                    var revSignals = [
+                      {
+                        label:"RSI Price Divergence",
+                        active:(function(){ if(rsiHist.length<10||aggs.length<10) return false; var rPL=Math.min.apply(null,aggs.slice(0,5).map(function(a){return a.l;})); var pPL=Math.min.apply(null,aggs.slice(5,10).map(function(a){return a.l;})); var rRL=Math.min.apply(null,rsiHist.slice(0,5)); var pRL=Math.min.apply(null,rsiHist.slice(5,10)); return rPL<pPL&&rRL>pRL; })(),
+                        what:"Price is making new lows but the momentum indicator (RSI) is not. This gap often signals that selling is running out of steam.",
+                        why:"When sellers push price lower but momentum stops following, it often means the downtrend is losing strength. A reversal may be forming."
+                      },
+                      {
+                        label:"MACD Histogram Turning Up",
+                        active:(function(){ if(macdHist.length<3) return false; var h0=macdHist[0]&&macdHist[0].histogram,h1=macdHist[1]&&macdHist[1].histogram,h2=macdHist[2]&&macdHist[2].histogram; return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2; })(),
+                        what:"The MACD momentum indicator is still negative (bearish) but has been getting less negative for 3 or more days in a row.",
+                        why:"Selling pressure is easing. While still technically bearish, the trend is improving which can precede a full reversal."
+                      },
+                      {
+                        label:"Weekly SMA Cross Approaching",
+                        active:(function(){ if(!ind||!ind.wsma10||!ind.wsma40) return false; return ind.wsma10<ind.wsma40&&Math.abs(ind.wsma10-ind.wsma40)/ind.wsma40<0.05; })(),
+                        what:"The 10-week moving average is below the 40-week but within 5% of crossing above it.",
+                        why:"A cross of the 10-week above the 40-week is a bullish long-term signal. The stock may be approaching a major trend change."
+                      },
+                      {
+                        label:"RSI Base Forming",
+                        active:(function(){ if(rsiHist.length<3) return false; return rsiHist.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;}); })(),
+                        what:"The RSI momentum indicator has been stabilising in the 28-52 range for several days.",
+                        why:"After a sell-off, RSI stabilising in this zone (not going lower) often signals that selling has exhausted itself and a base is forming."
+                      },
+                      {
+                        label:"52-Week Low Base with RSI Recovery",
+                        active:pos52<0.20&&ind.rsi14!=null&&ind.rsi14>20&&ind.rsi14<45,
+                        what:"The stock is trading near its 52-week low (bottom 20% of its range) while the RSI is beginning to recover from oversold levels.",
+                        why:"Stocks near their yearly lows with improving momentum can signal that the worst selling is over. High risk but potentially high reward entry."
+                      },
+                    ];
+                    var activeCount = revSignals.filter(function(r){return r.active;}).length;
+                    var revLabel = activeCount>=4?"Strong Signal":activeCount>=3?"Moderate Signal":activeCount>=1?"Weak Signal":"No Signal";
+                    var revBg = activeCount>=3?"#EAF3DE":activeCount>=1?"#FAEEDA":"#f5f5f5";
+                    var revFg = activeCount>=3?"#1a6a1a":activeCount>=1?"#b88000":"#888";
+                    var revBd = activeCount>=3?"#7abd00":activeCount>=1?"#d4a800":"#ddd";
+                    return (
+                      <div>
+                        <div style={{padding:"12px 14px",background:revBg,borderRadius:8,marginBottom:14,border:"0.5px solid "+revBd}}>
+                          <div style={{fontSize:10,color:revFg,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Reversal Detection</div>
+                          <div style={{fontSize:15,fontWeight:700,color:revFg}}>{revLabel}</div>
+                          <div style={{fontSize:11,color:revFg,opacity:0.8,marginTop:2}}>{activeCount + " of 5 signals active"}</div>
+                        </div>
+                        {revSignals.map(function(r,i){
+                          return (
+                            <div key={i} style={{marginBottom:10,padding:"10px 14px",background:r.active?"#f0f7e6":"#faf8f4",borderRadius:8,border:"0.5px solid "+(r.active?"#b0d080":"#e0dbd0")}}>
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                                <div style={{width:10,height:10,borderRadius:"50%",background:r.active?"#7abd00":"#ddd",flexShrink:0}}></div>
+                                <span style={{fontSize:12,fontWeight:700,color:r.active?"#1a6a1a":"#888"}}>{r.label}</span>
+                                <span style={{fontSize:10,color:r.active?"#1a6a1a":"#aaa",marginLeft:"auto"}}>{r.active?"ACTIVE":"Not detected"}</span>
+                              </div>
+                              <div style={{fontSize:11,color:"#555",lineHeight:1.5,marginBottom:4}}><span style={{fontWeight:600}}>What: </span>{r.what}</div>
+                              <div style={{fontSize:11,color:"#777",lineHeight:1.5}}><span style={{fontWeight:600}}>Why it matters: </span>{r.why}</div>
+                            </div>
+                          );
+                        })}
+                        <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de",marginTop:8}}>
+                          {"Reversal signals are early warning indicators only. They do not guarantee a price reversal. Not financial advice."}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {insightTab === "signal" && (function() {
                     // Market Signal tab -- uses revised 8-signal scoring (weekly/monthly horizon)
                     // Same methodology as Technical Analysis scoring block
