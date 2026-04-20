@@ -879,7 +879,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     return (
       <div style={{ minHeight:"100vh", background:"#0e0e0c", fontFamily:FONT, display:"flex", flexDirection:"column" }}>
         <nav style={{ height:52, padding:"0 24px", display:"flex", alignItems:"center", gap:12, background:LIME }}>
-          <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", color:"#0e0e0c", fontWeight:800, fontSize:13, fontFamily:FONT }}>
+          <button onClick={onBack} style={{ background:"none", border:"0.5px solid #2c2c2e", cursor:"pointer", color:"#0e0e0c", fontWeight:800, fontSize:13, fontFamily:FONT }}>
             {"< Back"}
           </button>
           <span style={{ fontWeight:800, fontSize:15, color:"#0e0e0c" }}>nervousgeek.com</span>
@@ -892,7 +892,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               <br />
               {"nervousgeek.com covers all S&P 500 companies. Try a different ticker."}
             </div>
-            <button onClick={onBack} style={{ width:"100%", padding:"14px", borderRadius:50, border:"none", background:LIME, color:"#0e0e0c", fontWeight:800, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
+            <button onClick={onBack} style={{ width:"100%", padding:"14px", borderRadius:50, border:"0.5px solid #2c2c2e", background:LIME, color:"#0e0e0c", fontWeight:800, fontSize:14, fontFamily:FONT, cursor:"pointer" }}>
               Back to search
             </button>
           </div>
@@ -2331,7 +2331,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                 onBlur={function(){ setTimeout(function(){ setNavFocus(false); }, 180); }}
                 onKeyDown={function(e){ if(e.key==="Enter") navGo(); }}
                 placeholder="Search ticker or company..."
-                style={{ flex:1, border:"none", outline:"none", background:"transparent", fontSize:12, color:"#333", fontFamily:FONT }}
+                style={{ flex:1, border:"0.5px solid #2c2c2e", outline:"none", background:"transparent", fontSize:12, color:"#333", fontFamily:FONT }}
               />
               {navInput && <span onClick={function(){ setNavInput(""); }} style={{ cursor:"pointer", color:"#bbb", fontSize:15, lineHeight:1, flexShrink:0 }}>{String.fromCharCode(0xD7)}</span>}
             </div>
@@ -2554,7 +2554,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               var loading = !props.value;
               var flat = props.flat; // flat=true: no background, just border
               var bg     = flat ? "transparent" : (loading ? "#222" : c.bg);
-              var border = flat ? "transparent" : (loading ? "#333" : c.border);
+              var border = flat ? "#2c2c2e" : (loading ? "#333" : c.border);
               var fg     = loading ? "#555" : c.fg;
               return (
                 <div onClick={props.tabId ? function(){ window.__goToTab && window.__goToTab(props.tabId); } : undefined} style={{ padding:"9px 12px", background:bg, border:"0.5px solid "+border, borderRadius:8, opacity:loading?0.6:1, boxSizing:"border-box", minHeight:72, display:"flex", flexDirection:"column", cursor:props.tabId?"pointer":"default" }}>
@@ -2818,7 +2818,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   {(function() {
                     var loading = !ivLabel; var c = ivColors;
                     return (
-                      <div onClick={function(){ window.__goToTab && window.__goToTab("intrinsic"); }} style={{ padding:"9px 12px", background:"transparent", border:"none", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                      <div onClick={function(){ window.__goToTab && window.__goToTab("intrinsic"); }} style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid #2c2c2e", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
                         <div style={{ fontSize:9, color:loading?"#555":c.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Intrinsic Value</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {loading && !ov
