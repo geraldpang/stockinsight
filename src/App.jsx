@@ -2554,7 +2554,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               var loading = !props.value;
               var flat = props.flat; // flat=true: no background, just border
               var bg     = flat ? "transparent" : (loading ? "#222" : c.bg);
-              var border = flat ? (loading ? "#333" : c.border) : (loading ? "#333" : c.border);
+              var border = flat ? "transparent" : (loading ? "#333" : c.border);
               var fg     = loading ? "#555" : c.fg;
               return (
                 <div onClick={props.tabId ? function(){ window.__goToTab && window.__goToTab(props.tabId); } : undefined} style={{ padding:"9px 12px", background:bg, border:"0.5px solid "+border, borderRadius:8, opacity:loading?0.6:1, boxSizing:"border-box", minHeight:72, display:"flex", flexDirection:"column", cursor:props.tabId?"pointer":"default" }}>
@@ -2818,7 +2818,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   {(function() {
                     var loading = !ivLabel; var c = ivColors;
                     return (
-                      <div onClick={function(){ window.__goToTab && window.__goToTab("intrinsic"); }} style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid "+(loading?"#333":c.border), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                      <div onClick={function(){ window.__goToTab && window.__goToTab("intrinsic"); }} style={{ padding:"9px 12px", background:"transparent", border:"none", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
                         <div style={{ fontSize:9, color:loading?"#555":c.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Intrinsic Value</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {loading && !ov
@@ -2896,7 +2896,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   return (
                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
                       <div onClick={function(){ window.__goToTab && window.__goToTab("trend"); }}
-                        style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid "+(_hasTech?_trendCol.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                        style={{ padding:"9px 12px", background:"transparent", border:"none", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
                         <div style={{ fontSize:9, color:_hasTech?_trendCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Trend</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {addlLoading && !_hasTech
@@ -2908,7 +2908,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         {_hasTech && <div style={{ fontSize:10, color:_trendCol.fg, marginTop:3, opacity:0.75 }}>{_trendScore + "/100"}</div>}
                       </div>
                       <div onClick={function(){ window.__goToTab && window.__goToTab("momentum"); }}
-                        style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid "+(_hasTech?_momCol.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                        style={{ padding:"9px 12px", background:"transparent", border:"none", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
                         <div style={{ fontSize:9, color:_hasTech?_momCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Momentum</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {addlLoading && !_hasTech
@@ -2920,7 +2920,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         {_hasTech && <div style={{ fontSize:10, color:_momCol.fg, marginTop:3, opacity:0.75 }}>{_momScore + "/100"}</div>}
                       </div>
                       <div onClick={function(){ window.__goToTab && window.__goToTab("reversal"); }}
-                        style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid "+(_hasTech?_revCol.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                        style={{ padding:"9px 12px", background:"transparent", border:"none", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
                         <div style={{ fontSize:9, color:_hasTech?_revCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Reversal Detection</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {addlLoading && !_hasTech
