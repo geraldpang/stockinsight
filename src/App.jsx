@@ -935,7 +935,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   // -- AI Analysis (Fundamental + Technical) -----------------------------
   // Only for paid members. Two separate calls with different TTLs.
   function runFundAi(symA, ovA, parsedA, valsA, oracleA, priceA, insightCacheA) {
-    if (!symA || !window.__isPaid) return;
+    if (!symA) return;
     if (window.__aiFundRunning === symA) return;
     window.__aiFundRunning = symA;
     setAiFundLoading(true);
@@ -1067,7 +1067,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   }
 
   function runTechAi(symA, massiveA, priceA, msDots2, msLabel2) {
-    if (!symA || !window.__isPaid) return;
+    if (!symA) return;
     if (window.__aiTechRunning === symA) return;
     window.__aiTechRunning = symA;
     setAiTechLoading(true);
@@ -1652,12 +1652,18 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         if (data && (data.news || data.ticker || data.dividends || data.indicators || data.aggs)) {
           setMassiveInfo(data);
           window.__curMassive = data;
-          // Fire Tech AI immediately when massive arrives -- use sym from closure
-          if (window.__isPaid && !window.__aiTechRunning && window.__aiTechDone !== sym) {
-            var _tSym = sym; var _tData = data;
-            setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech TRIGGER (massive): "+_tSym, data:{price:window.__curPrice||0} }]); });
+          // Fire Tech AI when massive arrives -- wait for isPaid if needed
+          var _tSym = sym; var _tData = data;
+          var _techWait = 0;
+          var _techWaitInterval = setInterval(function() {
+            _techWait++;
+            if (_techWait > 15) { clearInterval(_techWaitInterval); return; } // give up after 30s
+            if (window.__aiTechDone === _tSym || window.__aiTechRunning === _tSym) { clearInterval(_techWaitInterval); return; }
+            if (!window.__isPaid) return; // wait for auth
+            clearInterval(_techWaitInterval);
+            setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech TRIGGER (massive): "+_tSym, data:{price:window.__curPrice||0, waitAttempts:_techWait} }]); });
             runTechAi(_tSym, _tData, window.__curPrice||0, window.__msDots2||0, window.__msLabel2||"");
-          }
+          }, 2000);
         } else {
           debugEntries.push({ time: new Date().toISOString(), label: "Massive data empty or error", data: data });
         }
@@ -1695,8 +1701,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       // Stop if already running or result stored in window
       if (window.__aiFundRunning === symSnap) return;
       if (window.__aiFundDone === symSnap) { clearInterval(fundInterval); return; }
-      // Fallback: fire tech AI if massive is ready but tech hasn't started
-      if (window.__curMassive && !window.__aiTechRunning && window.__aiTechDone !== symSnap) {
+      // Fallback: fire tech AI if massive is ready, isPaid confirmed, and tech hasn't started
+      if (window.__curMassive && window.__isPaid && !window.__aiTechRunning && window.__aiTechDone !== symSnap) {
         setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech TRIGGER (fallback): "+symSnap }]); });
         runTechAi(symSnap, window.__curMassive, window.__curPrice||0, window.__msDots2||0, window.__msLabel2||"");
       }
