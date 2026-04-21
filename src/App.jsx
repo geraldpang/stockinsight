@@ -1132,19 +1132,30 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           (_volR2?"- Volume: recent trading volume is "+_volR2+" -- "+(parseInt(_volR2)>120?"above average activity, confirms the move":parseInt(_volR2)>90?"normal activity":"below average, move may lack conviction")+"\n":"")+
           "\nREVERSAL SIGNALS ("+activeRevs.length+" of 5 active):\n"+
           (activeRevs.length>0?"- Active: "+activeRevs.join(", ")+"\n":"- No reversal signals currently detected\n")+
-          "\n\nRespond in EXACTLY this format:\n"+
+          "\n\nRespond in EXACTLY this format. Write for a layman investor -- plain English only, no jargon without explanation:\n"+
           "Technical Verdict: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish\n"+
           "Short-term (1-3m): Buy / Hold / Avoid\n"+
           "Confidence: Low / Medium / High\n"+
-          "Key Level: One sentence on key support or resistance.\n"+
-          "Summary (max 50 words): ...";
+          "Key Level: 1-2 sentences -- what price level to watch and what happens if it breaks above or below in plain English.\n"+
+          "Key Strength: 1-2 sentences -- what the chart signals are saying is positive.\n"+
+          "Key Risk: 1-2 sentences -- what the chart signals are saying is a concern.\n"+
+          "Summary (2-3 sentences, plain English): First: is the stock trending up, down, or sideways. Second: what the key signals mean simply. Third: is now a good or risky time to buy based on the chart.";
         setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech MISS: "+symA+" -- calling Claude" }]); });
-        fetch("/anthropic",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:300,messages:[{role:"user",content:tprompt}]})})
+        fetch("/anthropic",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:600,messages:[{role:"user",content:tprompt}]})})
           .then(function(r){return r.json();})
           .then(function(d2){
             var text=d2.content&&d2.content[0]?d2.content[0].text:"";
             function ex(re){var m=text.match(re);return m?m[1].trim():"";}
-            var result={verdict:ex(/Technical Verdict:\s*(.+)/),stVerdict:ex(/Short-term[^:]*:\s*(.+)/),confidence:ex(/Confidence:\s*(.+)/),keyLevel:ex(/Key Level:\s*(.+)/),summary:ex(/Summary[^:]*:\s*([\s\S]+)/).slice(0,600),promptSent:tprompt};
+            var result={
+              verdict:ex(/Technical Verdict:\s*(.+)/),
+              stVerdict:ex(/Short-term[^:]*:\s*(.+)/),
+              confidence:ex(/Confidence:\s*(.+)/),
+              keyLevel:ex(/Key Level:\s*([\s\S]+?)(?=Key Strength:|Key Risk:|Summary|$)/).trim().slice(0,300),
+              strength:ex(/Key Strength:\s*([\s\S]+?)(?=Key Risk:|Summary|$)/).trim().slice(0,300),
+              risk:ex(/Key Risk:\s*([\s\S]+?)(?=Summary|$)/).trim().slice(0,300),
+              summary:ex(/Summary[^:]*:\s*([\s\S]+)/).slice(0,600),
+              promptSent:tprompt
+            };
             setAiTechResult(result);
             setAiTechLoading(false);
             window.__aiTechRunning = null;
@@ -1641,17 +1652,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         if (data && (data.news || data.ticker || data.dividends || data.indicators || data.aggs)) {
           setMassiveInfo(data);
           window.__curMassive = data;
-          // Fire Tech AI immediately when massive arrives
-          if (window.__isPaid && !window.__aiTechRunning && !window.__aiTechDone) {
-            var _techSym = window.__curOv ? (window.__curOv._sym || "") : "";
-            var _techPrice = window.__curPrice || 0;
-            setTimeout(function() {
-              var _ts = window.__curOv ? (window.__curOv._sym || "") : "";
-              if (!_ts) return;
-              if (window.__aiTechRunning === _ts || window.__aiTechDone === _ts) return;
-              setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech TRIGGER (massive): "+_ts, data:{price:window.__curPrice||0} }]); });
-              runTechAi(_ts, data, window.__curPrice||0, window.__msDots2||0, window.__msLabel2||"");
-            }, 100);
+          // Fire Tech AI immediately when massive arrives -- use sym from closure
+          if (window.__isPaid && !window.__aiTechRunning && window.__aiTechDone !== sym) {
+            var _tSym = sym; var _tData = data;
+            setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech TRIGGER (massive): "+_tSym, data:{price:window.__curPrice||0} }]); });
+            runTechAi(_tSym, _tData, window.__curPrice||0, window.__msDots2||0, window.__msLabel2||"");
           }
         } else {
           debugEntries.push({ time: new Date().toISOString(), label: "Massive data empty or error", data: data });
@@ -4438,6 +4443,18 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                             <div>
                               <VerdictBanner title="Technical Verdict" verdict={aiTechResult.verdict} confidence={aiTechResult.confidence}
                                 sub={aiTechResult.stVerdict ? "Short-term (1-3m): " + aiTechResult.stVerdict : null} />
+                              {aiTechResult.strength && (
+                                <div style={{ marginBottom:8, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
+                                  <div style={{ fontSize:10, color:"#1a6a1a", fontWeight:700, marginBottom:2 }}>KEY STRENGTH</div>
+                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.6 }}>{aiTechResult.strength}</div>
+                                </div>
+                              )}
+                              {aiTechResult.risk && (
+                                <div style={{ marginBottom:8, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
+                                  <div style={{ fontSize:10, color:"#c03030", fontWeight:700, marginBottom:2 }}>KEY RISK</div>
+                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.6 }}>{aiTechResult.risk}</div>
+                                </div>
+                              )}
                               {aiTechResult.keyLevel && (
                                 <div style={{ marginBottom:8, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
                                   <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:2 }}>KEY LEVEL</div>
@@ -4460,7 +4477,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                             </div>
                           )}
                           {!aiTechLoading && !aiTechResult && (
-                            <div style={{ textAlign:"center", padding:"20px 0", color:"#aaa", fontSize:12 }}>Technical AI data not yet available.</div>
+                            <div style={{ textAlign:"center", padding:"20px 0" }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                                <div style={{ width:8, height:8, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div>
+                                <span style={{ fontSize:12, color:"#555" }}>Analysing technical data...</span>
+                              </div>
+                            </div>
                           )}
                         </div>
                       </div>
