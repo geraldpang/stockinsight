@@ -1071,16 +1071,20 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
     if (window.__aiTechRunning === symA) return;
     window.__aiTechRunning = symA;
     setAiTechLoading(true);
+    setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech: checking cache for "+symA }]); });
     fetch("/cache?sym=" + symA + "&tab=ai-tech")
       .then(function(r){ return r.json(); })
       .then(function(d) {
+        setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech cache result: "+symA, data:{hit:!!(d&&d.hit), ok:!!(d&&d.ok)} }]); });
         if (d && d.hit && d.value) {
           try {
             var cached = JSON.parse(d.value);
             setAiTechResult(cached);
             setAiTechCachedAt(d.cachedAt||null);
             setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech HIT: "+symA }]); });
-          } catch(e) {}
+          } catch(e) {
+            setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech cache parse error: "+String(e) }]); });
+          }
           setAiTechLoading(false);
           window.__aiTechRunning = null;
           window.__aiTechDone = symA;
@@ -1163,8 +1167,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             fetch("/cache?sym="+symA+"&tab=ai-tech",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(result)})
               .then(function(r){return r.json();})
               .then(function(wr){setAiTechCachedAt(wr.cachedAt||null);setDebugLog(function(p){return p.concat([{time:new Date().toISOString(),label:"AI Tech WRITE: "+symA+(wr.ok?" OK":" FAIL")}]);});});
-          }).catch(function(e){setAiTechLoading(false);window.__aiTechRunning=null;});
-      }).catch(function(e){setAiTechLoading(false);window.__aiTechRunning=null;});
+          }).catch(function(e){
+            setAiTechLoading(false); window.__aiTechRunning=null;
+            setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech Claude ERROR: "+String(e) }]); });
+          });
+      }).catch(function(e){
+        setAiTechLoading(false); window.__aiTechRunning=null;
+        setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech cache fetch ERROR: "+String(e) }]); });
+      });
   }
 
   function runAiAnalysis(symA, ovA, massiveA, parsedA, valsA, oracleA, priceA, msDots2, msLabel2, insightCacheA) {
