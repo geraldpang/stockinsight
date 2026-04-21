@@ -1090,37 +1090,42 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           window.__aiTechDone = symA;
           return;
         }
-        var ind=massiveA.indicators||{};
-        var rsi=ind.rsi14||0;
-        var rsiCond=rsi>70?"Overbought":rsi<30?"Oversold":"Neutral";
-        var sma50=ind.sma50||0; var sma200=ind.sma200||0;
-        var macdH=ind.macdHistory&&ind.macdHistory.length>0?ind.macdHistory[0]:null;
-        var macdDir=macdH?(macdH.histogram>0?"Bullish":"Bearish"):"Unknown";
-        var pSma50=sma50>0&&priceA>0?((priceA-sma50)/sma50*100).toFixed(1):null;
-        var pSma200=sma200>0&&priceA>0?((priceA-sma200)/sma200*100).toFixed(1):null;
-        var rsiH=ind.rsiHistory||[]; var macdHist=ind.macdHistory||[]; var aggs=massiveA.aggs||[];
-        var revNames=["RSI Base","MACD Turning","Volume Surge","MA Reclaim","Price Structure"];
-        var revArr=[
-          rsiH.length>=5&&rsiH[0]>rsiH[1]&&rsiH[1]<35,
-          macdHist.length>=2&&macdHist[0].histogram>0&&macdHist[1].histogram<0,
-          aggs.length>=2&&aggs[0].v>aggs[1].v*1.5,
-          sma50>0&&priceA>sma50&&aggs.length>=2&&aggs[1].l<sma50,
-          aggs.length>=5&&aggs[0].h>Math.max.apply(null,aggs.slice(1,5).map(function(a){return a.h;})),
-        ];
-        var activeRevs=revNames.filter(function(_,i){return revArr[i];});
-        var _wsmaG2=massiveA.indicators&&massiveA.indicators.wsma10&&massiveA.indicators.wsma40?((massiveA.indicators.wsma10-massiveA.indicators.wsma40)/massiveA.indicators.wsma40*100).toFixed(1):null;
-        var _crsG2=massiveA.indicators&&massiveA.indicators.sma50&&massiveA.indicators.sma200?((massiveA.indicators.sma50-massiveA.indicators.sma200)/massiveA.indicators.sma200*100).toFixed(1):null;
-        var _hi52=massiveA._hi52||0; var _lo52=massiveA._lo52||0;
-        var _pos52pct=(_hi52>_lo52&&priceA>0)?Math.round((priceA-_lo52)/(_hi52-_lo52)*100):null;
-        var _macdLine=massiveA.indicators&&massiveA.indicators.macd?massiveA.indicators.macd.macd:null;
-        var _macdSig=massiveA.indicators&&massiveA.indicators.macd?massiveA.indicators.macd.signal:null;
-        var _macdHArr=massiveA.indicators&&massiveA.indicators.macdHistory?massiveA.indicators.macdHistory:[];
-        var _macdDir2=_macdHArr.length>=2?(_macdHArr[0]&&_macdHArr[1]&&_macdHArr[0].histogram>_macdHArr[1].histogram?"rising (buying pressure increasing)":"falling (buying pressure decreasing)"):"unknown";
-        var _ema20g2=massiveA.indicators&&massiveA.indicators.ema20?((priceA-massiveA.indicators.ema20)/massiveA.indicators.ema20*100).toFixed(1):null;
-        var _aggs2=massiveA.aggs||[];
-        var _vol5b=_aggs2.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(_aggs2.slice(0,5).length,1);
-        var _vol20b=_aggs2.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(_aggs2.slice(0,20).length,1);
-        var _volR2=_vol20b>0?(_vol5b/_vol20b*100).toFixed(0)+"% of normal":null;
+        // Safe helpers -- nothing here can throw
+        function _sf(v,dec){ try{ return (v!=null&&!isNaN(v)&&isFinite(v))?parseFloat(v).toFixed(dec||2):"N/A"; }catch(e){return "N/A";} }
+        function _sn(v){ try{ return (v!=null&&!isNaN(v)&&isFinite(v))?parseFloat(v):" N/A"; }catch(e){return null;} }
+        var _ind={}; try{ _ind=massiveA.indicators||{}; }catch(e){}
+        var _aggs2=[]; try{ _aggs2=massiveA.aggs||[]; }catch(e){}
+        var rsi=null; try{ rsi=_ind.rsi14!=null?parseFloat(_ind.rsi14):null; }catch(e){}
+        var rsiCond=rsi==null?"N/A":rsi>70?"Overbought":rsi<30?"Oversold":"Neutral";
+        var sma50=null; try{ sma50=_ind.sma50>0?_ind.sma50:null; }catch(e){}
+        var sma200=null; try{ sma200=_ind.sma200>0?_ind.sma200:null; }catch(e){}
+        var ema20=null; try{ ema20=_ind.ema20>0?_ind.ema20:null; }catch(e){}
+        var wsma10=null; try{ wsma10=_ind.wsma10>0?_ind.wsma10:null; }catch(e){}
+        var wsma40=null; try{ wsma40=_ind.wsma40>0?_ind.wsma40:null; }catch(e){}
+        var macdHist=null; try{ macdHist=_ind.macd&&_ind.macd.histogram!=null?parseFloat(_ind.macd.histogram):null; }catch(e){}
+        var macdHistArr=[]; try{ macdHistArr=Array.isArray(_ind.macdHistory)?_ind.macdHistory:[]; }catch(e){}
+        var rsiHistArr=[]; try{ rsiHistArr=Array.isArray(_ind.rsiHistory)?_ind.rsiHistory:[]; }catch(e){}
+        var pSma50=null; try{ pSma50=(sma50&&priceA>0)?((priceA-sma50)/sma50*100).toFixed(1):null; }catch(e){}
+        var pSma200=null; try{ pSma200=(sma200&&priceA>0)?((priceA-sma200)/sma200*100).toFixed(1):null; }catch(e){}
+        var _wsmaG2=null; try{ _wsmaG2=(wsma10&&wsma40)?((wsma10-wsma40)/wsma40*100).toFixed(1):null; }catch(e){}
+        var _crsG2=null; try{ _crsG2=(sma50&&sma200)?((sma50-sma200)/sma200*100).toFixed(1):null; }catch(e){}
+        var _ema20g2=null; try{ _ema20g2=(ema20&&priceA>0)?((priceA-ema20)/ema20*100).toFixed(1):null; }catch(e){}
+        var _hi52=0; try{ _hi52=massiveA._hi52||ov&&ov.hi52||0; }catch(e){}
+        var _lo52=0; try{ _lo52=massiveA._lo52||ov&&ov.lo52||0; }catch(e){}
+        var _pos52pct=null; try{ _pos52pct=(_hi52>_lo52&&priceA>0)?Math.round((priceA-_lo52)/(_hi52-_lo52)*100):null; }catch(e){}
+        var _macdDir2="unknown"; try{ _macdDir2=macdHistArr.length>=2&&macdHistArr[0]&&macdHistArr[1]&&macdHistArr[0].histogram!=null&&macdHistArr[1].histogram!=null?(parseFloat(macdHistArr[0].histogram)>parseFloat(macdHistArr[1].histogram)?"rising (buying pressure increasing)":"falling (buying pressure decreasing)"):"unknown"; }catch(e){}
+        var _volR2=null; try{ var _v5=_aggs2.slice(0,5).reduce(function(s,a){return s+((a&&a.v)||0);},0)/Math.max(_aggs2.slice(0,5).length,1); var _v20=_aggs2.slice(0,20).reduce(function(s,a){return s+((a&&a.v)||0);},0)/Math.max(_aggs2.slice(0,20).length,1); _volR2=_v20>0?(_v5/_v20*100).toFixed(0)+"% of normal":null; }catch(e){}
+        var macdDir="Unknown"; try{ macdDir=macdHist!=null?(macdHist>0?"Bullish":"Bearish"):"Unknown"; }catch(e){}
+        var activeRevs=[]; try{
+          var _rArr=[
+            rsiHistArr.length>=5&&rsiHistArr[0]>rsiHistArr[1]&&rsiHistArr[1]<35,
+            macdHistArr.length>=2&&macdHistArr[0]&&macdHistArr[1]&&parseFloat(macdHistArr[0].histogram)>0&&parseFloat(macdHistArr[1].histogram)<0,
+            _aggs2.length>=2&&_aggs2[0]&&_aggs2[1]&&_aggs2[0].v>_aggs2[1].v*1.5,
+            sma50&&priceA>sma50&&_aggs2.length>=2&&_aggs2[1]&&_aggs2[1].l<sma50,
+            _aggs2.length>=5&&_aggs2[0]&&_aggs2[0].h>Math.max.apply(null,_aggs2.slice(1,5).map(function(a){return a&&a.h||0;})),
+          ];
+          activeRevs=["RSI Base","MACD Turning","Volume Surge","MA Reclaim","Price Structure"].filter(function(_,i){return _rArr[i];});
+        }catch(e){}
         var tprompt="You are a senior technical analyst. Analyse "+symA+" based ONLY on the data below. Write for a layman investor -- no jargon without explanation.\n\n"+
           "TREND / PRICE ACTION:\n"+
           "- Current Price: $"+(priceA||0).toFixed(2)+"\n"+
@@ -1131,7 +1136,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           (_pos52pct!==null?"- 52-week position: "+_pos52pct+"% of yearly range -- trading in the "+((_pos52pct>70)?"top 30% (strength)":(_pos52pct>40)?"middle":"bottom 40% (weakness)")+" of its range\n":"")+
           "\nMOMENTUM:\n"+
           "- RSI: "+(rsi||"N/A")+" -- "+(rsi?rsiCond+(" -- "+(rsi>75?"stock has been heavily bought, may be overheated":rsi>=50?"buying momentum is healthy and not overheated":rsi>=30?"momentum is weak, buyers not in control":"deeply oversold, heavily sold down")):"data unavailable")+"\n"+
-          "- MACD: histogram is "+_macdDir2+(macdDir&&macdH!==null?" (value: "+macdH.toFixed(4)+")":"")+"\n"+
+          "- MACD: histogram is "+_macdDir2+(macdHist!=null?" (value: "+macdHist.toFixed(4)+")":"")+"\n"+
           (_ema20g2?"- Price vs 20-day average: "+(_ema20g2>0?"+":"")+_ema20g2+"% -- short-term momentum is "+(_ema20g2>1?"positive":"negative or flat")+"\n":"")+
           (_volR2?"- Volume: recent trading volume is "+_volR2+" -- "+(parseInt(_volR2)>120?"above average activity, confirms the move":parseInt(_volR2)>90?"normal activity":"below average, move may lack conviction")+"\n":"")+
           "\nREVERSAL SIGNALS ("+activeRevs.length+" of 5 active):\n"+
