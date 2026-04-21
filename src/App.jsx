@@ -1695,6 +1695,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       // Stop if already running or result stored in window
       if (window.__aiFundRunning === symSnap) return;
       if (window.__aiFundDone === symSnap) { clearInterval(fundInterval); return; }
+      // Fallback: fire tech AI if massive is ready but tech hasn't started
+      if (window.__curMassive && !window.__aiTechRunning && window.__aiTechDone !== symSnap) {
+        setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech TRIGGER (fallback): "+symSnap }]); });
+        runTechAi(symSnap, window.__curMassive, window.__curPrice||0, window.__msDots2||0, window.__msLabel2||"");
+      }
       var _ov2  = window.__curOv || null;
       var _mass = window.__curMassive || null;
       if (!_ov2 || !_mass) return;
