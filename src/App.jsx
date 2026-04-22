@@ -1046,7 +1046,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           "Key Risk: 1-2 sentences in plain English -- no jargon. Explain the biggest danger and what could go wrong for an everyday investor.\n"+
           "Summary (2-3 sentences): Write as if explaining to a friend who knows nothing about stocks. First sentence: what the company does and whether it looks like a good or bad investment right now in plain English. Second sentence: explain what the key numbers mean in simple terms (e.g. instead of P/E of 28x say the stock costs $28 for every $1 of profit it makes). Third sentence: what should the investor do or watch out for.";
         setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund MISS: "+symA+" -- calling Claude" }]); });
-        fetch("/anthropic",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:800, messages:[{role:"user",content:prompt}] }) })
+        fetch("/anthropic",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:1200, messages:[{role:"user",content:prompt}] }) })
           .then(function(r){ return r.json(); })
           .then(function(d2){
             var text=d2.content&&d2.content[0]?d2.content[0].text:"";
@@ -1054,7 +1054,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             var result={ verdict:ex(/Fundamental Verdict:\s*(.+)/), confidence:ex(/Confidence:\s*(.+)/),
               strength:ex(/Key Strength:\s*([\s\S]+?)(?=Key Risk:|Summary|$)/).trim().slice(0,400),
               risk:ex(/Key Risk:\s*([\s\S]+?)(?=Summary|$)/).trim().slice(0,400),
-              summary:ex(/Summary[^:]*:\s*([\s\S]+)/).slice(0,600), promptSent:prompt };
+              summary:ex(/Summary[^:]*:\s*([\s\S]+)/).slice(0,1200), promptSent:prompt };
             setAiFundResult(result);
             setAiFundLoading(false);
             window.__aiFundRunning = null;
