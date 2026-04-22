@@ -3291,7 +3291,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             }
 
             var tabContent = insightCache[insightTab];
-            var _noFetch   = ["business","addlinfo","debug","signal","admin"];
+            var _noFetch   = ["business","addlinfo","debug","signal","admin","financial","intrinsic","aianalysis","aiinsight","trend","momentum","reversal"];
             var isLoading  = !tabContent && _noFetch.indexOf(insightTab) === -1;           return (
               <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden" }}>
 
