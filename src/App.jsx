@@ -2633,8 +2633,34 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             var finParsed  = parsedInsights["financial"] || {};
             var moatRating = moatParsed.classification || null;
             var moatScore  = moatParsed.score || 0;
-            var finRating  = finParsed.classification || null;
-            var finScore   = finParsed.score || 0;
+            // Financial Strength: compute directly from ov (no AI needed)
+            var finRating = null; var finScore = 0;
+            if (ov) {
+              var _fgm=ov.grossMargin||0, _fom=ov.opMargin||0, _fnm=ov.netMargin||0;
+              var _froe=ov.roe||0, _fcr=ov.currentRatio||0, _fqr=ov.quickRatio||0;
+              var _frg=ov.revGrowth||0, _fde=ov.de||0, _ffcf=ov.fcfRaw||0;
+              var _sec=ov.sector||"";
+              var _isTechF=_sec.includes("Technology")||_sec.includes("Communication");
+              var _isFinF=_sec.includes("Financial"); var _isHcF=_sec.includes("Health");
+              var _isRetF=_sec.includes("Consumer")||_sec.includes("Retail");
+              var _isUtlF=_sec.includes("Utilities")||_sec.includes("Real Estate");
+              function _fscore(v,t){ if(!v||v===0) return 0; for(var i=0;i<t.length;i++){if(v>=t[i])return t.length-i;} return 1; }
+              var _gs=[
+                _fscore(_fgm, _isTechF?[60,40,25,10]:_isFinF?[40,25,15,5]:_isHcF?[25,15,8,3]:_isRetF?[35,20,10,5]:_isUtlF?[50,35,20,10]:[45,30,15,5]),
+                _fscore(_fom, _isTechF?[30,15,5,0]:_isFinF?[30,20,10,5]:_isHcF?[8,5,3,0]:_isRetF?[8,4,2,0]:_isUtlF?[20,12,6,2]:[15,8,3,0]),
+                _fscore(_fnm, _isTechF?[20,10,5,0]:_isFinF?[20,12,6,0]:_isHcF?[6,3,2,0]:_isRetF?[5,3,1,0]:_isUtlF?[15,8,4,0]:[10,5,2,0]),
+                _fscore(_froe,_isTechF?[25,15,8,0]:_isFinF?[12,8,5,0]:_isHcF?[15,10,6,0]:_isRetF?[20,12,6,0]:_isUtlF?[12,8,4,0]:[18,10,5,0]),
+                _fscore(_fcr, (_isFinF||_isHcF||_isUtlF)?[1.2,1.0,0.8,0.5]:[1.8,1.3,1.0,0.5]),
+                _fscore(_fqr, (_isFinF||_isHcF)?[1.0,0.8,0.6,0.3]:[1.2,0.8,0.5,0.3]),
+                _fscore(_frg, _isTechF?[20,10,5,0]:_isUtlF?[8,5,2,0]:_isFinF?[10,6,3,0]:[12,7,3,0]),
+                _ffcf>0?(_ffcf>10e9?5:_ffcf>1e9?4:3):0,
+                _fde>0?(_fde<0.5?5:_fde<1?4:_fde<2?3:_fde<3?2:1):0,
+              ].filter(function(s){return s>0;});
+              var _gavg=_gs.length>0?_gs.reduce(function(a,b){return a+b;},0)/_gs.length:0;
+              finRating=_gavg>=4?"Exceptional":_gavg>=3?"Strong":_gavg>=2?"Moderate":_gavg>=1?"Weak":_gavg>0?"Poor":null;
+              finScore=_gavg>=4?5:_gavg>=3?4:_gavg>=2?3:_gavg>=1?2:_gavg>0?1:0;
+              if (finRating) { if(!window.__computedFinStrength)window.__computedFinStrength={}; window.__computedFinStrength[sym]={classification:finRating,score:finScore}; }
+            }
             var moatColors = pillColor(moatRating || null);
             var finColors  = pillColor(finRating  || null);
             window.__moatDots = moatScore; window.__finDots = finScore;
