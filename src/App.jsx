@@ -959,7 +959,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         var moatR = Object.assign({}, parsedA["moat"]||{});
         var finR  = Object.assign({}, parsedA["financial"]||{});
         var _moatRaw = (insightCacheA&&insightCacheA["moat"])||"";
-        var _finRaw  = (insightCacheA&&insightCacheA["financial"])||"";
+        var _finRaw  = ""; // financial AI removed -- raw numbers sent directly
         if (_moatRaw && !moatR.sections) {
           var _drvNames = ["Network Effects","Switching Costs","Cost Advantage","Intangible Assets","Efficient Scale","Ecosystem Lock-in"];
           var _sects = [];
@@ -1038,7 +1038,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           "ANALYST CONSENSUS:\n"+
           "- Buy: "+sfi(_ov.recBuy)+" | Hold: "+sfi(_ov.recHold)+" | Sell: "+sfi(_ov.recSell)+"\n"+
           "- Target Price (median): "+(_ov.targetMedian?"$"+_ov.targetMedian.toFixed(2):"N/A")+"\n"+
-          (finR.body?"\nAI FINANCIAL ASSESSMENT (summary):\n"+finR.body.replace(/[*#_]/g,"").substring(0,400)+"\n":"")+
+
           "\nRespond in EXACTLY this format. Write for a layman investor with no finance background -- avoid jargon, explain what numbers mean in plain English:\n"+
           "Fundamental Verdict: Strong Buy / Buy / Hold / Caution / Avoid\n"+
           "Confidence: Low / Medium / High\n"+
@@ -1361,7 +1361,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         if (lines.length === 0) return "";
         return "\n\nFinancial context (use these figures to ground your scores, do not contradict them):\n" + lines.join("\n");
       })();
-      var aiTabs = ["moat", "financial", "aiinsight"];
+      var aiTabs = ["moat"];
 
       // Load KV config fresh, then run tab fetches
       fetch("/cache?action=config")
@@ -1696,12 +1696,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   useEffect(function() {
     if (!ov || !sym || !window.__isPaid) return;
     // Pre-load moat and financial so AI Analysis has them ready
-    if (!insightCache["moat"] && !insightLoading)      fetchInsight("moat");
-    if (!insightCache["financial"] && !insightLoading)  fetchInsight("financial");
+    if (!insightCache["moat"] && !insightLoading) fetchInsight("moat");
   }, [ov, sym]);
 
   // -- AI Analysis trigger: poll every 2s until all data ready --
-  // -- AI Analysis triggers: independent polling for fund and tech ─────────────
+  // -- AI Analysis triggers: independent polling for fund and tech ----------------
   useEffect(function() {
     if (!sym || !window.__isPaid) return;
     var symSnap = sym; // snapshot sym so interval closure doesn't get stale
@@ -1779,7 +1778,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         });
         // Build per-ticker cache summary for debug log
         var FREE_LOG = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
-        var AI_TABS_LOG = ["moat","financial","aiinsight"];
+        var AI_TABS_LOG = ["moat"];
         var summary = FREE_LOG.map(function(t) {
           var tabs = AI_TABS_LOG.map(function(tab) {
             var meta = newStats["insight:" + t + ":" + tab];
@@ -3192,8 +3191,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               { id:"business",  label:"Business Overview" },
               { id:"moat",      label:"Economic MOAT" },
               { id:"intrinsic", label:"Intrinsic Value" },
-              { id:"aiinsight", label:"AI Insight" },
-              { id:"financial", label:"Financial Strength" },
+
               { id:"trend",     label:"Trend" },
               { id:"momentum",  label:"Momentum" },
               { id:"reversal",  label:"Reversal" },
@@ -3607,7 +3605,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   {/* AI-powered tabs */}
                   {insightTab !== "intrinsic" && (
                     <div>
-                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && insightTab !== "trend" && insightTab !== "momentum" && insightTab !== "reversal" && insightTab !== "aiinsight" && insightTab !== "aianalysis" && insightTab !== "admin" && (
+                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && insightTab !== "trend" && insightTab !== "momentum" && insightTab !== "reversal" && insightTab !== "aianalysis" && insightTab !== "admin" && (
                         <div style={{ textAlign:"center", padding:"40px 0" }}>
                           <div style={{ fontSize:12, color:"#888", marginBottom:14 }}>Generating {insightTab} analysis for {sym}...</div>
                           <div style={{ display:"inline-block", width:26, height:26, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
@@ -6328,7 +6326,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                 }
               });
               var ALL_SP500 = Object.keys(Object.assign({}, NAMES, _cachedSyms)).sort();
-              var AI_TABS = ["moat","financial","aiinsight","ai-fund","ai-tech"];
+              var AI_TABS = ["moat","ai-fund","ai-tech"];
               var adminQ = (window.__adminSearch || "").toLowerCase();
 
               // Manual clear for any ticker (including non-S&P500)
