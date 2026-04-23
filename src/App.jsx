@@ -3018,22 +3018,47 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           </div>
                         );
                       })()}
-                      <div onClick={function(){ window.__goToTab && window.__goToTab("reversal"); }}
-                        style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid "+(_hasTech&&revCount3>0?"#2a5020":"#2c2c2e"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color:_hasTech&&revCount3>0?"#7abd00":"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Reversal Detection</div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                          {addlLoading && !_hasTech
-                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Loading...</span></div>
-                            : <span style={{ fontSize:13, fontWeight:700, color:_hasTech?(revCount3>0?"#7abd00":"#555"):"#555" }}>{_hasTech?revLabel3:"--"}</span>
-                          }
-                          {_hasTech && <Dots score={revCount3} filled={revCount3>0?"#7abd00":"#444"} empty={revCount3>0?"#2a5020":"#2a2a2a"} />}
-                        </div>
-                        {_hasTech && revCount3 > 0 && (
-                          <div style={{ fontSize:10, color:"#7abd00", marginTop:3, opacity:0.75, lineHeight:1.4 }}>
-                            {sigNames3.filter(function(_,i){ return revArr3[i]; }).join(" " + String.fromCharCode(0xB7) + " ")}
+                      {(function(){
+                        // Compute bearish reversal count for pill
+                        var _ind3=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
+                        var _aggs3=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
+                        var _rsiH3=_ind3.rsiHistory||[]; var _mH3=_ind3.macdHistory||[];
+                        var _hi52p=ov?ov.hi52:0; var _lo52p=ov?ov.lo52:0; var _prP=q?q.price:0;
+                        var _pos52p=(_hi52p>_lo52p&&_prP>0)?(_prP-_lo52p)/(_hi52p-_lo52p):0.5;
+                        var _bearArr3=[
+                          (function(){ if(_rsiH3.length<10||_aggs3.length<10) return false; var rPH=Math.max.apply(null,_aggs3.slice(0,5).map(function(a){return a.h||0;})); var pPH=Math.max.apply(null,_aggs3.slice(5,10).map(function(a){return a.h||0;})); var rRH=Math.max.apply(null,_rsiH3.slice(0,5)); var pRH=Math.max.apply(null,_rsiH3.slice(5,10)); return rPH>pPH&&rRH<pRH; })(),
+                          (function(){ if(_mH3.length<3) return false; var h0=_mH3[0]&&_mH3[0].histogram!=null?parseFloat(_mH3[0].histogram):null; var h1=_mH3[1]&&_mH3[1].histogram!=null?parseFloat(_mH3[1].histogram):null; var h2=_mH3[2]&&_mH3[2].histogram!=null?parseFloat(_mH3[2].histogram):null; return h0!=null&&h1!=null&&h2!=null&&h0>0&&h0<h1&&h1<h2; })(),
+                          (_ind3.wsma10&&_ind3.wsma40)?(_ind3.wsma10>_ind3.wsma40&&Math.abs(_ind3.wsma10-_ind3.wsma40)/_ind3.wsma40<0.05):false,
+                          _rsiH3.length>=5?_rsiH3.slice(0,5).every(function(v){return v!=null&&v>=72&&v<=85;}):false,
+                          _pos52p>0.95&&_ind3.rsi14!=null&&parseFloat(_ind3.rsi14)>70&&parseFloat(_ind3.rsi14)<80,
+                        ];
+                        var _bearCount3=_bearArr3.filter(Boolean).length;
+                        var _hasBull=_hasTech&&revCount3>0; var _hasBear=_hasTech&&_bearCount3>0;
+                        var _pillBorder=_hasBull||_hasBear?"#2a5020":"#2c2c2e";
+                        function _RevDots(count, col, empty){ var d=[]; for(var i=1;i<=5;i++) d.push(<span key={i} style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:i<=count?col:empty,marginRight:2}}/>); return <span style={{display:"inline-flex",alignItems:"center"}}>{d}</span>; }
+                        return (
+                          <div onClick={function(){ window.__goToTab && window.__goToTab("reversal"); }}
+                            style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid "+_pillBorder, borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                            <div style={{ fontSize:9, color:_hasBull||_hasBear?"#7abd00":"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, opacity:0.8 }}>Reversal Detection</div>
+                            {addlLoading && !_hasTech
+                              ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Loading...</span></div>
+                              : _hasTech ? (
+                                <div>
+                                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:3 }}>
+                                    <span style={{ fontSize:10, color:"#7abd00" }}>{"Bullish "+revCount3+"/5"}</span>
+                                    {_RevDots(revCount3,"#7abd00","#2a5020")}
+                                  </div>
+                                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                                    <span style={{ fontSize:10, color:_hasBear?"#e05050":"#555" }}>{"Bearish "+_bearCount3+"/5"}</span>
+                                    {_RevDots(_bearCount3,"#e05050","#2a2a2a")}
+                                  </div>
+                                  {!_hasBull&&!_hasBear&&<div style={{fontSize:10,color:"#555",marginTop:2}}>No signals</div>}
+                                </div>
+                              ) : <span style={{ fontSize:13, fontWeight:700, color:"#555" }}>--</span>
+                            }
                           </div>
-                        )}
-                      </div>
+                        );
+                      })()}
                     </div>
                   );
                 })()}
@@ -6168,135 +6193,117 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     var hi52=ov?ov.hi52:0; var lo52=ov?ov.lo52:0;
                     var pos52=(hi52>lo52&&hi52>0)?(price-lo52)/(hi52-lo52):0.5;
                     if (!ind||!price) return <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>Reversal data requires Massive.com feed.</div>;
-                    var rsiHist=ind.rsiHistory||[];
-                    var macdHist=ind.macdHistory||[];
-                    var vol5=aggs.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs.slice(0,5).length,1);
-                    var vol20=aggs.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs.slice(0,20).length,1);
-                    var volRatio=vol20>0?vol5/vol20:1;
-                    // Reversal signals with plain English explanations
-                    var revSignals = [
-                      {
-                        label:"RSI Price Divergence",
-                        active:(function(){ if(rsiHist.length<10||aggs.length<10) return false; var rPL=Math.min.apply(null,aggs.slice(0,5).map(function(a){return a.l;})); var pPL=Math.min.apply(null,aggs.slice(5,10).map(function(a){return a.l;})); var rRL=Math.min.apply(null,rsiHist.slice(0,5)); var pRL=Math.min.apply(null,rsiHist.slice(5,10)); return rPL<pPL&&rRL>pRL; })(),
-                        what:"Price is making new lows but the momentum indicator (RSI) is not. This gap often signals that selling is running out of steam.",
-                        why:"When sellers push price lower but momentum stops following, it often means the downtrend is losing strength. A reversal may be forming."
-                      },
-                      {
-                        label:"MACD Histogram Turning Up",
-                        active:(function(){ if(macdHist.length<3) return false; var h0=macdHist[0]&&macdHist[0].histogram,h1=macdHist[1]&&macdHist[1].histogram,h2=macdHist[2]&&macdHist[2].histogram; return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2; })(),
-                        what:"The MACD momentum indicator is still negative (bearish) but has been getting less negative for 3 or more days in a row.",
-                        why:"Selling pressure is easing. While still technically bearish, the trend is improving which can precede a full reversal."
-                      },
-                      {
-                        label:"Weekly SMA Cross Approaching",
-                        active:(function(){ if(!ind||!ind.wsma10||!ind.wsma40) return false; return ind.wsma10<ind.wsma40&&Math.abs(ind.wsma10-ind.wsma40)/ind.wsma40<0.05; })(),
-                        what:"The 10-week moving average is below the 40-week but within 5% of crossing above it.",
-                        why:"A cross of the 10-week above the 40-week is a bullish long-term signal. The stock may be approaching a major trend change."
-                      },
-                      {
-                        label:"RSI Base Forming",
-                        active:(function(){ if(rsiHist.length<3) return false; return rsiHist.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;}); })(),
-                        what:"The RSI momentum indicator has been stabilising in the 28-52 range for several days.",
-                        why:"After a sell-off, RSI stabilising in this zone (not going lower) often signals that selling has exhausted itself and a base is forming."
-                      },
-                      {
-                        label:"52-Week Low Base with RSI Recovery",
-                        active:pos52<0.20&&ind.rsi14!=null&&ind.rsi14>20&&ind.rsi14<45,
-                        what:"The stock is trading near its 52-week low (bottom 20% of its range) while the RSI is beginning to recover from oversold levels.",
-                        why:"Stocks near their yearly lows with improving momentum can signal that the worst selling is over. High risk but potentially high reward entry."
-                      },
+                    var rsiHist=ind.rsiHistory||[]; var macdHist=ind.macdHistory||[];
+                    var rsi14=ind.rsi14!=null?parseFloat(ind.rsi14):null;
+
+                    // Bullish signals
+                    var bullSignals=[
+                      { label:"RSI Price Divergence",
+                        active:(function(){ if(rsiHist.length<10||aggs.length<10) return false; var rPL=Math.min.apply(null,aggs.slice(0,5).map(function(a){return a.l||0;})); var pPL=Math.min.apply(null,aggs.slice(5,10).map(function(a){return a.l||0;})); var rRL=Math.min.apply(null,rsiHist.slice(0,5)); var pRL=Math.min.apply(null,rsiHist.slice(5,10)); return rPL<pPL&&rRL>pRL; })(),
+                        what:"Price is making new lows but RSI is not -- sellers are losing steam.",
+                        why:"When sellers push price lower but momentum stops following, the downtrend is weakening. A bounce or reversal may be forming." },
+                      { label:"MACD Histogram Turning Up",
+                        active:(function(){ if(macdHist.length<3) return false; var h0=macdHist[0]&&macdHist[0].histogram!=null?parseFloat(macdHist[0].histogram):null,h1=macdHist[1]&&macdHist[1].histogram!=null?parseFloat(macdHist[1].histogram):null,h2=macdHist[2]&&macdHist[2].histogram!=null?parseFloat(macdHist[2].histogram):null; return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2; })(),
+                        what:"MACD is still negative but has been getting less negative for 3+ days.",
+                        why:"Selling pressure is easing. This often precedes a full bullish reversal." },
+                      { label:"Weekly SMA Cross Approaching (Bullish)",
+                        active:(!!(ind.wsma10&&ind.wsma40&&ind.wsma10<ind.wsma40&&Math.abs(ind.wsma10-ind.wsma40)/ind.wsma40<0.05)),
+                        what:"The 10-week MA is below the 40-week but within 5% of crossing above it.",
+                        why:"A Golden Cross on the weekly chart is a major long-term bullish signal." },
+                      { label:"RSI Base Forming",
+                        active:(rsiHist.length>=5&&rsiHist.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;})),
+                        what:"RSI has been stabilising in the 28-52 range for several days.",
+                        why:"RSI stabilising after a sell-off signals selling may have exhausted itself." },
+                      { label:"52-Week Low Base with RSI Recovery",
+                        active:(pos52<0.20&&rsi14!=null&&rsi14>20&&rsi14<45),
+                        what:"Price is near its 52-week low while RSI is beginning to recover.",
+                        why:"Stocks near yearly lows with improving momentum signal the worst selling may be over." },
                     ];
-                    var activeCount = revSignals.filter(function(r){return r.active;}).length;
-                    var revLabel = activeCount>=4?"Strong Signal":activeCount>=3?"Moderate Signal":activeCount>=1?"Weak Signal":"No Signal";
-                    var revBg = activeCount>=3?"#EAF3DE":activeCount>=1?"#FAEEDA":"#f5f5f5";
-                    var revFg = activeCount>=3?"#1a6a1a":activeCount>=1?"#b88000":"#888";
-                    var revBd = activeCount>=3?"#7abd00":activeCount>=1?"#d4a800":"#ddd";
+
+                    // Bearish signals
+                    var bearSignals=[
+                      { label:"RSI Bearish Divergence",
+                        active:(function(){ if(rsiHist.length<10||aggs.length<10) return false; var rPH=Math.max.apply(null,aggs.slice(0,5).map(function(a){return a.h||0;})); var pPH=Math.max.apply(null,aggs.slice(5,10).map(function(a){return a.h||0;})); var rRH=Math.max.apply(null,rsiHist.slice(0,5)); var pRH=Math.max.apply(null,rsiHist.slice(5,10)); return rPH>pPH&&rRH<pRH; })(),
+                        what:"Price is making new highs but RSI is making lower highs -- buyers losing steam.",
+                        why:"When buyers push price higher but momentum stops confirming, the rally may be running out of fuel." },
+                      { label:"MACD Histogram Turning Down",
+                        active:(function(){ if(macdHist.length<3) return false; var h0=macdHist[0]&&macdHist[0].histogram!=null?parseFloat(macdHist[0].histogram):null,h1=macdHist[1]&&macdHist[1].histogram!=null?parseFloat(macdHist[1].histogram):null,h2=macdHist[2]&&macdHist[2].histogram!=null?parseFloat(macdHist[2].histogram):null; return h0!=null&&h1!=null&&h2!=null&&h0>0&&h0<h1&&h1<h2; })(),
+                        what:"MACD is still positive but has been declining for 3+ days.",
+                        why:"Buying momentum is fading. This often precedes a pullback." },
+                      { label:"Weekly SMA Cross Approaching (Bearish)",
+                        active:(!!(ind.wsma10&&ind.wsma40&&ind.wsma10>ind.wsma40&&Math.abs(ind.wsma10-ind.wsma40)/ind.wsma40<0.05)),
+                        what:"The 10-week MA is above the 40-week but within 5% of crossing below it.",
+                        why:"A Death Cross on the weekly chart is a major long-term bearish signal." },
+                      { label:"RSI Overbought Stalling",
+                        active:(rsiHist.length>=5&&rsiHist.slice(0,5).every(function(v){return v!=null&&v>=72&&v<=85;})),
+                        what:"RSI has been stuck in overbought territory (72-85) for 5+ days without pushing higher.",
+                        why:"Overbought RSI stalling often signals buyers are exhausted and distribution may be beginning." },
+                      { label:"52-Week High Base (Topping)",
+                        active:(pos52>0.95&&rsi14!=null&&rsi14>70&&rsi14<80),
+                        what:"Price is near its 52-week high while RSI is elevated but fading.",
+                        why:"Stocks near yearly highs with fading momentum are vulnerable to profit-taking." },
+                    ];
+
+                    var bullCount=bullSignals.filter(function(r){return r.active;}).length;
+                    var bearCount=bearSignals.filter(function(r){return r.active;}).length;
+
+                    // Summary banner
+                    var _bBg=bullCount>=3?"#e6f4e6":bullCount>=1?"#f0f7e6":"#f5f5f5";
+                    var _bBd=bullCount>=3?"#7abd00":bullCount>=1?"#b0d080":"#ddd";
+                    var _bFg=bullCount>=3?"#1a6a1a":bullCount>=1?"#2a7a2a":"#888";
+                    var _rBg=bearCount>=3?"#fff0f0":bearCount>=1?"#fff4f4":"#f5f5f5";
+                    var _rBd=bearCount>=3?"#e05050":bearCount>=1?"#f0a0a0":"#ddd";
+                    var _rFg=bearCount>=3?"#c03030":bearCount>=1?"#c05050":"#888";
+
+                    function SigRow(r, isBull) {
+                      var dot = isBull?(r.active?"#7abd00":"#ccc"):(r.active?"#e05050":"#ccc");
+                      var labelCol = isBull?(r.active?"#1a6a1a":"#888"):(r.active?"#c03030":"#888");
+                      var statusCol = isBull?(r.active?"#1a6a1a":"#aaa"):(r.active?"#c03030":"#aaa");
+                      var bg = r.active?(isBull?"#f0f7e6":"#fff4f4"):"#faf8f4";
+                      var bd = r.active?(isBull?"#b0d080":"#f0a0a0"):"#e0dbd0";
+                      return (
+                        <div style={{marginBottom:8,padding:"10px 14px",background:bg,borderRadius:8,border:"0.5px solid "+bd}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:r.active?6:0}}>
+                            <div style={{width:10,height:10,borderRadius:"50%",background:dot,flexShrink:0}}></div>
+                            <span style={{fontSize:12,fontWeight:700,color:labelCol}}>{r.label}</span>
+                            <span style={{fontSize:10,color:statusCol,marginLeft:"auto"}}>{r.active?"ACTIVE":"Not detected"}</span>
+                          </div>
+                          {r.active && <div>
+                            <div style={{fontSize:11,color:"#555",lineHeight:1.5,marginBottom:3}}><span style={{fontWeight:600}}>What: </span>{r.what}</div>
+                            <div style={{fontSize:11,color:"#777",lineHeight:1.5}}><span style={{fontWeight:600}}>Why it matters: </span>{r.why}</div>
+                          </div>}
+                        </div>
+                      );
+                    }
+
                     return (
                       <div>
-                        <div style={{padding:"12px 14px",background:revBg,borderRadius:8,marginBottom:14,border:"0.5px solid "+revBd}}>
-                          <div style={{fontSize:10,color:revFg,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Reversal Detection</div>
-                          <div style={{fontSize:15,fontWeight:700,color:revFg}}>{revLabel}</div>
-                          <div style={{fontSize:11,color:revFg,opacity:0.8,marginTop:2}}>{activeCount + " of 5 signals active"}</div>
+                        {/* Summary banner */}
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+                          <div style={{padding:"10px 14px",background:_bBg,borderRadius:8,border:"0.5px solid "+_bBd}}>
+                            <div style={{fontSize:9,color:_bFg,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>Bullish Signals</div>
+                            <div style={{fontSize:15,fontWeight:700,color:_bFg}}>{bullCount + " / 5"}</div>
+                            <div style={{display:"flex",gap:3,marginTop:5}}>{bullSignals.map(function(r,i){return <span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:r.active?"#7abd00":"#ccc"}}/>;})}</div>
+                          </div>
+                          <div style={{padding:"10px 14px",background:_rBg,borderRadius:8,border:"0.5px solid "+_rBd}}>
+                            <div style={{fontSize:9,color:_rFg,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>Bearish Signals</div>
+                            <div style={{fontSize:15,fontWeight:700,color:_rFg}}>{bearCount + " / 5"}</div>
+                            <div style={{display:"flex",gap:3,marginTop:5}}>{bearSignals.map(function(r,i){return <span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:r.active?"#e05050":"#ccc"}}/>;})}</div>
+                          </div>
                         </div>
-                        {revSignals.map(function(r,i){
-                          return (
-                            <div key={i} style={{marginBottom:10,padding:"10px 14px",background:r.active?"#f0f7e6":"#faf8f4",borderRadius:8,border:"0.5px solid "+(r.active?"#b0d080":"#e0dbd0")}}>
-                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                                <div style={{width:10,height:10,borderRadius:"50%",background:r.active?"#7abd00":"#ddd",flexShrink:0}}></div>
-                                <span style={{fontSize:12,fontWeight:700,color:r.active?"#1a6a1a":"#888"}}>{r.label}</span>
-                                <span style={{fontSize:10,color:r.active?"#1a6a1a":"#aaa",marginLeft:"auto"}}>{r.active?"ACTIVE":"Not detected"}</span>
-                              </div>
-                              <div style={{fontSize:11,color:"#555",lineHeight:1.5,marginBottom:4}}><span style={{fontWeight:600}}>What: </span>{r.what}</div>
-                              <div style={{fontSize:11,color:"#777",lineHeight:1.5}}><span style={{fontWeight:600}}>Why it matters: </span>{r.why}</div>
-                            </div>
-                          );
-                        })}
-                        {/* BEARISH REVERSAL SIGNALS */}
-                        {(function(){
-                          var _rsi2=ind?ind.rsi14:null;
-                          var _rsiH2=ind&&ind.rsiHistory?ind.rsiHistory:[];
-                          var _mH2=ind&&ind.macdHistory?ind.macdHistory:[];
-                          var _aggs2=aggs||[];
-                          var _hi52b=ov?ov.hi52:0; var _lo52b=ov?ov.lo52:0;
-                          var _priceB=q?q.price:0;
-                          var _pos52b=(_hi52b>_lo52b&&_priceB>0)?(_priceB-_lo52b)/(_hi52b-_lo52b):0.5;
-                          var bearSignals = [
-                            {
-                              label:"RSI Bearish Divergence",
-                              active:(function(){ if(_rsiH2.length<10||_aggs2.length<10) return false; var rPH=Math.max.apply(null,_aggs2.slice(0,5).map(function(a){return a.h||0;})); var pPH=Math.max.apply(null,_aggs2.slice(5,10).map(function(a){return a.h||0;})); var rRH=Math.max.apply(null,_rsiH2.slice(0,5)); var pRH=Math.max.apply(null,_rsiH2.slice(5,10)); return rPH>pPH&&rRH<pRH; })(),
-                              what:"Price is making new highs but the RSI momentum indicator is not following -- it is making lower highs.",
-                              why:"When buyers push price higher but momentum stops confirming, it signals the rally may be running out of fuel. A pullback or reversal may follow."
-                            },
-                            {
-                              label:"MACD Histogram Turning Down",
-                              active:(function(){ if(_mH2.length<3) return false; var h0=_mH2[0]&&_mH2[0].histogram!=null?parseFloat(_mH2[0].histogram):null; var h1=_mH2[1]&&_mH2[1].histogram!=null?parseFloat(_mH2[1].histogram):null; var h2=_mH2[2]&&_mH2[2].histogram!=null?parseFloat(_mH2[2].histogram):null; return h0!=null&&h1!=null&&h2!=null&&h0>0&&h0<h1&&h1<h2; })(),
-                              what:"The MACD histogram is still positive (bullish) but has been declining for 3 or more days in a row.",
-                              why:"Buying momentum is fading even though the stock is still in an uptrend. This often precedes a pullback or trend reversal."
-                            },
-                            {
-                              label:"Weekly SMA Cross Approaching (Bearish)",
-                              active:(function(){ if(!ind||!ind.wsma10||!ind.wsma40) return false; return ind.wsma10>ind.wsma40&&Math.abs(ind.wsma10-ind.wsma40)/ind.wsma40<0.05; })(),
-                              what:"The 10-week moving average is above the 40-week but within 5% of crossing below it.",
-                              why:"A cross of the 10-week below the 40-week (Death Cross on weekly) is a major bearish signal. The stock may be approaching a long-term trend change downward."
-                            },
-                            {
-                              label:"RSI Overbought Stalling",
-                              active:(function(){ if(_rsiH2.length<5) return false; return _rsiH2.slice(0,5).every(function(v){return v!=null&&v>=72&&v<=85;}); })(),
-                              what:"The RSI has been stuck in overbought territory (72-85) for 5 or more days without pushing higher.",
-                              why:"When a stock is overbought but momentum stops accelerating, it often signals that buyers are exhausted. Distribution (selling) may be beginning."
-                            },
-                            {
-                              label:"52-Week High Base (Topping)",
-                              active:_pos52b>0.95&&_rsi2!=null&&_rsi2>70&&_rsi2<80,
-                              what:"The stock is trading near its 52-week high while RSI is elevated but not extreme -- a potential distribution zone.",
-                              why:"Stocks near their yearly highs with fading momentum are vulnerable to profit-taking. Institutional investors often sell into strength at these levels."
-                            },
-                          ];
-                          var bearCount=bearSignals.filter(function(r){return r.active;}).length;
-                          if (bearCount===0) return null;
-                          return (
-                            <div style={{marginTop:16}}>
-                              <div style={{padding:"10px 14px",background:"#fff0f0",borderRadius:8,marginBottom:10,border:"0.5px solid #e08080"}}>
-                                <div style={{fontSize:10,color:"#c03030",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Topping Signals (Bearish Reversal)</div>
-                                <div style={{fontSize:13,fontWeight:700,color:"#c03030"}}>{bearCount + " of 5 active"}</div>
-                                <div style={{fontSize:11,color:"#888",marginTop:2}}>These signals suggest the stock may be forming a top and could pull back.</div>
-                              </div>
-                              {bearSignals.filter(function(r){return r.active;}).map(function(r,i){
-                                return (
-                                  <div key={i} style={{marginBottom:10,padding:"10px 14px",background:"#fff4f4",borderRadius:8,border:"0.5px solid #f0a0a0"}}>
-                                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                                      <div style={{width:10,height:10,borderRadius:"50%",background:"#e05050",flexShrink:0}}></div>
-                                      <span style={{fontSize:12,fontWeight:700,color:"#c03030"}}>{r.label}</span>
-                                      <span style={{fontSize:10,color:"#c03030",marginLeft:"auto"}}>ACTIVE</span>
-                                    </div>
-                                    <div style={{fontSize:11,color:"#555",lineHeight:1.5,marginBottom:4}}><span style={{fontWeight:600}}>What: </span>{r.what}</div>
-                                    <div style={{fontSize:11,color:"#777",lineHeight:1.5}}><span style={{fontWeight:600}}>Why it matters: </span>{r.why}</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        })()}
+
+                        {/* Bullish signals - all 5 always shown */}
+                        <div style={{fontSize:10,fontWeight:700,color:"#1a6a1a",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8,marginTop:4}}>
+                          {"Bullish Signals (Bottoming)"}
+                        </div>
+                        {bullSignals.map(function(r,i){ return <div key={i}>{SigRow(r,true)}</div>; })}
+
+                        {/* Bearish signals - all 5 always shown */}
+                        <div style={{fontSize:10,fontWeight:700,color:"#c03030",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8,marginTop:16}}>
+                          {"Bearish Signals (Topping)"}
+                        </div>
+                        {bearSignals.map(function(r,i){ return <div key={i}>{SigRow(r,false)}</div>; })}
+
                         <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de",marginTop:8}}>
                           {"Reversal signals are early warning indicators only. They do not guarantee a price reversal. Not financial advice."}
                         </div>
