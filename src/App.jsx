@@ -2702,7 +2702,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                 if (key==="sma200") return !ind2.sma200?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
                 if (key==="cross")  return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
                 if (key==="pos52")  return pos2>0.80?5:pos2>0.55?4:pos2>0.35?3:pos2>0.15?2:1;
-                if (key==="rsi")    return !r2?3:(r2>=50&&r2<=75)?5:(r2>=40&&r2<50)?4:(r2>=30&&r2<40||r2>75)?3:(r2>=20&&r2<30)?2:1;
+                if (key==="rsi")    return !r2?3:r2>80?2:r2>75?3:(r2>=50&&r2<=75)?5:(r2>=40&&r2<50)?4:(r2>=30&&r2<40)?3:(r2>=20&&r2<30)?2:1;
                 if (key==="macd")   return !h2?3:h2>0.05?5:h2>0?4:h2>-0.05?3:h2>-0.5?2:1;
                 if (key==="ema20")  return !ind2.ema20?3:ema2g>5?5:ema2g>1?4:ema2g>-5?3:ema2g>-15?2:1;
                 if (key==="vol")    return vr2>1.4?5:vr2>1.1?4:vr2>0.9?3:vr2>0.7?2:1;
@@ -2953,7 +2953,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     var r=ind2.rsi14; var h=ind2.macd?ind2.macd.histogram:null;
                     var ema2g=ind2.ema20?(p2-ind2.ema20)/ind2.ema20*100:0;
                     function sc(key){
-                      if(key==="rsi")  return r==null?3:(r>=50&&r<=75)?5:(r>=40&&r<50)?4:(r>=30&&r<40||r>75)?3:(r>=20&&r<30)?2:1;
+                      if(key==="rsi")  return r==null?3:r>80?2:r>75?3:(r>=50&&r<=75)?5:(r>=40&&r<50)?4:(r>=30&&r<40)?3:(r>=20&&r<30)?2:1;
                       if(key==="macd") return h==null?3:h>0.05?5:h>0?4:h>-0.05?3:h>-0.5?2:1;
                       if(key==="ema20")return !ind2.ema20?3:ema2g>5?5:ema2g>1?4:ema2g>-5?3:ema2g>-15?2:1;
                       if(key==="vol")  return vr2>1.4?5:vr2>1.1?4:vr2>0.9?3:vr2>0.7?2:1;
@@ -5782,15 +5782,31 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     var s50g=ind.sma50?(price-ind.sma50)/ind.sma50*100:null;
                     var crsG=ind.sma50&&ind.sma200?(ind.sma50-ind.sma200)/ind.sma200*100:null;
                     var pos52pct=Math.round(pos52*100);
+                    // Direction arrows using historical data
+                    var wsmaH=ind.wsmaHistory||[]; // if available
+                    var prevS200g=ind.sma200&&aggs&&aggs[1]?(aggs[1].c-ind.sma200)/ind.sma200*100:null;
+                    var prevS50g=ind.sma50&&aggs&&aggs[1]?(aggs[1].c-ind.sma50)/ind.sma50*100:null;
+                    function tDir(cur,prev){ if(cur===null||prev===null) return null; return cur>prev+0.2?"up":cur<prev-0.2?"down":"flat"; }
+                    var d200=tDir(s200g,prevS200g); var d50=tDir(s50g,prevS50g);
+                    // pos52 direction: compare to yesterday
+                    var prevPos52=hi52>lo52&&aggs&&aggs[1]?(aggs[1].c-lo52)/(hi52-lo52):null;
+                    var dPos=tDir(pos52,prevPos52);
+                    function Arrow(dir,col){ if(!dir) return null; var sym=dir==="up"?String.fromCharCode(0x25B2):dir==="down"?String.fromCharCode(0x25BC):String.fromCharCode(0x25A0); var c=dir==="up"?"#1a6a1a":dir==="down"?"#c03030":"#888"; return <span style={{fontSize:9,color:col||c,marginLeft:5,verticalAlign:"middle"}}>{sym}</span>; }
+                    function tColor(val,goodUp){ if(val===null) return "#111"; if(goodUp) return val>2?"#1a6a1a":val>-2?"#888":"#c03030"; return val<-2?"#c03030":val<2?"#888":"#1a6a1a"; }
                     function TRow(p){ return (
                       <div style={{padding:"10px 14px",borderBottom:"1px solid #f0ede6"}}>
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                           <span style={{fontSize:12,fontWeight:600,color:"#333"}}>{p.label}</span>
-                          <span style={{fontSize:13,fontWeight:700,color:p.val===null?"#aaa":"#111"}}>{p.val===null?"N/A":p.val}</span>
+                          <span style={{display:"flex",alignItems:"center"}}>
+                            <span style={{fontSize:13,fontWeight:700,color:p.valCol||"#111"}}>{p.val===null?"N/A":p.val}</span>
+                            {p.dir && Arrow(p.dir)}
+                          </span>
                         </div>
                         <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{p.desc}</div>
+                        {p.watch && <div style={{fontSize:10,color:"#b88000",marginTop:4,fontStyle:"italic"}}>{"Watch: "+p.watch}</div>}
                       </div>
                     ); }
+                    var aggs=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
                     return (
                       <div>
                         <div style={{padding:"10px 14px",background:"#f5f2ec",borderRadius:"8px 8px 0 0",borderBottom:"1px solid #e0dbd0",marginBottom:0}}>
@@ -5800,19 +5816,32 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         <div style={{border:"1px solid #e0dbd0",borderTop:"none",borderRadius:"0 0 8px 8px",marginBottom:16}}>
                           <TRow label="Weekly Trend (10-week vs 40-week MA)"
                             val={wsmaG!==null?(wsmaG>0?"+":"")+wsmaG.toFixed(2)+"%":null}
-                            desc={wsmaG===null?"Data unavailable.":wsmaG>5?"10-week average is well above 40-week -- medium-term uptrend is strong and intact.":wsmaG>1?"10-week is above 40-week -- uptrend in place.":wsmaG>-1?"Both averages are flat -- stock is trending sideways.":wsmaG>-5?"10-week is below 40-week -- downtrend developing.":"10-week well below 40-week -- sustained downtrend."} />
+                            valCol={wsmaG===null?"#aaa":wsmaG>1?"#1a6a1a":wsmaG>-1?"#888":"#c03030"}
+                            desc={wsmaG===null?"Data unavailable.":wsmaG>5?"10-week average is well above 40-week -- medium-term uptrend is strong and intact.":wsmaG>1?"10-week is above 40-week -- uptrend in place.":wsmaG>-1?"Both averages are flat -- stock is trending sideways.":wsmaG>-5?"10-week is below 40-week -- downtrend developing.":"10-week well below 40-week -- sustained downtrend."}
+                            watch={wsmaG!==null&&wsmaG>0?"Watch for 10-week crossing below 40-week -- that would signal trend reversal.":wsmaG!==null&&wsmaG<0?"Watch for 10-week crossing above 40-week -- that would signal a bullish recovery.":null} />
                           <TRow label="Price vs 200-day Average (long-term trend)"
                             val={s200g!==null?(s200g>0?"+":"")+s200g.toFixed(2)+"%":null}
-                            desc={s200g===null?"Data unavailable.":s200g>10?"Stock is well above its long-term average -- strong bullish trend.":s200g>2?"Stock is above its long-term average -- healthy uptrend.":s200g>-10?"Stock is near its long-term average -- no clear direction.":s200g>-20?"Stock is below its long-term average -- weak trend.":"Stock is well below its long-term average -- strong downtrend."} />
+                            valCol={s200g===null?"#aaa":s200g>2?"#1a6a1a":s200g>-10?"#888":"#c03030"}
+                            dir={d200}
+                            desc={s200g===null?"Data unavailable.":s200g>10?"Stock is well above its long-term average -- strong bullish trend.":s200g>2?"Stock is above its long-term average -- healthy uptrend.":s200g>-10?"Stock is near its long-term average -- no clear direction.":s200g>-20?"Stock is below its long-term average -- weak trend.":"Stock is well below its long-term average -- strong downtrend."}
+                            watch={s200g!==null&&Math.abs(s200g)<5?"Price is very close to its 200-day average -- a break above or below here is a significant signal.":null} />
                           <TRow label="Price vs 50-day Average (medium-term trend)"
                             val={s50g!==null?(s50g>0?"+":"")+s50g.toFixed(2)+"%":null}
-                            desc={s50g===null?"Data unavailable.":s50g>5?"Trading well above 50-day average -- medium-term momentum is strong.":s50g>1?"Above 50-day average -- medium-term uptrend intact.":s50g>-5?"Near 50-day average -- consolidating.":"Below 50-day average -- medium-term trend is weak."} />
+                            valCol={s50g===null?"#aaa":s50g>1?"#1a6a1a":s50g>-5?"#888":"#c03030"}
+                            dir={d50}
+                            desc={s50g===null?"Data unavailable.":s50g>5?"Trading well above 50-day average -- medium-term momentum is strong.":s50g>1?"Above 50-day average -- medium-term uptrend intact.":s50g>-5?"Near 50-day average -- consolidating.":"Below 50-day average -- medium-term trend is weak."}
+                            watch={s50g!==null&&Math.abs(s50g)<2?"Price is testing its 50-day average -- a key support/resistance level to watch.":null} />
                           <TRow label="Golden/Death Cross (50-day vs 200-day MA)"
-                            val={crsG!==null?(crsG>0?"Golden Cross "+crsG.toFixed(1)+"%":"Death Cross "+Math.abs(crsG).toFixed(1)+"%"):null}
-                            desc={crsG===null?"Data unavailable.":crsG>5?"50-day is well above 200-day (Golden Cross) -- long-term bullish signal widely watched by investors.":crsG>0?"50-day is above 200-day -- mild Golden Cross, long-term trend positive.":crsG>-5?"50-day has crossed below 200-day (Death Cross) -- long-term bearish signal.":"50-day is well below 200-day (Death Cross) -- sustained bearish long-term signal."} />
+                            val={crsG!==null?(crsG>0?"Golden Cross +"+crsG.toFixed(1)+"%":"Death Cross -"+Math.abs(crsG).toFixed(1)+"%"):null}
+                            valCol={crsG===null?"#aaa":crsG>0?"#1a6a1a":"#c03030"}
+                            desc={crsG===null?"Data unavailable.":crsG>5?"50-day is well above 200-day (Golden Cross) -- long-term bullish signal widely watched by investors.":crsG>0?"50-day is above 200-day -- mild Golden Cross, long-term trend positive.":crsG>-5?"50-day has crossed below 200-day (Death Cross) -- long-term bearish signal.":"50-day is well below 200-day (Death Cross) -- sustained bearish long-term signal."}
+                            watch={crsG!==null&&Math.abs(crsG)<3?"The 50-day and 200-day are very close -- a cross may be imminent. This would be a major signal.":null} />
                           <TRow label={"52-Week Position ("+pos52pct+"% of range)"}
                             val={pos52pct+"%"}
-                            desc={pos52pct>80?"Trading in the top 20% of its yearly range -- showing strong relative strength.":pos52pct>55?"Trading in the upper half of its yearly range -- price is healthy.":pos52pct>35?"Trading in the middle of its yearly range -- no strong directional bias.":pos52pct>15?"Trading in the lower half of its range -- relative weakness.":"Trading near its 52-week low -- significant weakness, but could be a contrarian opportunity."} />
+                            valCol={pos52pct>55?"#1a6a1a":pos52pct>35?"#888":"#c03030"}
+                            dir={dPos}
+                            desc={pos52pct>95?"Trading in the top 5% of its yearly range -- very extended. Risk of pullback increases.":pos52pct>80?"Trading in the top 20% of its yearly range -- showing strong relative strength.":pos52pct>55?"Trading in the upper half of its yearly range -- price is healthy.":pos52pct>35?"Trading in the middle of its yearly range -- no strong directional bias.":pos52pct>15?"Trading in the lower half of its range -- relative weakness.":"Trading near its 52-week low -- significant weakness, but could be a contrarian opportunity."}
+                            watch={pos52pct>90?"Stock is very extended near 52-week highs -- watch for a pullback to the 50-day average as a healthier entry.":pos52pct<15?"Stock is near 52-week lows -- watch for RSI to stabilise above 30 as a sign selling is exhausting.":null} />
                         </div>
                         <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de"}}>
                           {"Trend signals use Massive.com data. Longer timeframe = more reliable signal. Not financial advice."}
@@ -5827,44 +5856,129 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     var aggs=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
                     var price=q?q.price:0;
                     if (!ind||!price) return <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>Momentum data requires Massive.com feed.</div>;
-                    var rsi=ind.rsi14;
-                    var macdH=ind.macd?ind.macd.histogram:null;
-                    var macdLine=ind.macd?ind.macd.macd:null;
-                    var macdSig=ind.macd?ind.macd.signal:null;
+                    var rsi=ind.rsi14!=null?parseFloat(ind.rsi14):null;
+                    var rsiH=ind.rsiHistory||[];
+                    var prevRsi=rsiH.length>=2?rsiH[1]:null;
+                    var rsiDir=rsi!=null&&prevRsi!=null?(rsi>prevRsi+0.5?"up":rsi<prevRsi-0.5?"down":"flat"):null;
+                    var macdHArr=ind.macdHistory||[];
+                    var macdH=macdHArr.length>0&&macdHArr[0]?parseFloat(macdHArr[0].histogram):null;
+                    var prevMacdH=macdHArr.length>1&&macdHArr[1]?parseFloat(macdHArr[1].histogram):null;
+                    var macdDir=macdH!=null&&prevMacdH!=null?(macdH>prevMacdH?"Rising":"Falling"):"Unknown";
+                    var macdArrow=macdH!=null&&prevMacdH!=null?(macdH>prevMacdH+0.001?"up":macdH<prevMacdH-0.001?"down":"flat"):null;
                     var ema20g=ind.ema20?(price-ind.ema20)/ind.ema20*100:null;
+                    var prevEma20g=ind.ema20&&aggs[1]?(aggs[1].c-ind.ema20)/ind.ema20*100:null;
+                    var emaDir=ema20g!=null&&prevEma20g!=null?(ema20g>prevEma20g+0.2?"up":ema20g<prevEma20g-0.2?"down":"flat"):null;
                     var vol5=aggs.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs.slice(0,5).length,1);
                     var vol20=aggs.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs.slice(0,20).length,1);
                     var volRatio=vol20>0?vol5/vol20:1;
-                    var macdHist=ind.macdHistory||[];
-                    var macdDir=macdHist.length>=2?(macdHist[0]&&macdHist[1]&&macdHist[0].histogram>macdHist[1].histogram?"Rising":"Falling"):"Unknown";
+                    var vol1=aggs[0]?aggs[0].v:0; var vol2=aggs[1]?aggs[1].v:0;
+                    var volDir=vol1>0&&vol2>0?(vol1>vol2*1.1?"up":vol1<vol2*0.9?"down":"flat"):null;
+                    // VWAP
+                    var snap=massiveInfo&&massiveInfo.snapshot?massiveInfo.snapshot:{};
+                    var vwap=snap.vwap||0;
+                    var vwapDiff=vwap>0&&price>0?((price-vwap)/vwap*100).toFixed(2):null;
+                    // Volume spike: today vs 20d avg
+                    var isSpike=vol1>0&&vol20>0&&vol1>vol20*2.5;
+                    // Price direction today
+                    var priceUp=aggs[0]&&aggs[1]?aggs[0].c>aggs[1].c:null;
+                    var volPriceSignal=null;
+                    if(priceUp!==null&&volDir){
+                      if(priceUp&&vol1>vol20*1.1) volPriceSignal={text:"Up day + above average volume -- bullish confirmation",col:"#1a6a1a"};
+                      else if(priceUp&&vol1<vol20*0.9) volPriceSignal={text:"Up day + low volume -- weak rally, not well supported",col:"#b88000"};
+                      else if(!priceUp&&vol1>vol20*1.1) volPriceSignal={text:"Down day + high volume -- bearish distribution, watch closely",col:"#c03030"};
+                      else if(!priceUp&&vol1<vol20*0.9) volPriceSignal={text:"Down day + low volume -- weak selloff, sellers not committed",col:"#888"};
+                    }
+                    // Arrow component
+                    function Arrow(dir){ if(!dir||dir==="flat") return <span style={{fontSize:9,color:"#999",marginLeft:4}}>{String.fromCharCode(0x25A0)}</span>; return <span style={{fontSize:9,color:dir==="up"?"#1a6a1a":"#c03030",marginLeft:4}}>{dir==="up"?String.fromCharCode(0x25B2):String.fromCharCode(0x25BC)}</span>; }
                     function MRow(p){ return (
                       <div style={{padding:"10px 14px",borderBottom:"1px solid #f0ede6"}}>
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                           <span style={{fontSize:12,fontWeight:600,color:"#333"}}>{p.label}</span>
-                          <span style={{fontSize:13,fontWeight:700,color:p.val===null?"#aaa":"#111"}}>{p.val===null?"N/A":p.val}</span>
+                          <span style={{display:"flex",alignItems:"center"}}>
+                            <span style={{fontSize:13,fontWeight:700,color:p.valCol||"#111"}}>{p.val===null?"N/A":p.val}</span>
+                            {p.dir && Arrow(p.dir)}
+                          </span>
                         </div>
+                        {p.badge && <div style={{display:"inline-block",fontSize:9,fontWeight:700,color:p.badge.col,background:p.badge.bg,border:"0.5px solid "+p.badge.col,borderRadius:4,padding:"1px 6px",marginBottom:4}}>{p.badge.text}</div>}
                         <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{p.desc}</div>
+                        {p.watch && <div style={{fontSize:10,color:"#b88000",marginTop:4,fontStyle:"italic"}}>{"Watch: "+p.watch}</div>}
                       </div>
                     ); }
+                    // RSI overbought/oversold badge
+                    var rsiBadge=null;
+                    if(rsi!=null){
+                      if(rsi>80) rsiBadge={text:"OVERBOUGHT -- EXTREME",col:"#c03030",bg:"#fff0f0"};
+                      else if(rsi>75) rsiBadge={text:"OVERBOUGHT -- CAUTION",col:"#b88000",bg:"#fdf8e6"};
+                      else if(rsi<20) rsiBadge={text:"OVERSOLD -- EXTREME",col:"#c03030",bg:"#fff0f0"};
+                      else if(rsi<30) rsiBadge={text:"OVERSOLD",col:"#b88000",bg:"#fdf8e6"};
+                    }
                     return (
                       <div>
                         <div style={{padding:"10px 14px",background:"#f5f2ec",borderRadius:"8px 8px 0 0",borderBottom:"1px solid #e0dbd0"}}>
                           <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.08em"}}>Momentum</div>
                           <div style={{fontSize:12,color:"#555",marginTop:2}}>How much energy is behind the current move?</div>
                         </div>
-                        <div style={{border:"1px solid #e0dbd0",borderTop:"none",borderRadius:"0 0 8px 8px",marginBottom:16}}>
-                          <MRow label={"RSI -- Relative Strength Index ("+(rsi?rsi.toFixed(1):"N/A")+")"}
-                            val={rsi?rsi.toFixed(1):null}
-                            desc={rsi===null||rsi===undefined?"Data unavailable.":rsi>75?"RSI above 75 -- stock has been heavily bought and may be overheated. Often a signal to be cautious.":rsi>=50?"RSI between 50-75 -- healthy buying momentum, not overbought. Generally a positive sign.":rsi>=40?"RSI between 40-50 -- momentum is building but not yet strong. Could go either way.":rsi>=30?"RSI between 30-40 -- stock has been sold down. Potential for a bounce but trend is weak.":"RSI below 30 -- stock is oversold. Could be a buying opportunity but may continue falling."} />
-                          <MRow label={"MACD Histogram ("+(macdH!==null?macdH.toFixed(4):"N/A")+") -- "+macdDir}
-                            val={macdH!==null?macdH.toFixed(4):null}
-                            desc={macdH===null?"Data unavailable.":macdH>0&&macdDir==="Rising"?"MACD is positive and rising -- buying momentum is accelerating. Bullish signal.":macdH>0&&macdDir==="Falling"?"MACD is positive but fading -- upward momentum is slowing down. Watch closely.":macdH<0&&macdDir==="Rising"?"MACD is negative but improving -- selling pressure is easing. Potential early recovery.":"MACD is negative and falling -- selling momentum is accelerating. Bearish signal."} />
-                          <MRow label={"Price vs 20-day EMA (short-term momentum)"}
-                            val={ema20g!==null?(ema20g>0?"+":"")+ema20g.toFixed(2)+"%":null}
-                            desc={ema20g===null?"Data unavailable.":ema20g>5?"Well above 20-day average -- strong short-term momentum.":ema20g>1?"Above 20-day average -- short-term uptrend intact.":ema20g>-5?"Near 20-day average -- momentum is flat.":"Below 20-day average -- short-term momentum is weak."} />
-                          <MRow label={"Volume (5-day vs 20-day average)"}
-                            val={(volRatio*100).toFixed(0)+"%"}
-                            desc={volRatio>1.4?"Recent volume is "+Math.round(volRatio*100)+"% of normal -- significantly higher activity. Suggests conviction behind the move.":volRatio>1.1?"Volume slightly above average -- moderate interest. Move has some confirmation.":volRatio>0.9?"Volume near average -- normal activity, neither confirming nor denying the move.":"Volume below average -- low interest. Move may not have strong conviction behind it."} />
+                        <div style={{border:"1px solid #e0dbd0",borderTop:"none",borderRadius:"0 0 8px 8px",marginBottom:10}}>
+                          <MRow label={"RSI -- Relative Strength Index"}
+                            val={rsi!=null?rsi.toFixed(1):null}
+                            valCol={rsi==null?"#aaa":rsi>80?"#c03030":rsi>75?"#b88000":rsi>=50?"#1a6a1a":rsi>=30?"#888":"#c03030"}
+                            dir={rsiDir}
+                            badge={rsiBadge}
+                            desc={rsi===null?"Data unavailable.":rsi>80?"RSI above 80 -- extremely overbought. High risk of pullback. Many traders use this as a sell signal.":rsi>75?"RSI above 75 -- overbought territory. Stock has been heavily bought. A pullback or consolidation is likely.":rsi>=50?"RSI "+rsi.toFixed(0)+" -- healthy buying momentum, not overbought. Generally a positive sign.":rsi>=40?"RSI between 40-50 -- momentum fading but not yet weak. Watch for further decline.":rsi>=30?"RSI between 30-40 -- stock has been sold down. Weak but potential for a bounce.":"RSI below 30 -- oversold. Stock has been heavily sold. Potential reversal but trend is bearish."}
+                            watch={rsi!=null&&rsi>75?"Watch for RSI to drop back below 70 -- that often signals the overbought rally is fading.":rsi!=null&&rsi<30?"Watch for RSI to rise above 30 -- that would signal selling pressure is easing.":rsi!=null&&rsi>45&&rsi<55?"RSI near 50 -- the next move above or below 50 will indicate which way momentum is breaking.":null} />
+                          <MRow label={"MACD Histogram"}
+                            val={macdH!=null?macdH.toFixed(4):null}
+                            valCol={macdH===null?"#aaa":macdH>0&&macdDir==="Rising"?"#1a6a1a":macdH>0?"#888":macdDir==="Rising"?"#b88000":"#c03030"}
+                            dir={macdArrow}
+                            desc={macdH===null?"Data unavailable.":macdH>0&&macdDir==="Rising"?"MACD positive and rising -- buying momentum is accelerating. Strong bullish signal.":macdH>0&&macdDir==="Falling"?"MACD positive but weakening -- upward momentum is slowing. Watch for a crossover.":macdH<0&&macdDir==="Rising"?"MACD negative but improving -- selling pressure is easing. Early recovery signal.":"MACD negative and falling -- selling momentum is accelerating. Bearish signal."}
+                            watch={macdH!=null&&Math.abs(macdH)<0.01?"MACD histogram is near zero -- a crossover (positive or negative) may be imminent.":null} />
+                          <MRow label={"Price vs 20-day EMA (short-term)"}
+                            val={ema20g!=null?(ema20g>0?"+":"")+ema20g.toFixed(2)+"%":null}
+                            valCol={ema20g===null?"#aaa":ema20g>1?"#1a6a1a":ema20g>-5?"#888":"#c03030"}
+                            dir={emaDir}
+                            desc={ema20g===null?"Data unavailable.":ema20g>5?"Well above 20-day average -- strong short-term momentum.":ema20g>1?"Above 20-day average -- short-term uptrend intact.":ema20g>-5?"Near 20-day average -- momentum is flat, could go either way.":"Below 20-day average -- short-term momentum is weak."}
+                            watch={ema20g!=null&&Math.abs(ema20g)<1?"Price is right at its 20-day average -- a key short-term support/resistance to watch.":null} />
+                        </div>
+                        {/* VOLUME SECTION */}
+                        <div style={{marginBottom:16}}>
+                          <div style={{padding:"8px 14px",background:"#f0ede6",borderRadius:"8px 8px 0 0",borderBottom:"1px solid #e0dbd0"}}>
+                            <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.08em"}}>Volume Analysis</div>
+                            <div style={{fontSize:11,color:"#555",marginTop:1}}>Is there conviction behind the price move?</div>
+                          </div>
+                          <div style={{border:"1px solid #e0dbd0",borderTop:"none",borderRadius:"0 0 8px 8px"}}>
+                            <div style={{padding:"10px 14px",borderBottom:"1px solid #f0ede6"}}>
+                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                                <span style={{fontSize:12,fontWeight:600,color:"#333"}}>Volume vs 20-day Average</span>
+                                <span style={{display:"flex",alignItems:"center"}}>
+                                  <span style={{fontSize:13,fontWeight:700,color:volRatio>1.2?"#1a6a1a":volRatio<0.8?"#c03030":"#888"}}>{(volRatio*100).toFixed(0)+"%"}</span>
+                                  {volDir&&<span style={{fontSize:9,color:volDir==="up"?"#1a6a1a":volDir==="down"?"#c03030":"#888",marginLeft:4}}>{volDir==="up"?String.fromCharCode(0x25B2):volDir==="down"?String.fromCharCode(0x25BC):String.fromCharCode(0x25A0)}</span>}
+                                </span>
+                              </div>
+                              <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{volRatio>1.4?"Recent volume is significantly above normal -- strong interest and conviction in the move.":volRatio>1.1?"Volume slightly above normal -- moderate interest, move has some backing.":volRatio>0.9?"Volume near normal -- neither confirming nor denying the current move.":"Volume below normal -- low interest. Move may lack conviction."}</div>
+                            </div>
+                            {volPriceSignal && (
+                              <div style={{padding:"10px 14px",borderBottom:"1px solid #f0ede6"}}>
+                                <div style={{fontSize:12,fontWeight:600,color:"#333",marginBottom:4}}>Price + Volume Signal</div>
+                                <div style={{fontSize:12,color:volPriceSignal.col,fontWeight:600,lineHeight:1.5}}>{volPriceSignal.text}</div>
+                                <div style={{fontSize:11,color:"#888",marginTop:3}}>{priceUp&&vol1>vol20*1.1?"When price rises AND volume is high, it means buyers are committed. This is the strongest bullish signal.":priceUp&&vol1<vol20*0.9?"Price rising on low volume often fades -- not enough buyers stepping in to sustain the move.":!priceUp&&vol1>vol20*1.1?"Heavy selling volume is concerning -- institutions may be exiting positions.":"Light selling is less alarming -- it suggests the market isn't panicking, just drifting lower."}</div>
+                              </div>
+                            )}
+                            {vwapDiff!==null && (
+                              <div style={{padding:"10px 14px",borderBottom:"1px solid #f0ede6"}}>
+                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                                  <span style={{fontSize:12,fontWeight:600,color:"#333"}}>Price vs VWAP (today)</span>
+                                  <span style={{fontSize:13,fontWeight:700,color:parseFloat(vwapDiff)>0?"#1a6a1a":"#c03030"}}>{(parseFloat(vwapDiff)>0?"+":"")+vwapDiff+"%"}</span>
+                                </div>
+                                <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{parseFloat(vwapDiff)>0?"Price is above today's volume-weighted average -- buyers are in control for the day. Institutional traders watch VWAP closely as a reference point.":"Price is below today's volume-weighted average -- sellers have been in control today. Institutions may use VWAP as resistance."}</div>
+                              </div>
+                            )}
+                            {isSpike && (
+                              <div style={{padding:"10px 14px",background:"#fff8e6",border:"0.5px solid #d4a800"}}>
+                                <div style={{fontSize:11,fontWeight:700,color:"#b88000",marginBottom:2}}>{"Volume Spike Detected"}</div>
+                                <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{"Today's volume is more than 2.5x the 20-day average. This level of activity often signals a major news event, earnings, or institutional activity. Watch closely -- big volume moves tend to set the direction for days ahead."}</div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de"}}>
                           {"Momentum signals use Massive.com real-time data. Not financial advice."}
