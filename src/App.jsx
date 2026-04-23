@@ -5834,20 +5834,37 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     return (
                       <div>
                         {(function(){
-                          var _tsc=_trendScore>=70?"#1a6a1a":_trendScore>=55?"#2a7a2a":_trendScore>=40?"#b88000":"#c03030";
-                          var _tsbg=_trendScore>=70?"#e6f4e6":_trendScore>=55?"#f0f7e6":_trendScore>=40?"#fdf8e6":"#fff0f0";
-                          var _tsbd=_trendScore>=70?"#7abd00":_trendScore>=55?"#9ab800":_trendScore>=40?"#d4a800":"#e08080";
-                          var _tsLong=_trendScore>=70?"The overall price trend is strong and bullish. The stock is well-positioned above its key moving averages.":_trendScore>=55?"The trend is positive. Price is holding above key averages with momentum on its side.":_trendScore>=40?"The trend is mixed or sideways. No clear directional bias from moving averages.":_trendScore>=25?"The trend is weak. Price is struggling below key averages.":"The trend is strongly bearish. Price is well below key averages across multiple timeframes.";
+                          // Recompute trend score in tab scope (ind/price available here)
+                          var _W={wsma:35,sma200:30,cross:20,pos52:15};
+                          var _wsmaG2=ind&&ind.wsma10&&ind.wsma40?(ind.wsma10-ind.wsma40)/ind.wsma40*100:0;
+                          var _s200g2=ind&&ind.sma200?(price-ind.sma200)/ind.sma200*100:0;
+                          var _crsG2=ind&&ind.sma50&&ind.sma200?(ind.sma50-ind.sma200)/ind.sma200*100:0;
+                          var _hi52t=ov?ov.hi52:0; var _lo52t=ov?ov.lo52:0;
+                          var _pos52t=(_hi52t>_lo52t&&price>0)?(price-_lo52t)/(_hi52t-_lo52t):0.5;
+                          function _tsc2(key){
+                            if(key==="wsma") return !ind||!ind.wsma10||!ind.wsma40?3:_wsmaG2>5?5:_wsmaG2>1?4:_wsmaG2>-1?3:_wsmaG2>-5?2:1;
+                            if(key==="sma200") return !ind||!ind.sma200?3:_s200g2>10?5:_s200g2>2?4:_s200g2>-10?3:_s200g2>-20?2:1;
+                            if(key==="cross") return !ind||!ind.sma50||!ind.sma200?3:_crsG2>10?5:_crsG2>1?4:_crsG2>-1?3:_crsG2>-10?2:1;
+                            if(key==="pos52") return _pos52t>0.80?5:_pos52t>0.55?4:_pos52t>0.35?3:_pos52t>0.15?2:1;
+                            return 3;
+                          }
+                          var _tot2=0; Object.keys(_W).forEach(function(k){_tot2+=(_tsc2(k)/5)*_W[k];}); var _ts2=Math.round(_tot2);
+                          var _tl2=_ts2>=70?"Strong Uptrend":_ts2>=55?"Uptrend":_ts2>=40?"Sideways":_ts2>=25?"Downtrend":"Strong Downtrend";
+                          var _td2=_ts2>=70?5:_ts2>=55?4:_ts2>=40?3:_ts2>=25?2:1;
+                          var _tsc=_ts2>=70?"#1a6a1a":_ts2>=55?"#2a7a2a":_ts2>=40?"#b88000":"#c03030";
+                          var _tsbg=_ts2>=70?"#e6f4e6":_ts2>=55?"#f0f7e6":_ts2>=40?"#fdf8e6":"#fff0f0";
+                          var _tsbd=_ts2>=70?"#7abd00":_ts2>=55?"#9ab800":_ts2>=40?"#d4a800":"#e08080";
+                          var _tsLong=_ts2>=70?"The overall price trend is strong and bullish. The stock is well-positioned above its key moving averages.":_ts2>=55?"The trend is positive. Price is holding above key averages with momentum on its side.":_ts2>=40?"The trend is mixed or sideways. No clear directional bias from moving averages.":_ts2>=25?"The trend is weak. Price is struggling below key averages.":"The trend is strongly bearish. Price is well below key averages across multiple timeframes.";
                           return (
                             <div style={{padding:"12px 14px",background:_tsbg,borderRadius:8,marginBottom:14,border:"0.5px solid "+_tsbd}}>
                               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
                                 <div>
                                   <div style={{fontSize:10,color:"#888",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Trend / Price Action</div>
-                                  <div style={{fontSize:15,fontWeight:700,color:_tsc}}>{_trendLabel}</div>
+                                  <div style={{fontSize:15,fontWeight:700,color:_tsc}}>{_tl2}</div>
                                 </div>
                                 <div style={{textAlign:"right"}}>
-                                  <div style={{fontSize:10,color:"#888",marginBottom:3}}>{_trendScore + " / 100"}</div>
-                                  <div style={{display:"flex",gap:3}}>{[1,2,3,4,5].map(function(i){return (<span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:i<=_trendDots?_tsc:"#ddd"}}/>);})}</div>
+                                  <div style={{fontSize:10,color:"#888",marginBottom:3}}>{_ts2 + " / 100"}</div>
+                                  <div style={{display:"flex",gap:3}}>{[1,2,3,4,5].map(function(i){return (<span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:i<=_td2?_tsc:"#ddd"}}/>);})}</div>
                                 </div>
                               </div>
                               <div style={{fontSize:11,color:"#555",lineHeight:1.5}}>{_tsLong}</div>
@@ -5992,20 +6009,34 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     return (
                       <div>
                         {(function(){
-                          var _msc=_momScore>=70?"#1a6a1a":_momScore>=55?"#2a7a2a":_momScore>=40?"#b88000":"#c03030";
-                          var _msbg=_momScore>=70?"#e6f4e6":_momScore>=55?"#f0f7e6":_momScore>=40?"#fdf8e6":"#fff0f0";
-                          var _msbd=_momScore>=70?"#7abd00":_momScore>=55?"#9ab800":_momScore>=40?"#d4a800":"#e08080";
-                          var _msLong=_momScore>=70?"Momentum is strong. Buying pressure is dominant across RSI, MACD, and volume signals.":_momScore>=55?"Momentum is building. More signals are bullish than bearish.":_momScore>=40?"Momentum is neutral. Mixed signals -- no clear buying or selling dominance.":_momScore>=25?"Momentum is fading. Selling pressure is outweighing buying across most signals.":"Momentum is weak. Bearish signals dominate -- buyers are not in control.";
+                          // Recompute momentum score in tab scope
+                          var _mW={rsi:35,macd:30,ema20:20,vol:15};
+                          var _r2=rsi; var _h2=macdH;
+                          var _eg2=ema20g; var _vr2=volRatio;
+                          function _msc2(key){
+                            if(key==="rsi") return _r2==null?3:_r2>80?2:_r2>75?3:(_r2>=50&&_r2<=75)?5:(_r2>=40&&_r2<50)?4:(_r2>=30&&_r2<40)?3:(_r2>=20&&_r2<30)?2:1;
+                            if(key==="macd") return _h2==null?3:_h2>0.05?5:_h2>0?4:_h2>-0.05?3:_h2>-0.5?2:1;
+                            if(key==="ema20") return _eg2==null?3:_eg2>5?5:_eg2>1?4:_eg2>-5?3:_eg2>-15?2:1;
+                            if(key==="vol") return _vr2>1.4?5:_vr2>1.1?4:_vr2>0.9?3:_vr2>0.7?2:1;
+                            return 3;
+                          }
+                          var _mtot=0; Object.keys(_mW).forEach(function(k){_mtot+=(_msc2(k)/5)*_mW[k];}); var _ms2=Math.round(_mtot);
+                          var _ml2=_ms2>=70?"Strong":_ms2>=55?"Building":_ms2>=40?"Neutral":_ms2>=25?"Fading":"Weak";
+                          var _md2=_ms2>=70?5:_ms2>=55?4:_ms2>=40?3:_ms2>=25?2:1;
+                          var _msc=_ms2>=70?"#1a6a1a":_ms2>=55?"#2a7a2a":_ms2>=40?"#b88000":"#c03030";
+                          var _msbg=_ms2>=70?"#e6f4e6":_ms2>=55?"#f0f7e6":_ms2>=40?"#fdf8e6":"#fff0f0";
+                          var _msbd=_ms2>=70?"#7abd00":_ms2>=55?"#9ab800":_ms2>=40?"#d4a800":"#e08080";
+                          var _msLong=_ms2>=70?"Momentum is strong. Buying pressure is dominant across RSI, MACD, and volume signals.":_ms2>=55?"Momentum is building. More signals are bullish than bearish.":_ms2>=40?"Momentum is neutral. Mixed signals -- no clear buying or selling dominance.":_ms2>=25?"Momentum is fading. Selling pressure is outweighing buying across most signals.":"Momentum is weak. Bearish signals dominate -- buyers are not in control.";
                           return (
                             <div style={{padding:"12px 14px",background:_msbg,borderRadius:8,marginBottom:14,border:"0.5px solid "+_msbd}}>
                               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
                                 <div>
                                   <div style={{fontSize:10,color:"#888",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Momentum</div>
-                                  <div style={{fontSize:15,fontWeight:700,color:_msc}}>{_momLabel}</div>
+                                  <div style={{fontSize:15,fontWeight:700,color:_msc}}>{_ml2}</div>
                                 </div>
                                 <div style={{textAlign:"right"}}>
-                                  <div style={{fontSize:10,color:"#888",marginBottom:3}}>{_momScore + " / 100"}</div>
-                                  <div style={{display:"flex",gap:3}}>{[1,2,3,4,5].map(function(i){return (<span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:i<=_momDots?_msc:"#ddd"}}/>);})}</div>
+                                  <div style={{fontSize:10,color:"#888",marginBottom:3}}>{_ms2 + " / 100"}</div>
+                                  <div style={{display:"flex",gap:3}}>{[1,2,3,4,5].map(function(i){return (<span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:i<=_md2?_msc:"#ddd"}}/>);})}</div>
                                 </div>
                               </div>
                               <div style={{fontSize:11,color:"#555",lineHeight:1.5}}>{_msLong}</div>
