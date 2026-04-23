@@ -1696,7 +1696,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
   // -- Pre-fetch moat + financial for AI Analysis --
   useEffect(function() {
-    if (!ov || !sym || !window.__isPaid) return;
+    if (!ov || !sym) return;
+    var _isFTF=window.FREE_TICKERS&&window.FREE_TICKERS.indexOf(sym)!==-1;
+    if (!window.__isPaid && !_isFTF) return;
     // Pre-load moat and financial so AI Analysis has them ready
     if (!insightCache["moat"] && !insightLoading) fetchInsight("moat");
   }, [ov, sym]);
@@ -1714,8 +1716,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       if (fundDone) { clearInterval(fundInterval); return; }
       fundAttempts++;
       if (fundAttempts > 30) { clearInterval(fundInterval); return; }
-      // Wait for isPaid -- Stripe status may resolve after this interval starts
-      if (!window.__isPaid) return;
+      // Wait for isPaid or free ticker
+      var _isFTP=window.FREE_TICKERS&&window.FREE_TICKERS.indexOf(symSnap)!==-1;
+      if (!window.__isPaid && !_isFTP) return;
       // Stop if already running or done
       if (window.__aiFundRunning === symSnap) return;
       if (window.__aiFundDone === symSnap) { clearInterval(fundInterval); return; }
