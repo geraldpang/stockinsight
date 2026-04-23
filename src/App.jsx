@@ -1675,7 +1675,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             _techWait++;
             if (_techWait > 15) { clearInterval(_techWaitInterval); return; } // give up after 30s
             if (window.__aiTechDone === _tSym || window.__aiTechRunning === _tSym) { clearInterval(_techWaitInterval); return; }
-            var _isFT=window.FREE_TICKERS&&window.FREE_TICKERS.indexOf(symSnap)!==-1;
+            var _isFT=FREE_TICKERS.indexOf(symSnap)!==-1;
       if (!window.__isPaid && !_isFT) return; // wait for auth
             clearInterval(_techWaitInterval);
             setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech TRIGGER (massive): "+_tSym, data:{price:window.__curPrice||0, waitAttempts:_techWait} }]); });
@@ -1697,7 +1697,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   // -- Pre-fetch moat + financial for AI Analysis --
   useEffect(function() {
     if (!ov || !sym) return;
-    var _isFTF=window.FREE_TICKERS&&window.FREE_TICKERS.indexOf(sym)!==-1;
+    var _isFTF=FREE_TICKERS.indexOf(sym)!==-1;
     if (!window.__isPaid && !_isFTF) return;
     // Pre-load moat and financial so AI Analysis has them ready
     if (!insightCache["moat"] && !insightLoading) fetchInsight("moat");
@@ -1717,7 +1717,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       fundAttempts++;
       if (fundAttempts > 30) { clearInterval(fundInterval); return; }
       // Wait for isPaid or free ticker
-      var _isFTP=window.FREE_TICKERS&&window.FREE_TICKERS.indexOf(symSnap)!==-1;
+      var _isFTP=FREE_TICKERS.indexOf(symSnap)!==-1;
       if (!window.__isPaid && !_isFTP) return;
       // Stop if already running or done
       if (window.__aiFundRunning === symSnap) return;
@@ -2840,7 +2840,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   var techC  = aiVerdictColor(aiTechResult ? aiTechResult.verdict : null);
                   var fundSc = aiVerdictScore(aiFundResult ? aiFundResult.verdict : null);
                   var techSc = aiVerdictScore(aiTechResult ? aiTechResult.verdict : null);
-                  var _isFreeTickerAI = window.FREE_TICKERS && window.FREE_TICKERS.indexOf(sym) !== -1;
+                  var _isFreeTickerAI = FREE_TICKERS.indexOf(sym) !== -1;
                   if (!window.__isPaid && !_isFreeTickerAI) {
                     return (
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
@@ -4433,7 +4433,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
                   {/* AI Analysis Tab */}
                   {insightTab === "aianalysis" && (function() {
-                    var _isFreeAI = window.FREE_TICKERS && window.FREE_TICKERS.indexOf(sym) !== -1;
+                    var _isFreeAI = FREE_TICKERS.indexOf(sym) !== -1;
                     if (!window.__isPaid && !_isFreeAI) {
                       return (
                         <div style={{ padding:"40px 16px", textAlign:"center" }}>
