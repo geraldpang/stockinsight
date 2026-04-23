@@ -1702,21 +1702,23 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   // -- AI Analysis trigger: poll every 2s until all data ready --
   // -- AI Analysis triggers: independent polling for fund and tech ----------------
   useEffect(function() {
-    if (!sym || !window.__isPaid) return;
+    if (!sym) return;
     var symSnap = sym; // snapshot sym so interval closure doesn't get stale
 
-    // Fund AI: poll every 2s, fire when ov + massive ready, wait up to 40s for moat/fin
+    // Fund AI: poll every 2s for up to 60s
     var fundAttempts = 0;
     var fundDone = false;
     var fundInterval = setInterval(function() {
       if (fundDone) { clearInterval(fundInterval); return; }
       fundAttempts++;
       if (fundAttempts > 30) { clearInterval(fundInterval); return; }
-      // Stop if already running or result stored in window
+      // Wait for isPaid -- Stripe status may resolve after this interval starts
+      if (!window.__isPaid) return;
+      // Stop if already running or done
       if (window.__aiFundRunning === symSnap) return;
       if (window.__aiFundDone === symSnap) { clearInterval(fundInterval); return; }
-      // Fallback: fire tech AI if massive is ready, isPaid confirmed, and tech hasn't started
-      if (window.__curMassive && window.__isPaid && !window.__aiTechRunning && window.__aiTechDone !== symSnap) {
+      // Fallback: fire tech AI if massive ready but tech hasn't started
+      if (window.__curMassive && !window.__aiTechRunning && window.__aiTechDone !== symSnap) {
         setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech TRIGGER (fallback): "+symSnap }]); });
         runTechAi(symSnap, window.__curMassive, window.__curPrice||0, window.__msDots2||0, window.__msLabel2||"");
       }
