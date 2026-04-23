@@ -4,7 +4,6 @@ const FONT = "'Inter', system-ui, sans-serif";
 const LIME = "#c8f000";
 const BG   = "#0e0e0c";
 
-window.FREE_TICKERS = FREE_TICKERS;
 const NAMES = window.NAMES = {
   "A":"Agilent Technologies",
   "AAL":"American Airlines",
@@ -505,6 +504,7 @@ const NAMES = window.NAMES = {
 };
 
 var FREE_TICKERS  = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
+window.FREE_TICKERS = FREE_TICKERS;
 var CACHE_VERSION = "v1";
 
 const qCache  = {};
