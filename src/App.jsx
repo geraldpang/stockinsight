@@ -4,6 +4,7 @@ const FONT = "'Inter', system-ui, sans-serif";
 const LIME = "#c8f000";
 const BG   = "#0e0e0c";
 
+window.FREE_TICKERS = FREE_TICKERS;
 const NAMES = window.NAMES = {
   "A":"Agilent Technologies",
   "AAL":"American Airlines",
@@ -1674,7 +1675,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             _techWait++;
             if (_techWait > 15) { clearInterval(_techWaitInterval); return; } // give up after 30s
             if (window.__aiTechDone === _tSym || window.__aiTechRunning === _tSym) { clearInterval(_techWaitInterval); return; }
-            if (!window.__isPaid) return; // wait for auth
+            var _isFT=window.FREE_TICKERS&&window.FREE_TICKERS.indexOf(symSnap)!==-1;
+      if (!window.__isPaid && !_isFT) return; // wait for auth
             clearInterval(_techWaitInterval);
             setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech TRIGGER (massive): "+_tSym, data:{price:window.__curPrice||0, waitAttempts:_techWait} }]); });
             runTechAi(_tSym, _tData, window.__curPrice||0, window.__msDots2||0, window.__msLabel2||"");
@@ -2835,7 +2837,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   var techC  = aiVerdictColor(aiTechResult ? aiTechResult.verdict : null);
                   var fundSc = aiVerdictScore(aiFundResult ? aiFundResult.verdict : null);
                   var techSc = aiVerdictScore(aiTechResult ? aiTechResult.verdict : null);
-                  if (!window.__isPaid) {
+                  var _isFreeTickerAI = window.FREE_TICKERS && window.FREE_TICKERS.indexOf(sym) !== -1;
+                  if (!window.__isPaid && !_isFreeTickerAI) {
                     return (
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
                         {["Fundamental AI","Technical AI"].map(function(lbl,i){
@@ -3045,8 +3048,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                               : _hasTech ? (
                                 <div>
                                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:3 }}>
-                                    <span style={{ fontSize:10, color:"#7abd00" }}>{"Bullish "+revCount3+"/5"}</span>
-                                    {_RevDots(revCount3,"#7abd00","#2a5020")}
+                                    <span style={{ fontSize:10, color:revCount3>0?"#7abd00":"#555" }}>{"Bullish "+revCount3+"/5"}</span>
+                                    {_RevDots(revCount3,"#7abd00",revCount3>0?"#2a5020":"#333")}
                                   </div>
                                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                                     <span style={{ fontSize:10, color:_hasBear?"#e05050":"#555" }}>{"Bearish "+_bearCount3+"/5"}</span>
@@ -4427,7 +4430,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
                   {/* AI Analysis Tab */}
                   {insightTab === "aianalysis" && (function() {
-                    if (!window.__isPaid) {
+                    var _isFreeAI = window.FREE_TICKERS && window.FREE_TICKERS.indexOf(sym) !== -1;
+                    if (!window.__isPaid && !_isFreeAI) {
                       return (
                         <div style={{ padding:"40px 16px", textAlign:"center" }}>
                           <div style={{ fontSize:16, fontWeight:700, color:"#888", marginBottom:8 }}>PREMIUM Feature</div>
