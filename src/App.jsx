@@ -1726,11 +1726,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       var _ic = window.__insightCache || {};
       var _pi = window.__parsedInsights || {};
       var moatReady  = _pi["moat"] && _pi["moat"].classification;
-      var _finCls    = _pi["financial"] && _pi["financial"].classification;
-      var finReady   = _finCls && _finCls.replace(/[^a-zA-Z]/g,"").length > 2;
       var moatCached = _ic["moat"] && _ic["moat"].length > 10;
-      var finCached  = _ic["financial"] && _ic["financial"].length > 10;
-      var allReady   = moatReady && finReady && moatCached && finCached;
+      var allReady   = moatReady && moatCached;
       if (!allReady && fundAttempts < 20) return;
       fundDone = true;
       clearInterval(fundInterval);
