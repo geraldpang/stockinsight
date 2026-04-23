@@ -2750,12 +2750,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             var lowBase3=pos3<0.20&&ind3&&ind3.rsi14!=null&&ind3.rsi14>20&&ind3.rsi14<45;
             var revArr3=[rsiDiv3,macdTurn3,weeklyCross3,rsiBase3,lowBase3];
             var revCount3=revArr3.filter(Boolean).length;
-            var revBg3=revCount3>=4?"#1e2a1e":revCount3>=2?"#1e2a1e":revCount3===1?"#2a2010":"#222";
-            var revBorder3=revCount3>=2?"#2a5020":revCount3===1?"#4a3810":"#333";
-            var revCol3=revCount3>=2?"#7abd00":revCount3===1?"#EF9F27":"#555";
-            var revDot3=revCount3>=2?"#7abd00":revCount3===1?"#EF9F27":"#444";
-            var revEmpty3=revCount3>=2?"#2a5020":revCount3===1?"#4a3810":"#2a2a2a";
-            var revLabel3=revCount3>=4?"Strong Reversal":revCount3>=2?"Reversal Watch":revCount3===1?"Early Signal":"No Signals";
+            var revBg3=revCount3>=3?"#1e2a1e":revCount3>=1?"#1e2a1e":"#222";
+            var revBorder3=revCount3>=1?"#2a5020":"#333";
+            var revCol3=revCount3>=1?"#7abd00":"#555";
+            var revDot3=revCount3>=1?"#7abd00":"#444";
+            var revEmpty3=revCount3>=1?"#2a5020":"#2a2a2a";
+            var revLabel3=revCount3>=4?"Strong Signal":revCount3>=3?"Moderate Signal":revCount3>=1?"Weak Signal":"No Signal";
             var sigNames3=["RSI Divergence","MACD Turning","Weekly Cross","RSI Base","52W Low Base"];
 
             // -- AI Insight --
@@ -2973,42 +2973,63 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
                   return (
                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
-                      <div onClick={function(){ window.__goToTab && window.__goToTab("trend"); }}
-                        style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid #2c2c2e", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color:_hasTech?_trendCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Trend</div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                          {addlLoading && !_hasTech
-                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Loading...</span></div>
-                            : <span style={{ fontSize:13, fontWeight:700, color:_hasTech?_trendCol.fg:"#555" }}>{_hasTech?_trendLabel:"--"}</span>
-                          }
-                          {_hasTech && <Dots score={_trendDots} filled={_trendCol.dot} empty={_trendCol.dotEmpty} />}
-                        </div>
-                        {_hasTech && <div style={{ fontSize:10, color:_trendCol.fg, marginTop:3, opacity:0.75 }}>{_trendScore + "/100"}</div>}
-                      </div>
-                      <div onClick={function(){ window.__goToTab && window.__goToTab("momentum"); }}
-                        style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid #2c2c2e", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color:_hasTech?_momCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Momentum</div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                          {addlLoading && !_hasTech
-                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Loading...</span></div>
-                            : <span style={{ fontSize:13, fontWeight:700, color:_hasTech?_momCol.fg:"#555" }}>{_hasTech?_momLabel:"--"}</span>
-                          }
-                          {_hasTech && <Dots score={_momDots} filled={_momCol.dot} empty={_momCol.dotEmpty} />}
-                        </div>
-                        {_hasTech && <div style={{ fontSize:10, color:_momCol.fg, marginTop:3, opacity:0.75 }}>{_momScore + "/100"}</div>}
-                      </div>
+                      {(function(){
+                        // Detect caution flags for trend pill
+                        var _ind2=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
+                        var _p2=q?q.price:0;
+                        var _s200g2=_ind2.sma200&&_p2>0?(_p2-_ind2.sma200)/_ind2.sma200*100:0;
+                        var _pos52_2=ind2&&p2&&hi2>lo2?(p2-lo2)/(hi2-lo2)*100:50;
+                        var _trendCaution=_hasTech&&(_s200g2>25||_pos52_2>95);
+                        var _rsi2=_ind2.rsi14?parseFloat(_ind2.rsi14):0;
+                        var _ema20g2=_ind2.ema20&&_p2>0?(_p2-_ind2.ema20)/_ind2.ema20*100:0;
+                        var _momCaution=_hasTech&&(_rsi2>75||_ema20g2>10);
+                        return (
+                          <div style={{display:"contents"}}>
+                            <div onClick={function(){ window.__goToTab && window.__goToTab("trend"); }}
+                              style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid #2c2c2e", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
+                                <div style={{ fontSize:9, color:_hasTech?_trendCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", opacity:0.8 }}>Trend</div>
+                                {_trendCaution && <div style={{ fontSize:8, fontWeight:700, color:"#b88000", background:"#2a2010", border:"0.5px solid #4a3810", borderRadius:3, padding:"1px 5px" }}>CAUTION</div>}
+                              </div>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
+                                {addlLoading && !_hasTech
+                                  ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Loading...</span></div>
+                                  : <span style={{ fontSize:13, fontWeight:700, color:_hasTech?_trendCol.fg:"#555" }}>{_hasTech?_trendLabel:"--"}</span>
+                                }
+                                {_hasTech && <Dots score={_trendDots} filled={_trendCol.dot} empty={_trendCol.dotEmpty} />}
+                              </div>
+                              {_hasTech && <div style={{ fontSize:10, color:_trendCol.fg, marginTop:3, opacity:0.75 }}>{_trendScore + "/100"}</div>}
+                            </div>
+                            <div onClick={function(){ window.__goToTab && window.__goToTab("momentum"); }}
+                              style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid #2c2c2e", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
+                                <div style={{ fontSize:9, color:_hasTech?_momCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", opacity:0.8 }}>Momentum</div>
+                                {_momCaution && <div style={{ fontSize:8, fontWeight:700, color:"#b88000", background:"#2a2010", border:"0.5px solid #4a3810", borderRadius:3, padding:"1px 5px" }}>CAUTION</div>}
+                              </div>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
+                                {addlLoading && !_hasTech
+                                  ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Loading...</span></div>
+                                  : <span style={{ fontSize:13, fontWeight:700, color:_hasTech?_momCol.fg:"#555" }}>{_hasTech?_momLabel:"--"}</span>
+                                }
+                                {_hasTech && <Dots score={_momDots} filled={_momCol.dot} empty={_momCol.dotEmpty} />}
+                              </div>
+                              {_hasTech && <div style={{ fontSize:10, color:_momCol.fg, marginTop:3, opacity:0.75 }}>{_momScore + "/100"}</div>}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <div onClick={function(){ window.__goToTab && window.__goToTab("reversal"); }}
-                        style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid #2c2c2e", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color:_hasTech?_revCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Reversal Detection</div>
+                        style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid "+(_hasTech&&revCount3>0?"#2a5020":"#2c2c2e"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                        <div style={{ fontSize:9, color:_hasTech&&revCount3>0?"#7abd00":"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Reversal Detection</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {addlLoading && !_hasTech
                             ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Loading...</span></div>
-                            : <span style={{ fontSize:13, fontWeight:700, color:_hasTech?_revCol.fg:"#555" }}>{_hasTech?revLabel3:"--"}</span>
+                            : <span style={{ fontSize:13, fontWeight:700, color:_hasTech?(revCount3>0?"#7abd00":"#555"):"#555" }}>{_hasTech?revLabel3:"--"}</span>
                           }
-                          {_hasTech && <Dots score={revCount3} filled={_revCol.dot} empty={_revCol.dotEmpty} />}
+                          {_hasTech && <Dots score={revCount3} filled={revCount3>0?"#7abd00":"#444"} empty={revCount3>0?"#2a5020":"#2a2a2a"} />}
                         </div>
                         {_hasTech && revCount3 > 0 && (
-                          <div style={{ fontSize:10, color:_revCol.fg, marginTop:3, opacity:0.75, lineHeight:1.4 }}>
+                          <div style={{ fontSize:10, color:"#7abd00", marginTop:3, opacity:0.75, lineHeight:1.4 }}>
                             {sigNames3.filter(function(_,i){ return revArr3[i]; }).join(" " + String.fromCharCode(0xB7) + " ")}
                           </div>
                         )}
@@ -5812,8 +5833,29 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     var aggs=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
                     return (
                       <div>
+                        {(function(){
+                          var _tsc=_trendScore>=70?"#1a6a1a":_trendScore>=55?"#2a7a2a":_trendScore>=40?"#b88000":"#c03030";
+                          var _tsbg=_trendScore>=70?"#e6f4e6":_trendScore>=55?"#f0f7e6":_trendScore>=40?"#fdf8e6":"#fff0f0";
+                          var _tsbd=_trendScore>=70?"#7abd00":_trendScore>=55?"#9ab800":_trendScore>=40?"#d4a800":"#e08080";
+                          var _tsLong=_trendScore>=70?"The overall price trend is strong and bullish. The stock is well-positioned above its key moving averages.":_trendScore>=55?"The trend is positive. Price is holding above key averages with momentum on its side.":_trendScore>=40?"The trend is mixed or sideways. No clear directional bias from moving averages.":_trendScore>=25?"The trend is weak. Price is struggling below key averages.":"The trend is strongly bearish. Price is well below key averages across multiple timeframes.";
+                          return (
+                            <div style={{padding:"12px 14px",background:_tsbg,borderRadius:8,marginBottom:14,border:"0.5px solid "+_tsbd}}>
+                              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                                <div>
+                                  <div style={{fontSize:10,color:"#888",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Trend / Price Action</div>
+                                  <div style={{fontSize:15,fontWeight:700,color:_tsc}}>{_trendLabel}</div>
+                                </div>
+                                <div style={{textAlign:"right"}}>
+                                  <div style={{fontSize:10,color:"#888",marginBottom:3}}>{_trendScore + " / 100"}</div>
+                                  <div style={{display:"flex",gap:3}}>{[1,2,3,4,5].map(function(i){return (<span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:i<=_trendDots?_tsc:"#ddd"}}/>);})}</div>
+                                </div>
+                              </div>
+                              <div style={{fontSize:11,color:"#555",lineHeight:1.5}}>{_tsLong}</div>
+                            </div>
+                          );
+                        })()}
                         <div style={{padding:"10px 14px",background:"#f5f2ec",borderRadius:"8px 8px 0 0",borderBottom:"1px solid #e0dbd0",marginBottom:0}}>
-                          <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.08em"}}>Trend / Price Action</div>
+                          <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.08em"}}>Signal Breakdown</div>
                           <div style={{fontSize:12,color:"#555",marginTop:2}}>Where is the stock positioned long-term?</div>
                         </div>
                         <div style={{border:"1px solid #e0dbd0",borderTop:"none",borderRadius:"0 0 8px 8px",marginBottom:16}}>
@@ -5949,8 +5991,29 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     }
                     return (
                       <div>
+                        {(function(){
+                          var _msc=_momScore>=70?"#1a6a1a":_momScore>=55?"#2a7a2a":_momScore>=40?"#b88000":"#c03030";
+                          var _msbg=_momScore>=70?"#e6f4e6":_momScore>=55?"#f0f7e6":_momScore>=40?"#fdf8e6":"#fff0f0";
+                          var _msbd=_momScore>=70?"#7abd00":_momScore>=55?"#9ab800":_momScore>=40?"#d4a800":"#e08080";
+                          var _msLong=_momScore>=70?"Momentum is strong. Buying pressure is dominant across RSI, MACD, and volume signals.":_momScore>=55?"Momentum is building. More signals are bullish than bearish.":_momScore>=40?"Momentum is neutral. Mixed signals -- no clear buying or selling dominance.":_momScore>=25?"Momentum is fading. Selling pressure is outweighing buying across most signals.":"Momentum is weak. Bearish signals dominate -- buyers are not in control.";
+                          return (
+                            <div style={{padding:"12px 14px",background:_msbg,borderRadius:8,marginBottom:14,border:"0.5px solid "+_msbd}}>
+                              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                                <div>
+                                  <div style={{fontSize:10,color:"#888",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Momentum</div>
+                                  <div style={{fontSize:15,fontWeight:700,color:_msc}}>{_momLabel}</div>
+                                </div>
+                                <div style={{textAlign:"right"}}>
+                                  <div style={{fontSize:10,color:"#888",marginBottom:3}}>{_momScore + " / 100"}</div>
+                                  <div style={{display:"flex",gap:3}}>{[1,2,3,4,5].map(function(i){return (<span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:i<=_momDots?_msc:"#ddd"}}/>);})}</div>
+                                </div>
+                              </div>
+                              <div style={{fontSize:11,color:"#555",lineHeight:1.5}}>{_msLong}</div>
+                            </div>
+                          );
+                        })()}
                         <div style={{padding:"10px 14px",background:"#f5f2ec",borderRadius:"8px 8px 0 0",borderBottom:"1px solid #e0dbd0"}}>
-                          <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.08em"}}>Momentum</div>
+                          <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.08em"}}>Signal Breakdown</div>
                           <div style={{fontSize:12,color:"#555",marginTop:2}}>How much energy is behind the current move?</div>
                         </div>
                         <div style={{border:"1px solid #e0dbd0",borderTop:"none",borderRadius:"0 0 8px 8px",marginBottom:10}}>
@@ -6137,6 +6200,72 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                             </div>
                           );
                         })}
+                        {/* BEARISH REVERSAL SIGNALS */}
+                        {(function(){
+                          var _rsi2=ind?ind.rsi14:null;
+                          var _rsiH2=ind&&ind.rsiHistory?ind.rsiHistory:[];
+                          var _mH2=ind&&ind.macdHistory?ind.macdHistory:[];
+                          var _aggs2=aggs||[];
+                          var _hi52b=ov?ov.hi52:0; var _lo52b=ov?ov.lo52:0;
+                          var _priceB=q?q.price:0;
+                          var _pos52b=(_hi52b>_lo52b&&_priceB>0)?(_priceB-_lo52b)/(_hi52b-_lo52b):0.5;
+                          var bearSignals = [
+                            {
+                              label:"RSI Bearish Divergence",
+                              active:(function(){ if(_rsiH2.length<10||_aggs2.length<10) return false; var rPH=Math.max.apply(null,_aggs2.slice(0,5).map(function(a){return a.h||0;})); var pPH=Math.max.apply(null,_aggs2.slice(5,10).map(function(a){return a.h||0;})); var rRH=Math.max.apply(null,_rsiH2.slice(0,5)); var pRH=Math.max.apply(null,_rsiH2.slice(5,10)); return rPH>pPH&&rRH<pRH; })(),
+                              what:"Price is making new highs but the RSI momentum indicator is not following -- it is making lower highs.",
+                              why:"When buyers push price higher but momentum stops confirming, it signals the rally may be running out of fuel. A pullback or reversal may follow."
+                            },
+                            {
+                              label:"MACD Histogram Turning Down",
+                              active:(function(){ if(_mH2.length<3) return false; var h0=_mH2[0]&&_mH2[0].histogram!=null?parseFloat(_mH2[0].histogram):null; var h1=_mH2[1]&&_mH2[1].histogram!=null?parseFloat(_mH2[1].histogram):null; var h2=_mH2[2]&&_mH2[2].histogram!=null?parseFloat(_mH2[2].histogram):null; return h0!=null&&h1!=null&&h2!=null&&h0>0&&h0<h1&&h1<h2; })(),
+                              what:"The MACD histogram is still positive (bullish) but has been declining for 3 or more days in a row.",
+                              why:"Buying momentum is fading even though the stock is still in an uptrend. This often precedes a pullback or trend reversal."
+                            },
+                            {
+                              label:"Weekly SMA Cross Approaching (Bearish)",
+                              active:(function(){ if(!ind||!ind.wsma10||!ind.wsma40) return false; return ind.wsma10>ind.wsma40&&Math.abs(ind.wsma10-ind.wsma40)/ind.wsma40<0.05; })(),
+                              what:"The 10-week moving average is above the 40-week but within 5% of crossing below it.",
+                              why:"A cross of the 10-week below the 40-week (Death Cross on weekly) is a major bearish signal. The stock may be approaching a long-term trend change downward."
+                            },
+                            {
+                              label:"RSI Overbought Stalling",
+                              active:(function(){ if(_rsiH2.length<5) return false; return _rsiH2.slice(0,5).every(function(v){return v!=null&&v>=72&&v<=85;}); })(),
+                              what:"The RSI has been stuck in overbought territory (72-85) for 5 or more days without pushing higher.",
+                              why:"When a stock is overbought but momentum stops accelerating, it often signals that buyers are exhausted. Distribution (selling) may be beginning."
+                            },
+                            {
+                              label:"52-Week High Base (Topping)",
+                              active:_pos52b>0.95&&_rsi2!=null&&_rsi2>70&&_rsi2<80,
+                              what:"The stock is trading near its 52-week high while RSI is elevated but not extreme -- a potential distribution zone.",
+                              why:"Stocks near their yearly highs with fading momentum are vulnerable to profit-taking. Institutional investors often sell into strength at these levels."
+                            },
+                          ];
+                          var bearCount=bearSignals.filter(function(r){return r.active;}).length;
+                          if (bearCount===0) return null;
+                          return (
+                            <div style={{marginTop:16}}>
+                              <div style={{padding:"10px 14px",background:"#fff0f0",borderRadius:8,marginBottom:10,border:"0.5px solid #e08080"}}>
+                                <div style={{fontSize:10,color:"#c03030",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Topping Signals (Bearish Reversal)</div>
+                                <div style={{fontSize:13,fontWeight:700,color:"#c03030"}}>{bearCount + " of 5 active"}</div>
+                                <div style={{fontSize:11,color:"#888",marginTop:2}}>These signals suggest the stock may be forming a top and could pull back.</div>
+                              </div>
+                              {bearSignals.filter(function(r){return r.active;}).map(function(r,i){
+                                return (
+                                  <div key={i} style={{marginBottom:10,padding:"10px 14px",background:"#fff4f4",borderRadius:8,border:"0.5px solid #f0a0a0"}}>
+                                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                                      <div style={{width:10,height:10,borderRadius:"50%",background:"#e05050",flexShrink:0}}></div>
+                                      <span style={{fontSize:12,fontWeight:700,color:"#c03030"}}>{r.label}</span>
+                                      <span style={{fontSize:10,color:"#c03030",marginLeft:"auto"}}>ACTIVE</span>
+                                    </div>
+                                    <div style={{fontSize:11,color:"#555",lineHeight:1.5,marginBottom:4}}><span style={{fontWeight:600}}>What: </span>{r.what}</div>
+                                    <div style={{fontSize:11,color:"#777",lineHeight:1.5}}><span style={{fontWeight:600}}>Why it matters: </span>{r.why}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                         <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de",marginTop:8}}>
                           {"Reversal signals are early warning indicators only. They do not guarantee a price reversal. Not financial advice."}
                         </div>
