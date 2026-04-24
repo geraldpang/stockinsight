@@ -3071,6 +3071,65 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           </div>
                         );
                       })()}
+                      {/* VOLUME SPIKE PILL */}
+                      {(function(){
+                        var _aggs4=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
+                        var _ind4=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
+                        var _snap4=massiveInfo&&massiveInfo.snapshot?massiveInfo.snapshot:{};
+                        var _p4=q?q.price:0;
+                        var _vol5_4=_aggs4.slice(0,5).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4.slice(0,5).length,1);
+                        var _vol20_4=_aggs4.slice(0,20).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4.slice(0,20).length,1);
+                        var _vol1_4=_aggs4[0]?_aggs4[0].v:0;
+                        var _vwap4=_snap4.vwap||0;
+                        // Accumulation vs distribution
+                        var _acc4=0; var _dist4=0;
+                        _aggs4.slice(0,20).forEach(function(a){ if(!a||!a.v||!a.c||!a.o) return; if(a.c>=a.o&&a.v>_vol20_4) _acc4++; else if(a.c<a.o&&a.v>_vol20_4) _dist4++; });
+                        // VWAP closes last 5 days
+                        var _vwapUp4=_aggs4.slice(0,5).filter(function(a){ return a&&_vwap4>0&&a.c>_vwap4; }).length;
+                        var _vwapDn4=_aggs4.slice(0,5).filter(function(a){ return a&&_vwap4>0&&a.c<_vwap4; }).length;
+                        // Bullish signals
+                        var _bSigs4=[
+                          _vol1_4>0&&_vol20_4>0&&_vol1_4>_vol20_4*2.5,
+                          _aggs4.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c>a.o&&a.v>_vol20_4*2;}),
+                          _acc4>_dist4+1,
+                          _vol20_4>0&&_vol5_4>_vol20_4*1.2,
+                          _vwapUp4>=3,
+                        ];
+                        // Bearish signals
+                        var _rSigs4=[
+                          _aggs4[0]&&_aggs4[0].c&&_aggs4[0].o&&_aggs4[0].c>_aggs4[0].o&&_vol1_4<_vol20_4*0.5,
+                          _dist4>_acc4+1,
+                          _aggs4.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c<a.o&&a.v>_vol20_4*2;}),
+                          _vol20_4>0&&_vol5_4<_vol20_4*0.8,
+                          _vwapDn4>=4,
+                        ];
+                        var _bCount4=_bSigs4.filter(Boolean).length;
+                        var _rCount4=_rSigs4.filter(Boolean).length;
+                        var _hasVol=_hasTech&&(_bCount4>0||_rCount4>0);
+                        function _VolDots(count,col,empty){ var d=[]; for(var i=1;i<=5;i++) d.push(<span key={i} style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:i<=count?col:empty,marginRight:2}}/>); return <span style={{display:"inline-flex",alignItems:"center"}}>{d}</span>; }
+                        return (
+                          <div onClick={function(){ window.__goToTab && window.__goToTab("volume"); }}
+                            style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid "+(_hasVol?"#2a5020":"#2c2c2e"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                            <div style={{ fontSize:9, color:_hasVol?"#7abd00":"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, opacity:0.8 }}>Volume Spike</div>
+                            {addlLoading && !_hasTech
+                              ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Loading...</span></div>
+                              : _hasTech ? (
+                                <div>
+                                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:3 }}>
+                                    <span style={{ fontSize:10, color:_bCount4>0?"#7abd00":"#555" }}>{"Bullish "+_bCount4+"/5"}</span>
+                                    {_VolDots(_bCount4,"#7abd00",_bCount4>0?"#2a5020":"#333")}
+                                  </div>
+                                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                                    <span style={{ fontSize:10, color:_rCount4>0?"#e05050":"#555" }}>{"Bearish "+_rCount4+"/5"}</span>
+                                    {_VolDots(_rCount4,"#e05050","#2a2a2a")}
+                                  </div>
+                                  {!_bCount4&&!_rCount4&&<div style={{fontSize:10,color:"#555",marginTop:2}}>No signals</div>}
+                                </div>
+                              ) : <span style={{ fontSize:13, fontWeight:700, color:"#555" }}>--</span>
+                            }
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })()}
@@ -3279,6 +3338,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               { id:"trend",     label:"Trend" },
               { id:"momentum",  label:"Momentum" },
               { id:"reversal",  label:"Reversal" },
+              { id:"volume",    label:"Volume Spike" },
               { id:"addlinfo",  label:"Additional Information" },
               { id:"debug",     label:"Debug" },
               { id:"admin",     label:"Admin" },
@@ -3374,7 +3434,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             }
 
             var tabContent = insightCache[insightTab];
-            var _noFetch   = ["business","addlinfo","debug","signal","admin","financial","intrinsic","aianalysis","aiinsight","trend","momentum","reversal"];
+            var _noFetch   = ["business","addlinfo","debug","signal","admin","financial","intrinsic","aianalysis","aiinsight","trend","momentum","reversal","volume"];
             var isLoading  = !tabContent && _noFetch.indexOf(insightTab) === -1;           return (
               <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden" }}>
 
@@ -3689,7 +3749,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   {/* AI-powered tabs */}
                   {insightTab !== "intrinsic" && (
                     <div>
-                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && insightTab !== "trend" && insightTab !== "momentum" && insightTab !== "reversal" && insightTab !== "aianalysis" && insightTab !== "financial" && insightTab !== "admin" && (
+                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && insightTab !== "trend" && insightTab !== "momentum" && insightTab !== "reversal" && insightTab !== "aianalysis" && insightTab !== "financial" && insightTab !== "volume" && insightTab !== "admin" && (
                         <div style={{ textAlign:"center", padding:"40px 0" }}>
                           <div style={{ fontSize:12, color:"#888", marginBottom:14 }}>Generating {insightTab} analysis for {sym}...</div>
                           <div style={{ display:"inline-block", width:26, height:26, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
@@ -6383,6 +6443,129 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
                         <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de",marginTop:8}}>
                           {"Reversal signals are early warning indicators only. They do not guarantee a price reversal. Not financial advice."}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* VOLUME SPIKE TAB */}
+                  {insightTab === "volume" && (function() {
+                    var ind=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
+                    var aggs=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
+                    var snap=massiveInfo&&massiveInfo.snapshot?massiveInfo.snapshot:{};
+                    var price=q?q.price:0;
+                    if (!aggs.length||!price) return <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>Volume data requires Massive.com feed.</div>;
+                    var vol5=aggs.slice(0,5).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(aggs.slice(0,5).length,1);
+                    var vol20=aggs.slice(0,20).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(aggs.slice(0,20).length,1);
+                    var vol1=aggs[0]?aggs[0].v:0;
+                    var vwap=snap.vwap||0;
+                    var accDays=0; var distDays=0;
+                    aggs.slice(0,20).forEach(function(a){ if(!a||!a.v||!a.c||!a.o) return; if(a.c>=a.o&&a.v>vol20) accDays++; else if(a.c<a.o&&a.v>vol20) distDays++; });
+                    var vwapUpDays=aggs.slice(0,5).filter(function(a){return a&&vwap>0&&a.c>vwap;}).length;
+                    var vwapDnDays=aggs.slice(0,5).filter(function(a){return a&&vwap>0&&a.c<vwap;}).length;
+                    var volRatio=vol20>0?vol5/vol20:1;
+
+                    var bullVol=[
+                      { label:"Single Day Volume Spike",
+                        active:vol1>0&&vol20>0&&vol1>vol20*2.5,
+                        what:"Today's trading volume is more than 2.5x the 20-day average.",
+                        why:"Unusually high volume on a single day often signals a major event -- earnings, news, or large institutional activity. Big volume moves tend to set the direction for days ahead." },
+                      { label:"Bullish Volume Surge (last 5 days)",
+                        active:aggs.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c>a.o&&a.v>vol20*2;}),
+                        what:"At least one up day in the last 5 sessions had volume more than 2x the normal average.",
+                        why:"A large up day on heavy volume shows buyers were aggressive and committed. This is one of the strongest bullish signals technical analysts look for." },
+                      { label:"Accumulation Pattern (20 days)",
+                        active:accDays>distDays+1,
+                        what:"Over the last 20 trading days, there have been significantly more high-volume up days than high-volume down days ("+accDays+" vs "+distDays+").",
+                        why:"When institutions buy, they often spread purchases over days to avoid moving the price. A pattern of more up days on high volume than down days suggests quiet accumulation." },
+                      { label:"Volume Trend Rising",
+                        active:vol20>0&&vol5>vol20*1.2,
+                        what:"The average volume over the last 5 days is more than 20% above the 20-day average ("+Math.round(volRatio*100)+"% of normal).",
+                        why:"Rising volume while a trend continues is a sign of increasing conviction. More participants are joining the move, making it more likely to continue." },
+                      { label:"VWAP Reclaim (intraday strength)",
+                        active:vwapUpDays>=3,
+                        what:"The stock closed above the daily VWAP on "+vwapUpDays+" of the last 5 sessions.",
+                        why:"VWAP is the benchmark institutional traders use. Consistently closing above it means buyers are in control and institutions are not using pullbacks to sell." },
+                    ];
+
+                    var bearVol=[
+                      { label:"Volume Dry-Up on Rally",
+                        active:aggs[0]&&aggs[0].c&&aggs[0].o&&aggs[0].c>aggs[0].o&&vol1<vol20*0.5,
+                        what:"Price moved up today but on volume that is less than half the normal average.",
+                        why:"A rally on very low volume is a warning sign -- it means few participants are behind the move. Without volume conviction, rallies tend to fade quickly." },
+                      { label:"Distribution Pattern (20 days)",
+                        active:distDays>accDays+1,
+                        what:"Over the last 20 trading days, there have been significantly more high-volume down days than high-volume up days ("+distDays+" vs "+accDays+").",
+                        why:"Distribution is when smart money quietly sells into strength. More high-volume down days than up days suggests institutions are reducing positions." },
+                      { label:"Bearish Volume Surge (last 5 days)",
+                        active:aggs.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c<a.o&&a.v>vol20*2;}),
+                        what:"At least one down day in the last 5 sessions had volume more than 2x the normal average.",
+                        why:"Heavy volume on a down day shows sellers were aggressive and committed. This is a strong bearish signal -- institutions were selling heavily." },
+                      { label:"Volume Trend Falling",
+                        active:vol20>0&&vol5<vol20*0.8,
+                        what:"The average volume over the last 5 days is more than 20% below the 20-day average ("+Math.round(volRatio*100)+"% of normal).",
+                        why:"Declining volume often signals fading interest in a trend. If price is rising but volume is falling, the move may be losing steam." },
+                      { label:"VWAP Rejection (intraday weakness)",
+                        active:vwapDnDays>=4,
+                        what:"The stock closed below the daily VWAP on "+vwapDnDays+" of the last 5 sessions.",
+                        why:"Consistently closing below VWAP means sellers are in control intraday. Institutions are not stepping in to buy -- they may even be using rallies to exit." },
+                    ];
+
+                    var bullCount=bullVol.filter(function(r){return r.active;}).length;
+                    var bearCount=bearVol.filter(function(r){return r.active;}).length;
+
+                    var _bBg=bullCount>=3?"#e6f4e6":bullCount>=1?"#f0f7e6":"#f5f5f5";
+                    var _bBd=bullCount>=3?"#7abd00":bullCount>=1?"#b0d080":"#ddd";
+                    var _bFg=bullCount>=3?"#1a6a1a":bullCount>=1?"#2a7a2a":"#888";
+                    var _rBg=bearCount>=3?"#fff0f0":bearCount>=1?"#fff4f4":"#f5f5f5";
+                    var _rBd=bearCount>=3?"#e05050":bearCount>=1?"#f0a0a0":"#ddd";
+                    var _rFg=bearCount>=3?"#c03030":bearCount>=1?"#c05050":"#888";
+
+                    function VolRow(r, isBull) {
+                      var dot = isBull?(r.active?"#7abd00":"#ccc"):(r.active?"#e05050":"#ccc");
+                      var labelCol = isBull?(r.active?"#1a6a1a":"#888"):(r.active?"#c03030":"#888");
+                      var statusCol = isBull?(r.active?"#1a6a1a":"#aaa"):(r.active?"#c03030":"#aaa");
+                      var bg = r.active?(isBull?"#f0f7e6":"#fff4f4"):"#faf8f4";
+                      var bd = r.active?(isBull?"#b0d080":"#f0a0a0"):"#e0dbd0";
+                      return (
+                        <div style={{marginBottom:8,padding:"10px 14px",background:bg,borderRadius:8,border:"0.5px solid "+bd}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:r.active?6:0}}>
+                            <div style={{width:10,height:10,borderRadius:"50%",background:dot,flexShrink:0}}></div>
+                            <span style={{fontSize:12,fontWeight:700,color:labelCol}}>{r.label}</span>
+                            <span style={{fontSize:10,color:statusCol,marginLeft:"auto"}}>{r.active?"ACTIVE":"Not detected"}</span>
+                          </div>
+                          {r.active && <div>
+                            <div style={{fontSize:11,color:"#555",lineHeight:1.5,marginBottom:3}}><span style={{fontWeight:600}}>What: </span>{r.what}</div>
+                            <div style={{fontSize:11,color:"#777",lineHeight:1.5}}><span style={{fontWeight:600}}>Why it matters: </span>{r.why}</div>
+                          </div>}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div>
+                        {/* Summary banner */}
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+                          <div style={{padding:"10px 14px",background:_bBg,borderRadius:8,border:"0.5px solid "+_bBd}}>
+                            <div style={{fontSize:9,color:_bFg,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>Bullish Volume</div>
+                            <div style={{fontSize:15,fontWeight:700,color:_bFg}}>{bullCount + " / 5"}</div>
+                            <div style={{display:"flex",gap:3,marginTop:5}}>{bullVol.map(function(r,i){return <span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:r.active?"#7abd00":"#ccc"}}/>;})}</div>
+                          </div>
+                          <div style={{padding:"10px 14px",background:_rBg,borderRadius:8,border:"0.5px solid "+_rBd}}>
+                            <div style={{fontSize:9,color:_rFg,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>Bearish Volume</div>
+                            <div style={{fontSize:15,fontWeight:700,color:_rFg}}>{bearCount + " / 5"}</div>
+                            <div style={{display:"flex",gap:3,marginTop:5}}>{bearVol.map(function(r,i){return <span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:r.active?"#e05050":"#ccc"}}/>;})}</div>
+                          </div>
+                        </div>
+
+                        <div style={{fontSize:10,fontWeight:700,color:"#1a6a1a",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Bullish Volume Signals</div>
+                        {bullVol.map(function(r,i){ return <div key={i}>{VolRow(r,true)}</div>; })}
+
+                        <div style={{fontSize:10,fontWeight:700,color:"#c03030",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8,marginTop:16}}>Bearish Volume Signals</div>
+                        {bearVol.map(function(r,i){ return <div key={i}>{VolRow(r,false)}</div>; })}
+
+                        <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de",marginTop:8}}>
+                          {"Volume signals are based on available daily bar data. VWAP is intraday only. Accumulation/distribution counts use 20-day window. Not financial advice."}
                         </div>
                       </div>
                     );
