@@ -2996,7 +2996,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         var _ema20g2=_ind2.ema20&&_p2>0?(_p2-_ind2.ema20)/_ind2.ema20*100:0;
                         var _aggs_pill=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
                         var _roc10_2=_aggs_pill.length>=10&&_aggs_pill[9]&&_aggs_pill[9].c&&(q?q.price:0)>0?((q?q.price:0)-_aggs_pill[9].c)/_aggs_pill[9].c*100:null;
-                        var _momCaution=_hasTech&&(_rsi2>75||_rsi2<30||(_roc10_2!=null&&_roc10_2>15));
+                        var _momCaution=_hasTech&&(_rsi2>75||_rsi2<35||(_roc10_2!=null&&_roc10_2>15));
                         return (
                           <div style={{display:"contents"}}>
                             <div onClick={function(){ window.__goToTab && window.__goToTab("trend"); }}
@@ -6161,7 +6161,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       if(rsi>80) rsiBadge={text:"\u26A0 OVERBOUGHT -- EXTREME",col:"#b88000",bg:"#fdf8e6"};
                       else if(rsi>75) rsiBadge={text:"\u26A0 OVERBOUGHT",col:"#b88000",bg:"#fdf8e6"};
                       else if(rsi<20) rsiBadge={text:"\u26A0 OVERSOLD -- EXTREME",col:"#b88000",bg:"#fdf8e6"};
-                      else if(rsi<30) rsiBadge={text:"\u26A0 OVERSOLD",col:"#b88000",bg:"#fdf8e6"};
+                      else if(rsi<35) rsiBadge={text:"\u26A0 OVERSOLD",col:"#b88000",bg:"#fdf8e6"};
                     }
                     return (
                       <div>
@@ -6171,17 +6171,17 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           var _r2=rsi; var _h2=macdH;
                           var _eg2=ema20g; var _vr2=volRatio;
                           function _msc2(key){
-                            if(key==="rsi") return _r2==null?3:_r2>80?2:_r2>75?3:(_r2>=50&&_r2<=75)?5:(_r2>=40&&_r2<50)?4:(_r2>=30&&_r2<40)?3:(_r2>=20&&_r2<30)?2:1;
-                            if(key==="macd") return _h2==null?3:_h2>0.05?5:_h2>0?4:_h2>-0.05?3:_h2>-0.5?2:1;
+                            if(key==="rsi") return _r2==null?3:_r2>=65?5:_r2>=55?4:_r2>=45?3:_r2>=35?2:1;
+                            if(key==="macd") return _h2==null?3:(_h2>0&&macdDir==="Rising")?5:(_h2>0&&macdDir!=="Falling")?4:(_h2>0)?3:(_h2<=0&&macdDir==="Rising")?3:_h2>-0.5?2:1;
                                     return 3;
                           }
                           var _mtot=0; Object.keys(_mW).forEach(function(k){_mtot+=(_msc2(k)/5)*_mW[k];}); var _ms2=Math.round(_mtot);
-                          var _ml2=_ms2>=70?"Strong":_ms2>=55?"Building":_ms2>=40?"Neutral":_ms2>=25?"Fading":"Weak";
-                          var _md2=_ms2>=70?5:_ms2>=55?4:_ms2>=40?3:_ms2>=25?2:1;
+                          var _ml2=_ms2>=80?"Strong":_ms2>=65?"Building":_ms2>=50?"Neutral":_ms2>=35?"Fading":"Weak";
+                          var _md2=_ms2>=80?5:_ms2>=65?4:_ms2>=50?3:_ms2>=35?2:1;
                           var _msc=_ms2>=70?"#1a6a1a":_ms2>=55?"#2a7a2a":_ms2>=40?"#b88000":"#c03030";
                           var _msbg=_ms2>=70?"#e6f4e6":_ms2>=55?"#f0f7e6":_ms2>=40?"#fdf8e6":"#fff0f0";
                           var _msbd=_ms2>=70?"#7abd00":_ms2>=55?"#9ab800":_ms2>=40?"#d4a800":"#e08080";
-                          var _msLong=_ms2>=70?"Momentum is strong. Buying pressure is dominant across RSI, MACD, and volume signals.":_ms2>=55?"Momentum is building. More signals are bullish than bearish.":_ms2>=40?"Momentum is neutral. Mixed signals -- no clear buying or selling dominance.":_ms2>=25?"Momentum is fading. Selling pressure is outweighing buying across most signals.":"Momentum is weak. Bearish signals dominate -- buyers are not in control.";
+                          var _msLong=_ms2>=80?"Momentum is strong. Buying pressure is dominant across RSI, MACD and rate of change.":_ms2>=65?"Momentum is building. More signals are bullish than bearish.":_ms2>=50?"Momentum is neutral. Mixed signals -- no clear buying or selling dominance.":_ms2>=35?"Momentum is fading. Selling pressure is outweighing buying across most signals.":"Momentum is weak. Bearish signals dominate -- buyers are not in control.";
                           return (
                             <div style={{padding:"12px 14px",background:_msbg,borderRadius:8,marginBottom:14,border:"0.5px solid "+_msbd}}>
                               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
@@ -6200,15 +6200,15 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         })()}
                         <div style={{border:"1px solid #e0dbd0",borderRadius:8,marginBottom:10}}>
                           {(function(){
-                            var _rs=rsi==null?3:rsi>80?2:rsi>75?3:rsi>=50?5:rsi>=40?4:rsi>=30?3:rsi>=20?2:1;
+                            var _rs=rsi==null?3:rsi>=65?5:rsi>=55?4:rsi>=45?3:rsi>=35?2:1;
                             var _rc=_rs>=4?"#1a6a1a":_rs===3?"#b88000":"#c03030";
                             return <MRow label={"RSI (Relative Strength Index)"}
                               val={rsi!=null?rsi.toFixed(1):null}
                               valCol={rsi==null?"#aaa":rsi>80?"#c03030":rsi>75?"#b88000":rsi>=50?"#1a6a1a":rsi>=30?"#888":"#c03030"}
                               dir={rsiDir} score={_rs} dotCol={_rc} badge={rsiBadge}
-                              context={rsi!=null?"RSI measures buying and selling momentum on a scale of 0-100. Think of it like a thermometer for how excited or fearful investors are. Between 40-75 is the healthy zone -- above 75 means the stock may have been bought too aggressively and could pull back, below 30 means it has been sold heavily and may bounce. Current RSI of "+rsi.toFixed(1)+(rsiDir==="up"?" and rising":" and "+rsiDir)+".":null}
-                              desc={rsi===null?"Data unavailable.":rsi>80?"RSI above 80 -- extremely overbought. High risk of pullback. Many traders use this as a sell signal.":rsi>75?"RSI above 75 -- overbought territory. Stock has been heavily bought. A pullback or consolidation is likely.":rsi>=50?"RSI "+rsi.toFixed(0)+" -- healthy buying momentum, not overbought. Generally a positive sign.":rsi>=40?"RSI between 40-50 -- momentum fading but not yet weak. Watch for further decline.":rsi>=30?"RSI between 30-40 -- stock has been sold down. Weak but potential for a bounce.":"RSI below 30 -- oversold. Stock has been heavily sold. Potential reversal but trend is bearish."}
-                              watch={rsi!=null&&rsi>75?"Watch for RSI to drop back below 70 -- that often signals the overbought rally is fading.":rsi!=null&&rsi<30?"Watch for RSI to rise above 30 -- that would signal selling pressure is easing.":rsi!=null&&rsi>45&&rsi<55?"RSI near 50 -- the next move above or below 50 will indicate which way momentum is breaking.":null} />;
+                              context={rsi!=null?"RSI measures buying and selling momentum on a scale of 0-100. Think of it like a speedometer -- above 65 means strong buying, 45-65 is healthy, below 45 means sellers are gaining. Above 75 is overbought (badge appears as a caution), below 35 is oversold. Current RSI of "+rsi.toFixed(1)+(rsiDir==="up"?" and rising":rsiDir==="down"?" and falling":" and flat")+".":null}
+                              desc={rsi===null?"Data unavailable.":rsi>80?"RSI above 80 -- extremely overbought. Stock has been aggressively bought. High risk of pullback.":rsi>75?"RSI above 75 -- overbought. Momentum is still strong but the stock may be due for a breather.":rsi>=65?"RSI "+rsi.toFixed(0)+" -- strong healthy momentum. Buyers are clearly in control.":rsi>=55?"RSI "+rsi.toFixed(0)+" -- good momentum. Stock is trending positively.":rsi>=45?"RSI near 50 -- neutral. Neither buyers nor sellers have clear control.":rsi>=35?"RSI between 35-45 -- weak momentum. Sellers have a slight edge.":"RSI below 35 -- weak to oversold. Stock has been sold down significantly."}
+                              watch={rsi!=null&&rsi>75?"Watch for RSI to drop below 70 -- that often signals the overbought move is fading.":rsi!=null&&rsi<35?"Watch for RSI to recover above 45 -- that would signal selling pressure is easing.":rsi!=null&&rsi>45&&rsi<55?"RSI near 50 -- a move above 55 turns bullish, below 45 turns bearish.":null} />;
                           })()}
 
                           {(function(){
@@ -6228,7 +6228,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                               watch={_roc10!=null&&Math.abs(_roc10)>15?"Extreme ROC readings often revert -- consider waiting for momentum to normalise before acting.":null} />;
                           })()}
                           {(function(){
-                            var _ms=macdH===null?3:macdH>0&&macdDir==="Rising"?5:macdH>0?4:macdDir==="Rising"?3:macdH>-0.5?2:1;
+                            var _ms=macdH===null?3:macdH>0&&macdDir==="Rising"?5:macdH>0&&macdDir!=="Falling"?4:macdH>0?3:macdDir==="Rising"?3:macdH>-0.5?2:1;
                             var _mc=_ms>=4?"#1a6a1a":_ms===3?"#b88000":"#c03030";
                             var _macdBadge=macdH!=null&&macdH>0&&parseFloat(prevMacdH)>0&&macdH>parseFloat(prevMacdH)*3?{text:"\u26A0 MOMENTUM SPIKE",col:"#b88000",bg:"#fdf8e6"}:null;
                             return <MRow label={"MACD Histogram"}
