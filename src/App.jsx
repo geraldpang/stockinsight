@@ -2994,7 +2994,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         var _trendCaution=_hasTech&&(_s200g2>25||_pos52_2>95);
                         var _rsi2=_ind2.rsi14?parseFloat(_ind2.rsi14):0;
                         var _ema20g2=_ind2.ema20&&_p2>0?(_p2-_ind2.ema20)/_ind2.ema20*100:0;
-                        var _roc10_2=aggs&&aggs.length>=10&&aggs[9]&&aggs[9].c?(q?q.price:0)>0?((q?q.price:0)-aggs[9].c)/aggs[9].c*100:null:null;
+                        var _aggs_pill=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
+                        var _roc10_2=_aggs_pill.length>=10&&_aggs_pill[9]&&_aggs_pill[9].c&&(q?q.price:0)>0?((q?q.price:0)-_aggs_pill[9].c)/_aggs_pill[9].c*100:null;
                         var _momCaution=_hasTech&&(_rsi2>75||_rsi2<30||(_roc10_2!=null&&_roc10_2>15));
                         return (
                           <div style={{display:"contents"}}>
