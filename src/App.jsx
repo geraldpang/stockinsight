@@ -1323,7 +1323,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; if(window.__ivStore)delete window.__ivStore[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore2=null; if(window.__ivStore)delete window.__ivStore[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -2706,8 +2706,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                 if (key==="sma200") return !ind2.sma200?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
                 if (key==="cross")  return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
                 if (key==="pos52")  return pos2>0.80?5:pos2>0.55?4:pos2>0.35?3:pos2>0.15?2:1;
-                if (key==="rsi")    return !r2?3:r2>80?2:r2>75?3:(r2>=50&&r2<=75)?5:(r2>=40&&r2<50)?4:(r2>=30&&r2<40)?3:(r2>=20&&r2<30)?2:1;
-                if (key==="macd")   return !h2?3:h2>0.05?5:h2>0?4:h2>-0.05?3:h2>-0.5?2:1;
+                if (key==="rsi")    return !r2?3:r2>=65?5:r2>=55?4:r2>=45?3:r2>=35?2:1;
+                if (key==="macd")   return !h2?3:(h2>0&&macdDir2==="Rising")?5:(h2>0&&macdDir2!=="Falling")?4:(h2>0)?3:(h2<=0&&macdDir2==="Rising")?3:h2>-0.5?2:1;
                 if (key==="ema20")  return !ind2.ema20?3:ema2g>5?5:ema2g>1?4:ema2g>-5?3:ema2g>-15?2:1;
                 if (key==="vol")    return vr2>1.4?5:vr2>1.1?4:vr2>0.9?3:vr2>0.7?2:1;
                 return 3;
@@ -2959,22 +2959,32 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   var _trendCol   = pillColor(_trendScore>=55?"buy":_trendScore>=40?"hold":"avoid");
 
                   // Momentum score (rsi, macd, ema20, vol) -- weighted avg -> 0-100
-                  var _momScore = _hasTech ? (function(){
-                    var W={rsi:35,macd:30,ema20:20,vol:15};
-                    var r=ind2.rsi14; var h=ind2.macd?ind2.macd.histogram:null;
-                    var ema2g=ind2.ema20?(p2-ind2.ema20)/ind2.ema20*100:0;
-                    function sc(key){
-                      if(key==="rsi")  return r==null?3:r>80?2:r>75?3:(r>=50&&r<=75)?5:(r>=40&&r<50)?4:(r>=30&&r<40)?3:(r>=20&&r<30)?2:1;
-                      if(key==="macd") return h==null?3:h>0.05?5:h>0?4:h>-0.05?3:h>-0.5?2:1;
-                      if(key==="ema20")return !ind2.ema20?3:ema2g>5?5:ema2g>1?4:ema2g>-5?3:ema2g>-15?2:1;
-                      if(key==="vol")  return vr2>1.4?5:vr2>1.1?4:vr2>0.9?3:vr2>0.7?2:1;
-                      return 3;
+                  // Compute momentum score once, store on window for tab banner to reuse
+                  var _momScore = 0;
+                  if (_hasTech) {
+                    if (window.__momScore!=null && window.__momScoreSym===sym) {
+                      _momScore = window.__momScore;
+                    } else {
+                      var _mW2={rsi:40,macd:40,roc:20};
+                      var _r2m=ind2.rsi14!=null?parseFloat(ind2.rsi14):null;
+                      var _h2m=ind2.macd&&ind2.macd.histogram!=null?parseFloat(ind2.macd.histogram):null;
+                      var _mH2m=ind2.macdHistory||[];
+                      var _mDirm=_mH2m.length>=2&&_mH2m[0]&&_mH2m[1]&&_mH2m[0].histogram!=null&&_mH2m[1].histogram!=null?(parseFloat(_mH2m[0].histogram)>parseFloat(_mH2m[1].histogram)?"Rising":"Falling"):"Flat";
+                      var _aggs_m=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
+                      var _rocm=_aggs_m.length>=10&&_aggs_m[9]&&_aggs_m[9].c&&p2>0?(p2-_aggs_m[9].c)/_aggs_m[9].c*100:null;
+                      function _scm(key){
+                        if(key==="rsi")  return _r2m==null?3:_r2m>=65?5:_r2m>=55?4:_r2m>=45?3:_r2m>=35?2:1;
+                        if(key==="macd") return _h2m==null?3:(_h2m>0&&_mDirm==="Rising")?5:(_h2m>0&&_mDirm!=="Falling")?4:(_h2m>0)?3:(_h2m<=0&&_mDirm==="Rising")?3:_h2m>-0.5?2:1;
+                        if(key==="roc")  return _rocm==null?3:_rocm>10?5:_rocm>3?4:_rocm>-3?3:_rocm>-10?2:1;
+                        return 3;
+                      }
+                      var _mTot=0; Object.keys(_mW2).forEach(function(k){_mTot+=(_scm(k)/5)*_mW2[k];}); _momScore=Math.round(_mTot);
+                      window.__momScore=_momScore; window.__momScoreSym=sym;
                     }
-                    var tot=0; Object.keys(W).forEach(function(k){tot+=(sc(k)/5)*W[k];}); return Math.round(tot);
-                  })() : 0;
-                  var _momLabel = _momScore>=70?"Strong":_momScore>=55?"Building":_momScore>=40?"Neutral":_momScore>=25?"Fading":"Weak";
-                  var _momDots  = _momScore>=70?5:_momScore>=55?4:_momScore>=40?3:_momScore>=25?2:1;
-                  var _momCol   = pillColor(_momScore>=55?"buy":_momScore>=40?"hold":"avoid");
+                  }
+                  var _momLabel = _momScore>=80?"Strong":_momScore>=65?"Building":_momScore>=50?"Neutral":_momScore>=35?"Fading":"--";
+                  var _momDots  = _momScore>=80?5:_momScore>=65?4:_momScore>=50?3:_momScore>=35?2:1;
+                  var _momCol   = pillColor(_momScore>=65?"buy":_momScore>=50?"hold":"avoid");
 
                   // Reversal -- existing revCount3 and revLabel3
                   var _revCol = pillColor(revCount3>=3?"buy":revCount3>=1?"hold":"avoid");
@@ -5951,6 +5961,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           var _tot2=0; Object.keys(_W).forEach(function(k){_tot2+=(_tsc2(k)/5)*_W[k];}); var _ts2=Math.round(_tot2);
                           var _tl2=_ts2>=70?"Strong Uptrend":_ts2>=55?"Uptrend":_ts2>=40?"Sideways":_ts2>=25?"Downtrend":"Strong Downtrend";
                           var _td2=_ts2>=70?5:_ts2>=55?4:_ts2>=40?3:_ts2>=25?2:1;
+                          window.__trendScore2=_ts2; window.__trendLabel2=_tl2; window.__trendDots2=_td2;
                           var _tsc=_ts2>=70?"#1a6a1a":_ts2>=55?"#2a7a2a":_ts2>=40?"#b88000":"#c03030";
                           var _tsbg=_ts2>=70?"#e6f4e6":_ts2>=55?"#f0f7e6":_ts2>=40?"#fdf8e6":"#fff0f0";
                           var _tsbd=_ts2>=70?"#7abd00":_ts2>=55?"#9ab800":_ts2>=40?"#d4a800":"#e08080";
@@ -6178,6 +6189,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           var _mtot=0; Object.keys(_mW).forEach(function(k){_mtot+=(_msc2(k)/5)*_mW[k];}); var _ms2=Math.round(_mtot);
                           var _ml2=_ms2>=80?"Strong":_ms2>=65?"Building":_ms2>=50?"Neutral":_ms2>=35?"Fading":"Weak";
                           var _md2=_ms2>=80?5:_ms2>=65?4:_ms2>=50?3:_ms2>=35?2:1;
+                          // Store for pill to read
+                          window.__momScore=_ms2; window.__momLabel=_ml2; window.__momDots=_md2;
                           var _msc=_ms2>=70?"#1a6a1a":_ms2>=55?"#2a7a2a":_ms2>=40?"#b88000":"#c03030";
                           var _msbg=_ms2>=70?"#e6f4e6":_ms2>=55?"#f0f7e6":_ms2>=40?"#fdf8e6":"#fff0f0";
                           var _msbd=_ms2>=70?"#7abd00":_ms2>=55?"#9ab800":_ms2>=40?"#d4a800":"#e08080";
@@ -6566,8 +6579,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       if (key==="sma200") { if(!ind.sma200) return 3; g=(p-ind.sma200)/ind.sma200*100; return g>10?5:g>2?4:g>-10?3:g>-20?2:1; }
                       if (key==="cross")  { if(!ind.sma50||!ind.sma200) return 3; g=(ind.sma50-ind.sma200)/ind.sma200*100; return g>10?5:g>1?4:g>-1?3:g>-10?2:1; }
                       if (key==="pos52")  { return pos52>0.80?5:pos52>0.55?4:pos52>0.35?3:pos52>0.15?2:1; }
-                      if (key==="rsi")    { if(r==null) return 3; return (r>=50&&r<=75)?5:(r>=40&&r<50)?4:(r>=30&&r<40||r>75)?3:(r>=20&&r<30)?2:1; }
-                      if (key==="macd")   { if(h==null) return 3; if(h>0.05) return 5; if(h>0) return 4; if(h>-0.05||macdTurning2) return 3; if(h>-0.50) return 2; return 1; }
+                      if (key==="rsi")    { if(r==null) return 3; return r>=65?5:r>=55?4:r>=45?3:r>=35?2:1; }
+                      if (key==="macd")   { if(h==null) return 3; if(h>0&&macdDir==="Rising") return 5; if(h>0&&macdDir!=="Falling") return 4; if(h>0) return 3; if(h<=0&&macdDir==="Rising") return 3; if(h>-0.5) return 2; return 1; }
                       if (key==="ema20")  { if(!ind.ema20) return 3; g=(p-ind.ema20)/ind.ema20*100; return g>5?5:g>1?4:g>-5?3:g>-15?2:1; }
                       if (key==="vol")    { return volRatio>1.4?5:volRatio>1.1?4:volRatio>0.9?3:volRatio>0.7?2:1; }
                       return 3;
