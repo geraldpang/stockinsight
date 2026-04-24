@@ -2994,14 +2994,15 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         var _trendCaution=_hasTech&&(_s200g2>25||_pos52_2>95);
                         var _rsi2=_ind2.rsi14?parseFloat(_ind2.rsi14):0;
                         var _ema20g2=_ind2.ema20&&_p2>0?(_p2-_ind2.ema20)/_ind2.ema20*100:0;
-                        var _momCaution=_hasTech&&(_rsi2>75||_ema20g2>10);
+                        var _roc10_2=aggs&&aggs.length>=10&&aggs[9]&&aggs[9].c?(q?q.price:0)>0?((q?q.price:0)-aggs[9].c)/aggs[9].c*100:null:null;
+                        var _momCaution=_hasTech&&(_rsi2>75||_rsi2<30||(_roc10_2!=null&&_roc10_2>15));
                         return (
                           <div style={{display:"contents"}}>
                             <div onClick={function(){ window.__goToTab && window.__goToTab("trend"); }}
                               style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid #2c2c2e", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
                               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
                                 <div style={{ fontSize:9, color:_hasTech?_trendCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", opacity:0.8 }}>Trend</div>
-                                {_trendCaution && <div style={{ fontSize:8, fontWeight:700, color:"#b88000", background:"#2a2010", border:"0.5px solid #4a3810", borderRadius:3, padding:"1px 5px" }}>CAUTION</div>}
+                                {_trendCaution && <div style={{ fontSize:8, fontWeight:700, color:"#b88000", background:"#fdf8e6", border:"0.5px solid #b88000", borderRadius:3, padding:"1px 5px" }}>{"\u26A0 CAUTION"}</div>}
                               </div>
                               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                                 {addlLoading && !_hasTech
@@ -3016,7 +3017,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                               style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid #2c2c2e", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
                               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
                                 <div style={{ fontSize:9, color:_hasTech?_momCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", opacity:0.8 }}>Momentum</div>
-                                {_momCaution && <div style={{ fontSize:8, fontWeight:700, color:"#b88000", background:"#2a2010", border:"0.5px solid #4a3810", borderRadius:3, padding:"1px 5px" }}>CAUTION</div>}
+                                {_momCaution && <div style={{ fontSize:8, fontWeight:700, color:"#b88000", background:"#fdf8e6", border:"0.5px solid #b88000", borderRadius:3, padding:"1px 5px" }}>{"\u26A0 CAUTION"}</div>}
                               </div>
                               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                                 {addlLoading && !_hasTech
@@ -5994,7 +5995,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                             var emaDir=ema20g!=null&&prevEma20g!=null?(ema20g>prevEma20g+0.2?"up":ema20g<prevEma20g-0.2?"down":"flat"):null;
                             var _es=ema20g===null?3:ema20g>5?5:ema20g>1?4:ema20g>-5?3:2;
                             var _ec=_es>=4?"#1a6a1a":_es===3?"#b88000":"#c03030";
-                            var _emaBadge=ema20g!=null&&ema20g>10?{text:"OVEREXTENDED above EMA -- pullback risk",col:"#b88000",bg:"#fdf8e6"}:null;
+                            var _emaBadge=ema20g!=null&&ema20g>10?{text:"\u26A0 EXTENDED",col:"#b88000",bg:"#fdf8e6"}:null;
                             function Arrow2(dir){ if(!dir||dir==="flat") return <span style={{fontSize:9,color:"#999",marginLeft:4}}>{String.fromCharCode(0x25A0)}</span>; return <span style={{fontSize:9,color:dir==="up"?"#1a6a1a":"#c03030",marginLeft:4}}>{dir==="up"?String.fromCharCode(0x25B2):String.fromCharCode(0x25BC)}</span>; }
                             return <TRow label="Price vs 20-day EMA (short-term trend)"
                               val={ema20g!=null?(ema20g>0?"+":"")+ema20g.toFixed(2)+"%":null}
@@ -6045,7 +6046,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           {(function(){
                             var _ss=s200g===null?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
                             var _sdc=_ss>=4?"#1a6a1a":_ss===3?"#b88000":"#c03030";
-                            var _s200badge=s200g!==null&&s200g>25?{text:"EXTENDED -- mean reversion risk",col:"#b88000",bg:"#fdf8e6"}:null;
+                            var _s200badge=s200g!==null&&s200g>25?{text:"\u26A0 EXTENDED",col:"#b88000",bg:"#fdf8e6"}:null;
                             return <TRow label="Price vs 200-day Average (long-term trend)"
                               val={s200g!==null?(s200g>0?"+":"")+s200g.toFixed(2)+"%":null}
                               valCol={s200g===null?"#aaa":s200g>2?"#1a6a1a":s200g>-10?"#888":"#c03030"}
@@ -6079,7 +6080,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           {(function(){
                             var _p5s=pos52pct>80?5:pos52pct>55?4:pos52pct>35?3:pos52pct>15?2:1;
                             var _p5c=_p5s>=4?"#1a6a1a":_p5s===3?"#b88000":"#c03030";
-                            var _p52badge=pos52pct>95?{text:"NEAR 52-WEEK HIGH -- overextension risk",col:"#b88000",bg:"#fdf8e6"}:pos52pct<5?{text:"NEAR 52-WEEK LOW",col:"#c03030",bg:"#fff0f0"}:null;
+                            var _p52badge=pos52pct>95?{text:"\u26A0 NEAR 52-WEEK HIGH",col:"#b88000",bg:"#fdf8e6"}:pos52pct<5?{text:"\u26A0 NEAR 52-WEEK LOW",col:"#b88000",bg:"#fdf8e6"}:null;
                             return <TRow label={"52-Week Position ("+pos52pct+"% of yearly range)"}
                               val={pos52pct+"%"}
                               valCol={pos52pct>55?"#1a6a1a":pos52pct>35?"#888":"#c03030"}
@@ -6156,23 +6157,22 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     // RSI overbought/oversold badge
                     var rsiBadge=null;
                     if(rsi!=null){
-                      if(rsi>80) rsiBadge={text:"OVERBOUGHT -- EXTREME",col:"#c03030",bg:"#fff0f0"};
-                      else if(rsi>75) rsiBadge={text:"OVERBOUGHT -- CAUTION",col:"#b88000",bg:"#fdf8e6"};
-                      else if(rsi<20) rsiBadge={text:"OVERSOLD -- EXTREME",col:"#c03030",bg:"#fff0f0"};
-                      else if(rsi<30) rsiBadge={text:"OVERSOLD",col:"#b88000",bg:"#fdf8e6"};
+                      if(rsi>80) rsiBadge={text:"\u26A0 OVERBOUGHT -- EXTREME",col:"#b88000",bg:"#fdf8e6"};
+                      else if(rsi>75) rsiBadge={text:"\u26A0 OVERBOUGHT",col:"#b88000",bg:"#fdf8e6"};
+                      else if(rsi<20) rsiBadge={text:"\u26A0 OVERSOLD -- EXTREME",col:"#b88000",bg:"#fdf8e6"};
+                      else if(rsi<30) rsiBadge={text:"\u26A0 OVERSOLD",col:"#b88000",bg:"#fdf8e6"};
                     }
                     return (
                       <div>
                         {(function(){
                           // Recompute momentum score in tab scope
-                          var _mW={rsi:40,macd:40,vol:20};
+                          var _mW={rsi:40,macd:40,roc:20};
                           var _r2=rsi; var _h2=macdH;
                           var _eg2=ema20g; var _vr2=volRatio;
                           function _msc2(key){
                             if(key==="rsi") return _r2==null?3:_r2>80?2:_r2>75?3:(_r2>=50&&_r2<=75)?5:(_r2>=40&&_r2<50)?4:(_r2>=30&&_r2<40)?3:(_r2>=20&&_r2<30)?2:1;
                             if(key==="macd") return _h2==null?3:_h2>0.05?5:_h2>0?4:_h2>-0.05?3:_h2>-0.5?2:1;
-                            if(key==="vol") return _vr2>1.4?5:_vr2>1.1?4:_vr2>0.9?3:_vr2>0.7?2:1;
-                            return 3;
+                                    return 3;
                           }
                           var _mtot=0; Object.keys(_mW).forEach(function(k){_mtot+=(_msc2(k)/5)*_mW[k];}); var _ms2=Math.round(_mtot);
                           var _ml2=_ms2>=70?"Strong":_ms2>=55?"Building":_ms2>=40?"Neutral":_ms2>=25?"Fading":"Weak";
@@ -6197,12 +6197,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                             </div>
                           );
                         })()}
-                        {/* SHORT-TERM MOMENTUM */}
-                        <div style={{padding:"8px 14px",background:"#eef5ff",borderRadius:"8px 8px 0 0",borderBottom:"1px solid #c8d8f0",marginBottom:0}}>
-                          <div style={{fontSize:10,fontWeight:700,color:"#4a6a9a",textTransform:"uppercase",letterSpacing:"0.08em"}}>Short-Term Momentum (days)</div>
-                          <div style={{fontSize:11,color:"#6a8ab8",marginTop:1}}>RSI and volume -- immediate buying/selling pressure</div>
-                        </div>
-                        <div style={{border:"1px solid #c8d8f0",borderTop:"none",borderRadius:"0 0 8px 8px",marginBottom:10}}>
+                        <div style={{border:"1px solid #e0dbd0",borderRadius:8,marginBottom:10}}>
                           {(function(){
                             var _rs=rsi==null?3:rsi>80?2:rsi>75?3:rsi>=50?5:rsi>=40?4:rsi>=30?3:rsi>=20?2:1;
                             var _rc=_rs>=4?"#1a6a1a":_rs===3?"#b88000":"#c03030";
@@ -6214,17 +6209,27 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                               desc={rsi===null?"Data unavailable.":rsi>80?"RSI above 80 -- extremely overbought. High risk of pullback. Many traders use this as a sell signal.":rsi>75?"RSI above 75 -- overbought territory. Stock has been heavily bought. A pullback or consolidation is likely.":rsi>=50?"RSI "+rsi.toFixed(0)+" -- healthy buying momentum, not overbought. Generally a positive sign.":rsi>=40?"RSI between 40-50 -- momentum fading but not yet weak. Watch for further decline.":rsi>=30?"RSI between 30-40 -- stock has been sold down. Weak but potential for a bounce.":"RSI below 30 -- oversold. Stock has been heavily sold. Potential reversal but trend is bearish."}
                               watch={rsi!=null&&rsi>75?"Watch for RSI to drop back below 70 -- that often signals the overbought rally is fading.":rsi!=null&&rsi<30?"Watch for RSI to rise above 30 -- that would signal selling pressure is easing.":rsi!=null&&rsi>45&&rsi<55?"RSI near 50 -- the next move above or below 50 will indicate which way momentum is breaking.":null} />;
                           })()}
-                        </div>
-                        {/* MEDIUM-TERM MOMENTUM */}
-                        <div style={{padding:"8px 14px",background:"#f0f5ee",borderRadius:"8px 8px 0 0",borderBottom:"1px solid #c0d8b8",marginBottom:0}}>
-                          <div style={{fontSize:10,fontWeight:700,color:"#4a7a3a",textTransform:"uppercase",letterSpacing:"0.08em"}}>Medium-Term Momentum (weeks)</div>
-                          <div style={{fontSize:11,color:"#6a9a5a",marginTop:1}}>MACD -- momentum over 2-6 week timeframe</div>
-                        </div>
-                        <div style={{border:"1px solid #c0d8b8",borderTop:"none",borderRadius:"0 0 8px 8px",marginBottom:10}}>
+
+                          {(function(){
+                            // Rate of Change (ROC) 10-day
+                            var _roc10=aggs&&aggs.length>=10&&aggs[9]&&aggs[9].c&&price>0?((price-aggs[9].c)/aggs[9].c*100):null;
+                            var _prevRoc10=aggs&&aggs.length>=11&&aggs[10]&&aggs[10].c&&aggs[1]&&aggs[1].c?((aggs[1].c-aggs[10].c)/aggs[10].c*100):null;
+                            var _rocDir=_roc10!=null&&_prevRoc10!=null?(_roc10>_prevRoc10+0.3?"up":_roc10<_prevRoc10-0.3?"down":"flat"):null;
+                            var _rocScore=_roc10===null?3:_roc10>10?5:_roc10>3?4:_roc10>-3?3:_roc10>-10?2:1;
+                            var _rocCol=_rocScore>=4?"#1a6a1a":_rocScore===3?"#b88000":"#c03030";
+                            var _rocBadge=_roc10!=null&&_roc10>15?{text:"\u26A0 OVERHEATED",col:"#b88000",bg:"#fdf8e6"}:null;
+                            return <MRow label={"Rate of Change -- ROC (10-day)"}
+                              val={_roc10!=null?((_roc10>0?"+":"")+_roc10.toFixed(2)+"%"):null}
+                              valCol={_roc10===null?"#aaa":_roc10>3?"#1a6a1a":_roc10>-3?"#888":"#c03030"}
+                              dir={_rocDir} score={_rocScore} dotCol={_rocCol} badge={_rocBadge}
+                              context={_roc10!=null?"Rate of Change measures how much the price has moved over the last 10 trading days (2 weeks). Currently "+(_roc10>0?"+":"")+_roc10.toFixed(1)+"%. Think of it like a speedometer -- positive means the price is accelerating upward, negative means it is decelerating or falling. A very large positive reading (above 15%) can signal the move is overheated.":null}
+                              desc={_roc10===null?"Data unavailable.":_roc10>10?"Price has surged "+_roc10.toFixed(1)+"% in 10 days -- very strong upward momentum.":_roc10>3?"Price is up "+_roc10.toFixed(1)+"% over 10 days -- positive momentum.":_roc10>-3?"Price is roughly flat over 10 days -- no clear momentum direction.":_roc10>-10?"Price is down "+Math.abs(_roc10).toFixed(1)+"% over 10 days -- negative momentum.":"Price has fallen "+Math.abs(_roc10).toFixed(1)+"% in 10 days -- strong downward momentum."}
+                              watch={_roc10!=null&&Math.abs(_roc10)>15?"Extreme ROC readings often revert -- consider waiting for momentum to normalise before acting.":null} />;
+                          })()}
                           {(function(){
                             var _ms=macdH===null?3:macdH>0&&macdDir==="Rising"?5:macdH>0?4:macdDir==="Rising"?3:macdH>-0.5?2:1;
                             var _mc=_ms>=4?"#1a6a1a":_ms===3?"#b88000":"#c03030";
-                            var _macdBadge=macdH!=null&&macdH>0&&parseFloat(prevMacdH)>0&&macdH>parseFloat(prevMacdH)*3?{text:"MOMENTUM SPIKE -- may be overextended",col:"#b88000",bg:"#fdf8e6"}:null;
+                            var _macdBadge=macdH!=null&&macdH>0&&parseFloat(prevMacdH)>0&&macdH>parseFloat(prevMacdH)*3?{text:"\u26A0 MOMENTUM SPIKE",col:"#b88000",bg:"#fdf8e6"}:null;
                             return <MRow label={"MACD Histogram"}
                               val={macdH!=null?macdH.toFixed(4):null}
                               valCol={macdH===null?"#aaa":macdH>0&&macdDir==="Rising"?"#1a6a1a":macdH>0?"#888":macdDir==="Rising"?"#b88000":"#c03030"}
@@ -6236,7 +6241,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           {(function(){
                             var _es=ema20g===null?3:ema20g>5?5:ema20g>1?4:ema20g>-5?3:2;
                             var _ec=_es>=4?"#1a6a1a":_es===3?"#b88000":"#c03030";
-                            var _emaBadge=ema20g!=null&&ema20g>10?{text:"OVEREXTENDED above EMA -- pullback risk",col:"#b88000",bg:"#fdf8e6"}:null;
+                            var _emaBadge=ema20g!=null&&ema20g>10?{text:"\u26A0 EXTENDED",col:"#b88000",bg:"#fdf8e6"}:null;
                             return <MRow label={"Price vs 20-day EMA (short-term)"}
                               val={ema20g!=null?(ema20g>0?"+":"")+ema20g.toFixed(2)+"%":null}
                               valCol={ema20g===null?"#aaa":ema20g>1?"#1a6a1a":ema20g>-5?"#888":"#c03030"}
@@ -6245,75 +6250,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                               desc={ema20g===null?"Data unavailable.":ema20g>5?"Well above 20-day average -- strong short-term momentum.":ema20g>1?"Above 20-day average -- short-term uptrend intact.":ema20g>-5?"Near 20-day average -- momentum is flat, could go either way.":"Below 20-day average -- short-term momentum is weak."}
                               watch={ema20g!=null&&Math.abs(ema20g)<1?"Price is right at its 20-day average -- a key short-term support/resistance to watch.":null} />;
                           })()}
-                        </div>
-                        {/* VOLUME SECTION */}
-                        <div style={{marginBottom:16}}>
-                          <div style={{padding:"8px 14px",background:"#f0ede6",borderRadius:"8px 8px 0 0",borderBottom:"1px solid #e0dbd0"}}>
-                            <div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.08em"}}>Volume Analysis</div>
-                            <div style={{fontSize:11,color:"#555",marginTop:1}}>Is there conviction behind the price move?</div>
-                          </div>
-                          <div style={{border:"1px solid #e0dbd0",borderTop:"none",borderRadius:"0 0 8px 8px"}}>
-                            <div style={{padding:"10px 14px",borderBottom:"1px solid #f0ede6"}}>
-                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                                <span style={{fontSize:12,fontWeight:600,color:"#333"}}>Volume vs 20-day Average</span>
-                                <span style={{display:"flex",alignItems:"center"}}>
-                                  <span style={{fontSize:13,fontWeight:700,color:volRatio>1.2?"#1a6a1a":volRatio<0.8?"#c03030":"#888"}}>{(volRatio*100).toFixed(0)+"%"}</span>
-                                  {volDir&&<span style={{fontSize:9,color:volDir==="up"?"#1a6a1a":volDir==="down"?"#c03030":"#888",marginLeft:4}}>{volDir==="up"?String.fromCharCode(0x25B2):volDir==="down"?String.fromCharCode(0x25BC):String.fromCharCode(0x25A0)}</span>}
-                                </span>
-                              </div>
-                              <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{volRatio>1.4?"Recent volume is significantly above normal -- strong interest and conviction in the move.":volRatio>1.1?"Volume slightly above normal -- moderate interest, move has some backing.":volRatio>0.9?"Volume near normal -- neither confirming nor denying the current move.":"Volume below normal -- low interest. Move may lack conviction."}</div>
-                            </div>
-                            {volPriceSignal && (
-                              <div style={{padding:"10px 14px",borderBottom:"1px solid #f0ede6"}}>
-                                <div style={{fontSize:12,fontWeight:600,color:"#333",marginBottom:4}}>Price + Volume Signal</div>
-                                <div style={{fontSize:12,color:volPriceSignal.col,fontWeight:600,lineHeight:1.5}}>{volPriceSignal.text}</div>
-                                <div style={{fontSize:11,color:"#888",marginTop:3}}>{priceUp&&vol1>vol20*1.1?"When price rises AND volume is high, it means buyers are committed. This is the strongest bullish signal.":priceUp&&vol1<vol20*0.9?"Price rising on low volume often fades -- not enough buyers stepping in to sustain the move.":!priceUp&&vol1>vol20*1.1?"Heavy selling volume is concerning -- institutions may be exiting positions.":"Light selling is less alarming -- it suggests the market isn't panicking, just drifting lower."}</div>
-                              </div>
-                            )}
-                            {vwapDiff!==null && (
-                              <div style={{padding:"10px 14px",borderBottom:"1px solid #f0ede6"}}>
-                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                                  <span style={{fontSize:12,fontWeight:600,color:"#333"}}>Price vs VWAP (today)</span>
-                                  <span style={{fontSize:13,fontWeight:700,color:parseFloat(vwapDiff)>0?"#1a6a1a":"#c03030"}}>{(parseFloat(vwapDiff)>0?"+":"")+vwapDiff+"%"}</span>
-                                </div>
-                                <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{parseFloat(vwapDiff)>0?"Price is above today's volume-weighted average -- buyers are in control for the day. Institutional traders watch VWAP closely as a reference point.":"Price is below today's volume-weighted average -- sellers have been in control today. Institutions may use VWAP as resistance."}</div>
-                              </div>
-                            )}
-                            {isSpike && (
-                              <div style={{padding:"10px 14px",background:"#fff8e6",border:"0.5px solid #d4a800"}}>
-                                <div style={{fontSize:11,fontWeight:700,color:"#b88000",marginBottom:2}}>{"Volume Spike Detected"}</div>
-                                <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{"Today's volume is more than 2.5x the 20-day average. This level of activity often signals a major news event, earnings, or institutional activity. Watch closely -- big volume moves tend to set the direction for days ahead."}</div>
-                              </div>
-                            )}
-                            {(function(){
-                              // Accumulation vs Distribution over last 20 days
-                              if (aggs.length < 10) return null;
-                              var accDays=0; var distDays=0;
-                              aggs.slice(0,20).forEach(function(a,i){
-                                if (!a||!a.v||!a.c||!a.o) return;
-                                var isUp=a.c>=a.o;
-                                var isHighVol=a.v>vol20*1.0;
-                                if (isUp&&isHighVol) accDays++;
-                                else if (!isUp&&isHighVol) distDays++;
-                              });
-                              var netSignal=accDays>distDays?"Accumulation bias":distDays>accDays?"Distribution bias":"Neutral";
-                              var netCol=accDays>distDays?"#1a6a1a":distDays>accDays?"#c03030":"#888";
-                              var netBg=accDays>distDays?"#f0f7e6":distDays>accDays?"#fff0f0":"#f5f5f5";
-                              return (
-                                <div style={{padding:"10px 14px",background:netBg,borderTop:"1px solid #f0ede6"}}>
-                                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                                    <span style={{fontSize:12,fontWeight:600,color:"#333"}}>Accumulation vs Distribution (20 days)</span>
-                                    <span style={{fontSize:12,fontWeight:700,color:netCol}}>{netSignal}</span>
-                                  </div>
-                                  <div style={{display:"flex",gap:16,marginBottom:6}}>
-                                    <span style={{fontSize:11,color:"#1a6a1a"}}>{"Accumulation days: "+accDays}</span>
-                                    <span style={{fontSize:11,color:"#c03030"}}>{"Distribution days: "+distDays}</span>
-                                  </div>
-                                  <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{"Accumulation days = up days with above-average volume (institutions buying). Distribution days = down days with above-average volume (institutions selling). "+(accDays>distDays?"More buying days than selling days suggests smart money is accumulating this stock.":distDays>accDays?"More selling days than buying days suggests institutions may be reducing their positions.":"Roughly balanced -- no clear institutional buying or selling pattern.")}</div>
-                                </div>
-                              );
-                            })()}
-                          </div>
                         </div>
                         <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de"}}>
                           {"Momentum signals use Massive.com real-time data. Not financial advice."}
