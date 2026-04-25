@@ -1323,7 +1323,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore2=null; if(window.__ivStore)delete window.__ivStore[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -2637,33 +2637,36 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             var finParsed  = parsedInsights["financial"] || {};
             var moatRating = moatParsed.classification || null;
             var moatScore  = moatParsed.score || 0;
-            // Financial Strength: compute directly from ov (no AI needed)
+            // Financial Strength: use window value if available (set by Financial tab)
+            // Otherwise compute inline using same sector-aware thresholds so pill always shows
             var finRating = null; var finScore = 0;
-            if (ov) {
-              var _fgm=ov.grossMargin||0, _fom=ov.opMargin||0, _fnm=ov.netMargin||0;
-              var _froe=ov.roe||0, _fcr=ov.currentRatio||0, _fqr=ov.quickRatio||0;
-              var _frg=ov.revGrowth||0, _fde=ov.de||0, _ffcf=ov.fcfRaw||0;
+            var _cfs = window.__computedFinStrength && window.__computedFinStrength[sym];
+            if (_cfs) {
+              finRating = _cfs.classification||null; finScore = _cfs.score||0;
+            } else if (ov) {
+              // Inline fallback using same 11-metric sector-aware logic as Financial tab
               var _sec=ov.sector||"";
-              var _isTechF=_sec.includes("Technology")||_sec.includes("Communication");
-              var _isFinF=_sec.includes("Financial"); var _isHcF=_sec.includes("Health");
-              var _isRetF=_sec.includes("Consumer")||_sec.includes("Retail");
-              var _isUtlF=_sec.includes("Utilities")||_sec.includes("Real Estate");
-              function _fscore(v,t){ if(!v||v===0) return 0; for(var i=0;i<t.length;i++){if(v>=t[i])return t.length-i;} return 1; }
-              var _gs=[
-                _fscore(_fgm, _isTechF?[60,40,25,10]:_isFinF?[40,25,15,5]:_isHcF?[25,15,8,3]:_isRetF?[35,20,10,5]:_isUtlF?[50,35,20,10]:[45,30,15,5]),
-                _fscore(_fom, _isTechF?[30,15,5,0]:_isFinF?[30,20,10,5]:_isHcF?[8,5,3,0]:_isRetF?[8,4,2,0]:_isUtlF?[20,12,6,2]:[15,8,3,0]),
-                _fscore(_fnm, _isTechF?[20,10,5,0]:_isFinF?[20,12,6,0]:_isHcF?[6,3,2,0]:_isRetF?[5,3,1,0]:_isUtlF?[15,8,4,0]:[10,5,2,0]),
-                _fscore(_froe,_isTechF?[25,15,8,0]:_isFinF?[12,8,5,0]:_isHcF?[15,10,6,0]:_isRetF?[20,12,6,0]:_isUtlF?[12,8,4,0]:[18,10,5,0]),
-                _fscore(_fcr, (_isFinF||_isHcF||_isUtlF)?[1.2,1.0,0.8,0.5]:[1.8,1.3,1.0,0.5]),
-                _fscore(_fqr, (_isFinF||_isHcF)?[1.0,0.8,0.6,0.3]:[1.2,0.8,0.5,0.3]),
-                _fscore(_frg, _isTechF?[20,10,5,0]:_isUtlF?[8,5,2,0]:_isFinF?[10,6,3,0]:[12,7,3,0]),
-                _ffcf>0?(_ffcf>10e9?5:_ffcf>1e9?4:3):0,
-                _fde>0?(_fde<0.5?5:_fde<1?4:_fde<2?3:_fde<3?2:1):0,
+              var _isTF=_sec.includes("Technology")||_sec.includes("Communication");
+              var _isFF=_sec.includes("Financial"); var _isHF=_sec.includes("Health");
+              var _isRF=_sec.includes("Consumer")||_sec.includes("Retail");
+              var _isUF=_sec.includes("Utilities")||_sec.includes("Real Estate");
+              var _isEF=_sec.includes("Energy")||_sec.includes("Materials");
+              function _ft(v,t){ if(!v||v===0) return 0; for(var i=0;i<t.length;i++){if(v>=t[i])return t.length-i;} return 1; }
+              var _fgs=[
+                _ft(ov.grossMargin, _isTF?[60,40,25,10]:_isFF?[40,25,15,5]:_isHF?[25,15,8,3]:_isRF?[35,20,10,5]:_isUF?[50,35,20,10]:_isEF?[45,30,15,5]:[45,30,15,5]),
+                _ft(ov.opMargin,    _isTF?[30,15,5,0]:_isFF?[30,20,10,5]:_isHF?[8,5,3,0]:_isRF?[8,4,2,0]:_isUF?[20,12,6,2]:_isEF?[20,10,5,0]:[15,8,3,0]),
+                _ft(ov.netMargin,   _isTF?[20,10,5,0]:_isFF?[20,12,6,0]:_isHF?[6,3,2,0]:_isRF?[5,3,1,0]:_isUF?[15,8,4,0]:_isEF?[15,8,3,0]:[10,5,2,0]),
+                _ft(ov.roe,         _isTF?[25,15,8,0]:_isFF?[12,8,5,0]:_isHF?[15,10,6,0]:_isRF?[20,12,6,0]:_isUF?[12,8,4,0]:[18,10,5,0]),
+                _ft(ov.currentRatio,(_isFF||_isHF||_isUF)?[1.2,1.0,0.8,0.5]:[1.8,1.3,1.0,0.5]),
+                _ft(ov.quickRatio,  (_isFF||_isHF)?[1.0,0.8,0.6,0.3]:[1.2,0.8,0.5,0.3]),
+                _ft(ov.revGrowth,   _isTF?[20,10,5,0]:_isUF?[8,5,2,0]:_isFF?[10,6,3,0]:_isEF?[15,8,3,0]:[12,7,3,0]),
+                ov.fcfRaw>0?(ov.fcfRaw>10e9?5:ov.fcfRaw>1e9?4:3):0,
+                ov.de>0?(ov.de<0.5?5:ov.de<1?4:ov.de<2?3:ov.de<3?2:1):0,
               ].filter(function(s){return s>0;});
-              var _gavg=_gs.length>0?_gs.reduce(function(a,b){return a+b;},0)/_gs.length:0;
-              finRating=_gavg>=4?"Exceptional":_gavg>=3?"Strong":_gavg>=2?"Moderate":_gavg>=1?"Weak":_gavg>0?"Poor":null;
-              finScore=_gavg>=4?5:_gavg>=3?4:_gavg>=2?3:_gavg>=1?2:_gavg>0?1:0;
-              if (finRating) { if(!window.__computedFinStrength)window.__computedFinStrength={}; window.__computedFinStrength[sym]={classification:finRating,score:finScore}; }
+              var _fa=_fgs.length>0?_fgs.reduce(function(a,b){return a+b;},0)/_fgs.length:0;
+              finRating=_fa>=4?"Exceptional":_fa>=3?"Strong":_fa>=2?"Moderate":_fa>=1?"Weak":_fa>0?"Poor":null;
+              finScore=_fa>=4?5:_fa>=3?4:_fa>=2?3:_fa>=1?2:_fa>0?1:0;
+              if(finRating){ if(!window.__computedFinStrength)window.__computedFinStrength={}; window.__computedFinStrength[sym]={classification:finRating,score:finScore}; }
             }
             var moatColors = pillColor(moatRating || null);
             var finColors  = pillColor(finRating  || null);
@@ -2755,6 +2758,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             var lowBase3=pos3<0.20&&ind3&&ind3.rsi14!=null&&ind3.rsi14>20&&ind3.rsi14<45;
             var revArr3=[rsiDiv3,macdTurn3,weeklyCross3,rsiBase3,lowBase3];
             var revCount3=revArr3.filter(Boolean).length;
+            // Store on window so tab reads same values
+            window.__revArr3=revArr3; window.__revCount3=revCount3; window.__revSym3=sym;
             var revBg3=revCount3>=3?"#1e2a1e":revCount3>=1?"#1e2a1e":"#222";
             var revBorder3=revCount3>=1?"#2a5020":"#333";
             var revCol3=revCount3>=1?"#7abd00":"#555";
@@ -2957,6 +2962,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   var _trendLabel = _trendScore>=70?"Strong Uptrend":_trendScore>=55?"Uptrend":_trendScore>=40?"Sideways":_trendScore>=25?"Downtrend":"Strong Downtrend";
                   var _trendDots  = _trendScore>=70?5:_trendScore>=55?4:_trendScore>=40?3:_trendScore>=25?2:1;
                   var _trendCol   = pillColor(_trendScore>=55?"buy":_trendScore>=40?"hold":"avoid");
+                  // Store for tab banner to reuse -- single calculation
+                  if(_hasTech){ window.__trendScore=_trendScore; window.__trendLabel=_trendLabel; window.__trendDots=_trendDots; window.__trendScoreSym=sym; }
 
                   // Momentum score (rsi, macd, ema20, vol) -- weighted avg -> 0-100
                   // Compute momentum score once, store on window for tab banner to reuse
@@ -3117,6 +3124,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         ];
                         var _bCount4=_bSigs4.filter(Boolean).length;
                         var _rCount4=_rSigs4.filter(Boolean).length;
+                        // Store for tab
+                        window.__volBull=_bSigs4; window.__volBear=_rSigs4; window.__volSym=sym;
                         var _hasVol=_hasTech&&(_bCount4>0||_rCount4>0);
                         function _VolDots(count,col,empty){ var d=[]; for(var i=1;i<=5;i++) d.push(<span key={i} style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:i<=count?col:empty,marginRight:2}}/>); return <span style={{display:"inline-flex",alignItems:"center"}}>{d}</span>; }
                         return (
@@ -5944,24 +5953,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     return (
                       <div>
                         {(function(){
-                          // Recompute trend score in tab scope (ind/price available here)
-                          var _W={wsma:35,sma200:30,cross:20,pos52:15};
-                          var _wsmaG2=ind&&ind.wsma10&&ind.wsma40?(ind.wsma10-ind.wsma40)/ind.wsma40*100:0;
-                          var _s200g2=ind&&ind.sma200?(price-ind.sma200)/ind.sma200*100:0;
-                          var _crsG2=ind&&ind.sma50&&ind.sma200?(ind.sma50-ind.sma200)/ind.sma200*100:0;
-                          var _hi52t=ov?ov.hi52:0; var _lo52t=ov?ov.lo52:0;
-                          var _pos52t=(_hi52t>_lo52t&&price>0)?(price-_lo52t)/(_hi52t-_lo52t):0.5;
-                          function _tsc2(key){
-                            if(key==="wsma") return !ind||!ind.wsma10||!ind.wsma40?3:_wsmaG2>5?5:_wsmaG2>1?4:_wsmaG2>-1?3:_wsmaG2>-5?2:1;
-                            if(key==="sma200") return !ind||!ind.sma200?3:_s200g2>10?5:_s200g2>2?4:_s200g2>-10?3:_s200g2>-20?2:1;
-                            if(key==="cross") return !ind||!ind.sma50||!ind.sma200?3:_crsG2>10?5:_crsG2>1?4:_crsG2>-1?3:_crsG2>-10?2:1;
-                            if(key==="pos52") return _pos52t>0.80?5:_pos52t>0.55?4:_pos52t>0.35?3:_pos52t>0.15?2:1;
-                            return 3;
-                          }
-                          var _tot2=0; Object.keys(_W).forEach(function(k){_tot2+=(_tsc2(k)/5)*_W[k];}); var _ts2=Math.round(_tot2);
-                          var _tl2=_ts2>=70?"Strong Uptrend":_ts2>=55?"Uptrend":_ts2>=40?"Sideways":_ts2>=25?"Downtrend":"Strong Downtrend";
-                          var _td2=_ts2>=70?5:_ts2>=55?4:_ts2>=40?3:_ts2>=25?2:1;
-                          window.__trendScore2=_ts2; window.__trendLabel2=_tl2; window.__trendDots2=_td2;
+                          // Read from window (computed by pill) -- single source of truth
+                          var _ts2=window.__trendScore||0;
+                          var _tl2=window.__trendLabel||"--";
+                          var _td2=window.__trendDots||0;
                           var _tsc=_ts2>=70?"#1a6a1a":_ts2>=55?"#2a7a2a":_ts2>=40?"#b88000":"#c03030";
                           var _tsbg=_ts2>=70?"#e6f4e6":_ts2>=55?"#f0f7e6":_ts2>=40?"#fdf8e6":"#fff0f0";
                           var _tsbd=_ts2>=70?"#7abd00":_ts2>=55?"#9ab800":_ts2>=40?"#d4a800":"#e08080";
@@ -6284,9 +6279,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     var rsi14=ind.rsi14!=null?parseFloat(ind.rsi14):null;
 
                     // Bullish signals
+                    // Use window values computed by pill for consistency
+                    var _wRevArr=window.__revArr3&&window.__revSym3===sym?window.__revArr3:[false,false,false,false,false];
                     var bullSignals=[
                       { label:"RSI Price Divergence",
-                        active:(function(){ if(rsiHist.length<10||aggs.length<10) return false; var rPL=Math.min.apply(null,aggs.slice(0,5).map(function(a){return a.l||0;})); var pPL=Math.min.apply(null,aggs.slice(5,10).map(function(a){return a.l||0;})); var rRL=Math.min.apply(null,rsiHist.slice(0,5)); var pRL=Math.min.apply(null,rsiHist.slice(5,10)); return rPL<pPL&&rRL>pRL; })(),
+                        active:_wRevArr[0]||(function(){ if(rsiHist.length<10||aggs.length<10) return false; var rPL=Math.min.apply(null,aggs.slice(0,5).map(function(a){return a.l||0;})); var pPL=Math.min.apply(null,aggs.slice(5,10).map(function(a){return a.l||0;})); var rRL=Math.min.apply(null,rsiHist.slice(0,5)); var pRL=Math.min.apply(null,rsiHist.slice(5,10)); return rPL<pPL&&rRL>pRL; })(),
                         what:"Price is making new lows but RSI is not -- sellers are losing steam.",
                         why:"When sellers push price lower but momentum stops following, the downtrend is weakening. A bounce or reversal may be forming." },
                       { label:"MACD Histogram Turning Up",
@@ -6415,9 +6412,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     var vwapDnDays=aggs.slice(0,5).filter(function(a){return a&&vwap>0&&a.c<vwap;}).length;
                     var volRatio=vol20>0?vol5/vol20:1;
 
+                    var _wVolBull=window.__volBull&&window.__volSym===sym?window.__volBull:[false,false,false,false,false];
+                    var _wVolBear=window.__volBear&&window.__volSym===sym?window.__volBear:[false,false,false,false,false];
                     var bullVol=[
                       { label:"Single Day Volume Spike",
-                        active:vol1>0&&vol20>0&&vol1>vol20*2.5,
+                        active:_wVolBull[0]||(vol1>0&&vol20>0&&vol1>vol20*2.5),
                         what:"Today's trading volume is more than 2.5x the 20-day average.",
                         why:"Unusually high volume on a single day often signals a major event -- earnings, news, or large institutional activity. Big volume moves tend to set the direction for days ahead." },
                       { label:"Bullish Volume Surge (last 5 days)",
