@@ -992,60 +992,50 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         function sfx(v){ return (v!==null&&v!==undefined&&!isNaN(v)&&v>0)?v.toFixed(2)+"x":"N/A"; }
         function sfb(v){ return (v!==null&&v!==undefined&&!isNaN(v)&&v!==0)?"$"+(Math.abs(v)/1e9).toFixed(1)+"B "+(v<0?"(negative)":""):"N/A"; }
         function sfi(v){ return (v!==null&&v!==undefined&&!isNaN(v)&&v!==0)?Math.round(v).toString():"N/A"; }
-        var prompt =
-          "You are a senior investment analyst providing an investment assessment for "+symA+(window.NAMES&&window.NAMES[symA]?" ("+window.NAMES[symA]+")":"")+".\n\n"+
-          "Below is the latest financial data from our system. Use this data as your primary source. "+
-          "Where data shows N/A it was unavailable from our feeds -- use your knowledge to fill gaps where appropriate.\n\n"+
-          "COMPANY:\n"+
-          "- Sector: "+(_ov.sector||"N/A")+"\n"+
-          "- Industry: "+(_ov.industry||"N/A")+"\n"+
-          "- Market Cap: "+sfb(_ov.mc)+"\n"+
-          "- Employees: "+(_ov.employees?_ov.employees.toLocaleString():"N/A")+"\n\n"+
-          "VALUATION:\n"+
-          "- Current Price: $"+(priceA>0?priceA.toFixed(2):"N/A")+"\n"+
-          "- Intrinsic Value (DCF models): "+ivPctStr+"\n"+
-          "- P/E (TTM): "+sfx(_ov.pe)+"\n"+
-          "- Forward P/E: "+sfx(_ov.fpe)+"\n"+
-          "- EV/EBITDA: "+sfx(_ov.evEbitda)+"\n"+
-          "- Price/Sales: "+sfx(_ov.ps)+"\n"+
-          "- Price/Book: "+sfx(_ov.pb)+"\n"+
-          "- Price/FCF: "+sfx(_ov.pFcf)+"\n"+
-          "- PEG Ratio: "+sfn(_ov.peg)+"\n"+
-          "- Dividend Yield: "+(_ov.divY>0?_ov.divY.toFixed(2)+"%":"None")+"\n\n"+
-          "ECONOMIC MOAT: "+(moatR.classification||"Unknown")+" ("+(moatR.score||0)+"/5)\n"+
-          (moatR.sections&&moatR.sections.length>0?moatR.sections.map(function(s){return "- "+s.label+": "+s.score+"/5"+(s.body?" -- "+s.body:"");}).join("\n")+"\n":"")+
-          (moatR.explanation?"- Explanation: "+moatR.explanation+"\n":"")+"\n"+
-          "FINANCIAL STRENGTH: "+(finR.classification||"Unknown")+" ("+(finR.score||0)+"/5)\n"+
-          "PROFITABILITY:\n"+
+        // Build IV model breakdown from valsA
+        var _ivModels=(valsA||[]).filter(function(v){return !v.bold;}).map(function(v){
+          var _ivv=parseFloat(v.value||0); var _pct=priceA>0&&_ivv>0?((_ivv-priceA)/priceA*100):null;
+          return "- "+v.label+": "+(_ivv>0?"$"+Math.round(_ivv):"N/A")+(_pct!==null?" ("+(_pct>0?"undervalued ":"overvalued ")+Math.abs(_pct).toFixed(1)+"%)":"");
+        }).join("\n");
+        var _finMetrics=
           "- Gross Margin: "+sfp(_ov.grossMargin)+"\n"+
           "- Operating Margin: "+sfp(_ov.opMargin)+"\n"+
           "- Net Profit Margin: "+sfp(_ov.netMargin)+"\n"+
           "- Return on Equity: "+sfp(_ov.roe)+"\n"+
-          "- Return on Assets: "+sfp(_ov.roic)+"\n"+
           "- Free Cash Flow: "+sfb(_ov.fcfRaw)+"\n"+
           "- Operating Cash Flow: "+sfb(_ov.ocfRaw)+"\n"+
-          "- Net Income (TTM): "+sfb(_ov.niRaw)+"\n\n"+
-          "GROWTH:\n"+
           "- Revenue Growth YoY: "+sfp(_ov.revGrowth)+"\n"+
-          "- EPS Growth (TTM): "+sfp(_ov.epsG)+"\n"+
-          "- LT EPS Growth Est (5yr): "+sfp(_ov.ltG)+"\n\n"+
-          "BALANCE SHEET:\n"+
-          "- Total Debt: "+sfb(_ov.totalDebt)+"\n"+
-          "- Cash & Equivalents: "+sfb(_ov.cash)+"\n"+
           "- Debt/Equity: "+sfx(_ov.de)+"\n"+
           "- Current Ratio: "+sfx(_ov.currentRatio)+"\n"+
           "- Quick Ratio: "+sfx(_ov.quickRatio)+"\n"+
-          "- Beta: "+sfn(_ov.beta)+"\n\n"+
-          "ANALYST CONSENSUS:\n"+
-          "- Buy: "+sfi(_ov.recBuy)+" | Hold: "+sfi(_ov.recHold)+" | Sell: "+sfi(_ov.recSell)+"\n"+
-          "- Target Price (median): "+(_ov.targetMedian?"$"+_ov.targetMedian.toFixed(2):"N/A")+"\n"+
-
-          "\nRespond in EXACTLY this format. Write for a layman investor with no finance background -- avoid jargon, explain what numbers mean in plain English:\n"+
+          "- Total Debt: "+sfb(_ov.totalDebt)+"\n"+
+          "- Cash: "+sfb(_ov.cash);
+        var prompt=
+          "You are a senior investment analyst assessing "+symA+(window.NAMES&&window.NAMES[symA]?" ("+window.NAMES[symA]+")":"")+".\n\n"+
+          "Below is data from our app tabs. Use as primary source; fill gaps from your knowledge where N/A.\n\n"+
+          "COMPANY: "+(_ov.sector||"N/A")+" | "+(_ov.industry||"N/A")+" | Cap: "+sfb(_ov.mc)+"\n\n"+
+          "--- ECONOMIC MOAT TAB ---\n"+
+          "Overall: "+(moatR.classification||"Unknown")+" ("+(moatR.score||0)+"/5)\n"+
+          (moatR.sections&&moatR.sections.length>0?moatR.sections.map(function(s){return "- "+s.label+": "+s.score+"/5"+(s.body?" -- "+s.body:"");}).join("\n")+"\n":"")+
+          (moatR.explanation?"Explanation: "+moatR.explanation+"\n":"")+"\n"+
+          "--- INTRINSIC VALUE TAB ---\n"+
+          "Current Price: $"+(priceA>0?priceA.toFixed(2):"N/A")+"\n"+
+          "Consensus IV: "+ivPctStr+"\n"+
+          (_ivModels?"Individual model results:\n"+_ivModels+"\n":"")+
+          "Note: Review each model. If they diverge, explain why and give your view on the most reasonable valuation for this business model.\n\n"+
+          "Market Multiples: P/E "+sfx(_ov.pe)+" | Fwd P/E "+sfx(_ov.fpe)+" | EV/EBITDA "+sfx(_ov.evEbitda)+" | P/S "+sfx(_ov.ps)+" | P/B "+sfx(_ov.pb)+" | PEG "+sfn(_ov.peg)+"\n"+
+          "Dividend: "+(_ov.divY>0?_ov.divY.toFixed(2)+"%":"None")+"\n\n"+
+          "--- FINANCIAL STRENGTH TAB ---\n"+
+          "Overall: "+(finR.classification||"Unknown")+" ("+(finR.score||0)+"/5)\n"+
+          _finMetrics+"\n"+
+          "EPS Growth: "+sfp(_ov.epsG)+" | LT EPS Est: "+sfp(_ov.ltG)+" | Beta: "+sfn(_ov.beta)+"\n\n"+
+          "ANALYST CONSENSUS: Buy "+sfi(_ov.recBuy)+" | Hold "+sfi(_ov.recHold)+" | Sell "+sfi(_ov.recSell)+" | Target $"+(_ov.targetMedian?_ov.targetMedian.toFixed(2):"N/A")+"\n"+
+          "\nRespond in EXACTLY this format. Plain English, no jargon without explanation:\n"+
           "Fundamental Verdict: Strong Buy / Buy / Hold / Caution / Avoid\n"+
           "Confidence: Low / Medium / High\n"+
-          "Key Strength: 1-2 sentences in plain English -- no jargon. Explain what the company does really well and why an everyday investor should care.\n"+
-          "Key Risk: 1-2 sentences in plain English -- no jargon. Explain the biggest danger and what could go wrong for an everyday investor.\n"+
-          "Summary (2-3 sentences): Write as if explaining to a friend who knows nothing about stocks. First sentence: what the company does and whether it looks like a good or bad investment right now in plain English. Second sentence: explain what the key numbers mean in simple terms (e.g. instead of P/E of 28x say the stock costs $28 for every $1 of profit it makes). Third sentence: what should the investor do or watch out for.";
+          "Key Strength: 1-2 sentences plain English.\n"+
+          "Key Risk: 1-2 sentences plain English.\n"+
+          "Summary (2-3 sentences): Explain to a friend with no finance knowledge. Include your view on whether the intrinsic value models seem reasonable and what that means for whether the stock is cheap or expensive right now.";
         setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund MISS: "+symA+" -- calling Claude" }]); });
         fetch("/anthropic",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:1200, messages:[{role:"user",content:prompt}] }) })
           .then(function(r){ return r.json(); })
@@ -1127,29 +1117,86 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           ];
           activeRevs=["RSI Base","MACD Turning","Volume Surge","MA Reclaim","Price Structure"].filter(function(_,i){return _rArr[i];});
         }catch(e){}
-        var tprompt="You are a senior technical analyst. Analyse "+symA+" based ONLY on the data below. Write for a layman investor -- no jargon without explanation.\n\n"+
-          "TREND / PRICE ACTION:\n"+
-          "- Current Price: $"+(priceA||0).toFixed(2)+"\n"+
-          (pSma50?"- Price vs 200-day average: "+(pSma50>0?"+":"")+pSma50+"% -- stock is trading "+(pSma50>0?"above":"below")+" its long-term average ("+(pSma50>2?"generally bullish":pSma50>-10?"neutral":"bearish")+")\n":"")+
-          (pSma200?"- Price vs 50-day average: "+(pSma200>0?"+":"")+pSma200+"% -- "+(pSma200>2?"medium-term uptrend intact":"medium-term trend weak")+"\n":"")+
-          (_wsmaG2?"- Weekly trend (10-week vs 40-week MA): "+(_wsmaG2>0?"+":"")+_wsmaG2+"% -- medium-term weekly trend is "+(_wsmaG2>1?"up":"down or flat")+"\n":"")+
-          (_crsG2?"- Golden/Death Cross: "+(_crsG2>0?"Golden Cross (bullish long-term signal) by "+_crsG2+"%":"Death Cross (bearish long-term signal) by "+Math.abs(_crsG2)+"%")+"\n":"")+
-          (_pos52pct!==null?"- 52-week position: "+_pos52pct+"% of yearly range -- trading in the "+((_pos52pct>70)?"top 30% (strength)":(_pos52pct>40)?"middle":"bottom 40% (weakness)")+" of its range\n":"")+
-          "\nMOMENTUM:\n"+
-          "- RSI: "+(rsi||"N/A")+" -- "+(rsi?rsiCond+(" -- "+(rsi>75?"stock has been heavily bought, may be overheated":rsi>=50?"buying momentum is healthy and not overheated":rsi>=30?"momentum is weak, buyers not in control":"deeply oversold, heavily sold down")):"data unavailable")+"\n"+
-          "- MACD: histogram is "+_macdDir2+(macdHist!=null?" (value: "+macdHist.toFixed(4)+")":"")+"\n"+
-          (_ema20g2?"- Price vs 20-day average: "+(_ema20g2>0?"+":"")+_ema20g2+"% -- short-term momentum is "+(_ema20g2>1?"positive":"negative or flat")+"\n":"")+
-          (_volR2?"- Volume: recent trading volume is "+_volR2+" -- "+(parseInt(_volR2)>120?"above average activity, confirms the move":parseInt(_volR2)>90?"normal activity":"below average, move may lack conviction")+"\n":"")+
-          "\nREVERSAL SIGNALS ("+activeRevs.length+" of 5 active):\n"+
-          (activeRevs.length>0?"- Active: "+activeRevs.join(", ")+"\n":"- No reversal signals currently detected\n")+
-          "\n\nRespond in EXACTLY this format. Write for a layman investor -- plain English only, no jargon without explanation:\n"+
-          "Technical Verdict: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish\n"+
-          "Short-term (1-3m): Buy / Hold / Avoid\n"+
-          "Confidence: Low / Medium / High\n"+
-          "Key Level: 1-2 sentences -- what price level to watch and what happens if it breaks above or below in plain English.\n"+
-          "Key Strength: 1-2 sentences -- what the chart signals are saying is positive.\n"+
-          "Key Risk: 1-2 sentences -- what the chart signals are saying is a concern.\n"+
-          "Summary (2-3 sentences, plain English): First: is the stock trending up, down, or sideways. Second: what the key signals mean simply. Third: is now a good or risky time to buy based on the chart.";
+        // Tech prompt -- built as array to avoid string escaping issues
+        var _ind2=massiveA.indicators||{};
+        var _agg2=massiveA.aggs||[];
+        var _snap2=massiveA.snapshot||{};
+        var _vwap2=_snap2.vwap||0;
+        var _vwapDiff2=_vwap2>0&&priceA>0?(((priceA-_vwap2)/_vwap2)*100).toFixed(2):null;
+        var _ema20g3=_ind2.ema20&&priceA>0?(((priceA-_ind2.ema20)/_ind2.ema20)*100).toFixed(1):null;
+        var _s50g3=_ind2.sma50&&priceA>0?(((priceA-_ind2.sma50)/_ind2.sma50)*100).toFixed(1):null;
+        var _s200g3=_ind2.sma200&&priceA>0?(((priceA-_ind2.sma200)/_ind2.sma200)*100).toFixed(1):null;
+        var _wsmaG3=_ind2.wsma10&&_ind2.wsma40?(((_ind2.wsma10-_ind2.wsma40)/_ind2.wsma40)*100).toFixed(1):null;
+        var _crsG3=_ind2.sma50&&_ind2.sma200?(((_ind2.sma50-_ind2.sma200)/_ind2.sma200)*100).toFixed(1):null;
+        var _rsi3=_ind2.rsi14!=null?parseFloat(_ind2.rsi14):null;
+        var _mH3=_ind2.macdHistory||[];
+        var _macdH3=_mH3[0]&&_mH3[0].histogram!=null?parseFloat(_mH3[0].histogram):null;
+        var _macdDir3=_mH3.length>=2&&_mH3[0]&&_mH3[1]&&_mH3[0].histogram!=null&&_mH3[1].histogram!=null?(parseFloat(_mH3[0].histogram)>parseFloat(_mH3[1].histogram)?"rising":"falling"):"unknown";
+        var _roc103=_agg2.length>=10&&_agg2[9]&&_agg2[9].c&&priceA>0?(((priceA-_agg2[9].c)/_agg2[9].c)*100).toFixed(1):null;
+        var _momScore3=window.__momScore||0;
+        var _momLabel3=window.__momLabel||"N/A";
+        var _trendScore3=window.__trendScore||0;
+        var _trendLabel3=window.__trendLabel||"N/A";
+        var _rsiH3=_ind2.rsiHistory||[];
+        var _bullRevArr3=window.__revArr3||[false,false,false,false,false];
+        var _bearRevArr3=[
+          (_rsiH3.length>=10&&_agg2.length>=10)?(Math.max.apply(null,_agg2.slice(0,5).map(function(a){return a.h||0;}))>Math.max.apply(null,_agg2.slice(5,10).map(function(a){return a.h||0;}))&&Math.max.apply(null,_rsiH3.slice(0,5))<Math.max.apply(null,_rsiH3.slice(5,10))):false,
+          _mH3.length>=3&&_mH3[0]&&_mH3[1]&&_mH3[2]&&parseFloat(_mH3[0].histogram)>0&&parseFloat(_mH3[0].histogram)<parseFloat(_mH3[1].histogram)&&parseFloat(_mH3[1].histogram)<parseFloat(_mH3[2].histogram),
+          !!(_ind2.wsma10&&_ind2.wsma40&&_ind2.wsma10>_ind2.wsma40&&Math.abs(_ind2.wsma10-_ind2.wsma40)/_ind2.wsma40<0.05),
+          _rsiH3.length>=5&&_rsiH3.slice(0,5).every(function(v){return v!=null&&v>=72&&v<=85;}),
+          !!(_rsi3!=null&&_rsi3>70&&_rsi3<80),
+        ];
+        var _bullRevNames=["RSI Price Divergence","MACD Turning Up","Weekly SMA Cross Approaching","RSI Base Forming","52W Low Base"];
+        var _bearRevNames=["RSI Bearish Divergence","MACD Turning Down","Weekly SMA Cross (Bear)","RSI Overbought Stalling","52W High Topping"];
+        var _bullRevActive=_bullRevNames.filter(function(_,i){return _bullRevArr3[i];});
+        var _bearRevActive=_bearRevNames.filter(function(_,i){return _bearRevArr3[i];});
+        var _vBull=window.__volBull||[false,false,false,false,false];
+        var _vBear=window.__volBear||[false,false,false,false,false];
+        var _vBullNames=["Volume Spike","Bullish Surge","Accumulation","Volume Rising","VWAP Reclaim"];
+        var _vBearNames=["Dry-Up on Rally","Distribution","Bearish Surge","Volume Falling","VWAP Rejection"];
+        var _vBullActive=_vBullNames.filter(function(_,i){return _vBull[i];});
+        var _vBearActive=_vBearNames.filter(function(_,i){return _vBear[i];});
+        var _tCaution=(_s200g3&&parseFloat(_s200g3)>25)||false;
+        var _mCaution=(_rsi3&&(_rsi3>75||_rsi3<35))||(_roc103&&parseFloat(_roc103)>15);
+        var _rsiDesc=_rsi3==null?"N/A":_rsi3>=65?"strong healthy":_rsi3>=55?"good":_rsi3>=45?"neutral":_rsi3>=35?"weak":"very weak/oversold";
+        var _rsiWarn=_rsi3!=null&&_rsi3>75?" -- OVERBOUGHT CAUTION":_rsi3!=null&&_rsi3<35?" -- OVERSOLD CAUTION":"";
+        var _tLines=[
+          "You are a senior technical analyst assessing "+symA+". Data below mirrors our app tabs exactly. Write for a layman investor.",
+          "",
+          "--- TREND TAB ("+_trendScore3+"/100 -- "+_trendLabel3+(_tCaution?" -- CAUTION extended":"")+") ---",
+          "Short-term:",
+          _vwapDiff2!=null?"  VWAP: "+(_vwapDiff2>0?"+":"")+_vwapDiff2+"% (buyers "+((parseFloat(_vwapDiff2)>0)?"in control":"not in control")+" today)":"  VWAP: N/A",
+          _ema20g3!=null?"  EMA20: "+(_ema20g3>0?"+":"")+_ema20g3+"% (short-term "+(parseFloat(_ema20g3)>1?"uptrend":"flat/down")+")":"  EMA20: N/A",
+          "Medium-term:",
+          _s50g3!=null?"  SMA50: "+(_s50g3>0?"+":"")+_s50g3+"% ("+(parseFloat(_s50g3)>1?"uptrend intact":"trend weak")+")":"  SMA50: N/A",
+          "Long-term:",
+          _s200g3!=null?"  SMA200: "+(_s200g3>0?"+":"")+_s200g3+"% ("+(parseFloat(_s200g3)>2?"bullish":"bearish/flat")+")":"  SMA200: N/A",
+          _wsmaG3!=null?"  Weekly WSMA: "+(_wsmaG3>0?"+":"")+_wsmaG3+"% ("+(parseFloat(_wsmaG3)>1?"weekly uptrend":"weekly downtrend")+")":"  Weekly WSMA: N/A",
+          _crsG3!=null?"  Cross: "+(parseFloat(_crsG3)>0?"Golden Cross +"+_crsG3+"%":"Death Cross -"+Math.abs(_crsG3)+"%"):"  Cross: N/A",
+          "",
+          "--- MOMENTUM TAB ("+_momScore3+"/100 -- "+_momLabel3+(_mCaution?" -- CAUTION":"")+") ---",
+          _rsi3!=null?"  RSI: "+_rsi3.toFixed(1)+" -- "+_rsiDesc+_rsiWarn:"  RSI: N/A",
+          _macdH3!=null?"  MACD histogram: "+(parseFloat(_macdH3)>0?"positive":"negative")+" and "+_macdDir3+" (value: "+_macdH3.toFixed(4)+")":"  MACD: N/A",
+          _roc103!=null?"  ROC 10-day: "+(_roc103>0?"+":"")+_roc103+"% (momentum "+(parseFloat(_roc103)>3?"positive":parseFloat(_roc103)>-3?"neutral":"negative")+")":"  ROC: N/A",
+          "",
+          "--- REVERSAL DETECTION TAB ---",
+          "  Bullish signals ("+_bullRevActive.length+"/5): "+(_bullRevActive.length>0?_bullRevActive.join(", "):"none active"),
+          "  Bearish signals ("+_bearRevActive.length+"/5): "+(_bearRevActive.length>0?_bearRevActive.join(", "):"none active"),
+          "",
+          "--- VOLUME SPIKE TAB ---",
+          "  Bullish volume ("+_vBullActive.length+"/5): "+(_vBullActive.length>0?_vBullActive.join(", "):"none active"),
+          "  Bearish volume ("+_vBearActive.length+"/5): "+(_vBearActive.length>0?_vBearActive.join(", "):"none active"),
+          "",
+          "Respond in EXACTLY this format. Plain English only -- no jargon without explanation:",
+          "Technical Verdict: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish",
+          "Short-term (1-3m): Buy / Hold / Avoid",
+          "Confidence: Low / Medium / High",
+          "Key Level: 1-2 sentences -- what price level to watch and why.",
+          "Key Strength: 1-2 sentences -- what the signals say is positive.",
+          "Key Risk: 1-2 sentences -- what the signals say is a concern.",
+          "Summary (2-3 sentences): Trend direction, what key signals mean simply, and whether now is a good or risky time to buy.",
+        ];
+        var tprompt=_tLines.join("\n");
         setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech MISS: "+symA+" -- calling Claude" }]); });
         fetch("/anthropic",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:600,messages:[{role:"user",content:tprompt}]})})
           .then(function(r){return r.json();})
