@@ -1722,8 +1722,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             _techWait++;
             if (_techWait > 15) { clearInterval(_techWaitInterval); return; } // give up after 30s
             if (window.__aiTechDone === _tSym || window.__aiTechRunning === _tSym) { clearInterval(_techWaitInterval); return; }
-            var _isFT=FREE_TICKERS.indexOf(symSnap)!==-1;
-      if (!window.__isPaid && !_isFT) return; // wait for auth
+            var _isFT=FREE_TICKERS.indexOf(_tSym)!==-1;
+            if (!window.__isPaid && !_isFT) return; // wait for auth
             clearInterval(_techWaitInterval);
             setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech TRIGGER (massive): "+_tSym, data:{price:window.__curPrice||0, waitAttempts:_techWait} }]); });
             runTechAi(_tSym, _tData, window.__curPrice||0, window.__msDots2||0, window.__msLabel2||"");
@@ -2752,6 +2752,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                 var crsG  = ind2.sma50&&ind2.sma200?(ind2.sma50-ind2.sma200)/ind2.sma200*100:0;
                 var ema2g = ind2.ema20?(p2-ind2.ema20)/ind2.ema20*100:0;
                 var r2=ind2.rsi14; var h2=ind2.macd?ind2.macd.histogram:null;
+                var _mHx=ind2.macdHistory||[]; var macdDir2=_mHx.length>=2&&_mHx[0]&&_mHx[1]&&_mHx[0].histogram!=null&&_mHx[1].histogram!=null?(parseFloat(_mHx[0].histogram)>parseFloat(_mHx[1].histogram)?"Rising":"Falling"):"Flat";
                 if (key==="wsma")   return !ind2.wsma10||!ind2.wsma40?3:wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
                 if (key==="sma200") return !ind2.sma200?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
                 if (key==="cross")  return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
