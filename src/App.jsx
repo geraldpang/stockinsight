@@ -3098,42 +3098,54 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         );
                       })()}
                       {(function(){
-                        // Compute bearish reversal count for pill
+                        // Compute net weighted reversal score
                         var _ind3=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
                         var _aggs3=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
                         var _rsiH3=_ind3.rsiHistory||[]; var _mH3=_ind3.macdHistory||[];
                         var _hi52p=ov?ov.hi52:0; var _lo52p=ov?ov.lo52:0; var _prP=q?q.price:0;
                         var _pos52p=(_hi52p>_lo52p&&_prP>0)?(_prP-_lo52p)/(_hi52p-_lo52p):0.5;
+                        // Bear signals
                         var _bearArr3=[
                           (function(){ if(_rsiH3.length<10||_aggs3.length<10) return false; var rPH=Math.max.apply(null,_aggs3.slice(0,5).map(function(a){return a.h||0;})); var pPH=Math.max.apply(null,_aggs3.slice(5,10).map(function(a){return a.h||0;})); var rRH=Math.max.apply(null,_rsiH3.slice(0,5)); var pRH=Math.max.apply(null,_rsiH3.slice(5,10)); return rPH>pPH&&rRH<pRH; })(),
                           (function(){ if(_mH3.length<3) return false; var h0=_mH3[0]&&_mH3[0].histogram!=null?parseFloat(_mH3[0].histogram):null; var h1=_mH3[1]&&_mH3[1].histogram!=null?parseFloat(_mH3[1].histogram):null; var h2=_mH3[2]&&_mH3[2].histogram!=null?parseFloat(_mH3[2].histogram):null; return h0!=null&&h1!=null&&h2!=null&&h0>0&&h0<h1&&h1<h2; })(),
-                          (_ind3.wsma10&&_ind3.wsma40)?(_ind3.wsma10>_ind3.wsma40&&Math.abs(_ind3.wsma10-_ind3.wsma40)/_ind3.wsma40<0.05):false,
-                          _rsiH3.length>=5?_rsiH3.slice(0,5).every(function(v){return v!=null&&v>=72&&v<=85;}):false,
-                          _pos52p>0.95&&_ind3.rsi14!=null&&parseFloat(_ind3.rsi14)>70&&parseFloat(_ind3.rsi14)<80,
+                          !!(_ind3.wsma10&&_ind3.wsma40&&_ind3.wsma10>_ind3.wsma40&&Math.abs(_ind3.wsma10-_ind3.wsma40)/_ind3.wsma40<0.05),
+                          !!(_rsiH3.length>=5&&_rsiH3.slice(0,5).every(function(v){return v!=null&&v>=72&&v<=85;})),
+                          !!(_pos52p>0.95&&_ind3.rsi14!=null&&parseFloat(_ind3.rsi14)>70&&parseFloat(_ind3.rsi14)<80),
                         ];
-                        var _bearCount3=_bearArr3.filter(Boolean).length;
-                        var _hasBull=_hasTech&&revCount3>0; var _hasBear=_hasTech&&_bearCount3>0;
-                        var _pillBorder=_hasBull||_hasBear?"#2a5020":"#2c2c2e";
-                        function _RevDots(count, col, empty){ var d=[]; for(var i=1;i<=5;i++) d.push(<span key={i} style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:i<=count?col:empty,marginRight:2}}/>); return <span style={{display:"inline-flex",alignItems:"center"}}>{d}</span>; }
+                        // Weighted net score: bull - bear
+                        var _wBull=[3,2,2,1,1]; var _wBear=[3,2,2,1,1]; var _maxRev=9;
+                        var _bullScore3=revArr3.reduce(function(s,v,i){return s+(v?_wBull[i]:0);},0);
+                        var _bearScore3=_bearArr3.reduce(function(s,v,i){return s+(v?_wBear[i]:0);},0);
+                        var _netRev3=_bullScore3-_bearScore3;
+                        // Store bear arr and net for tab
+                        window.__revBearArr3=_bearArr3; window.__revNetScore3=_netRev3;
+                        // Badge + bar
+                        var _absRev=Math.abs(_netRev3);
+                        var _revDir=_netRev3>0?"bull":_netRev3<0?"bear":"none";
+                        var _revBadge=_absRev>=5?"Reversal Detected":_absRev>=3?"Reversal Detected":_absRev>=1?"Weak Signal":"No Signal";
+                        var _revStrength=_absRev>=5?"Strong Signal":_absRev>=3?"Moderate Signal":_absRev>=1?"Weak Signal":"";
+                        var _revBarPct=Math.min(_absRev/_maxRev,1)*100;
+                        var _revBarCol=_revDir==="bull"?"#7abd00":_revDir==="bear"?"#e05050":"#444";
+                        var _revBadgeCol=_revDir==="bull"?"#1a6a1a":_revDir==="bear"?"#c03030":"#555";
+                        var _revBadgeBg=_revDir==="bull"?"#e6f4e6":_revDir==="bear"?"#fff0f0":"transparent";
+                        var _revBorder=_revDir==="none"?"#2c2c2e":_revDir==="bull"?"#2a5020":"#4a2020";
                         return (
                           <div onClick={function(){ window.__goToTab && window.__goToTab("reversal"); }}
-                            style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid "+_pillBorder, borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                            <div style={{ fontSize:9, color:_hasBull||_hasBear?"#7abd00":"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, opacity:0.8 }}>Reversal Detection</div>
-                            {addlLoading && !_hasTech
-                              ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Loading...</span></div>
+                            style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid "+_revBorder, borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                            <div style={{ fontSize:9, color:_netRev3!==0?"#7abd00":"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4, opacity:0.8 }}>Reversal Signals</div>
+                            {addlLoading&&!_hasTech
+                              ? <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:7,height:7,borderRadius:"50%",border:"1.5px solid #333",borderTop:"1.5px solid #c8f000",animation:"spin 0.8s linear infinite"}}></div><span style={{fontSize:10,color:"#555"}}>Loading...</span></div>
                               : _hasTech ? (
-                                <div>
-                                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:3 }}>
-                                    <span style={{ fontSize:10, color:revCount3>0?"#7abd00":"#555" }}>{"Bullish "+revCount3+"/5"}</span>
-                                    {_RevDots(revCount3,"#7abd00",revCount3>0?"#2a5020":"#333")}
-                                  </div>
-                                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                                    <span style={{ fontSize:10, color:_hasBear?"#e05050":"#555" }}>{"Bearish "+_bearCount3+"/5"}</span>
-                                    {_RevDots(_bearCount3,"#e05050","#2a2a2a")}
-                                  </div>
-                                  {!_hasBull&&!_hasBear&&<div style={{fontSize:10,color:"#555",marginTop:2}}>No signals</div>}
+                                <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center"}}>
+                                  <div style={{display:"inline-block",fontSize:10,fontWeight:700,color:_revBadgeCol,background:_revBadgeBg,border:_netRev3!==0?"0.5px solid "+_revBadgeCol:"none",borderRadius:4,padding:_netRev3!==0?"1px 6px":"0",marginBottom:_netRev3!==0?5:0}}>{_revBadge}</div>
+                                  {_netRev3!==0&&<div>
+                                    <div style={{height:5,background:"#2a2a2a",borderRadius:3,overflow:"hidden",marginBottom:3}}>
+                                      <div style={{height:"100%",width:_revBarPct.toFixed(0)+"%",background:_revBarCol,borderRadius:3}}></div>
+                                    </div>
+                                    <div style={{fontSize:10,color:_revBadgeCol,opacity:0.85}}>{_revStrength}</div>
+                                  </div>}
                                 </div>
-                              ) : <span style={{ fontSize:13, fontWeight:700, color:"#555" }}>--</span>
+                              ) : <span style={{fontSize:13,fontWeight:700,color:"#555"}}>--</span>
                             }
                           </div>
                         );
@@ -3406,8 +3418,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
               { id:"trend",     label:"Trend" },
               { id:"momentum",  label:"Momentum" },
-              { id:"reversal",  label:"Reversal" },
-              { id:"volume",    label:"Volume Spike" },
+              { id:"reversal",  label:"Reversal Signals" },
+              { id:"volume",    label:"Volume Signals" },
               { id:"addlinfo",  label:"Additional Information" },
               { id:"debug",     label:"Debug" },
               { id:"admin",     label:"Admin" },
@@ -4483,7 +4495,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                   {/* Reversal Detection */}
                                   <div style={{ marginTop:14, paddingTop:12, borderTop:"0.5px solid #f0ede6" }}>
                                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:9 }}>
-                                      <div style={{ fontSize:10, fontWeight:700, color:"#854F0B", textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Detection</div>
+                                      <div style={{ fontSize:10, fontWeight:700, color:"#854F0B", textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Signals</div>
                                       {revCount > 0
                                         ? <div style={{ fontSize:10, color:"#633806", background:"#FAEEDA", padding:"2px 9px", borderRadius:8, border:"0.5px solid #EF9F27", fontWeight:600 }}>{revCount} active {String.fromCharCode(0x2014)} total bonus <span style={{ color:"#1a6a1a" }}>+{bonus}pts</span></div>
                                         : <div style={{ fontSize:10, color:"#bbb" }}>0 active {String.fromCharCode(0x2014)} 0 pts</div>
@@ -6413,7 +6425,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         {/* Summary banner */}
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
                           <div style={{padding:"10px 14px",background:_bBg,borderRadius:8,border:"0.5px solid "+_bBd}}>
-                            <div style={{fontSize:9,color:_bFg,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>Bullish Signals</div>
+                            <div style={{fontSize:9,color:_bFg,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>Reversal Signals</div>
                             <div style={{fontSize:15,fontWeight:700,color:_bFg}}>{bullCount + " / 5"}</div>
                             <div style={{display:"flex",gap:3,marginTop:5}}>{bullSignals.map(function(r,i){return <span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:r.active?"#7abd00":"#ccc"}}/>;})}</div>
                           </div>
@@ -6743,7 +6755,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         {/* Reversal Detection */}
                         <div style={{marginTop:14,paddingTop:12,borderTop:"0.5px solid #f0ede6"}}>
                           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:9}}>
-                            <div style={{fontSize:10,fontWeight:700,color:"#854F0B",textTransform:"uppercase",letterSpacing:"0.07em"}}>Reversal Detection</div>
+                            <div style={{fontSize:10,fontWeight:700,color:"#854F0B",textTransform:"uppercase",letterSpacing:"0.07em"}}>Reversal Signals</div>
                             {revCount2>0
                               ?<div style={{fontSize:10,color:"#633806",background:"#FAEEDA",padding:"2px 9px",borderRadius:8,border:"0.5px solid #EF9F27",fontWeight:600}}>{revCount2} active -- total bonus <span style={{color:"#1a6a1a"}}>+{bonus2}pts</span></div>
                               :<div style={{fontSize:10,color:"#bbb"}}>0 active -- 0 pts</div>
