@@ -2973,7 +2973,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   })()}
                 </div>
                 {/* TECHNICAL ANALYSIS -- compact rows */}
-                <div style={{ background:"#1e1e1e", border:"0.5px solid #2c2c2e", borderRadius:10, overflow:"hidden", marginBottom:6 }}>
+                <div style={{ background:"#1e1e1e", border:"0.5px solid #2c2c2e", borderRadius:10, overflow:"hidden", marginBottom:8 }}>
                   <div style={{ background:"#242424", padding:"5px 12px", borderBottom:"0.5px solid #2c2c2e" }}>
                     <span style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.1em" }}>Technical Analysis</span>
                   </div>
@@ -3127,42 +3127,43 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         var _volBarPct=Math.min(_absVol/_maxVol,1)*100;
                         var _volCol=_volDir==="bull"?"#7abd00":_volDir==="bear"?"#e05050":"#555";
                         // Compact signal row: label | badge | mini-bar | strength | chevron
-                        function SigRow(label, tab, netScore, absScore, dir, barPct, strength){
-                          var _detected=_hasTech&&netScore!==0;
-                          var _isBull=dir==="bull";
-                          var _arrow=_isBull?String.fromCharCode(0x25B2):String.fromCharCode(0x25BC);
-                          var _badgeCol=_isBull?"#c8f000":"#ff6666";
-                          var _badgeBg=_isBull?"#1a2200":"#2a0a0a";
-                          var _badgeBd=_isBull?"#3a5000":"#5a1010";
-                          var _barCol=_isBull?"#c8f000":"#ff6666";
+                        function SigPill(tab, title, netScore, dir, barPct, strength){
+                          var _det=_hasTech&&netScore!==0;
+                          var _bull=dir==="bull";
+                          var _arrow=_bull?String.fromCharCode(0x25B2):String.fromCharCode(0x25BC);
+                          var _bCol=_bull?"#c8f000":"#ff6666";
+                          var _bBg=_bull?"#1a2200":"#2a0a0a";
+                          var _bBd=_bull?"#3a5000":"#5a1010";
                           return (
                             <div onClick={function(){ window.__goToTab && window.__goToTab(tab); }}
-                              style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
+                              style={{background:"transparent",border:"0.5px solid #2c2c2e",borderRadius:8,padding:"10px 10px",cursor:"pointer",minHeight:64,display:"flex",flexDirection:"column"}}
                               onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                               onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
-                              <span style={{fontSize:11,color:"#666",width:95,flexShrink:0}}>{label}</span>
+                              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                                <span style={{fontSize:9,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:"0.07em"}}>{title}</span>
+                                <span style={{fontSize:11,color:"#444"}}>{"›"}</span>
+                              </div>
                               {!_hasTech
-                                ? <span style={{fontSize:12,color:"#444",flex:1}}>--</span>
-                                : !_detected
-                                  ? <span style={{flex:1,display:"flex",alignItems:"center"}}>
-                                      <span style={{fontSize:10,fontWeight:600,color:"#444",background:"#222",border:"0.5px solid #333",borderRadius:4,padding:"2px 8px"}}>Not Detected</span>
-                                    </span>
-                                  : <span style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
-                                      <span style={{fontSize:10,fontWeight:700,color:_badgeCol,background:_badgeBg,border:"0.5px solid "+_badgeBd,borderRadius:4,padding:"2px 8px",flexShrink:0,whiteSpace:"nowrap"}}>{_arrow+" Detected"}</span>
-                                      <span style={{width:60,height:4,background:"#2a2a2a",borderRadius:2,overflow:"hidden",flexShrink:0}}>
-                                        <span style={{display:"block",height:"100%",width:barPct.toFixed(0)+"%",background:_barCol,borderRadius:2}}></span>
-                                      </span>
-                                      <span style={{fontSize:10,color:_barCol,opacity:0.85,flexShrink:0}}>{strength}</span>
-                                    </span>
+                                ? <span style={{fontSize:11,color:"#444"}}>--</span>
+                                : !_det
+                                  ? <span style={{fontSize:10,fontWeight:600,color:"#444",background:"#222",border:"0.5px solid #333",borderRadius:4,padding:"2px 7px",display:"inline-block"}}>Not Detected</span>
+                                  : <div>
+                                      <span style={{fontSize:10,fontWeight:700,color:_bCol,background:_bBg,border:"0.5px solid "+_bBd,borderRadius:4,padding:"2px 7px",display:"inline-block",marginBottom:5}}>{_arrow+" Detected"}</span>
+                                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                        <div style={{flex:1,height:3,background:"#2a2a2a",borderRadius:2,overflow:"hidden"}}>
+                                          <div style={{height:"100%",width:barPct.toFixed(0)+"%",background:_bCol,borderRadius:2}}></div>
+                                        </div>
+                                        <span style={{fontSize:9,color:_bCol,opacity:0.9,flexShrink:0}}>{strength}</span>
+                                      </div>
+                                    </div>
                               }
-                              <span style={{fontSize:11,color:"#444",marginLeft:6}}>{"›"}</span>
                             </div>
                           );
                         }
                         return (
-                          <div>
-                            {SigRow("Reversal","reversal",_netRev3,_absRev,_revDir,_revBarPct,_revStrength)}
-                            {SigRow("Volume","volume",_netVol,_absVol,_volDir,_volBarPct,_volStrength)}
+                          <div style={{display:"contents"}}>
+                            {SigPill("reversal","Reversal",_netRev3,_revDir,_revBarPct,_revStrength)}
+                            {SigPill("volume","Volume",_netVol,_volDir,_volBarPct,_volStrength)}
                           </div>
                         );
                       })()}
