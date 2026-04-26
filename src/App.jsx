@@ -3130,12 +3130,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                               style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                               onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                               onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
-                              <span style={{fontSize:11,color:"#666",width:95,flexShrink:0}}>{label}</span>
                               {!_hasTech
                                 ? <span style={{fontSize:12,color:"#444",flex:1}}>--</span>
                                 : netScore===0
-                                  ? <span style={{fontSize:12,color:"#555",flex:1}}>No Signal</span>
-                                  : <span style={{display:"flex",alignItems:"center",gap:6,flex:1,minWidth:0}}>
+                                  ? <span style={{display:"flex",alignItems:"center",flex:1}}>
+                                      <span style={{fontSize:11,color:"#666",width:95,flexShrink:0}}>{label}</span>
+                                      <span style={{fontSize:11,color:"#444"}}>{"Not Detected"}</span>
+                                    </span>
+                                  : <span style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
                                       <span style={{fontSize:11,fontWeight:600,color:col,flexShrink:0,whiteSpace:"nowrap"}}>{badge}</span>
                                       <span style={{flex:1,height:4,background:"#2a2a2a",borderRadius:2,overflow:"hidden"}}>
                                         <span style={{display:"block",height:"100%",width:barPct.toFixed(0)+"%",background:col,borderRadius:2}}></span>
