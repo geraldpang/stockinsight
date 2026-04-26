@@ -3045,55 +3045,35 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   window.__trendScore = _trendScore; window.__trendLabel = _trendLabel;
                   window.__momScore   = _momScore;   window.__momLabel   = _momLabel;
 
+                  // Caution flags
+                  var _ind2b=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
+                  var _p2b=q?q.price:0;
+                  var _s200g2b=_ind2b.sma200&&_p2b>0?(_p2b-_ind2b.sma200)/_ind2b.sma200*100:0;
+                  var _pos52_2b=ind2&&p2&&hi2>lo2?(p2-lo2)/(hi2-lo2)*100:50;
+                  var _trendCaution=_hasTech&&(_s200g2b>25||_pos52_2b>95);
+                  var _rsi2b=_ind2b.rsi14?parseFloat(_ind2b.rsi14):0;
+                  var _aggs_pill=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
+                  var _roc10_2b=_aggs_pill.length>=10&&_aggs_pill[9]&&_aggs_pill[9].c&&_p2b>0?(_p2b-_aggs_pill[9].c)/_aggs_pill[9].c*100:null;
+                  var _momCaution=_hasTech&&(_rsi2b>75||_rsi2b<35||(_roc10_2b!=null&&_roc10_2b>15));
+                  function TechRow(p){
+                    var _d=[]; for(var i=1;i<=5;i++) _d.push(<span key={i} style={{display:"inline-block",width:5,height:5,borderRadius:"50%",background:i<=(p.score||0)?(p.dotCol||"#7abd00"):"#2a2a2a",marginRight:2}}/>);
+                    return (
+                      <div onClick={function(){ window.__goToTab && window.__goToTab(p.tab); }}
+                        style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
+                        onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
+                        onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
+                        <span style={{fontSize:11,color:"#666",width:95,flexShrink:0}}>{p.label}</span>
+                        <span style={{fontSize:12,fontWeight:600,color:p.loading?"#444":(p.valCol||"#aaa"),flex:1}}>{p.loading?"--":(p.value||"--")}</span>
+                        {!p.loading&&(p.score||0)>0&&<span style={{display:"inline-flex",alignItems:"center",marginRight:6}}>{_d}</span>}
+                        {p.caution&&<span style={{fontSize:10,color:"#b88000",marginRight:6}}>{"⚠"}</span>}
+                        <span style={{fontSize:11,color:"#444"}}>{"›"}</span>
+                      </div>
+                    );
+                  }
                   return (
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
-                      {(function(){
-                        // Detect caution flags for trend pill
-                        var _ind2=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
-                        var _p2=q?q.price:0;
-                        var _s200g2=_ind2.sma200&&_p2>0?(_p2-_ind2.sma200)/_ind2.sma200*100:0;
-                        var _pos52_2=ind2&&p2&&hi2>lo2?(p2-lo2)/(hi2-lo2)*100:50;
-                        var _trendCaution=_hasTech&&(_s200g2>25||_pos52_2>95);
-                        var _rsi2=_ind2.rsi14?parseFloat(_ind2.rsi14):0;
-                        var _ema20g2=_ind2.ema20&&_p2>0?(_p2-_ind2.ema20)/_ind2.ema20*100:0;
-                        var _aggs_pill=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
-                        var _roc10_2=_aggs_pill.length>=10&&_aggs_pill[9]&&_aggs_pill[9].c&&(q?q.price:0)>0?((q?q.price:0)-_aggs_pill[9].c)/_aggs_pill[9].c*100:null;
-                        var _momCaution=_hasTech&&(_rsi2>75||_rsi2<35||(_roc10_2!=null&&_roc10_2>15));
-                        return (
-                          <div style={{display:"contents"}}>
-                            <div onClick={function(){ window.__goToTab && window.__goToTab("trend"); }}
-                              style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid #2c2c2e", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
-                                <div style={{ fontSize:9, color:_hasTech?_trendCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", opacity:0.8 }}>Trend</div>
-                                {_trendCaution && <div style={{ fontSize:8, fontWeight:700, color:"#b88000", background:"#fdf8e6", border:"0.5px solid #b88000", borderRadius:3, padding:"1px 5px" }}>{"\u26A0 CAUTION"}</div>}
-                              </div>
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                                {addlLoading && !_hasTech
-                                  ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Loading...</span></div>
-                                  : <span style={{ fontSize:13, fontWeight:700, color:_hasTech?_trendCol.fg:"#555" }}>{_hasTech?_trendLabel:"--"}</span>
-                                }
-                                {_hasTech && <Dots score={_trendDots} filled={_trendCol.dot} empty={_trendCol.dotEmpty} />}
-                              </div>
-                              {_hasTech && <div style={{ fontSize:10, color:_trendCol.fg, marginTop:3, opacity:0.75 }}>{_trendScore + "/100"}</div>}
-                            </div>
-                            <div onClick={function(){ window.__goToTab && window.__goToTab("momentum"); }}
-                              style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid #2c2c2e", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
-                                <div style={{ fontSize:9, color:_hasTech?_momCol.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", opacity:0.8 }}>Momentum</div>
-                                {_momCaution && <div style={{ fontSize:8, fontWeight:700, color:"#b88000", background:"#fdf8e6", border:"0.5px solid #b88000", borderRadius:3, padding:"1px 5px" }}>{"\u26A0 CAUTION"}</div>}
-                              </div>
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                                {addlLoading && !_hasTech
-                                  ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Loading...</span></div>
-                                  : <span style={{ fontSize:13, fontWeight:700, color:_hasTech?_momCol.fg:"#555" }}>{_hasTech?_momLabel:"--"}</span>
-                                }
-                                {_hasTech && <Dots score={_momDots} filled={_momCol.dot} empty={_momCol.dotEmpty} />}
-                              </div>
-                              {_hasTech && <div style={{ fontSize:10, color:_momCol.fg, marginTop:3, opacity:0.75 }}>{_momScore + "/100"}</div>}
-                            </div>
-                          </div>
-                        );
-                      })()}
+                    <div>
+                      <TechRow label="Trend" value={_hasTech?_trendLabel:"--"} score={_trendDots} dotCol={_trendCol.dot} valCol={_trendCol.fg} caution={_trendCaution} loading={!_hasTech} tab="trend" />
+                      <TechRow label="Momentum" value={_hasTech?_momLabel:"--"} score={_momDots} dotCol={_momCol.dot} valCol={_momCol.fg} caution={_momCaution} loading={!_hasTech} tab="momentum" />
                       {(function(){
                         // Compute net weighted reversal score
                         var _ind3=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
