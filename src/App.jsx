@@ -3136,11 +3136,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                 : netScore===0
                                   ? <span style={{fontSize:12,color:"#555",flex:1}}>No Signal</span>
                                   : <span style={{display:"flex",alignItems:"center",gap:6,flex:1,minWidth:0}}>
-                                      <span style={{fontSize:11,fontWeight:600,color:col,flexShrink:0}}>{badge}</span>
-                                      <span style={{flex:1,maxWidth:60,height:4,background:"#2a2a2a",borderRadius:2,overflow:"hidden",flexShrink:0}}>
+                                      <span style={{fontSize:11,fontWeight:600,color:col,flexShrink:0,whiteSpace:"nowrap"}}>{badge}</span>
+                                      <span style={{flex:1,height:4,background:"#2a2a2a",borderRadius:2,overflow:"hidden"}}>
                                         <span style={{display:"block",height:"100%",width:barPct.toFixed(0)+"%",background:col,borderRadius:2}}></span>
                                       </span>
-                                      <span style={{fontSize:10,color:col,opacity:0.85,flexShrink:0}}>{strength}</span>
+                                      <span style={{fontSize:10,color:col,opacity:0.85,flexShrink:0,whiteSpace:"nowrap"}}>{strength}</span>
                                     </span>
                               }
                               <span style={{fontSize:11,color:"#444",marginLeft:4}}>{"›"}</span>
