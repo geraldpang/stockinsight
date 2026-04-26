@@ -2966,8 +2966,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     return (
                       <div>
                         <FRow label="Economic Moat" value={moatRating} score={moatScore} dotCol={moatColors.dot} valCol={moatColors.fg} loading={!moatRating&&insightLoading} tab="moat" />
-                        <FRow label="Intrinsic Value" value={ivLabel} score={ivScore} dotCol={ivColors.dot} valCol={ivColors.fg} loading={!ivLabel&&!ov} tab="intrinsic" />
                         <FRow label="Financial Strength" value={finRating} score={finScore} dotCol={finColors.dot} valCol={finColors.fg} loading={false} tab="financial" />
+                        <FRow label="Intrinsic Value" value={ivSublabel||ivLabel||"--"} score={ivScore} dotCol={ivColors.dot} valCol={ivColors.fg} loading={!ivOracle&&!ov} tab="intrinsic" />
                       </div>
                     );
                   })()}
@@ -3075,89 +3075,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     <div style={{display:"flex",flexDirection:"column"}}>
                       <TechRow label="Trend" value={_hasTech?_trendLabel:"--"} score={_trendDots} dotCol={_trendCol.dot} valCol={_trendCol.fg} caution={_trendCaution} loading={!_hasTech} tab="trend" />
                       <TechRow label="Momentum" value={_hasTech?_momLabel:"--"} score={_momDots} dotCol={_momCol.dot} valCol={_momCol.fg} caution={_momCaution} loading={!_hasTech} tab="momentum" />
-                      <div style={{borderTop:"0.5px solid #2c2c2e",background:"#242424",padding:"4px 12px",marginTop:2}}>
-                        <span style={{fontSize:9,fontWeight:700,color:"#444",textTransform:"uppercase",letterSpacing:"0.1em"}}>Signals</span>
-                      </div>
-                      {(function(){
-                        // Reversal net weighted score
-                        var _ind3=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
-                        var _aggs3=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
-                        var _rsiH3=_ind3.rsiHistory||[]; var _mH3=_ind3.macdHistory||[];
-                        var _hi52p=ov?ov.hi52:0; var _lo52p=ov?ov.lo52:0; var _prP=q?q.price:0;
-                        var _pos52p=(_hi52p>_lo52p&&_prP>0)?(_prP-_lo52p)/(_hi52p-_lo52p):0.5;
-                        var _bearArr3=[
-                          (function(){ if(_rsiH3.length<10||_aggs3.length<10) return false; var rPH=Math.max.apply(null,_aggs3.slice(0,5).map(function(a){return a.h||0;})); var pPH=Math.max.apply(null,_aggs3.slice(5,10).map(function(a){return a.h||0;})); var rRH=Math.max.apply(null,_rsiH3.slice(0,5)); var pRH=Math.max.apply(null,_rsiH3.slice(5,10)); return rPH>pPH&&rRH<pRH; })(),
-                          (function(){ if(_mH3.length<3) return false; var h0=_mH3[0]&&_mH3[0].histogram!=null?parseFloat(_mH3[0].histogram):null; var h1=_mH3[1]&&_mH3[1].histogram!=null?parseFloat(_mH3[1].histogram):null; var h2=_mH3[2]&&_mH3[2].histogram!=null?parseFloat(_mH3[2].histogram):null; return h0!=null&&h1!=null&&h2!=null&&h0>0&&h0<h1&&h1<h2; })(),
-                          !!(_ind3.wsma10&&_ind3.wsma40&&_ind3.wsma10>_ind3.wsma40&&Math.abs(_ind3.wsma10-_ind3.wsma40)/_ind3.wsma40<0.05),
-                          !!(_rsiH3.length>=5&&_rsiH3.slice(0,5).every(function(v){return v!=null&&v>=72&&v<=85;})),
-                          !!(_pos52p>0.95&&_ind3.rsi14!=null&&parseFloat(_ind3.rsi14)>70&&parseFloat(_ind3.rsi14)<80),
-                        ];
-                        var _wBull=[3,2,2,1,1]; var _wBear=[3,2,2,1,1]; var _maxRev=9;
-                        var _bullScore3=revArr3.reduce(function(s,v,i){return s+(v?_wBull[i]:0);},0);
-                        var _bearScore3=_bearArr3.reduce(function(s,v,i){return s+(v?_wBear[i]:0);},0);
-                        var _netRev3=_bullScore3-_bearScore3;
-                        window.__revBearArr3=_bearArr3; window.__revNetScore3=_netRev3;
-                        var _absRev=Math.abs(_netRev3);
-                        var _revDir=_netRev3>0?"bull":_netRev3<0?"bear":"none";
-                        var _revLabel=_absRev>=3?"Reversal Detected":_absRev>=1?"Weak Signal":"No Signal";
-                        var _revStrength=_absRev>=5?"Strong":_absRev>=3?"Moderate":_absRev>=1?"Weak":"";
-                        var _revBarPct=Math.min(_absRev/_maxRev,1)*100;
-                        var _revCol=_revDir==="bull"?"#7abd00":_revDir==="bear"?"#e05050":"#555";
-                        // Volume net weighted score
-                        var _aggs4=_aggs3; var _snap4=massiveInfo&&massiveInfo.snapshot?massiveInfo.snapshot:{};
-                        var _vol5_4=_aggs4.slice(0,5).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4.slice(0,5).length,1);
-                        var _vol5_20_4=_aggs4.slice(5,20).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4.slice(5,20).length,1);
-                        var _vol20_4=_aggs4.slice(0,20).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4.slice(0,20).length,1);
-                        var _vol1_4=_aggs4[0]?_aggs4[0].v:0;
-                        var _vwap4=_snap4.vwap||0;
-                        var _acc4=0; var _dist4=0;
-                        _aggs4.slice(0,20).forEach(function(a){ if(!a||!a.v||!a.c||!a.o) return; if(a.c>=a.o&&a.v>_vol20_4) _acc4++; else if(a.c<a.o&&a.v>_vol20_4) _dist4++; });
-                        var _closeUpDays=_aggs4.slice(0,5).filter(function(a){ return a&&a.c&&a.o&&a.c>a.o; }).length;
-                        var _closeDnDays=_aggs4.slice(0,5).filter(function(a){ return a&&a.c&&a.o&&a.c<a.o; }).length;
-                        var _bSigs4=[_vol1_4>0&&_vol20_4>0&&_vol1_4>_vol20_4*2.5,_aggs4.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c>a.o&&a.v>_vol20_4*2;}),_acc4>_dist4+1,_vol5_20_4>0&&_vol5_4>_vol5_20_4*1.2,_closeUpDays>=3];
-                        var _rSigs4=[!!(_aggs4[0]&&_aggs4[0].c&&_aggs4[0].o&&_aggs4[0].c>_aggs4[0].o&&_vol1_4<_vol20_4*0.5),_dist4>_acc4+1,_aggs4.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c<a.o&&a.v>_vol20_4*2;}),_vol5_20_4>0&&_vol5_4<_vol5_20_4*0.8,_closeDnDays>=4];
-                        window.__volBull=_bSigs4; window.__volBear=_rSigs4; window.__volSym=sym;
-                        var _wVolB=[2,3,3,2,1]; var _wVolR=[2,3,3,2,1]; var _maxVol=11;
-                        var _volBullScore=_bSigs4.reduce(function(s,v,i){return s+(v?_wVolB[i]:0);},0);
-                        var _volBearScore=_rSigs4.reduce(function(s,v,i){return s+(v?_wVolR[i]:0);},0);
-                        var _netVol=_volBullScore-_volBearScore;
-                        window.__volNetScore=_netVol;
-                        var _absVol=Math.abs(_netVol);
-                        var _volDir=_netVol>0?"bull":_netVol<0?"bear":"none";
-                        var _volLabel=_absVol>=3?"Vol Spike Detected":_absVol>=1?"Weak Signal":"No Signal";
-                        var _volStrength=_absVol>=5?"Strong":_absVol>=3?"Moderate":_absVol>=1?"Weak":"";
-                        var _volBarPct=Math.min(_absVol/_maxVol,1)*100;
-                        var _volCol=_volDir==="bull"?"#7abd00":_volDir==="bear"?"#e05050":"#555";
-                        // Compact signal row: label | badge | mini-bar | strength | chevron
-                        function SigRow(tab, label, netScore, dir, barPct, strength){
-                          var _det=_hasTech&&netScore!==0;
-                          var _bull=dir==="bull";
-                          var _col=_bull?pillColor("buy"):(_det?pillColor("avoid"):pillColor(null));
-                          var _arrow=_bull?String.fromCharCode(0x25B2):String.fromCharCode(0x25BC);
-                          var _valText=!_hasTech?"--":!_det?"Not Detected":(_arrow+" Detected");
-                          var _valCol=!_det?"#555":_col.fg;
-                          return (
-                            <div onClick={function(){ window.__goToTab && window.__goToTab(tab); }}
-                              style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
-                              onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
-                              onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
-                              <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>{label}</span>
-                              <span style={{fontSize:12,fontWeight:600,color:_valCol,flex:1}}>{_valText}</span>
-                              {_det&&strength&&<span style={{fontSize:10,color:_col.fg,marginRight:6,flexShrink:0,opacity:0.85}}>{strength}</span>}
-                              {_det&&<span style={{width:52,height:3,background:"#2a2a2a",borderRadius:2,overflow:"hidden",display:"inline-block",marginRight:8,flexShrink:0}}>
-                                <span style={{display:"block",height:"100%",width:barPct.toFixed(0)+"%",background:_col.dot,borderRadius:2}}></span>
-                              </span>}
-                              <span style={{fontSize:11,color:"#444"}}>{"\u203A"}</span>
-                            </div>
-                          );
-                        }
-                        return (
-                          <div>
-                            {SigRow("reversal","Reversal",_netRev3,_revDir,_revBarPct,_revStrength)}
-                            {SigRow("volume","Volume",_netVol,_volDir,_volBarPct,_volStrength)}
-                          </div>
-                        );
-                      })()}
                     </div>
                   );
                 })()}
