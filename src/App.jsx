@@ -3055,17 +3055,19 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   var _roc10_2b=_aggs_pill.length>=10&&_aggs_pill[9]&&_aggs_pill[9].c&&_p2b>0?(_p2b-_aggs_pill[9].c)/_aggs_pill[9].c*100:null;
                   var _momCaution=_hasTech&&(_rsi2b>75||_rsi2b<35||(_roc10_2b!=null&&_roc10_2b>15));
                   function TechRow(p){
-                    var _d=[]; for(var i=1;i<=5;i++) _d.push(<span key={i} style={{display:"inline-block",width:5,height:5,borderRadius:"50%",background:i<=(p.score||0)?(p.dotCol||"#7abd00"):"#2a2a2a",marginRight:2}}/>);
+                    var _barPct=Math.min((p.score||0)/5*100,100);
                     return (
                       <div onClick={function(){ window.__goToTab && window.__goToTab(p.tab); }}
                         style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                         onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                         onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
-                        <span style={{fontSize:11,color:"#666",width:95,flexShrink:0}}>{p.label}</span>
+                        <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>{p.label}</span>
                         <span style={{fontSize:12,fontWeight:600,color:p.loading?"#444":(p.valCol||"#aaa"),flex:1}}>{p.loading?"--":(p.value||"--")}</span>
-                        {!p.loading&&(p.score||0)>0&&<span style={{display:"inline-flex",alignItems:"center",marginRight:6}}>{_d}</span>}
-                        {p.caution&&<span style={{fontSize:10,color:"#b88000",marginRight:6}}>{"⚠"}</span>}
-                        <span style={{fontSize:11,color:"#444"}}>{"›"}</span>
+                        {!p.loading&&(p.score||0)>0&&<span style={{width:52,height:3,background:"#2a2a2a",borderRadius:2,overflow:"hidden",display:"inline-block",marginRight:p.caution?4:8,flexShrink:0}}>
+                          <span style={{display:"block",height:"100%",width:_barPct.toFixed(0)+"%",background:p.dotCol||"#7abd00",borderRadius:2}}></span>
+                        </span>}
+                        {p.caution&&<span style={{fontSize:9,color:"#b88000",marginRight:6,flexShrink:0}}>{"\u26A0"}</span>}
+                        <span style={{fontSize:11,color:"#444"}}>{"\u203A"}</span>
                       </div>
                     );
                   }
@@ -3076,7 +3078,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       <div style={{borderTop:"0.5px solid #2c2c2e",background:"#242424",padding:"4px 12px",marginTop:2}}>
                         <span style={{fontSize:9,fontWeight:700,color:"#444",textTransform:"uppercase",letterSpacing:"0.1em"}}>Signals</span>
                       </div>
-                      <div style={{padding:"8px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                       {(function(){
                         // Reversal net weighted score
                         var _ind3=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
@@ -3128,47 +3129,35 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         var _volBarPct=Math.min(_absVol/_maxVol,1)*100;
                         var _volCol=_volDir==="bull"?"#7abd00":_volDir==="bear"?"#e05050":"#555";
                         // Compact signal row: label | badge | mini-bar | strength | chevron
-                        function SigPill(tab, title, netScore, dir, barPct, strength){
+                        function SigRow(tab, label, netScore, dir, barPct, strength){
                           var _det=_hasTech&&netScore!==0;
                           var _bull=dir==="bull";
+                          var _col=_bull?pillColor("buy"):(_det?pillColor("avoid"):pillColor(null));
                           var _arrow=_bull?String.fromCharCode(0x25B2):String.fromCharCode(0x25BC);
-                          var _bCol=_bull?"#c8f000":"#ff6666";
-                          var _bBg=_bull?"#1a2200":"#2a0a0a";
-                          var _bBd=_bull?"#3a5000":"#5a1010";
+                          var _valText=!_hasTech?"--":!_det?"Not Detected":(_arrow+" Detected");
+                          var _valCol=!_det?"#555":_col.fg;
                           return (
                             <div onClick={function(){ window.__goToTab && window.__goToTab(tab); }}
-                              style={{background:"transparent",border:"0.5px solid #2c2c2e",borderRadius:8,padding:"10px 10px",cursor:"pointer",minHeight:64,display:"flex",flexDirection:"column"}}
+                              style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                               onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                               onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
-                              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                                <span style={{fontSize:9,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:"0.07em"}}>{title}</span>
-                                <span style={{fontSize:11,color:"#444"}}>{"›"}</span>
-                              </div>
-                              {!_hasTech
-                                ? <span style={{fontSize:11,color:"#444"}}>--</span>
-                                : !_det
-                                  ? <span style={{fontSize:10,fontWeight:600,color:"#444",background:"#222",border:"0.5px solid #333",borderRadius:4,padding:"2px 7px",display:"inline-block"}}>Not Detected</span>
-                                  : <div>
-                                      <span style={{fontSize:10,fontWeight:700,color:_bCol,background:_bBg,border:"0.5px solid "+_bBd,borderRadius:4,padding:"2px 7px",display:"inline-block",marginBottom:5}}>{_arrow+" Detected"}</span>
-                                      <div style={{display:"flex",alignItems:"center",gap:6}}>
-                                        <div style={{flex:1,height:3,background:"#2a2a2a",borderRadius:2,overflow:"hidden"}}>
-                                          <div style={{height:"100%",width:barPct.toFixed(0)+"%",background:_bCol,borderRadius:2}}></div>
-                                        </div>
-                                        <span style={{fontSize:9,color:_bCol,opacity:0.9,flexShrink:0}}>{strength}</span>
-                                      </div>
-                                    </div>
-                              }
+                              <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>{label}</span>
+                              <span style={{fontSize:12,fontWeight:600,color:_valCol,flex:1}}>{_valText}</span>
+                              {_det&&strength&&<span style={{fontSize:10,color:_col.fg,marginRight:6,flexShrink:0,opacity:0.85}}>{strength}</span>}
+                              {_det&&<span style={{width:52,height:3,background:"#2a2a2a",borderRadius:2,overflow:"hidden",display:"inline-block",marginRight:8,flexShrink:0}}>
+                                <span style={{display:"block",height:"100%",width:barPct.toFixed(0)+"%",background:_col.dot,borderRadius:2}}></span>
+                              </span>}
+                              <span style={{fontSize:11,color:"#444"}}>{"\u203A"}</span>
                             </div>
                           );
                         }
                         return (
-                          <div style={{display:"contents"}}>
-                            {SigPill("reversal","Reversal",_netRev3,_revDir,_revBarPct,_revStrength)}
-                            {SigPill("volume","Volume",_netVol,_volDir,_volBarPct,_volStrength)}
+                          <div>
+                            {SigRow("reversal","Reversal",_netRev3,_revDir,_revBarPct,_revStrength)}
+                            {SigRow("volume","Volume",_netVol,_volDir,_volBarPct,_volStrength)}
                           </div>
                         );
                       })()}
-                      </div>
                     </div>
                   );
                 })()}
