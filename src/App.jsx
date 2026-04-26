@@ -2943,37 +2943,34 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   </div>
                 </div>
 
-                {/* FUNDAMENTAL ANALYSIS -- neutral dark card */}
-                <div style={{ background:"#1e1e1e", border:"1px solid #2c2c2e", borderRadius:12, overflow:"hidden", marginBottom:8 }}>
-                  <div style={{ background:"#2a2a2a", padding:"6px 12px", display:"flex", alignItems:"center", gap:6 }}>
-                    <div style={{ width:5, height:5, borderRadius:"50%", background:"#444" }}></div>
-                    <span style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.1em" }}>Fundamental Analysis</span>
+                {/* FUNDAMENTAL ANALYSIS -- compact rows */}
+                <div style={{ background:"#1e1e1e", border:"0.5px solid #2c2c2e", borderRadius:10, overflow:"hidden", marginBottom:8 }}>
+                  <div style={{ background:"#242424", padding:"5px 12px", borderBottom:"0.5px solid #2c2c2e" }}>
+                    <span style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.1em" }}>Fundamental Analysis</span>
                   </div>
-                  <div style={{ padding:"8px" }}>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
-                  <Card label="Economic Moat" value={moatRating} score={moatScore} colors={moatColors} loading={!moatRating && insightLoading} tabId="moat" flat={true} />
-                  {(function() {
-                    var loading = !ivLabel; var c = ivColors;
-                    return (
-                      <div onClick={function(){ window.__goToTab && window.__goToTab("intrinsic"); }} style={{ padding:"9px 12px", background:"transparent", border:"0.5px solid #2c2c2e", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color:loading?"#555":c.fg, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Intrinsic Value</div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                          {loading && !ov
-                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                                <div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div>
-                                <span style={{ fontSize:10, color:"#555" }}>Loading...</span>
-                              </div>
-                            : <span style={{ fontSize:13, fontWeight:700, color:loading?"#555":c.fg }}>{loading?"---":ivLabel}</span>
-                          }
-                          {!loading && ivScore > 0 && <Dots score={ivScore} filled={c.dot} empty={c.dotEmpty} />}
+                  {(function(){
+                    function FRow(p){
+                      var _d=[]; for(var i=1;i<=5;i++) _d.push(<span key={i} style={{display:"inline-block",width:5,height:5,borderRadius:"50%",background:i<=(p.score||0)?(p.dotCol||"#7abd00"):"#2a2a2a",marginRight:2}}/>);
+                      return (
+                        <div onClick={function(){ window.__goToTab && window.__goToTab(p.tab); }}
+                          style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
+                          onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
+                          onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
+                          <span style={{fontSize:11,color:"#666",width:115,flexShrink:0}}>{p.label}</span>
+                          <span style={{fontSize:12,fontWeight:600,color:p.loading?"#444":(p.valCol||"#aaa"),flex:1}}>{p.loading?"--":(p.value||"--")}</span>
+                          {!p.loading&&p.score>0&&<span style={{display:"inline-flex",alignItems:"center",marginRight:8}}>{_d}</span>}
+                          <span style={{fontSize:11,color:"#444"}}>{"\u203A"}</span>
                         </div>
-                        {!loading && ivSublabel && <div style={{ fontSize:10, color:c.fg, marginTop:3, opacity:0.75 }}>{ivSublabel}</div>}
+                      );
+                    }
+                    return (
+                      <div>
+                        <FRow label="Economic Moat" value={moatRating} score={moatScore} dotCol={moatColors.dot} valCol={moatColors.fg} loading={!moatRating&&insightLoading} tab="moat" />
+                        <FRow label="Intrinsic Value" value={ivLabel} score={ivScore} dotCol={ivColors.dot} valCol={ivColors.fg} loading={!ivLabel&&!ov} tab="intrinsic" />
+                        <FRow label="Financial Strength" value={finRating} score={finScore} dotCol={finColors.dot} valCol={finColors.fg} loading={false} tab="financial" />
                       </div>
                     );
                   })()}
-                  <Card label="Financial Strength" value={finRating} score={finScore} colors={finColors} loading={false} tabId="financial" flat={true} />
-                </div>
-                  </div>
                 </div>
                 {/* TECHNICAL ANALYSIS -- neutral dark card */}
                 <div style={{ background:"#1e1e1e", border:"1px solid #2c2c2e", borderRadius:12, overflow:"hidden", marginBottom:6 }}>
