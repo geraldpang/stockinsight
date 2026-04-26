@@ -3091,6 +3091,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     <span style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.1em" }}>Signals</span>
                   </div>
                   {(function(){
+                    var _hasTech=!!(massiveInfo&&massiveInfo.indicators&&q&&q.price);
                     var _ind3=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
                     var _aggs3=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
                     var _rsiH3=_ind3.rsiHistory||[]; var _mH3=_ind3.macdHistory||[];
