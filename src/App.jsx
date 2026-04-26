@@ -1152,8 +1152,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         var _bearRevActive=_bearRevNames.filter(function(_,i){return _bearRevArr3[i];});
         var _vBull=window.__volBull||[false,false,false,false,false];
         var _vBear=window.__volBear||[false,false,false,false,false];
-        var _vBullNames=["Volume Spike","Bullish Surge","Accumulation","Volume Rising","VWAP Reclaim"];
-        var _vBearNames=["Dry-Up on Rally","Distribution","Bearish Surge","Volume Falling","VWAP Rejection"];
+        var _vBullNames=["Volume Spike","Bullish Surge","Accumulation","Volume Rising","Consistent Up Days"];
+        var _vBearNames=["Dry-Up on Rally","Distribution","Bearish Surge","Volume Falling","Consistent Down Days"];
         var _vBullActive=_vBullNames.filter(function(_,i){return _vBull[i];});
         var _vBearActive=_vBearNames.filter(function(_,i){return _vBear[i];});
         var _tCaution=(_s200g3&&parseFloat(_s200g3)>25)||false;
@@ -3105,15 +3105,16 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         // Volume net weighted score
                         var _aggs4=_aggs3; var _snap4=massiveInfo&&massiveInfo.snapshot?massiveInfo.snapshot:{};
                         var _vol5_4=_aggs4.slice(0,5).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4.slice(0,5).length,1);
+                        var _vol5_20_4=_aggs4.slice(5,20).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4.slice(5,20).length,1);
                         var _vol20_4=_aggs4.slice(0,20).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4.slice(0,20).length,1);
                         var _vol1_4=_aggs4[0]?_aggs4[0].v:0;
                         var _vwap4=_snap4.vwap||0;
                         var _acc4=0; var _dist4=0;
                         _aggs4.slice(0,20).forEach(function(a){ if(!a||!a.v||!a.c||!a.o) return; if(a.c>=a.o&&a.v>_vol20_4) _acc4++; else if(a.c<a.o&&a.v>_vol20_4) _dist4++; });
-                        var _vwapUp4=_aggs4.slice(0,5).filter(function(a){ return a&&_vwap4>0&&a.c>_vwap4; }).length;
-                        var _vwapDn4=_aggs4.slice(0,5).filter(function(a){ return a&&_vwap4>0&&a.c<_vwap4; }).length;
-                        var _bSigs4=[_vol1_4>0&&_vol20_4>0&&_vol1_4>_vol20_4*2.5,_aggs4.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c>a.o&&a.v>_vol20_4*2;}),_acc4>_dist4+1,_vol20_4>0&&_vol5_4>_vol20_4*1.2,_vwapUp4>=3];
-                        var _rSigs4=[!!(_aggs4[0]&&_aggs4[0].c&&_aggs4[0].o&&_aggs4[0].c>_aggs4[0].o&&_vol1_4<_vol20_4*0.5),_dist4>_acc4+1,_aggs4.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c<a.o&&a.v>_vol20_4*2;}),_vol20_4>0&&_vol5_4<_vol20_4*0.8,_vwapDn4>=4];
+                        var _closeUpDays=_aggs4.slice(0,5).filter(function(a){ return a&&a.c&&a.o&&a.c>a.o; }).length;
+                        var _closeDnDays=_aggs4.slice(0,5).filter(function(a){ return a&&a.c&&a.o&&a.c<a.o; }).length;
+                        var _bSigs4=[_vol1_4>0&&_vol20_4>0&&_vol1_4>_vol20_4*2.5,_aggs4.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c>a.o&&a.v>_vol20_4*2;}),_acc4>_dist4+1,_vol5_20_4>0&&_vol5_4>_vol5_20_4*1.2,_closeUpDays>=3];
+                        var _rSigs4=[!!(_aggs4[0]&&_aggs4[0].c&&_aggs4[0].o&&_aggs4[0].c>_aggs4[0].o&&_vol1_4<_vol20_4*0.5),_dist4>_acc4+1,_aggs4.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c<a.o&&a.v>_vol20_4*2;}),_vol5_20_4>0&&_vol5_4<_vol5_20_4*0.8,_closeDnDays>=4];
                         window.__volBull=_bSigs4; window.__volBear=_rSigs4; window.__volSym=sym;
                         var _wVolB=[2,3,3,2,1]; var _wVolR=[2,3,3,2,1]; var _maxVol=11;
                         var _volBullScore=_bSigs4.reduce(function(s,v,i){return s+(v?_wVolB[i]:0);},0);
@@ -6425,8 +6426,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     var vwap=snap.vwap||0;
                     var accDays=0; var distDays=0;
                     aggs.slice(0,20).forEach(function(a){ if(!a||!a.v||!a.c||!a.o) return; if(a.c>=a.o&&a.v>vol20) accDays++; else if(a.c<a.o&&a.v>vol20) distDays++; });
-                    var vwapUpDays=aggs.slice(0,5).filter(function(a){return a&&vwap>0&&a.c>vwap;}).length;
-                    var vwapDnDays=aggs.slice(0,5).filter(function(a){return a&&vwap>0&&a.c<vwap;}).length;
+                    var closeUpDays=aggs.slice(0,5).filter(function(a){return a&&a.c&&a.o&&a.c>a.o;}).length;
+                    var closeDnDays=aggs.slice(0,5).filter(function(a){return a&&a.c&&a.o&&a.c<a.o;}).length;
                     var volRatio=vol20>0?vol5/vol20:1;
 
                     var _wVolBull=window.__volBull&&window.__volSym===sym?window.__volBull:[false,false,false,false,false];
@@ -6448,10 +6449,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         active:vol20>0&&vol5>vol20*1.2,
                         what:"The average volume over the last 5 days is more than 20% above the 20-day average ("+Math.round(volRatio*100)+"% of normal).",
                         why:"Rising volume while a trend continues is a sign of increasing conviction. More participants are joining the move, making it more likely to continue." },
-                      { label:"VWAP Reclaim (intraday strength)",
-                        active:vwapUpDays>=3,
-                        what:"The stock closed above the daily VWAP on "+vwapUpDays+" of the last 5 sessions.",
-                        why:"VWAP is the benchmark institutional traders use. Consistently closing above it means buyers are in control and institutions are not using pullbacks to sell." },
+                      { label:"Consistent Up Days (last 5)",
+                        active:closeUpDays>=3,
+                        what:"The stock closed above its opening price on "+closeUpDays+" of the last 5 trading days.",
+                        why:"When price consistently closes above where it opened, buyers are winning the daily battle. Three or more up-close days in a row signals sustained buying pressure." },
                     ];
 
                     var bearVol=[
@@ -6471,10 +6472,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         active:vol20>0&&vol5<vol20*0.8,
                         what:"The average volume over the last 5 days is more than 20% below the 20-day average ("+Math.round(volRatio*100)+"% of normal).",
                         why:"Declining volume often signals fading interest in a trend. If price is rising but volume is falling, the move may be losing steam." },
-                      { label:"VWAP Rejection (intraday weakness)",
-                        active:vwapDnDays>=4,
-                        what:"The stock closed below the daily VWAP on "+vwapDnDays+" of the last 5 sessions.",
-                        why:"Consistently closing below VWAP means sellers are in control intraday. Institutions are not stepping in to buy -- they may even be using rallies to exit." },
+                      { label:"Consistent Down Days (last 5)",
+                        active:closeDnDays>=4,
+                        what:"The stock closed below its opening price on "+closeDnDays+" of the last 5 trading days.",
+                        why:"When price consistently closes below where it opened, sellers are winning the daily battle. Four or more down-close days signals sustained selling pressure." },
                     ];
 
                     var bullCount=bullVol.filter(function(r){return r.active;}).length;
