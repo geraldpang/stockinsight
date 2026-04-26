@@ -3124,23 +3124,32 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         var _volBarPct=Math.min(_absVol/_maxVol,1)*100;
                         var _volCol=_volDir==="bull"?"#7abd00":_volDir==="bear"?"#e05050":"#555";
                         // Compact signal row: label | badge | mini-bar | strength | chevron
-                        function SigRow(label, tab, netScore, absScore, dir, detectedTitle, notDetectedTitle, barPct, strength, col){
+                        function SigRow(label, tab, netScore, absScore, dir, barPct, strength){
                           var _detected=_hasTech&&netScore!==0;
+                          var _isBull=dir==="bull";
+                          var _arrow=_isBull?String.fromCharCode(0x25B2):String.fromCharCode(0x25BC);
+                          var _badgeCol=_isBull?"#1a6a1a":"#c03030";
+                          var _badgeBg=_isBull?"#1e3a1e":"#3a1e1e";
+                          var _badgeBd=_isBull?"#2a5020":"#5a2020";
+                          var _barCol=_isBull?"#7abd00":"#e05050";
                           return (
                             <div onClick={function(){ window.__goToTab && window.__goToTab(tab); }}
                               style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                               onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                               onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
+                              <span style={{fontSize:11,color:"#666",width:95,flexShrink:0}}>{label}</span>
                               {!_hasTech
                                 ? <span style={{fontSize:12,color:"#444",flex:1}}>--</span>
                                 : !_detected
-                                  ? <span style={{fontSize:11,color:"#555",flex:1}}>{notDetectedTitle}</span>
-                                  : <span style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
-                                      <span style={{fontSize:11,fontWeight:600,color:col,flexShrink:0,whiteSpace:"nowrap"}}>{detectedTitle}</span>
+                                  ? <span style={{flex:1,display:"flex",alignItems:"center"}}>
+                                      <span style={{fontSize:10,fontWeight:600,color:"#444",background:"#222",border:"0.5px solid #333",borderRadius:4,padding:"2px 8px"}}>Not Detected</span>
+                                    </span>
+                                  : <span style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
+                                      <span style={{fontSize:10,fontWeight:700,color:_badgeCol,background:_badgeBg,border:"0.5px solid "+_badgeBd,borderRadius:4,padding:"2px 8px",flexShrink:0,whiteSpace:"nowrap"}}>{_arrow+" Detected"}</span>
                                       <span style={{width:60,height:4,background:"#2a2a2a",borderRadius:2,overflow:"hidden",flexShrink:0}}>
-                                        <span style={{display:"block",height:"100%",width:barPct.toFixed(0)+"%",background:col,borderRadius:2}}></span>
+                                        <span style={{display:"block",height:"100%",width:barPct.toFixed(0)+"%",background:_barCol,borderRadius:2}}></span>
                                       </span>
-                                      <span style={{fontSize:10,color:col,opacity:0.8,flexShrink:0,minWidth:44,textAlign:"right"}}>{strength}</span>
+                                      <span style={{fontSize:10,color:_barCol,opacity:0.85,flexShrink:0}}>{strength}</span>
                                     </span>
                               }
                               <span style={{fontSize:11,color:"#444",marginLeft:6}}>{"›"}</span>
@@ -3149,8 +3158,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         }
                         return (
                           <div>
-                            {SigRow("Reversal","reversal",_netRev3,_absRev,_revDir,"Reversal Detected","Reversal Not Detected",_revBarPct,_revStrength,_revCol)}
-                            {SigRow("Volume","volume",_netVol,_absVol,_volDir,"Vol Spike Detected","Vol Spike Not Detected",_volBarPct,_volStrength,_volCol)}
+                            {SigRow("Reversal","reversal",_netRev3,_absRev,_revDir,_revBarPct,_revStrength)}
+                            {SigRow("Volume","volume",_netVol,_absVol,_volDir,_volBarPct,_volStrength)}
                           </div>
                         );
                       })()}
