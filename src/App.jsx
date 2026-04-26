@@ -3124,7 +3124,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         var _volBarPct=Math.min(_absVol/_maxVol,1)*100;
                         var _volCol=_volDir==="bull"?"#7abd00":_volDir==="bear"?"#e05050":"#555";
                         // Compact signal row: label | badge | mini-bar | strength | chevron
-                        function SigRow(label, tab, netScore, absScore, dir, badge, barPct, strength, col){
+                        function SigRow(label, tab, netScore, absScore, dir, detectedTitle, notDetectedTitle, barPct, strength, col){
+                          var _detected=_hasTech&&netScore!==0;
                           return (
                             <div onClick={function(){ window.__goToTab && window.__goToTab(tab); }}
                               style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
@@ -3132,17 +3133,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                               onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
                               {!_hasTech
                                 ? <span style={{fontSize:12,color:"#444",flex:1}}>--</span>
-                                : netScore===0
-                                  ? <span style={{display:"flex",alignItems:"center",flex:1}}>
-                                      <span style={{fontSize:11,color:"#666",width:95,flexShrink:0}}>{label}</span>
-                                      <span style={{fontSize:11,color:"#444"}}>{"Not Detected"}</span>
-                                    </span>
-                                  : <span style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
-                                      <span style={{fontSize:11,fontWeight:600,color:col,flexShrink:0,whiteSpace:"nowrap"}}>{badge}</span>
-                                      <span style={{flex:1,height:4,background:"#2a2a2a",borderRadius:2,overflow:"hidden"}}>
+                                : !_detected
+                                  ? <span style={{fontSize:11,color:"#555",flex:1}}>{notDetectedTitle}</span>
+                                  : <span style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
+                                      <span style={{fontSize:11,fontWeight:600,color:col,flexShrink:0,whiteSpace:"nowrap"}}>{detectedTitle}</span>
+                                      <span style={{width:64,height:4,background:"#2a2a2a",borderRadius:2,overflow:"hidden",flexShrink:0}}>
                                         <span style={{display:"block",height:"100%",width:barPct.toFixed(0)+"%",background:col,borderRadius:2}}></span>
                                       </span>
-                                      <span style={{fontSize:10,color:col,opacity:0.85,flexShrink:0,whiteSpace:"nowrap"}}>{strength}</span>
+                                      <span style={{fontSize:10,color:col,opacity:0.85,flexShrink:0}}>{strength}</span>
                                     </span>
                               }
                               <span style={{fontSize:11,color:"#444",marginLeft:4}}>{"›"}</span>
@@ -3151,8 +3149,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         }
                         return (
                           <div>
-                            {SigRow("Reversal","reversal",_netRev3,_absRev,_revDir,_revLabel,_revBarPct,_revStrength,_revCol)}
-                            {SigRow("Volume","volume",_netVol,_absVol,_volDir,_volLabel,_volBarPct,_volStrength,_volCol)}
+                            {SigRow("Reversal","reversal",_netRev3,_absRev,_revDir,"Reversal Detected","Reversal Not Detected",_revBarPct,_revStrength,_revCol)}
+                            {SigRow("Volume","volume",_netVol,_absVol,_volDir,"Vol Spike Detected","Vol Spike Not Detected",_volBarPct,_volStrength,_volCol)}
                           </div>
                         );
                       })()}
