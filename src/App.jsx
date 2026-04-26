@@ -2972,13 +2972,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     );
                   })()}
                 </div>
-                {/* TECHNICAL ANALYSIS -- neutral dark card */}
-                <div style={{ background:"#1e1e1e", border:"1px solid #2c2c2e", borderRadius:12, overflow:"hidden", marginBottom:6 }}>
-                  <div style={{ background:"#2a2a2a", padding:"6px 12px", display:"flex", alignItems:"center", gap:6 }}>
-                    <div style={{ width:5, height:5, borderRadius:"50%", background:"#444" }}></div>
-                    <span style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.1em" }}>Technical Analysis</span>
+                {/* TECHNICAL ANALYSIS -- compact rows */}
+                <div style={{ background:"#1e1e1e", border:"0.5px solid #2c2c2e", borderRadius:10, overflow:"hidden", marginBottom:6 }}>
+                  <div style={{ background:"#242424", padding:"5px 12px", borderBottom:"0.5px solid #2c2c2e" }}>
+                    <span style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.1em" }}>Technical Analysis</span>
                   </div>
-                  <div style={{ padding:"8px" }}>
+                  <div style={{ padding:"0" }}>
                 <div style={{ display:"none" }}>Technical Analysis</div>
                 {(function() {
                   // Compute trend, momentum, reversal scores from existing data
@@ -3071,9 +3070,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     );
                   }
                   return (
-                    <div>
+                    <div style={{display:"flex",flexDirection:"column"}}>
                       <TechRow label="Trend" value={_hasTech?_trendLabel:"--"} score={_trendDots} dotCol={_trendCol.dot} valCol={_trendCol.fg} caution={_trendCaution} loading={!_hasTech} tab="trend" />
                       <TechRow label="Momentum" value={_hasTech?_momLabel:"--"} score={_momDots} dotCol={_momCol.dot} valCol={_momCol.fg} caution={_momCaution} loading={!_hasTech} tab="momentum" />
+                      <div style={{borderTop:"0.5px solid #2c2c2e",background:"#242424",padding:"4px 12px",marginTop:2}}>
+                        <span style={{fontSize:9,fontWeight:700,color:"#444",textTransform:"uppercase",letterSpacing:"0.1em"}}>Signals</span>
+                      </div>
+                      <div style={{padding:"8px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                       {(function(){
                         // Reversal net weighted score
                         var _ind3=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
@@ -3128,10 +3131,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           var _detected=_hasTech&&netScore!==0;
                           var _isBull=dir==="bull";
                           var _arrow=_isBull?String.fromCharCode(0x25B2):String.fromCharCode(0x25BC);
-                          var _badgeCol=_isBull?"#1a6a1a":"#c03030";
-                          var _badgeBg=_isBull?"#1e3a1e":"#3a1e1e";
-                          var _badgeBd=_isBull?"#2a5020":"#5a2020";
-                          var _barCol=_isBull?"#7abd00":"#e05050";
+                          var _badgeCol=_isBull?"#c8f000":"#ff6666";
+                          var _badgeBg=_isBull?"#1a2200":"#2a0a0a";
+                          var _badgeBd=_isBull?"#3a5000":"#5a1010";
+                          var _barCol=_isBull?"#c8f000":"#ff6666";
                           return (
                             <div onClick={function(){ window.__goToTab && window.__goToTab(tab); }}
                               style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
@@ -3163,6 +3166,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           </div>
                         );
                       })()}
+                      </div>
                     </div>
                   );
                 })()}
