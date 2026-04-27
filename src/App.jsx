@@ -2940,15 +2940,23 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           var _hasSig=_rn!==0||_vn!==0;
                           if(_hasSig){
                             var _up=String.fromCharCode(0x25B2); var _dn=String.fromCharCode(0x25BC);
-                            var _isBull=(_rn+_vn)>0;
-                            var _arrow=_isBull?_up:_dn;
-                            var _sigCol=_isBull?"#7abd00":"#e05050";
+                            // Reversal takes precedence; if reversal present use it; else use volume
                             var _revBull=_rn>0; var _revBear=_rn<0;
                             var _volBull=_vn>0; var _volBear=_vn<0;
                             var _both=(_revBull&&_volBull)||(_revBear&&_volBear);
-                            var _label=_both?"Reversal & Volume":(_revBull||_revBear)?"Reversal Signal":"Volume Signal";
-                            return <div style={{marginTop:5}}>
+                            var _conflict=(_revBull&&_volBear)||(_revBear&&_volBull);
+                            // Precedence: reversal > volume; on conflict reversal wins
+                            var _isBull=_rn!==0?(_rn>0):(_vn>0);
+                            var _arrow=_isBull?_up:_dn;
+                            var _sigCol=_isBull?"#7abd00":"#e05050";
+                            var _label=_both?"Reversal & Volume":_conflict?(_revBull||_revBear)?"Reversal Signal":"Volume Signal":(_revBull||_revBear)?"Reversal Signal":"Volume Signal";
+                            // Add caution indicator if trend or momentum has caution
+                            var _tCaut=window.__trendCaution||false; var _mCaut=window.__momCaution||false;
+                            var _anyCaution=_tCaut||_mCaut;
+                            var _cautStr=_anyCaution?(" "+String.fromCharCode(0x26A0)):"";
+                            return <div style={{marginTop:5,display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
                               <span style={{fontSize:9,fontWeight:600,color:_sigCol,background:_isBull?"#1e2a1e":"#2a1e1e",border:"0.5px solid "+(_isBull?"#2a5020":"#4a2020"),borderRadius:4,padding:"2px 7px"}}>{_arrow+" "+_label}</span>
+                              {_anyCaution&&<span style={{fontSize:10,color:"#b88000",fontWeight:700}}>{String.fromCharCode(0x26A0)+" "+(_tCaut&&_mCaut?"Trend & Momentum":_tCaut?"Trend":"Momentum")}</span>}
                             </div>;
                           }
                           if(aiTechResult&&aiTechResult.confidence){
@@ -3091,6 +3099,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       </div>
                     );
                   }
+                  // Store caution flags for Technical AI pill
+                  window.__trendCaution=_trendCaution; window.__momCaution=_momCaution;
                   return (
                     <div style={{display:"flex",flexDirection:"column"}}>
                       <TechRow label="Trend" value={_hasTech?_trendLabel:"--"} score={_trendDots} dotCol={_trendCol.dot} valCol={_trendCol.fg} caution={_trendCaution} loading={!_hasTech} tab="trend" />
