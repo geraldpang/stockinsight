@@ -7565,41 +7565,39 @@ export default function App() {
   // Batch load AI signals for scrolling ticker bar
   useEffect(function() {
     var FREE = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
-    var GOOD_VERDICTS = ["strong buy", "buy"];
     var loaded = [];
 
-    function parseVerdict(text) {
+    function exLine(text, prefix) {
       if (!text) return null;
-      var m = text.match(/Overall Verdict:\s*(.+)/);
-      return m ? m[1].trim() : null;
-    }
-    function parseConfidence(text) {
-      if (!text) return null;
-      var m = text.match(/Confidence:\s*(.+)/);
-      return m ? m[1].trim() : null;
+      var ls = text.split("\n");
+      for (var i=0;i<ls.length;i++) {
+        if (ls[i].toLowerCase().indexOf(prefix.toLowerCase())===0) {
+          var idx = ls[i].indexOf(":");
+          return idx>=0 ? ls[i].slice(idx+1).trim() : null;
+        }
+      }
+      return null;
     }
 
     function fetchSignal(sym) {
-      return fetch("/cache?sym=" + sym + "&tab=aiinsight")
+      return fetch("/cache?sym=" + sym + "&tab=ai-fund")
         .then(function(r){ return r.json(); })
         .then(function(d){
           if (!d || !d.hit || !d.value) return null;
-          var verdict = parseVerdict(d.value);
-          if (!verdict) return null;
-          var vl = verdict.toLowerCase();
-          var isBull = GOOD_VERDICTS.some(function(g){ return vl.indexOf(g) !== -1; });
-          if (!isBull) return null;
-          // Fetch live price
+          var fundV = exLine(d.value, "Fundamental");
+          if (!fundV) return null;
+          var vl = fundV.toLowerCase();
+          var isStrongBuy = vl.indexOf("strong buy") !== -1;
+          var isBuy = vl.indexOf("buy") !== -1;
+          if (!isStrongBuy && !isBuy) return null;
           var ySym = sym === "BRKB" ? "BRK-B" : sym;
           return fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=1d"))
             .then(function(r2){ return r2.json(); })
             .then(function(q){
-              var meta = q && q.chart && q.chart.result && q.chart.result[0] && q.chart.result[0].meta;
-              var price = meta ? (meta.regularMarketPrice || 0) : 0;
-              var prev  = meta ? (meta.chartPreviousClose || meta.previousClose || price) : price;
-              var pct   = prev > 0 ? ((price - prev) / prev * 100) : 0;
-              return { sym: sym, verdict: verdict, price: price, pct: pct };
-            }).catch(function(){ return { sym: sym, verdict: verdict, price: 0, pct: 0 }; });
+              var meta = q&&q.chart&&q.chart.result&&q.chart.result[0]&&q.chart.result[0].meta;
+              var price = meta?(meta.regularMarketPrice||0):0;
+              return { sym:sym, fundV:fundV, isStrongBuy:isStrongBuy, price:price };
+            }).catch(function(){ return { sym:sym, fundV:fundV, isStrongBuy:isStrongBuy, price:0 }; });
         }).catch(function(){ return null; });
     }
 
@@ -7615,26 +7613,22 @@ export default function App() {
       }, delay);
     }
 
-    // Batch 1: 10 free tickers immediately
     loadBatch(FREE, 100);
 
-    // Batch 2+: rest of S&P 500 in chunks of 20
     fetch("/cache?action=stats")
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (!d || !d.keys) return;
-        // Get all tickers that have aiinsight cached, excluding FREE
-        var cached = [];
+        var seen = {}; var cached = [];
         d.keys.forEach(function(k) {
-          if (k.key && k.key.indexOf(":aiinsight") !== -1) {
-            var sym = k.key.replace("insight:","").replace(":aiinsight","");
-            if (FREE.indexOf(sym) === -1) cached.push(sym);
+          if (k.key && k.key.indexOf(":ai-fund") !== -1) {
+            var sym = k.key.replace("insight:","").replace(":ai-fund","");
+            if (!seen[sym] && FREE.indexOf(sym)===-1) { seen[sym]=true; cached.push(sym); }
           }
         });
-        // Load in batches of 20 with 2s delay between each
         var BATCH = 20;
-        for (var bi = 0; bi < cached.length; bi += BATCH) {
-          loadBatch(cached.slice(bi, bi + BATCH), 2000 + (bi / BATCH) * 2000);
+        for (var bi=0; bi<cached.length; bi+=BATCH) {
+          loadBatch(cached.slice(bi, bi+BATCH), 2000 + (bi/BATCH)*2000);
         }
       }).catch(function(){});
   }, []);
@@ -7812,16 +7806,15 @@ export default function App() {
             <style>{"@keyframes ng-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}"}</style>
             <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
               {sigs.concat(sigs).concat(sigs).concat(sigs).map(function(sig, i) {
-                var isStrong = sig.verdict && sig.verdict.toLowerCase().indexOf("strong") !== -1;
-                var col = isStrong ? "#c8f000" : "#60b8f0";
+                var col = sig.isStrongBuy ? "#c8f000" : "#60b8f0";
                 var priceStr = sig.price > 0 ? "$" + sig.price.toFixed(2) : "";
                 return (
                   <span key={i}
                     onClick={function(){ window.location.hash = sig.sym; }}
-                    style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"0 24px", cursor:"pointer", flexShrink:0, lineHeight:"28px", borderRight:"1px solid #1e1e18" }}>
+                    style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"0 18px", cursor:"pointer", flexShrink:0, lineHeight:"28px", borderRight:"1px solid #1e1e18" }}>
                     <span style={{ width:5, height:5, borderRadius:"50%", background:col, display:"inline-block", flexShrink:0 }}></span>
                     <span style={{ fontSize:11, fontWeight:800, color:col }}>{sig.sym}</span>
-                    {priceStr && <span style={{ fontSize:10, color:"#666" }}>{priceStr}</span>}
+                    {priceStr && <span style={{ fontSize:10, color:"#555" }}>{priceStr}</span>}
                   </span>
                 );
               })}
