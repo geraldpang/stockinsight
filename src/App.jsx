@@ -1031,7 +1031,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           "EPS Growth: "+sfp(_ov.epsG)+" | LT EPS Est: "+sfp(_ov.ltG)+" | Beta: "+sfn(_ov.beta)+"\n\n"+
           "ANALYST CONSENSUS: Buy "+sfi(_ov.recBuy)+" | Hold "+sfi(_ov.recHold)+" | Sell "+sfi(_ov.recSell)+" | Target $"+(_ov.targetMedian?_ov.targetMedian.toFixed(2):"N/A")+"\n"+
           "\nRespond in EXACTLY this format. Plain English, no jargon without explanation:\n"+
-          "Fundamental Verdict: Strong Buy / Buy / Hold / Caution / Avoid\n"+
+          "Fundamental AI (Long Term): Strong Buy / Buy / Hold / Caution / Avoid\n"+
           "Confidence: Low / Medium / High\n"+
           "Key Strength: 1-2 sentences plain English.\n"+
           "Key Risk: 1-2 sentences plain English.\n"+
@@ -1042,7 +1042,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           .then(function(d2){
             var text=d2.content&&d2.content[0]?d2.content[0].text:"";
             function ex(re){var m=text.match(re);return m?m[1].trim():"";}
-            var result={ verdict:ex(/Fundamental Verdict:\s*(.+)/), confidence:ex(/Confidence:\s*(.+)/),
+            var result={ verdict:ex(/Fundamental AI[^:]*:\s*(.+)/), confidence:ex(/Confidence:\s*(.+)/),
               strength:ex(/Key Strength:\s*([\s\S]+?)(?=Key Risk:|Summary|$)/).trim().slice(0,400),
               risk:ex(/Key Risk:\s*([\s\S]+?)(?=Summary|$)/).trim().slice(0,400),
               summary:ex(/Summary[^:]*:\s*([\s\S]+)/).slice(0,1200), promptSent:prompt };
@@ -1188,8 +1188,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           "  Bearish volume ("+_vBearActive.length+"/5): "+(_vBearActive.length>0?_vBearActive.join(", "):"none active"),
           "",
           "Respond in EXACTLY this format. Plain English only -- no jargon without explanation:",
-          "Technical Verdict: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish",
-          "Short-term (1-3m): Buy / Hold / Avoid",
+          "Technical AI (Short Term): Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish",
           "Confidence: Low / Medium / High",
           "Key Level: 1-2 sentences -- what price level to watch and why.",
           "Key Strength: 1-2 sentences -- what the signals say is positive.",
@@ -1204,8 +1203,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             var text=d2.content&&d2.content[0]?d2.content[0].text:"";
             function ex(re){var m=text.match(re);return m?m[1].trim():"";}
             var result={
-              verdict:ex(/Technical Verdict:\s*(.+)/),
-              stVerdict:ex(/Short-term[^:]*:\s*(.+)/),
+              verdict:ex(/Technical AI[^:]*:\s*(.+)/),
+              stVerdict:null,
               confidence:ex(/Confidence:\s*(.+)/),
               keyLevel:ex(/Key Level:\s*([\s\S]+?)(?=Key Strength:|Key Risk:|Summary|$)/).trim().slice(0,300),
               strength:ex(/Key Strength:\s*([\s\S]+?)(?=Key Risk:|Summary|$)/).trim().slice(0,300),
@@ -2922,7 +2921,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           }
                           {aiFundResult && fundSc > 0 && <Dots score={fundSc} filled={fundC.dot} empty={fundC.dotEmpty} />}
                         </div>
-                        {aiFundResult && aiFundResult.confidence && <div style={{ fontSize:10, color:fundC.fg, marginTop:3, opacity:0.75 }}>{"Conf: " + aiFundResult.confidence}</div>}
+                        {aiFundResult && aiFundResult.confidence && <div style={{ fontSize:10, color:fundC.fg, marginTop:3, opacity:0.75 }}>{"Confidence: " + aiFundResult.confidence}</div>}
                       </div>
                       {/* Technical AI pill */}
                       <div onClick={function(){ window.__goToTab && window.__goToTab("aianalysis"); }}
@@ -2935,7 +2934,26 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           }
                           {aiTechResult && techSc > 0 && <Dots score={techSc} filled={techC.dot} empty={techC.dotEmpty} />}
                         </div>
-                        {aiTechResult && aiTechResult.stVerdict && <div style={{ fontSize:10, color:aiTechResult?techC.fg:"#555", marginTop:3, opacity:0.75 }}>{"ST: " + aiTechResult.stVerdict}</div>}
+                        {(function(){
+                          var _rn=window.__revNetScore3||0;
+                          var _vn=window.__volNetScore||0;
+                          var _hasSig=_rn!==0||_vn!==0;
+                          if(_hasSig){
+                            var _up=String.fromCharCode(0x25B2); var _dn=String.fromCharCode(0x25BC);
+                            var _isBull=(_rn+_vn)>0;
+                            var _arrow=_isBull?_up:_dn;
+                            var _sigCol=_isBull?"#c8f000":"#ff6666";
+                            var _revBull=_rn>0; var _revBear=_rn<0;
+                            var _volBull=_vn>0; var _volBear=_vn<0;
+                            var _both=(_revBull&&_volBull)||(_revBear&&_volBear);
+                            var _label=_both?"Reversal & Volume Detected":(_revBull||_revBear)?"Reversal Signal Detected":"Volume Signal Detected";
+                            return <div style={{fontSize:10,fontWeight:600,color:_sigCol,marginTop:4}}>{_arrow+" "+_label}</div>;
+                          }
+                          if(aiTechResult&&aiTechResult.confidence){
+                            return <div style={{fontSize:10,color:techC.fg,marginTop:4,opacity:0.75}}>{"Confidence: "+aiTechResult.confidence}</div>;
+                          }
+                          return null;
+                        })()}
                       </div>
                     </div>
                   );
