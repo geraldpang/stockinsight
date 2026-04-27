@@ -3781,6 +3781,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
                         </div>
                       )}
+
                     {ov && (function(){
                       var _mc=window.__mc||function(){return "#888";};
                       var fmt2=function(v){return v>0?v.toFixed(2)+"x":"-";};
@@ -3878,6 +3879,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           )}
                         </div>
                       )}
+
                     {ov && (function(){
                       var _mc=window.__mc||function(){return "#888";};
                       var fmt2=function(v){return v>0?v.toFixed(2)+"x":"-";};
@@ -4206,6 +4208,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           </div>
                         );
                       })()}
+
                     {ov && (function(){
                       var _mc=window.__mc||function(){return "#888";};
                       var fmt2=function(v){return v>0?v.toFixed(2)+"x":"-";};
