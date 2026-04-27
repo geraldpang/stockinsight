@@ -876,12 +876,12 @@ function parseAiInsight(text) {
 function WatchlistPage({ sym, onClose, onSelectTicker }) {
   var TICKERS = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB","AMD","INTC","CRM","ADBE","JPM","BAC","GS","XOM","CVX","UNH","MRK","UBER","SPOT","NKE","QCOM","TXN","MU","NFLX"];
   var NAMES2 = {"NVDA":"NVIDIA","AAPL":"Apple","MSFT":"Microsoft","AMZN":"Amazon","GOOGL":"Alphabet","AVGO":"Broadcom","META":"Meta","TSLA":"Tesla","LLY":"Eli Lilly","BRKB":"Berkshire B","AMD":"AMD","INTC":"Intel","CRM":"Salesforce","ADBE":"Adobe","JPM":"JPMorgan","BAC":"Bank of America","GS":"Goldman Sachs","XOM":"ExxonMobil","CVX":"Chevron","UNH":"UnitedHealth","MRK":"Merck","UBER":"Uber","SPOT":"Spotify","NKE":"Nike","QCOM":"Qualcomm","TXN":"Texas Instruments","MU":"Micron","NFLX":"Netflix"};
-  var [rows, setRows] = React.useState([]);
-  var [sortCol, setSortCol] = React.useState("ticker");
-  var [sortAsc, setSortAsc] = React.useState(true);
-  var [loading, setLoading] = React.useState(true);
+  var [rows, setRows] = useState([]);
+  var [sortCol, setSortCol] = useState("ticker");
+  var [sortAsc, setSortAsc] = useState(true);
+  var [loading, setLoading] = useState(true);
 
-  React.useEffect(function() {
+  useEffect(function() {
     setLoading(true);
     // Fetch all KV caches in parallel
     var kvFetches = TICKERS.map(function(t) {
@@ -947,9 +947,12 @@ function WatchlistPage({ sym, onClose, onSelectTicker }) {
   function fmtPct(v) { return v?(v>0?"+":"")+v.toFixed(2)+"%":"-"; }
   function scoreBar(s, col) {
     var pct = Math.min((s||0)/5*100,100);
-    return React.createElement("span", {style:{display:"inline-flex",alignItems:"center",gap:4}},
-      React.createElement("span", {style:{width:40,height:3,background:"#e0dbd0",borderRadius:2,overflow:"hidden",display:"inline-block"}}),
-      React.createElement("span", {style:{display:"block",height:"100%",width:pct.toFixed(0)+"%",background:col||"#2a6a2a",borderRadius:2,marginTop:-3}})
+    return (
+      <span style={{display:"inline-flex",alignItems:"center",gap:4}}>
+        <span style={{width:40,height:3,background:"#e0dbd0",borderRadius:2,overflow:"hidden",display:"inline-block"}}>
+          <span style={{display:"block",height:"100%",width:pct.toFixed(0)+"%",background:col||"#2a6a2a",borderRadius:2}}></span>
+        </span>
+      </span>
     );
   }
   function doSort(col) { if (sortCol===col) { setSortAsc(function(v){return !v;}); } else { setSortCol(col); setSortAsc(true); } }
