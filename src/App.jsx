@@ -3141,7 +3141,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       var _fg2=_det?(_bull?"#7abd00":"#e05050"):"#555"; var _dot2=_fg2;
                       var _arrow=_bull?String.fromCharCode(0x25B2):String.fromCharCode(0x25BC);
                       var _valText=!_hasTech?"--":!_det?"Not Detected":(_arrow+" Detected");
-                      var _valCol=!_det?"#555":_col.fg;
                       return (
                         <div onClick={function(){ window.__goToTab && window.__goToTab(tab); }}
                           style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
