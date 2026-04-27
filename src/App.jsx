@@ -956,200 +956,6 @@ function CalcPanel({ currentPrice, onClose }) {
   );
 }
 
-function WatchlistPage({ sym, onClose, onSelectTicker }) {
-  var TICKERS = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB","AMD","INTC","CRM","ADBE","JPM","BAC","GS","XOM","CVX","UNH","MRK","UBER","SPOT","NKE","QCOM","TXN","MU","NFLX"];
-  var NAMES2 = {"NVDA":"NVIDIA","AAPL":"Apple","MSFT":"Microsoft","AMZN":"Amazon","GOOGL":"Alphabet","AVGO":"Broadcom","META":"Meta","TSLA":"Tesla","LLY":"Eli Lilly","BRKB":"Berkshire B","AMD":"AMD","INTC":"Intel","CRM":"Salesforce","ADBE":"Adobe","JPM":"JPMorgan","BAC":"Bank of America","GS":"Goldman Sachs","XOM":"ExxonMobil","CVX":"Chevron","UNH":"UnitedHealth","MRK":"Merck","UBER":"Uber","SPOT":"Spotify","NKE":"Nike","QCOM":"Qualcomm","TXN":"Texas Instruments","MU":"Micron","NFLX":"Netflix"};
-  var [rows, setRows] = useState([]);
-  var [sortCol, setSortCol] = useState("ticker");
-  var [sortAsc, setSortAsc] = useState(true);
-  var [loading, setLoading] = useState(true);
-
-  useEffect(function() {
-    setLoading(true);
-    // Helper: read one KV entry via /insight endpoint
-    function kvRead(sym, tab) {
-      return fetch("/insight?action=read&sym=" + sym + "&tab=" + tab)
-        .then(function(r){return r.json();}).catch(function(){return null;});
-    }
-    // Helper: extract field from plain-text AI response
-    function exField(text, prefix) {
-      if (!text||!prefix) return "--";
-      var lines = text.split("\n");
-      for (var i=0;i<lines.length;i++) {
-        var l = lines[i];
-        if (l.toLowerCase().indexOf(prefix.toLowerCase())===0) {
-          var idx = l.indexOf(":");
-          return idx>=0 ? l.slice(idx+1).trim() : "--";
-        }
-      }
-      return "--";
-    }
-    // Helper: parse moat/financial JSON response
-    function parseJson(val) { try { return JSON.parse(val||"{}"); } catch(e){ return {}; } }
-    var kvFetches = TICKERS.map(function(t) {
-      return Promise.all([
-        kvRead(t, "ai-fund"),
-        kvRead(t, "ai-tech"),
-        kvRead(t, "moat"),
-        kvRead(t, "financial"),
-        kvRead(t, "intrinsic"),
-      ]).then(function(results) {
-        var fund = results[0]; var tech = results[1]; var moat = results[2]; var fin = results[3]; var iv = results[4];
-        // Fund AI -- plain text response
-        var fundV = "--"; var fundConf = "--";
-        if (fund && fund.hit && fund.value) {
-          fundV = exField(fund.value, "Fundamental");
-          fundConf = exField(fund.value, "Confidence");
-        }
-        // Tech AI -- plain text response
-        var techV = "--"; var techConf = "--";
-        if (tech && tech.hit && tech.value) {
-          techV = exField(tech.value, "Technical");
-          techConf = exField(tech.value, "Confidence");
-        }
-        // Moat -- JSON response
-        var moatR = "--"; var moatS = 0;
-        if (moat && moat.hit && moat.value) {
-          var mp = parseJson(moat.value);
-          moatR = mp.classification||"--"; moatS = mp.score||0;
-        }
-        // Financial -- JSON response
-        var finR = "--"; var finS = 0;
-        if (fin && fin.hit && fin.value) {
-          var fnp = parseJson(fin.value);
-          // Financial stored as AI text or JSON
-          if (fnp.classification) { finR = fnp.classification; finS = fnp.score||0; }
-          else { finR = exField(fin.value, "Financial Strength Classification"); }
-        }
-        // IV -- plain text or JSON
-        var ivL = "--";
-        if (iv && iv.hit && iv.value) {
-          var ivp = parseJson(iv.value);
-          if (ivp.sublabel||ivp.ivSublabel) { ivL = ivp.sublabel||ivp.ivSublabel; }
-          else { ivL = exField(iv.value, "Consensus IV")||"--"; }
-        }
-        return { ticker:t, name:NAMES2[t]||t, fundV:fundV, fundConf:fundConf, techV:techV, techConf:techConf, moatR:moatR, moatS:moatS, finR:finR, finS:finS, ivL:ivL };
-      });
-    });
-    // Yahoo batch quote -- use correct Yahoo endpoint
-    var ySym = TICKERS.map(function(t){return t==="BRKB"?"BRK-B":t;}).join(",");
-    var yFetch = fetch("/proxy?path=v7/finance/quote&symbols=" + ySym + "&fields=regularMarketPrice,regularMarketChangePercent,trailingPE,marketCap")
-      .then(function(r){return r.json();}).catch(function(){return null;});
-    Promise.all([Promise.all(kvFetches), yFetch]).then(function(all) {
-      var kvRows = all[0]; var yData = all[1];
-      var priceMap = {};
-      if (yData && yData.quoteResponse && yData.quoteResponse.result) {
-        yData.quoteResponse.result.forEach(function(q) {
-          priceMap[q.symbol] = { price: q.regularMarketPrice, chgPct: q.regularMarketChangePercent, pe: q.trailingPE, mc: q.marketCap };
-        });
-      }
-      var finalRows = kvRows.map(function(r) {
-        var yq = priceMap[r.ticker] || priceMap["BRK-B"] || {};
-        if (r.ticker === "BRKB") yq = priceMap["BRK-B"] || {};
-        return Object.assign({}, r, { price: yq.price||0, chgPct: yq.chgPct||0, pe: yq.pe||0, mc: yq.mc||0 });
-      });
-      setRows(finalRows);
-      setLoading(false);
-    });
-  }, []);
-
-  function verdictCol(v) {
-    if (!v||v==="--") return "#888";
-    var vl = v.toLowerCase();
-    if (vl.includes("strong buy")||vl.includes("strong bull")) return "#1a8a1a";
-    if (vl.includes("buy")||vl.includes("bullish")) return "#2a6a2a";
-    if (vl.includes("hold")||vl.includes("neutral")) return "#888";
-    if (vl.includes("caution")||vl.includes("bearish")) return "#c07020";
-    if (vl.includes("avoid")||vl.includes("strong bear")) return "#c03030";
-    return "#888";
-  }
-  function fmtMc(v) { if (!v) return "-"; if (v>=1e12) return "$"+(v/1e12).toFixed(1)+"T"; if (v>=1e9) return "$"+(v/1e9).toFixed(0)+"B"; return "$"+(v/1e6).toFixed(0)+"M"; }
-  function fmtPe(v) { return v>0?v.toFixed(1)+"x":"-"; }
-  function fmtPct(v) { return v?(v>0?"+":"")+v.toFixed(2)+"%":"-"; }
-  function scoreBar(s, col) {
-    var pct = Math.min((s||0)/5*100,100);
-    return (
-      <span style={{display:"inline-flex",alignItems:"center",gap:4}}>
-        <span style={{width:40,height:3,background:"#e0dbd0",borderRadius:2,overflow:"hidden",display:"inline-block"}}>
-          <span style={{display:"block",height:"100%",width:pct.toFixed(0)+"%",background:col||"#2a6a2a",borderRadius:2}}></span>
-        </span>
-      </span>
-    );
-  }
-  function doSort(col) { if (sortCol===col) { setSortAsc(function(v){return !v;}); } else { setSortCol(col); setSortAsc(true); } }
-
-  var sortedRows = rows.slice().sort(function(a,b) {
-    var av = a[sortCol]||""; var bv = b[sortCol]||"";
-    if (typeof av === "number") return sortAsc ? av-bv : bv-av;
-    return sortAsc ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
-  });
-
-  var COLS = [
-    { key:"ticker", label:"Ticker" },
-    { key:"price",  label:"Price" },
-    { key:"chgPct", label:"Chg%" },
-    { key:"pe",     label:"P/E" },
-    { key:"mc",     label:"Mkt Cap" },
-    { key:"fundV",  label:"Fund AI" },
-    { key:"techV",  label:"Tech AI" },
-    { key:"moatR",  label:"Moat" },
-    { key:"finR",   label:"Fin Strength" },
-    { key:"ivL",    label:"IV" },
-  ];
-
-  return (
-    <div style={{background:"#fff",minHeight:"100vh",padding:"24px"}}>
-      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
-        <span style={{fontSize:18,fontWeight:800,color:"#111"}}>Watchlist</span>
-        <span style={{fontSize:12,color:"#aaa"}}>{rows.length} stocks</span>
-        <button onClick={onClose} style={{marginLeft:"auto",border:"1px solid #ddd",borderRadius:6,padding:"5px 14px",background:"transparent",cursor:"pointer",fontSize:12,color:"#444",fontWeight:600}}>{"Close"}</button>
-      </div>
-      {loading ? (
-        <div style={{textAlign:"center",padding:"60px 0",color:"#aaa",fontSize:14}}>Loading all tickers...</div>
-      ) : (
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <thead>
-              <tr style={{borderBottom:"2px solid #e0dbd0"}}>
-                {COLS.map(function(c) {
-                  return <th key={c.key} onClick={function(){doSort(c.key);}} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:"#444",cursor:"pointer",whiteSpace:"nowrap",fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",userSelect:"none"}}>
-                    {c.label}{sortCol===c.key?(sortAsc?" \u25B2":" \u25BC"):""}
-                  </th>;
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {sortedRows.map(function(r,i) {
-                var up = r.chgPct >= 0;
-                return (
-                  <tr key={r.ticker} onClick={function(){onSelectTicker(r.ticker);}}
-                    style={{borderBottom:"1px solid #f0ede8",cursor:"pointer",background:i%2===0?"#fff":"#faf8f4"}}
-                    onMouseEnter={function(e){e.currentTarget.style.background="#f5f2ec";}}
-                    onMouseLeave={function(e){e.currentTarget.style.background=i%2===0?"#fff":"#faf8f4";}}>
-                    <td style={{padding:"10px 10px",fontWeight:700,color:"#111",whiteSpace:"nowrap"}}>
-                      <span style={{fontSize:11,fontWeight:700,color:"#1a1a14",background:"#c8f000",padding:"2px 7px",borderRadius:4,marginRight:6}}>{r.ticker}</span>
-                      <span style={{fontSize:11,color:"#888"}}>{r.name}</span>
-                    </td>
-                    <td style={{padding:"10px 10px",fontWeight:700,color:"#111"}}>{r.price>0?"$"+r.price.toFixed(2):"-"}</td>
-                    <td style={{padding:"10px 10px",fontWeight:600,color:up?"#1a8a1a":"#c03030"}}>{fmtPct(r.chgPct)}</td>
-                    <td style={{padding:"10px 10px",color:"#555"}}>{fmtPe(r.pe)}</td>
-                    <td style={{padding:"10px 10px",color:"#555"}}>{fmtMc(r.mc)}</td>
-                    <td style={{padding:"10px 10px",fontWeight:600,color:verdictCol(r.fundV)}}>{r.fundV}</td>
-                    <td style={{padding:"10px 10px",fontWeight:600,color:verdictCol(r.techV)}}>{r.techV}</td>
-                    <td style={{padding:"10px 10px",color:r.moatR==="Wide"?"#1a8a1a":r.moatR==="Narrow"?"#c07020":"#888"}}>{r.moatR}</td>
-                    <td style={{padding:"10px 10px",color:r.finR&&r.finR.toLowerCase().includes("strong")?"#1a8a1a":r.finR&&r.finR.toLowerCase().includes("weak")?"#c03030":"#888"}}>{r.finR}</td>
-                    <td style={{padding:"10px 10px",fontSize:11,color:"#555",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.ivL}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   var isAdmin = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === "admin");
   window.__clerkUser = clerkUser || null;
@@ -1182,7 +988,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
   const [__err, set__err] = useState(null);
 
   const [navInput,  setNavInput]  = useState("");
-  const [showWatchlist, setShowWatchlist] = useState(false);
   const [showCalc, setShowCalc] = useState(false);
   const [navFocus,  setNavFocus]  = useState(false);
   const [q,        setQ]        = useState(null);
@@ -2757,10 +2562,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
               </div>
               {/* Far right -- Watchlist (admin) + Avatar or Sign In */}
               <div style={{ paddingLeft:10, display:"flex", alignItems:"center", gap:10 }}>
-                {isAdmin && <button onClick={function(){ setShowWatchlist(function(v){return !v;}); }}
-                  style={{ border:"1px solid rgba(0,0,0,0.3)", borderRadius:6, padding:"5px 12px", background:showWatchlist?"rgba(0,0,0,0.15)":"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:700, whiteSpace:"nowrap" }}>
-                  {"Watchlist"}
-                </button>}
+
                 <button onClick={function(){ setShowCalc(function(v){return !v;}); }}
                   style={{ border:"1px solid rgba(0,0,0,0.3)", borderRadius:6, padding:"5px 10px", background:showCalc?"rgba(0,0,0,0.15)":"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:14, fontFamily:FONT, color:"#1a1a14", fontWeight:700, whiteSpace:"nowrap", lineHeight:1 }}
                   title="Trade Calculator">
@@ -2885,10 +2687,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
       )}
 
       {/* Body grid */}
-      {showWatchlist && isAdmin ? (function(){
-        return React.createElement(WatchlistPage, { sym:sym, onClose:function(){ setShowWatchlist(false); }, onSelectTicker:function(t){ window.location.hash=t; setShowWatchlist(false); } });
-      })() : null}
-      <div className={"body-grid" + (mobilePanel === "right" ? " show-right" : " show-left")} style={{ display:showWatchlist&&isAdmin?"none":"grid", gridTemplateColumns:"minmax(280px,400px) 1fr", minWidth:0 }}>
+      <div className={"body-grid" + (mobilePanel === "right" ? " show-right" : " show-left")} style={{ display:"grid", gridTemplateColumns:"minmax(280px,400px) 1fr", minWidth:0 }}>
 
         {/* LEFT PANEL */}
         <div className="panel-left" style={{ padding:"24px 20px", borderRight:"1px solid #111", background:"#1c1c1e" }}>
