@@ -3782,7 +3782,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         </div>
                       )}
 
-                    {ov && (function(){
+                    {ov && insightTab==="intrinsic" && (function(){
                       var _mc=window.__mc||function(){return "#888";};
                       var fmt2=function(v){return v>0?v.toFixed(2)+"x":"-";};
                       var fpct=function(v){return v?(v>0?"+":"")+v.toFixed(2)+"%":"-";};
@@ -3880,7 +3880,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         </div>
                       )}
 
-                    {ov && (function(){
+                    {ov && insightTab==="business" && (function(){
                       var _mc=window.__mc||function(){return "#888";};
                       var fmt2=function(v){return v>0?v.toFixed(2)+"x":"-";};
                       var fpct=function(v){return v?(v>0?"+":"")+v.toFixed(2)+"%":"-";};
@@ -4209,7 +4209,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                         );
                       })()}
 
-                    {ov && (function(){
+                    {ov && insightTab==="financial" && (function(){
                       var _mc=window.__mc||function(){return "#888";};
                       var fmt2=function(v){return v>0?v.toFixed(2)+"x":"-";};
                       var fpct=function(v){return v?(v>0?"+":"")+v.toFixed(2)+"%":"-";};
