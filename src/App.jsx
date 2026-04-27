@@ -1031,7 +1031,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           "EPS Growth: "+sfp(_ov.epsG)+" | LT EPS Est: "+sfp(_ov.ltG)+" | Beta: "+sfn(_ov.beta)+"\n\n"+
           "ANALYST CONSENSUS: Buy "+sfi(_ov.recBuy)+" | Hold "+sfi(_ov.recHold)+" | Sell "+sfi(_ov.recSell)+" | Target $"+(_ov.targetMedian?_ov.targetMedian.toFixed(2):"N/A")+"\n"+
           "\nRespond in EXACTLY this format. Plain English, no jargon without explanation:\n"+
-          "Fundamental (Investment): Strong Buy / Buy / Hold / Caution / Avoid\n"+
+          "Fundamental (Invest): Strong Buy / Buy / Hold / Caution / Avoid\n"+
           "Confidence: Low / Medium / High\n"+
           "Key Strength: 1-2 sentences plain English.\n"+
           "Key Risk: 1-2 sentences plain English.\n"+
@@ -1188,7 +1188,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
           "  Bearish volume ("+_vBearActive.length+"/5): "+(_vBearActive.length>0?_vBearActive.join(", "):"none active"),
           "",
           "Respond in EXACTLY this format. Plain English only -- no jargon without explanation:",
-          "Technical (Trading): Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish",
+          "Technical (Trade): Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish",
           "Confidence: Low / Medium / High",
           "Key Level: 1-2 sentences -- what price level to watch and why.",
           "Key Strength: 1-2 sentences -- what the signals say is positive.",
@@ -2896,7 +2896,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   if (!window.__isPaid && !_isFreeTickerAI) {
                     return (
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
-                        {["Fundamental (Investment)","Technical (Trading)"].map(function(lbl,i){
+                        {["Fundamental (Invest)","Technical (Trade)"].map(function(lbl,i){
                           return (
                             <div key={i} onClick={function(){ window.__goToPaywall && window.__goToPaywall(); }}
                               style={{ padding:"9px 12px", background:"#1a1a10", border:"0.5px solid #2c2c14", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer", justifyContent:"center", alignItems:"center" }}>
@@ -2913,7 +2913,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       {/* Fundamental AI pill */}
                       <div onClick={function(){ window.__goToTab && window.__goToTab("aianalysis"); }}
                         style={{ padding:"9px 12px", background:aiFundResult?fundC.bg:"#222", border:"0.5px solid "+(aiFundResult?fundC.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color:aiFundResult?fundC.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Fundamental (Investment)</div>
+                        <div style={{ fontSize:9, color:aiFundResult?fundC.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Fundamental (Invest)</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {aiFundLoading
                             ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
@@ -2926,7 +2926,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                       {/* Technical AI pill */}
                       <div onClick={function(){ window.__goToTab && window.__goToTab("aianalysis"); }}
                         style={{ padding:"9px 12px", background:aiTechResult?techC.bg:"#222", border:"0.5px solid "+(aiTechResult?techC.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color:aiTechResult?techC.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Technical (Trading)</div>
+                        <div style={{ fontSize:9, color:aiTechResult?techC.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Technical (Trade)</div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {aiTechLoading
                             ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
@@ -2946,8 +2946,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                             var _revBull=_rn>0; var _revBear=_rn<0;
                             var _volBull=_vn>0; var _volBear=_vn<0;
                             var _both=(_revBull&&_volBull)||(_revBear&&_volBear);
-                            var _label=_both?"Reversal & Volume Detected":(_revBull||_revBear)?"Reversal Signal Detected":"Volume Signal Detected";
-                            return <div style={{fontSize:10,fontWeight:600,color:_sigCol,marginTop:4}}>{_arrow+" "+_label}</div>;
+                            var _label=_both?"Reversal & Volume":(_revBull||_revBear)?"Reversal Signal":"Volume Signal";
+                            return <div style={{marginTop:5}}>
+                              <span style={{fontSize:9,fontWeight:600,color:_sigCol,background:_isBull?"#1a2200":"#2a0a0a",border:"0.5px solid "+(_isBull?"#3a5000":"#5a1010"),borderRadius:4,padding:"2px 7px"}}>{_arrow+" "+_label}</span>
+                            </div>;
                           }
                           if(aiTechResult&&aiTechResult.confidence){
                             return <div style={{fontSize:10,color:techC.fg,marginTop:4,opacity:0.75}}>{"Confidence: "+aiTechResult.confidence}</div>;
