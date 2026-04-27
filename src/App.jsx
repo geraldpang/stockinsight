@@ -3138,7 +3138,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                     function SigRow2(tab, label, netScore, dir, barPct, strength){
                       var _det=_hasTech&&netScore!==0;
                       var _bull=dir==="bull";
-                      var _col=_bull?pillColor("buy"):(_det?pillColor("avoid"):pillColor(null));
+                      var _fg2=_det?(_bull?"#7abd00":"#e05050"):"#555"; var _dot2=_fg2;
                       var _arrow=_bull?String.fromCharCode(0x25B2):String.fromCharCode(0x25BC);
                       var _valText=!_hasTech?"--":!_det?"Not Detected":(_arrow+" Detected");
                       var _valCol=!_det?"#555":_col.fg;
@@ -3148,10 +3148,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                           onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                           onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
                           <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>{label}</span>
-                          <span style={{fontSize:12,fontWeight:600,color:_valCol,flex:1}}>{_valText}</span>
-                          {_det&&strength&&<span style={{fontSize:10,color:_col.fg,marginRight:6,flexShrink:0,opacity:0.85}}>{strength}</span>}
+                          <span style={{fontSize:12,fontWeight:600,color:_fg2,flex:1}}>{_valText}</span>
+                          {_det&&strength&&<span style={{fontSize:10,color:_fg2,marginRight:6,flexShrink:0,opacity:0.85}}>{strength}</span>}
                           {_det&&<span style={{width:52,height:3,background:"#2a2a2a",borderRadius:2,overflow:"hidden",display:"inline-block",marginRight:8,flexShrink:0}}>
-                            <span style={{display:"block",height:"100%",width:barPct.toFixed(0)+"%",background:_col.dot,borderRadius:2}}></span>
+                            <span style={{display:"block",height:"100%",width:barPct.toFixed(0)+"%",background:_dot2,borderRadius:2}}></span>
                           </span>}
                           <span style={{fontSize:11,color:"#444"}}>{"\u203A"}</span>
                         </div>
