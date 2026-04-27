@@ -883,36 +883,74 @@ function WatchlistPage({ sym, onClose, onSelectTicker }) {
 
   useEffect(function() {
     setLoading(true);
-    // Fetch all KV caches in parallel
+    // Helper: read one KV entry via /insight endpoint
+    function kvRead(sym, tab) {
+      return fetch("/insight?action=read&sym=" + sym + "&tab=" + tab)
+        .then(function(r){return r.json();}).catch(function(){return null;});
+    }
+    // Helper: extract field from plain-text AI response
+    function exField(text, prefix) {
+      if (!text||!prefix) return "--";
+      var lines = text.split("\n");
+      for (var i=0;i<lines.length;i++) {
+        var l = lines[i];
+        if (l.toLowerCase().indexOf(prefix.toLowerCase())===0) {
+          var idx = l.indexOf(":");
+          return idx>=0 ? l.slice(idx+1).trim() : "--";
+        }
+      }
+      return "--";
+    }
+    // Helper: parse moat/financial JSON response
+    function parseJson(val) { try { return JSON.parse(val||"{}"); } catch(e){ return {}; } }
     var kvFetches = TICKERS.map(function(t) {
       return Promise.all([
-        fetch("/kv?key=" + t + ":fund").then(function(r){return r.json();}).catch(function(){return null;}),
-        fetch("/kv?key=" + t + ":tech").then(function(r){return r.json();}).catch(function(){return null;}),
-        fetch("/kv?key=" + t + ":moat").then(function(r){return r.json();}).catch(function(){return null;}),
-        fetch("/kv?key=" + t + ":financial").then(function(r){return r.json();}).catch(function(){return null;}),
-        fetch("/kv?key=" + t + ":intrinsic").then(function(r){return r.json();}).catch(function(){return null;}),
+        kvRead(t, "ai-fund"),
+        kvRead(t, "ai-tech"),
+        kvRead(t, "moat"),
+        kvRead(t, "financial"),
+        kvRead(t, "intrinsic"),
       ]).then(function(results) {
         var fund = results[0]; var tech = results[1]; var moat = results[2]; var fin = results[3]; var iv = results[4];
-        // Parse fund AI
+        // Fund AI -- plain text response
         var fundV = "--"; var fundConf = "--";
-        if (fund && fund.value) { try { var fp = JSON.parse(fund.value); fundV = fp.verdict||"--"; fundConf = fp.confidence||"--"; } catch(e){} }
-        // Parse tech AI
+        if (fund && fund.hit && fund.value) {
+          fundV = exField(fund.value, "Fundamental");
+          fundConf = exField(fund.value, "Confidence");
+        }
+        // Tech AI -- plain text response
         var techV = "--"; var techConf = "--";
-        if (tech && tech.value) { try { var tp = JSON.parse(tech.value); techV = tp.verdict||"--"; techConf = tp.confidence||"--"; } catch(e){} }
-        // Parse moat
+        if (tech && tech.hit && tech.value) {
+          techV = exField(tech.value, "Technical");
+          techConf = exField(tech.value, "Confidence");
+        }
+        // Moat -- JSON response
         var moatR = "--"; var moatS = 0;
-        if (moat && moat.value) { try { var mp = JSON.parse(moat.value); moatR = mp.classification||"--"; moatS = mp.score||0; } catch(e){} }
-        // Parse financial
+        if (moat && moat.hit && moat.value) {
+          var mp = parseJson(moat.value);
+          moatR = mp.classification||"--"; moatS = mp.score||0;
+        }
+        // Financial -- JSON response
         var finR = "--"; var finS = 0;
-        if (fin && fin.value) { try { var fnp = JSON.parse(fin.value); finR = fnp.classification||"--"; finS = fnp.score||0; } catch(e){} }
-        // Parse IV
+        if (fin && fin.hit && fin.value) {
+          var fnp = parseJson(fin.value);
+          // Financial stored as AI text or JSON
+          if (fnp.classification) { finR = fnp.classification; finS = fnp.score||0; }
+          else { finR = exField(fin.value, "Financial Strength Classification"); }
+        }
+        // IV -- plain text or JSON
         var ivL = "--";
-        if (iv && iv.value) { try { var ivp = JSON.parse(iv.value); ivL = ivp.sublabel||ivp.ivSublabel||ivp.label||"--"; } catch(e){} }
+        if (iv && iv.hit && iv.value) {
+          var ivp = parseJson(iv.value);
+          if (ivp.sublabel||ivp.ivSublabel) { ivL = ivp.sublabel||ivp.ivSublabel; }
+          else { ivL = exField(iv.value, "Consensus IV")||"--"; }
+        }
         return { ticker:t, name:NAMES2[t]||t, fundV:fundV, fundConf:fundConf, techV:techV, techConf:techConf, moatR:moatR, moatS:moatS, finR:finR, finS:finS, ivL:ivL };
       });
     });
-    // Also fetch Yahoo batch quote
-    var yFetch = fetch("/proxy?path=v7/finance/quote&symbols=" + TICKERS.join(",") + "&fields=regularMarketPrice,regularMarketChangePercent,trailingPE,marketCap")
+    // Yahoo batch quote -- use correct Yahoo endpoint
+    var ySym = TICKERS.map(function(t){return t==="BRKB"?"BRK-B":t;}).join(",");
+    var yFetch = fetch("/proxy?path=v7/finance/quote&symbols=" + ySym + "&fields=regularMarketPrice,regularMarketChangePercent,trailingPE,marketCap")
       .then(function(r){return r.json();}).catch(function(){return null;});
     Promise.all([Promise.all(kvFetches), yFetch]).then(function(all) {
       var kvRows = all[0]; var yData = all[1];
@@ -992,7 +1030,7 @@ function WatchlistPage({ sym, onClose, onSelectTicker }) {
               <tr style={{borderBottom:"2px solid #e0dbd0"}}>
                 {COLS.map(function(c) {
                   return <th key={c.key} onClick={function(){doSort(c.key);}} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:"#444",cursor:"pointer",whiteSpace:"nowrap",fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",userSelect:"none"}}>
-                    {c.label}{sortCol===c.key?(sortAsc?" ▲":" ▼"):""}
+                    {c.label}{sortCol===c.key?(sortAsc?" \u25B2":" \u25BC"):""}
                   </th>;
                 })}
               </tr>
@@ -7354,7 +7392,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             <div style={{position:"fixed",bottom:24,right:24,width:280,background:"#1c1c1e",border:"0.5px solid #333",borderRadius:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:999,overflow:"hidden"}}>
               <div style={{background:"#c8f000",padding:"8px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <span style={{fontSize:12,fontWeight:800,color:"#1a1a14",letterSpacing:"-0.2px"}}>{"$ Trade Calculator"}</span>
-                <span onClick={function(){setShowCalc(false);}} style={{cursor:"pointer",fontSize:16,color:"#1a1a14",lineHeight:1,fontWeight:700}}>{"×"}</span>
+                <span onClick={function(){setShowCalc(false);}} style={{cursor:"pointer",fontSize:16,color:"#1a1a14",lineHeight:1,fontWeight:700}}>{"\u00D7"}</span>
               </div>
               <div style={{padding:"14px"}}>
                 <div style={{marginBottom:10}}>
