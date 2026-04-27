@@ -2942,13 +2942,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                             var _up=String.fromCharCode(0x25B2); var _dn=String.fromCharCode(0x25BC);
                             var _isBull=(_rn+_vn)>0;
                             var _arrow=_isBull?_up:_dn;
-                            var _sigCol=_isBull?"#c8f000":"#ff6666";
+                            var _sigCol=_isBull?"#7abd00":"#e05050";
                             var _revBull=_rn>0; var _revBear=_rn<0;
                             var _volBull=_vn>0; var _volBear=_vn<0;
                             var _both=(_revBull&&_volBull)||(_revBear&&_volBear);
                             var _label=_both?"Reversal & Volume":(_revBull||_revBear)?"Reversal Signal":"Volume Signal";
                             return <div style={{marginTop:5}}>
-                              <span style={{fontSize:9,fontWeight:600,color:_sigCol,background:_isBull?"#1a2200":"#2a0a0a",border:"0.5px solid "+(_isBull?"#3a5000":"#5a1010"),borderRadius:4,padding:"2px 7px"}}>{_arrow+" "+_label}</span>
+                              <span style={{fontSize:9,fontWeight:600,color:_sigCol,background:_isBull?"#1e2a1e":"#2a1e1e",border:"0.5px solid "+(_isBull?"#2a5020":"#4a2020"),borderRadius:4,padding:"2px 7px"}}>{_arrow+" "+_label}</span>
                             </div>;
                           }
                           if(aiTechResult&&aiTechResult.confidence){
@@ -4627,13 +4627,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                   <div style={{ fontSize:12, color:"#444", lineHeight:1.7 }}>{aiFundResult.summary}</div>
                                 </div>
                               )}
-                              <div style={{ marginTop:12 }}>
+                              {isAdmin && <div style={{ marginTop:12 }}>
                                 <div style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Exact prompt sent to AI</div>
                                 {aiFundResult.promptSent
                                   ? <pre style={{ padding:"10px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:10, color:"#555", lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word", margin:0, fontFamily:"monospace" }}>{aiFundResult.promptSent}</pre>
                                   : <div style={{ padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:11, color:"#aaa", fontStyle:"italic" }}>{"Prompt not available for cached results. Clear cache and reload to see the full prompt."}</div>
                                 }
-                              </div>
+                              </div>}
                             </div>
                           )}
                           {!aiFundLoading && !aiFundResult && (
@@ -4681,13 +4681,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                                   <div style={{ fontSize:12, color:"#444", lineHeight:1.7 }}>{aiTechResult.summary}</div>
                                 </div>
                               )}
-                              <div style={{ marginTop:12 }}>
+                              {isAdmin && <div style={{ marginTop:12 }}>
                                 <div style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Exact prompt sent to AI</div>
                                 {aiTechResult.promptSent
                                   ? <pre style={{ padding:"10px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:10, color:"#555", lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word", margin:0, fontFamily:"monospace" }}>{aiTechResult.promptSent}</pre>
                                   : <div style={{ padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:11, color:"#aaa", fontStyle:"italic" }}>{"Prompt not available for cached results. Clear cache and reload to see the full prompt."}</div>
                                 }
-                              </div>
+                              </div>}
                             </div>
                           )}
                           {!aiTechLoading && !aiTechResult && (
