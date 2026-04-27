@@ -1062,6 +1062,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
   const [navInput,  setNavInput]  = useState("");
   const [showWatchlist, setShowWatchlist] = useState(false);
+  const [showCalc, setShowCalc] = useState(false);
   const [navFocus,  setNavFocus]  = useState(false);
   const [q,        setQ]        = useState(null);
   const [ov,       setOv]       = useState(null);
@@ -2639,6 +2640,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
                   style={{ border:"1px solid rgba(0,0,0,0.3)", borderRadius:6, padding:"5px 12px", background:showWatchlist?"rgba(0,0,0,0.15)":"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:12, fontFamily:FONT, color:"#1a1a14", fontWeight:700, whiteSpace:"nowrap" }}>
                   {"Watchlist"}
                 </button>}
+                <button onClick={function(){ setShowCalc(function(v){return !v;}); }}
+                  style={{ border:"1px solid rgba(0,0,0,0.3)", borderRadius:6, padding:"5px 10px", background:showCalc?"rgba(0,0,0,0.15)":"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:14, fontFamily:FONT, color:"#1a1a14", fontWeight:700, whiteSpace:"nowrap", lineHeight:1 }}
+                  title="Trade Calculator">
+                  {"$"}
+                </button>
                 <div>
                 {clerkUser
                   ? <div style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -7325,6 +7331,100 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
         </div>
       </div>
 
+
+      {/* Floating Trade Calculator */}
+      {showCalc && (function(){
+        var _cp = price > 0 ? price.toFixed(2) : "";
+        var _calcId = "ng-calc-input";
+        var _slId = "ng-calc-sl";
+        function _CalcPanel(){
+          var [bp, setBp] = useState(_cp);
+          var [sl, setSl] = useState("8");
+          var _b = parseFloat(bp)||0;
+          var _s = parseFloat(sl)||8;
+          var _targets = [
+            { label:"Stop Loss",  pct:-_s,    col:"#c03030" },
+            { label:"Target 25%", pct:25,     col:"#1a6a1a" },
+            { label:"Target 35%", pct:35,     col:"#1a6a1a" },
+            { label:"Target 45%", pct:45,     col:"#1a7a1a" },
+            { label:"Target 60%", pct:60,     col:"#1a8a1a" },
+            { label:"Target 100%",pct:100,    col:"#0a6a0a" },
+          ];
+          return (
+            <div style={{position:"fixed",bottom:24,right:24,width:280,background:"#1c1c1e",border:"0.5px solid #333",borderRadius:14,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",zIndex:999,overflow:"hidden"}}>
+              <div style={{background:"#c8f000",padding:"8px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span style={{fontSize:12,fontWeight:800,color:"#1a1a14",letterSpacing:"-0.2px"}}>{"$ Trade Calculator"}</span>
+                <span onClick={function(){setShowCalc(false);}} style={{cursor:"pointer",fontSize:16,color:"#1a1a14",lineHeight:1,fontWeight:700}}>{"×"}</span>
+              </div>
+              <div style={{padding:"14px"}}>
+                <div style={{marginBottom:10}}>
+                  <div style={{fontSize:10,color:"#888",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{"Buy Price ($)"}</div>
+                  <input value={bp} onChange={function(e){setBp(e.target.value);}}
+                    placeholder={"e.g. "+_cp}
+                    style={{width:"100%",background:"#2a2a2a",border:"0.5px solid #444",borderRadius:6,padding:"7px 10px",fontSize:14,fontWeight:700,color:"#f0f0f0",fontFamily:"monospace",outline:"none",boxSizing:"border-box"}} />
+                </div>
+                <div style={{marginBottom:12}}>
+                  <div style={{fontSize:10,color:"#888",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{"Stop Loss %"}</div>
+                  <div style={{display:"flex",gap:6}}>
+                    {["5","8","10","15"].map(function(v){
+                      return <span key={v} onClick={function(){setSl(v);}}
+                        style={{fontSize:11,fontWeight:600,padding:"3px 8px",borderRadius:4,cursor:"pointer",background:sl===v?"#c8f000":"#2a2a2a",color:sl===v?"#1a1a14":"#888",border:"0.5px solid "+(sl===v?"#c8f000":"#444")}}>
+                        {v+"%"}
+                      </span>;
+                    })}
+                    <input value={sl} onChange={function(e){setSl(e.target.value);}}
+                      style={{width:40,background:"#2a2a2a",border:"0.5px solid #444",borderRadius:4,padding:"3px 6px",fontSize:11,color:"#f0f0f0",fontFamily:"monospace",outline:"none",textAlign:"center"}} />
+                  </div>
+                </div>
+                {_b > 0 ? (
+                  <div style={{borderTop:"0.5px solid #2c2c2e",paddingTop:10}}>
+                    <table style={{width:"100%",borderCollapse:"collapse"}}>
+                      <tbody>
+                        {_targets.map(function(t,i){
+                          var _tp = _b * (1 + t.pct/100);
+                          var _diff = _tp - _b;
+                          var _isStop = t.pct < 0;
+                          return (
+                            <tr key={i} style={{borderBottom:i<_targets.length-1?"0.5px solid #242424":"none"}}>
+                              <td style={{padding:"6px 0",fontSize:11,color:"#666",width:"42%"}}>{t.label}</td>
+                              <td style={{padding:"6px 0",fontSize:13,fontWeight:700,color:t.col,textAlign:"right"}}>${_tp.toFixed(2)}</td>
+                              <td style={{padding:"6px 0",fontSize:10,color:t.col,textAlign:"right",opacity:0.8,paddingLeft:6}}>
+                                {_isStop ? "-$"+Math.abs(_diff).toFixed(2) : "+$"+_diff.toFixed(2)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    <div style={{marginTop:10,paddingTop:8,borderTop:"0.5px solid #2c2c2e"}}>
+                      <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>{"Position Size"}</div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
+                        {[1000,5000,10000].map(function(port){
+                          var _risk = port * 0.02;
+                          var _loss = _b * (_s/100);
+                          var _shares = _loss > 0 ? Math.floor(_risk / _loss) : 0;
+                          var _cost = _shares * _b;
+                          return (
+                            <div key={port} style={{background:"#2a2a2a",borderRadius:6,padding:"7px 8px",textAlign:"center"}}>
+                              <div style={{fontSize:9,color:"#555",marginBottom:3}}>${(port/1000).toFixed(0)+"k portfolio"}</div>
+                              <div style={{fontSize:13,fontWeight:700,color:"#c8f000"}}>{_shares} sh</div>
+                              <div style={{fontSize:9,color:"#666"}}>${_cost.toFixed(0)}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{fontSize:9,color:"#444",marginTop:6,textAlign:"center"}}>{"Based on 2% portfolio risk rule"}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{textAlign:"center",padding:"16px 0",color:"#444",fontSize:12}}>{"Enter a buy price to see targets"}</div>
+                )}
+              </div>
+            </div>
+          );
+        }
+        return <_CalcPanel />;
+      })()}
 
       {/* Sticky disclaimer footer */}
       <div style={{
