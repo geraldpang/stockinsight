@@ -7286,7 +7286,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
             </button>
           </div>
           <div style={{ fontSize:11, color:"#aaa", lineHeight:1.8 }}>
-            nervousgeek.com is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). {String.fromCharCode(0xA9)} nervousgeek.com 2026.
+            {"nervousgeek.com is a private, community-focused platform created to share educational content about investing and financial markets. Any fees collected are used to support the operating costs of the platform and the time and effort required to maintain and improve the service. All analysis, ratings, tools, and AI-generated insights provided on this website are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. The content on this website does not take into account your individual financial situation, objectives, or needs. Before making any investment decision, you should conduct your own research and consider seeking advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Market data provided by third-party sources, including Yahoo Finance and Massive.com, may be delayed, incomplete, or inaccurate. While reasonable efforts are made to ensure information accuracy, nervousgeek.com makes no representation or warranty regarding the completeness, reliability, or accuracy of the information provided. Use of this website and reliance on any information contained within it is entirely at your own risk. Some insights and analysis on this platform may be generated with the assistance of artificial intelligence, including models developed by Anthropic (Claude). "}{String.fromCharCode(0xA9)}{" nervousgeek.com 2026. All rights reserved."}
           </div>
         </div>
         {/* Slim always-visible bar */}
@@ -7579,25 +7579,47 @@ export default function App() {
       return null;
     }
 
+    function parseFromText(text) {
+      if (!text) return null;
+      // Try new format first: "Fundamental (Invest): Strong Buy"
+      var fundV = exLine(text, "Fundamental");
+      // Fallback: old aiinsight format "Overall Verdict: Buy"
+      if (!fundV) fundV = exLine(text, "Overall Verdict");
+      if (!fundV) fundV = exLine(text, "Verdict");
+      if (!fundV) return null;
+      var vl = fundV.toLowerCase();
+      var isStrongBuy = vl.indexOf("strong buy") !== -1;
+      var isBuy = vl.indexOf("buy") !== -1;
+      if (!isStrongBuy && !isBuy) return null;
+      return { fundV: fundV, isStrongBuy: isStrongBuy };
+    }
+
     function fetchSignal(sym) {
+      // Try ai-fund first, then fall back to aiinsight
       return fetch("/cache?sym=" + sym + "&tab=ai-fund")
         .then(function(r){ return r.json(); })
         .then(function(d){
-          if (!d || !d.hit || !d.value) return null;
-          var fundV = exLine(d.value, "Fundamental");
-          if (!fundV) return null;
-          var vl = fundV.toLowerCase();
-          var isStrongBuy = vl.indexOf("strong buy") !== -1;
-          var isBuy = vl.indexOf("buy") !== -1;
-          if (!isStrongBuy && !isBuy) return null;
+          var parsed = (d && d.hit && d.value) ? parseFromText(d.value) : null;
+          if (!parsed) {
+            // Fallback to old aiinsight cache
+            return fetch("/cache?sym=" + sym + "&tab=aiinsight")
+              .then(function(r2){ return r2.json(); })
+              .then(function(d2){
+                return (d2 && d2.hit && d2.value) ? parseFromText(d2.value) : null;
+              }).catch(function(){ return null; });
+          }
+          return parsed;
+        })
+        .then(function(parsed){
+          if (!parsed) return null;
           var ySym = sym === "BRKB" ? "BRK-B" : sym;
           return fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=1d"))
             .then(function(r2){ return r2.json(); })
             .then(function(q){
               var meta = q&&q.chart&&q.chart.result&&q.chart.result[0]&&q.chart.result[0].meta;
               var price = meta?(meta.regularMarketPrice||0):0;
-              return { sym:sym, fundV:fundV, isStrongBuy:isStrongBuy, price:price };
-            }).catch(function(){ return { sym:sym, fundV:fundV, isStrongBuy:isStrongBuy, price:0 }; });
+              return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:price };
+            }).catch(function(){ return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:0 }; });
         }).catch(function(){ return null; });
     }
 
@@ -7621,8 +7643,11 @@ export default function App() {
         if (!d || !d.keys) return;
         var seen = {}; var cached = [];
         d.keys.forEach(function(k) {
-          if (k.key && k.key.indexOf(":ai-fund") !== -1) {
-            var sym = k.key.replace("insight:","").replace(":ai-fund","");
+          if (!k.key) return;
+          var hasFund = k.key.indexOf(":ai-fund") !== -1;
+          var hasOld  = k.key.indexOf(":aiinsight") !== -1;
+          if (hasFund || hasOld) {
+            var sym = k.key.replace("insight:","").replace(":ai-fund","").replace(":aiinsight","");
             if (!seen[sym] && FREE.indexOf(sym)===-1) { seen[sym]=true; cached.push(sym); }
           }
         });
@@ -7993,7 +8018,7 @@ export default function App() {
             </button>
           </div>
           <div style={{ fontSize:11, color:"#aaa", lineHeight:1.8 }}>
-            nervousgeek.com is a private, community-focused website created for friends and family who want to learn about investing. Any fees collected fund operating costs and time effort to refine the module. All analysis, ratings, and AI-generated insights are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. This website does not consider your personal financial situation. Before any investment decision, seek advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Data from Yahoo Finance and Massive.com may be delayed or inaccurate. Use at your own risk. AI analysis by Claude (Anthropic). {String.fromCharCode(0xA9)} nervousgeek.com 2026.
+            {"nervousgeek.com is a private, community-focused platform created to share educational content about investing and financial markets. Any fees collected are used to support the operating costs of the platform and the time and effort required to maintain and improve the service. All analysis, ratings, tools, and AI-generated insights provided on this website are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. The content on this website does not take into account your individual financial situation, objectives, or needs. Before making any investment decision, you should conduct your own research and consider seeking advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Market data provided by third-party sources, including Yahoo Finance and Massive.com, may be delayed, incomplete, or inaccurate. While reasonable efforts are made to ensure information accuracy, nervousgeek.com makes no representation or warranty regarding the completeness, reliability, or accuracy of the information provided. Use of this website and reliance on any information contained within it is entirely at your own risk. Some insights and analysis on this platform may be generated with the assistance of artificial intelligence, including models developed by Anthropic (Claude). "}{String.fromCharCode(0xA9)}{" nervousgeek.com 2026. All rights reserved."}
           </div>
         </div>
         <div
