@@ -7482,7 +7482,9 @@ export default function App() {
   const [focused, setFocused] = useState(false);
   const [clerkUser, setClerkUser] = useState(window.__clerkUser || null);
   const [clerkLoaded, setClerkLoaded] = useState(false);
-  const [isPaid, setIsPaid] = useState(!!(window.__isPaid));
+   const [isPaid, setIsPaid] = useState(!!(window.__isPaid));
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [periodEnd, setPeriodEnd] = useState(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [tickerSignals, setTickerSignals] = useState([]);
 
@@ -7519,7 +7521,7 @@ export default function App() {
             window.__clerkToken = t;
             fetch("/stripe?action=status", { headers: { "Authorization": "Bearer " + t } })
               .then(function(r){ return r.json(); })
-              .then(function(d){ var p = !!(d && d.paid); window.__isPaid = p; setIsPaid(p); })
+              .then(function(d){ var p = !!(d && d.paid); window.__isPaid = p; setIsPaid(p); setIsCancelling(!!(d && d.cancelling)); setPeriodEnd((d && d.periodEnd) || null); })
               .catch(function(){ setIsPaid(false); });
           });
         }
@@ -7743,6 +7745,8 @@ export default function App() {
         onBack={_onBack}
         clerkUser={clerkUser}
         isPaid={isPaid}
+        isCancelling={isCancelling}
+        periodEnd={periodEnd}
         supported={_isInSP500 || isPaid}
       />
     );
