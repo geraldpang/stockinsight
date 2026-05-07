@@ -958,6 +958,8 @@ function CalcPanel({ currentPrice, onClose }) {
 
 function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling, periodEnd }) {
   var isAdmin = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === "admin");
+  var showCancelBanner = isCancelling || window.__isCancelling;
+  var cancelEnd = periodEnd || window.__periodEnd;
   window.__clerkUser = clerkUser || null;
   // Unsupported ticker -- show friendly message
   if (supported === false) {
@@ -3349,7 +3351,18 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             )}
           </div>
 
+    {showCancelBanner && cancelEnd && (
 
+    <div style={{ background:"#2a1a00", borderBottom:"1px solid #5a3a00", padding:"10px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+    <span style={{ fontSize:13, color:"#ffb347" }}>
+    {"⚠️ Your subscription is cancelled — premium access continues until " + cancelEnd + "."}
+
+    </span>
+    <a href="mailto:billing@nervousgeek.com" style={{ fontSize:12, color:"#ffb347", textDecoration:"underline" }}>
+      {"Billing issue? Contact us"}
+    </a>
+  </div>
+  )}
 
                     {isCancelling && periodEnd && (
             <div style={{ background:"#2a1a00", borderBottom:"1px solid #5a3a00", padding:"10px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
@@ -7388,7 +7401,10 @@ function UpgradePage({ onBack, clerkUser }) {
               );
             })}
           </div>
-          <div style={{ fontSize:11, color:"#555" }}>Secure payment by Stripe. Cancel anytime from your account.</div>
+           <div style={{ fontSize:11, color:"#555" }}>
+            {"Secure payment by Stripe. Cancel anytime from your account. "}
+            <a href="mailto:billing@nervousgeek.com" style={{ color:"#666", textDecoration:"underline" }}>Billing issues? Contact us</a>
+          </div>
         </div>
       </div>
     </div>
@@ -7493,7 +7509,9 @@ export default function App() {
   const [focused, setFocused] = useState(false);
   const [clerkUser, setClerkUser] = useState(window.__clerkUser || null);
   const [clerkLoaded, setClerkLoaded] = useState(false);
-  const [isPaid, setIsPaid] = useState(!!(window.__isPaid));
+   const [isPaid, setIsPaid] = useState(!!(window.__isPaid));
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [periodEnd, setPeriodEnd] = useState(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [tickerSignals, setTickerSignals] = useState([]);
 
@@ -7530,7 +7548,7 @@ export default function App() {
             window.__clerkToken = t;
             fetch("/stripe?action=status", { headers: { "Authorization": "Bearer " + t } })
               .then(function(r){ return r.json(); })
-              .then(function(d){ var p = !!(d && d.paid); window.__isPaid = p; setIsPaid(p); })
+              .then(function(d){ var p = !!(d && d.paid); window.__isPaid = p; setIsPaid(p); window.__isCancelling = !!(d && d.cancelling); window.__periodEnd = (d && d.periodEnd) || null; setIsCancelling(!!(d && d.cancelling)); setPeriodEnd((d && d.periodEnd) || null); })
               .catch(function(){ setIsPaid(false); });
           });
         }
@@ -7543,7 +7561,7 @@ export default function App() {
               // Check subscription status
               fetch("/stripe?action=status", { headers: { "Authorization": "Bearer " + t } })
                 .then(function(r){ return r.json(); })
-                .then(function(d){ var p = !!(d && d.paid); window.__isPaid = p; setIsPaid(p); })
+                .then(function(d){ var p = !!(d && d.paid); window.__isPaid = p; setIsPaid(p); window.__isCancelling = !!(d && d.cancelling); window.__periodEnd = (d && d.periodEnd) || null; setIsCancelling(!!(d && d.cancelling)); setPeriodEnd((d && d.periodEnd) || null); })
                 .catch(function(){ setIsPaid(false); });
             });
           } else {

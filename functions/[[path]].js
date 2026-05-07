@@ -573,8 +573,8 @@ export async function onRequest(context) {
       var stripeAction  = url.searchParams.get("action") || "";
       var stripePlan    = url.searchParams.get("plan")   || "monthly";
       var STRIPE_BASE   = "https://api.stripe.com/v1";
-      var PRICE_MONTHLY = "price_1TLEJoETaGzjK4K2F4TdQqU6";
-      var PRICE_ANNUAL  = "price_1TLELbETaGzjK4K22khmlNIc";
+      var PRICE_MONTHLY = "price_1TROAzRHjAjfvcePzpMstCpG";
+      var PRICE_ANNUAL  = "price_1TROAyRHjAjfvcePjuBXJeYr";
       var APP_URL       = "https://nervousgeek.com";
 
       function stripeHeaders() {
@@ -599,7 +599,10 @@ export async function onRequest(context) {
         var userId = await getClerkUserId(context.request);
         if (!userId) return new Response(JSON.stringify({ paid: false }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
         var subStatus = CACHE ? await CACHE.get("stripe:sub:" + userId) : null;
-        return new Response(JSON.stringify({ paid: subStatus === "active" }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+        var periodEnd = CACHE ? await CACHE.get("stripe:end:" + userId) : null;
+        var paid       = subStatus === "active" || subStatus === "cancelling";
+        var cancelling = subStatus === "cancelling";
+        return new Response(JSON.stringify({ paid: paid, cancelling: cancelling, periodEnd: periodEnd }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
       }
 
       if (stripeAction === "checkout") {
@@ -663,9 +666,32 @@ export async function onRequest(context) {
             await CACHE.put("stripe:uid:" + cid, uid,       { expirationTtl: 60*60*24*400 });
           }
         }
+        if (eventType === "customer.subscription.updated") {
+          var cid = obj.customer || "";
+          var cancelAtEnd = obj.cancel_at_period_end || false;
+          var periodEndTs = obj.current_period_end || null;
+          var periodEndStr = periodEndTs ? new Date(periodEndTs * 1000).toISOString().split("T")[0] : "";
+          if (cid && CACHE) {
+            var uid2 = await CACHE.get("stripe:uid:" + cid);
+            if (uid2) {
+              if (cancelAtEnd) {
+                await CACHE.put("stripe:sub:" + uid2, "cancelling", { expirationTtl: 60*60*24*400 });
+                await CACHE.put("stripe:end:" + uid2, periodEndStr, { expirationTtl: 60*60*24*400 });
+              } else {
+                await CACHE.put("stripe:sub:" + uid2, "active", { expirationTtl: 60*60*24*400 });
+              }
+            }
+          }
+        }
         if (eventType === "customer.subscription.deleted" || eventType === "customer.subscription.paused") {
           var cid = obj.customer || "";
-          if (cid && CACHE) { var uid2 = await CACHE.get("stripe:uid:" + cid); if (uid2) await CACHE.put("stripe:sub:" + uid2, "cancelled", { expirationTtl: 60*60*24*400 }); }
+          if (cid && CACHE) {
+            var uid2 = await CACHE.get("stripe:uid:" + cid);
+            if (uid2) {
+              await CACHE.put("stripe:sub:" + uid2, "cancelled", { expirationTtl: 60*60*24*400 });
+              if (CACHE.delete) await CACHE.delete("stripe:end:" + uid2);
+            }
+          }
         }
         if (eventType === "invoice.payment_succeeded") {
           var cid = obj.customer || "";
