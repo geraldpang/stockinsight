@@ -3349,7 +3349,16 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             )}
           </div>
 
-
+    {isCancelling && periodEnd && (
+    <div style={{ background:"#2a1a00", borderBottom:"1px solid #5a3a00", padding:"10px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+    <span style={{ fontSize:13, color:"#ffb347" }}>
+      {"⚠️ Your subscription is cancelled — premium access continues until " + periodEnd + "."}
+    </span>
+    <a href="mailto:billing@nervousgeek.com" style={{ fontSize:12, color:"#ffb347", textDecoration:"underline" }}>
+      {"Billing issue? Contact us"}
+    </a>
+  </div>
+  )}
 
                     {/* 5-Tab Insight Panel */}
           {(function() {
@@ -7377,7 +7386,10 @@ function UpgradePage({ onBack, clerkUser }) {
               );
             })}
           </div>
-          <div style={{ fontSize:11, color:"#555" }}>Secure payment by Stripe. Cancel anytime from your account.</div>
+           <div style={{ fontSize:11, color:"#555" }}>
+            {"Secure payment by Stripe. Cancel anytime from your account. "}
+            <a href="mailto:billing@nervousgeek.com" style={{ color:"#666", textDecoration:"underline" }}>Billing issues? Contact us</a>
+          </div>
         </div>
       </div>
     </div>
