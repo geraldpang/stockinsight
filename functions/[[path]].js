@@ -573,8 +573,8 @@ export async function onRequest(context) {
       var stripeAction  = url.searchParams.get("action") || "";
       var stripePlan    = url.searchParams.get("plan")   || "monthly";
       var STRIPE_BASE   = "https://api.stripe.com/v1";
-      var PRICE_MONTHLY = "price_1TLEJoETaGzjK4K2F4TdQqU6";
-      var PRICE_ANNUAL  = "price_1TLELbETaGzjK4K22khmlNIc";
+      var PRICE_MONTHLY = "price_1TROAzRHjAjfvcePzpMstCpG";
+      var PRICE_ANNUAL  = "price_1TROAyRHjAjfvcePjuBXJeYr";
       var APP_URL       = "https://nervousgeek.com";
 
       function stripeHeaders() {
