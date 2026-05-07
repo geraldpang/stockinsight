@@ -956,7 +956,7 @@ function CalcPanel({ currentPrice, onClose }) {
   );
 }
 
-function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
+function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling, periodEnd }) {
   var isAdmin = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === "admin");
   window.__clerkUser = clerkUser || null;
   // Unsupported ticker -- show friendly message
@@ -3351,7 +3351,18 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
 
 
 
-                    {/* 5-Tab Insight Panel */}
+                    {isCancelling && periodEnd && (
+            <div style={{ background:"#2a1a00", borderBottom:"1px solid #5a3a00", padding:"10px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+              <span style={{ fontSize:13, color:"#ffb347" }}>
+                {"⚠️ Your subscription is cancelled — premium access continues until " + periodEnd + "."}
+              </span>
+              <a href="mailto:billing@nervousgeek.com" style={{ fontSize:12, color:"#ffb347", textDecoration:"underline" }}>
+                {"Billing issue? Contact us"}
+              </a>
+            </div>
+          )}
+
+          {/* 5-Tab Insight Panel */}
           {(function() {
             var ALL_TABS = [
               { id:"aianalysis", label:"AI Analysis" },
@@ -7743,6 +7754,8 @@ export default function App() {
         onBack={_onBack}
         clerkUser={clerkUser}
         isPaid={isPaid}
+        isCancelling={isCancelling}
+        periodEnd={periodEnd}
         supported={_isInSP500 || isPaid}
       />
     );
