@@ -7546,7 +7546,7 @@ export default function App() {
               // Check subscription status
               fetch("/stripe?action=status", { headers: { "Authorization": "Bearer " + t } })
                 .then(function(r){ return r.json(); })
-                .then(function(d){ var p = !!(d && d.paid); window.__isPaid = p; setIsPaid(p); })
+                .then(function(d){ var p = !!(d && d.paid); window.__isPaid = p; setIsPaid(p); setIsCancelling(!!(d && d.cancelling)); setPeriodEnd((d && d.periodEnd) || null); })
                 .catch(function(){ setIsPaid(false); });
             });
           } else {
