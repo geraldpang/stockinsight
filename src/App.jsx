@@ -958,6 +958,8 @@ function CalcPanel({ currentPrice, onClose }) {
 
 function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling, periodEnd }) {
   var isAdmin = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === "admin");
+  var showCancelBanner = isCancelling || window.__isCancelling;
+  var cancelEnd = periodEnd || window.__periodEnd;
   window.__clerkUser = clerkUser || null;
   // Unsupported ticker -- show friendly message
   if (supported === false) {
@@ -3349,10 +3351,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             )}
           </div>
 
-    {isCancelling && periodEnd && (
+    {showCancelBanner && cancelEnd && (
+
     <div style={{ background:"#2a1a00", borderBottom:"1px solid #5a3a00", padding:"10px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
     <span style={{ fontSize:13, color:"#ffb347" }}>
-      {"⚠️ Your subscription is cancelled — premium access continues until " + periodEnd + "."}
+    {"⚠️ Your subscription is cancelled — premium access continues until " + cancelEnd + "."}
+
     </span>
     <a href="mailto:billing@nervousgeek.com" style={{ fontSize:12, color:"#ffb347", textDecoration:"underline" }}>
       {"Billing issue? Contact us"}
@@ -7533,7 +7537,7 @@ export default function App() {
             window.__clerkToken = t;
             fetch("/stripe?action=status", { headers: { "Authorization": "Bearer " + t } })
               .then(function(r){ return r.json(); })
-              .then(function(d){ var p = !!(d && d.paid); window.__isPaid = p; setIsPaid(p); setIsCancelling(!!(d && d.cancelling)); setPeriodEnd((d && d.periodEnd) || null); })
+              .then(function(d){ var p = !!(d && d.paid); window.__isPaid = p; setIsPaid(p); window.__isCancelling = !!(d && d.cancelling); window.__periodEnd = (d && d.periodEnd) || null; setIsCancelling(!!(d && d.cancelling)); setPeriodEnd((d && d.periodEnd) || null); })
               .catch(function(){ setIsPaid(false); });
           });
         }
@@ -7546,7 +7550,7 @@ export default function App() {
               // Check subscription status
               fetch("/stripe?action=status", { headers: { "Authorization": "Bearer " + t } })
                 .then(function(r){ return r.json(); })
-                .then(function(d){ var p = !!(d && d.paid); window.__isPaid = p; setIsPaid(p); setIsCancelling(!!(d && d.cancelling)); setPeriodEnd((d && d.periodEnd) || null); })
+                .then(function(d){ var p = !!(d && d.paid); window.__isPaid = p; setIsPaid(p); window.__isCancelling = !!(d && d.cancelling); window.__periodEnd = (d && d.periodEnd) || null; setIsCancelling(!!(d && d.cancelling)); setPeriodEnd((d && d.periodEnd) || null); })
                 .catch(function(){ setIsPaid(false); });
             });
           } else {
