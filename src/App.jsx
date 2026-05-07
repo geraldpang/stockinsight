@@ -956,7 +956,7 @@ function CalcPanel({ currentPrice, onClose }) {
   );
 }
 
-function Detail({ sym, name, onBack, clerkUser, supported, isPaid }) {
+function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling, periodEnd }) {
   var isAdmin = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === "admin");
   window.__clerkUser = clerkUser || null;
   // Unsupported ticker -- show friendly message
