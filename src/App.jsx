@@ -1004,8 +1004,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [addlInfo,      setAddlInfo]      = useState(null);
   const [addlLoading,   setAddlLoading]   = useState(false);
   const [massiveInfo,   setMassiveInfo]   = useState(null);
-  const [whaleData,     setWhaleData]     = useState(null);
-  const [whaleLoading,  setWhaleLoading]  = useState(false);
   const [debugLog,      setDebugLog]      = useState([]);
   const [adminCfg,      setAdminCfg]      = useState(null);
   const [adminStats,    setAdminStats]    = useState({});
@@ -1458,7 +1456,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -2554,7 +2552,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"minmax(0,200px) 1fr auto", alignItems:"center", gap:0, minWidth:0 }}>
               {/* Left cell -- Logo + ticker (mirrors 400px left panel) */}
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px" }}>NervousGeek</span>
+                <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+                  <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.34</span>
+                </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
               {/* Right panel cell -- Back + Search aligned to chart panel edge */}
@@ -2605,7 +2606,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             <div className="nav-mobile" style={{ background:"#c8f000", padding:"8px 14px 7px" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:7 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px" }}>NervousGeek</span>
+                  <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+                    <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.34</span>
+                  </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
                 <button onClick={function(){ setMobilePanel("left"); onBack(); }} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"4px 10px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:11, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
@@ -3379,7 +3383,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               { id:"momentum",  label:"Momentum" },
               { id:"reversal",  label:"Reversal Signals" },
               { id:"volume",    label:"Volume Signals" },
-              { id:"whale",     label:"🐋 Whale Tracker" },
               { id:"addlinfo",  label:"Additional Information" },
               { id:"debug",     label:"Debug" },
               { id:"admin",     label:"Admin" },
@@ -3475,7 +3478,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             }
 
             var tabContent = insightCache[insightTab];
-            var _noFetch   = ["business","addlinfo","debug","signal","admin","financial","intrinsic","aianalysis","aiinsight","trend","momentum","reversal","volume","whale"];
+            var _noFetch   = ["business","addlinfo","debug","signal","admin","financial","intrinsic","aianalysis","aiinsight","trend","momentum","reversal","volume"];
             var isLoading  = !tabContent && _noFetch.indexOf(insightTab) === -1;           return (
               <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden" }}>
 
@@ -6632,266 +6635,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                         <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de",marginTop:8}}>
                           {"Volume signals are based on available daily bar data. VWAP is intraday only. Accumulation/distribution counts use 20-day window. Not financial advice."}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {insightTab === "whale" && (function() {
-                    // ── Whale Tracker ── lazy-fetch /options on first render ──────────────
-                    // Uses separate state: whaleData / whaleLoading -- zero impact on other tabs
-                    var aggs  = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
-
-                    // Trigger options fetch if not yet loaded for this sym
-                    if (!whaleData && !whaleLoading) {
-                      setWhaleLoading(true);
-                      var _wSym = sym === "BRKB" ? "BRK-B" : sym;
-                      fetch("/options?sym=" + _wSym)
-                        .then(function(r) { return r.json(); })
-                        .then(function(d) { setWhaleData(d); setWhaleLoading(false); })
-                        .catch(function()  { setWhaleData({ error: true }); setWhaleLoading(false); });
-                    }
-
-                    // ── Volume vs 20-day avg ─────────────────────────────────────────────
-                    var vol20avg = aggs.length > 0
-                      ? aggs.slice(0,20).reduce(function(s,a){ return s+(a.v||0); },0) / Math.min(aggs.length,20)
-                      : 0;
-                    var vol5avg = aggs.length > 0
-                      ? aggs.slice(0,5).reduce(function(s,a){ return s+(a.v||0); },0) / Math.min(aggs.slice(0,5).length,5)
-                      : 0;
-                    var volRatioW = vol20avg > 0 ? vol5avg / vol20avg : null;
-
-                    // ── Options data ─────────────────────────────────────────────────────
-                    var putCallOI  = whaleData && whaleData.putCallOI  ? parseFloat(whaleData.putCallOI)  : null;
-                    var putCallVol = whaleData && whaleData.putCallVol ? parseFloat(whaleData.putCallVol) : null;
-                    var callOIw    = whaleData ? (whaleData.callOI  || 0) : 0;
-                    var putOIw     = whaleData ? (whaleData.putOI   || 0) : 0;
-                    var callVolw   = whaleData ? (whaleData.callVol || 0) : 0;
-                    var putVolw    = whaleData ? (whaleData.putVol  || 0) : 0;
-                    var topOIw     = whaleData && whaleData.topOI ? whaleData.topOI : [];
-
-                    // ── Insider buys ─────────────────────────────────────────────────────
-                    var insiderBuys = ov && ov.insiderTx
-                      ? ov.insiderTx.filter(function(t) {
-                          var a = (t.action || "").toLowerCase();
-                          return a.indexOf("purchase") !== -1 || a.indexOf("buy") !== -1 || a.indexOf("acquisition") !== -1;
-                        })
-                      : [];
-
-                    // ── 4 signals ────────────────────────────────────────────────────────
-                    // Signal 1: OI skew  (putCallOI < 0.7 = bullish, > 1.3 = bearish)
-                    var sig1 = putCallOI !== null
-                      ? (putCallOI < 0.7 ? "bull" : putCallOI > 1.3 ? "bear" : "neutral")
-                      : "nodata";
-                    // Signal 2: Volume skew
-                    var sig2 = putCallVol !== null
-                      ? (putCallVol < 0.7 ? "bull" : putCallVol > 1.3 ? "bear" : "neutral")
-                      : "nodata";
-                    // Signal 3: Volume spike
-                    var sig3 = volRatioW !== null
-                      ? (volRatioW > 1.5 ? "spike" : volRatioW > 1.1 ? "elevated" : "normal")
-                      : "nodata";
-                    // Signal 4: Insider buying
-                    var sig4 = insiderBuys.length >= 2 ? "strong" : insiderBuys.length === 1 ? "mild" : "none";
-
-                    // ── Overall pressure score ────────────────────────────────────────────
-                    var wScore = 0;
-                    if (sig1 === "bull")     wScore += 30;
-                    if (sig1 === "bear")     wScore -= 30;
-                    if (sig2 === "bull")     wScore += 25;
-                    if (sig2 === "bear")     wScore -= 25;
-                    if (sig3 === "spike")    wScore += 20;
-                    if (sig3 === "elevated") wScore += 10;
-                    if (sig4 === "strong")   wScore += 25;
-                    if (sig4 === "mild")     wScore += 10;
-
-                    var wLabel = wScore >= 40 ? "Strong Accumulation"
-                      : wScore >= 15  ? "Mild Accumulation"
-                      : wScore <= -40 ? "Strong Distribution"
-                      : wScore <= -15 ? "Mild Distribution"
-                      : "Neutral / No Signal";
-
-                    var wColor = wScore >= 15 ? "#1a6a1a" : wScore <= -15 ? "#c03030" : "#888";
-                    var wBg    = wScore >= 15 ? "#f0f7f0" : wScore <= -15 ? "#fdf0f0" : "#f9f7f4";
-                    var wBd    = wScore >= 15 ? "#7abd00" : wScore <= -15 ? "#e05050" : "#e0dbd0";
-
-                    function fmtKw(n) {
-                      if (!n) return "-";
-                      if (n >= 1e6) return (n/1e6).toFixed(1)+"M";
-                      if (n >= 1e3) return (n/1e3).toFixed(0)+"K";
-                      return String(n);
-                    }
-
-                    function WSignalRow(label, value, bullish, neutral) {
-                      var isBull = bullish === true;
-                      var isNeutral = neutral === true || (!isBull && bullish !== false);
-                      var col  = isBull ? "#1a6a1a" : isNeutral ? "#888" : "#c03030";
-                      var icon = isBull ? "▲" : isNeutral ? "—" : "▼";
-                      var rowBg = isBull ? "#f5fdf5" : isNeutral ? "#fafafa" : "#fdf5f5";
-                      return (
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
-                          padding:"11px 14px", borderBottom:"0.5px solid #f0ede6", background:rowBg }}>
-                          <div>
-                            <div style={{ fontSize:12, fontWeight:700, color:"#222" }}>{label}</div>
-                            <div style={{ fontSize:11, color:"#888", marginTop:2 }}>{value}</div>
-                          </div>
-                          <div style={{ fontSize:16, fontWeight:800, color:col, marginLeft:12 }}>{icon}</div>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div>
-                        {/* Pressure banner */}
-                        <div style={{ background:wBg, border:"1px solid "+wBd, borderRadius:10,
-                          padding:"16px 18px", marginBottom:16, display:"flex",
-                          alignItems:"center", justifyContent:"space-between" }}>
-                          <div>
-                            <div style={{ fontSize:10, color:"#999", fontWeight:700,
-                              textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>
-                              Whale Pressure
-                            </div>
-                            <div style={{ fontSize:20, fontWeight:800, color:wColor }}>{wLabel}</div>
-                            <div style={{ fontSize:11, color:"#aaa", marginTop:4 }}>
-                              {"Score: " + (wScore > 0 ? "+" : "") + wScore + " / 100"}
-                            </div>
-                          </div>
-                          <div style={{ fontSize:36 }}>{"🐋"}</div>
-                        </div>
-
-                        {/* Loading */}
-                        {whaleLoading && (
-                          <div style={{ textAlign:"center", padding:"24px", color:"#aaa", fontSize:12 }}>
-                            {"Loading options data..."}
-                          </div>
-                        )}
-
-                        {/* Signal rows */}
-                        {!whaleLoading && (
-                          <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10,
-                            overflow:"hidden", marginBottom:16 }}>
-                            <div style={{ padding:"10px 14px", background:"#faf8f4",
-                              borderBottom:"1px solid #e8e4dc" }}>
-                              <span style={{ fontSize:10, fontWeight:700, color:"#999",
-                                textTransform:"uppercase", letterSpacing:"0.08em" }}>
-                                Signal Breakdown
-                              </span>
-                            </div>
-                            {WSignalRow(
-                              "Options OI Skew",
-                              putCallOI !== null
-                                ? "P/C OI Ratio: " + putCallOI.toFixed(2) + "  |  Calls: " + fmtKw(callOIw) + "  Puts: " + fmtKw(putOIw)
-                                : "Options data unavailable",
-                              sig1 === "bull", sig1 === "neutral" || sig1 === "nodata"
-                            )}
-                            {WSignalRow(
-                              "Options Volume Skew",
-                              putCallVol !== null
-                                ? "P/C Vol Ratio: " + putCallVol.toFixed(2) + "  |  Call Vol: " + fmtKw(callVolw) + "  Put Vol: " + fmtKw(putVolw)
-                                : "Options data unavailable",
-                              sig2 === "bull", sig2 === "neutral" || sig2 === "nodata"
-                            )}
-                            {WSignalRow(
-                              "Volume Spike (5d vs 20d avg)",
-                              volRatioW !== null
-                                ? "Ratio: " + volRatioW.toFixed(2) + "x  |  5d avg: " + fmtKw(Math.round(vol5avg)) + "  20d avg: " + fmtKw(Math.round(vol20avg))
-                                : "Volume data unavailable",
-                              sig3 === "spike" || sig3 === "elevated", sig3 === "normal" || sig3 === "nodata"
-                            )}
-                            {WSignalRow(
-                              "Insider Buying",
-                              insiderBuys.length > 0
-                                ? insiderBuys.length + " recent buy" + (insiderBuys.length > 1 ? "s" : "") + " — " + (insiderBuys[0] ? insiderBuys[0].name : "")
-                                : "No recent insider purchases",
-                              sig4 === "strong" || sig4 === "mild", sig4 === "none"
-                            )}
-                          </div>
-                        )}
-
-                        {/* Top OI contracts table */}
-                        {!whaleLoading && topOIw.length > 0 && (
-                          <div style={{ marginBottom:16 }}>
-                            <div style={{ fontSize:10, fontWeight:700, color:"#999",
-                              textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>
-                              Top 10 Contracts by Open Interest
-                            </div>
-                            <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10, overflow:"hidden" }}>
-                              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-                                <thead>
-                                  <tr style={{ background:"#faf8f4", borderBottom:"1px solid #e8e4dc" }}>
-                                    {["Type","Strike","Expiry","OI","IV","Last"].map(function(h) {
-                                      return <td key={h} style={{ padding:"6px 10px", color:"#999",
-                                        fontWeight:700, textTransform:"uppercase", fontSize:9,
-                                        letterSpacing:"0.04em" }}>{h}</td>;
-                                    })}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {topOIw.map(function(c,i) {
-                                    var isCall = c.type === "call";
-                                    return (
-                                      <tr key={i} style={{ borderBottom:"0.5px solid #f5f2ec",
-                                        background: i%2===0 ? "#fff" : "#faf8f4" }}>
-                                        <td style={{ padding:"7px 10px", fontWeight:700,
-                                          color: isCall ? "#1a6a1a" : "#c03030" }}>
-                                          {(c.type||"").toUpperCase()}
-                                        </td>
-                                        <td style={{ padding:"7px 10px", fontWeight:600 }}>
-                                          {"$"+(c.strike||"-")}
-                                        </td>
-                                        <td style={{ padding:"7px 10px", color:"#888" }}>
-                                          {c.expiry||"-"}
-                                        </td>
-                                        <td style={{ padding:"7px 10px", fontWeight:700 }}>
-                                          {fmtKw(c.oi)}
-                                        </td>
-                                        <td style={{ padding:"7px 10px", color:"#666" }}>
-                                          {c.iv||"-"}
-                                        </td>
-                                        <td style={{ padding:"7px 10px", color:"#666" }}>
-                                          {c.last != null ? "$"+parseFloat(c.last).toFixed(2) : "-"}
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Institutional footprint */}
-                        {ov && (ov.institutionPct > 0 || ov.insiderPct > 0) && (
-                          <div style={{ marginBottom:16 }}>
-                            <div style={{ fontSize:10, fontWeight:700, color:"#999",
-                              textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>
-                              Institutional Footprint
-                            </div>
-                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
-                              {[
-                                ["Institution %", ov.institutionPct > 0 ? (ov.institutionPct*100).toFixed(1)+"%" : "-"],
-                                ["Insider %",     ov.insiderPct > 0     ? (ov.insiderPct*100).toFixed(1)+"%" : "-"],
-                                ["Short % Float", ov.shortPct > 0       ? (ov.shortPct*100).toFixed(1)+"%" : "-"],
-                              ].map(function(row,i) {
-                                return (
-                                  <div key={i} style={{ background:"#f9f7f4", borderRadius:8,
-                                    padding:"10px 12px", border:"0.5px solid #e8e4dc" }}>
-                                    <div style={{ fontSize:9, color:"#aaa", fontWeight:700,
-                                      textTransform:"uppercase", letterSpacing:"0.05em",
-                                      marginBottom:4 }}>{row[0]}</div>
-                                    <div style={{ fontSize:15, fontWeight:800, color:"#111" }}>{row[1]}</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Disclaimer */}
-                        <div style={{ fontSize:10, color:"#aaa", lineHeight:1.6,
-                          padding:"10px 12px", background:"#faf8f4", borderRadius:8,
-                          border:"0.5px solid #e8e4de" }}>
-                          {"Whale Tracker combines options OI skew, volume spikes, and insider activity as proxy signals for large-money positioning. Options data covers next 60 days of contracts (limit 250). Not financial advice."}
                         </div>
                       </div>
                     );
