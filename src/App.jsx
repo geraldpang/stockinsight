@@ -2559,7 +2559,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.41</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.42</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2613,7 +2613,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.41</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.42</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7651,6 +7651,7 @@ export default function App() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [tickerSignals, setTickerSignals] = useState([]);
   const [landingNews,   setLandingNews]   = useState([]);
+  const [newsFilter,    setNewsFilter]    = useState("ALL");
 
   // Mount UserButton on landing page when signed in
   // Uses MutationObserver to detect when the div appears in DOM after navigation
@@ -8024,7 +8025,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.41</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.42</span>
           </div>
         </div>
 
@@ -8220,38 +8221,34 @@ export default function App() {
               </div>
             </div>
 
+            {/* Divider */}
+            <div style={{ borderTop:"1px solid rgba(255,255,255,0.08)", margin:"8px 0" }}></div>
+
             {/* Market News */}
             <div>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:10 }}>
                 <div>
-                  <div style={{ fontSize:10, color:LIME, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:3 }}>Market News</div>
+                  <div style={{ fontSize:10, color:"#60b8f0", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:3 }}>Market News</div>
                   <div style={{ fontSize:12, color:"#555" }}>Latest from AI-rated stocks</div>
                 </div>
-                {/* Ticker filter pills */}
+                {/* Dropdown filter */}
                 {landingNews.length > 0 && (
-                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                    {(function(){
-                      var syms = [];
-                      tickerSignals.forEach(function(s){ if(syms.indexOf(s.sym)===-1) syms.push(s.sym); });
-                      return [{ sym:"ALL", label:"All" }].concat(syms.map(function(s){ return { sym:s, label:s }; }));
-                    })().map(function(f) {
-                      var isActive = (window.__newsFilter||"ALL") === f.sym;
-                      return (
-                        <button key={f.sym}
-                          onClick={function(){ window.__newsFilter = f.sym; window.__forceNewsRender && window.__forceNewsRender(); }}
-                          style={{ fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20, cursor:"pointer", border:"1px solid "+(isActive?LIME:"#333"), background:isActive?LIME:"transparent", color:isActive?"#0e0e0c":"#888", fontFamily:FONT }}>
-                          {f.label}
-                        </button>
-                      );
+                  <select
+                    value={newsFilter}
+                    onChange={function(e){ setNewsFilter(e.target.value); }}
+                    style={{ fontSize:11, fontWeight:600, padding:"5px 10px", borderRadius:8, border:"1px solid #333", background:"#1a1a14", color:"#c8f000", fontFamily:FONT, cursor:"pointer", outline:"none" }}>
+                    <option value="ALL">All Companies</option>
+                    {tickerSignals.map(function(s) {
+                      return <option key={s.sym} value={s.sym}>{s.sym + " — " + (NAMES[s.sym] || s.sym)}</option>;
                     })}
-                  </div>
+                  </select>
                 )}
               </div>
               {landingNews.length === 0 && (
                 <div style={{ fontSize:11, color:"#333", padding:"10px 0" }}>Loading news...</div>
               )}
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:8 }}>
-                {landingNews.filter(function(n){ var f=window.__newsFilter||"ALL"; return f==="ALL"||n.sym===f; }).slice(0, 12).map(function(n, i) {
+                {landingNews.filter(function(n){ return newsFilter === "ALL" || n.sym === newsFilter; }).slice(0, 12).map(function(n, i) {
                   return (
                     <a key={i} href={n.url} target="_blank" rel="noopener noreferrer"
                       style={{ display:"block", padding:"10px 12px", background:"#111", border:"1px solid #1e1e18", borderRadius:8, textDecoration:"none" }}
