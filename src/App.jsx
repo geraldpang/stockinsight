@@ -1120,7 +1120,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
           "EPS Growth: "+sfp(_ov.epsG)+" | LT EPS Est: "+sfp(_ov.ltG)+" | Beta: "+sfn(_ov.beta)+"\n\n"+
           "ANALYST CONSENSUS: Buy "+sfi(_ov.recBuy)+" | Hold "+sfi(_ov.recHold)+" | Sell "+sfi(_ov.recSell)+" | Target $"+(_ov.targetMedian?_ov.targetMedian.toFixed(2):"N/A")+"\n"+
           "\nRespond in EXACTLY this format. Plain English, no jargon without explanation:\n"+
-          "Fundamental (Invest): Strong Buy / Buy / Hold / Caution / Avoid\n"+
+          "Fundamental (Invest): Exceptional / Good / Fair / Stretched / Avoid\n"+
           "Confidence: Low / Medium / High\n"+
           "Key Strength: 1-2 sentences plain English.\n"+
           "Key Risk: 1-2 sentences plain English.\n"+
@@ -2559,7 +2559,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.35</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.36</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2613,7 +2613,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.35</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.36</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -2951,21 +2951,32 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 {(function() {
                   function aiVerdictColor(v) {
                     if (!v) return pillColor(null);
-                    var vl = v.toLowerCase();
+                    var vl = v.toLowerCase().replace(/\*/g,"").trim();
+                    if (vl.includes("exceptional"))              return pillColor("buy");
+                    if (vl.includes("good"))                     return pillColor("buy");
+                    if (vl.includes("fair"))                     return pillColor("hold");
+                    if (vl.includes("stretched"))                return pillColor("hold");
+                    if (vl.includes("avoid"))                    return pillColor("avoid");
+                    // Legacy fallback for old cached verdicts
                     if (vl.includes("strong buy")||vl.includes("strong bull")) return pillColor("buy");
                     if (vl.includes("buy")||vl.includes("bull"))               return pillColor("buy");
-                    if (vl.includes("avoid")||vl.includes("strong bear"))      return pillColor("avoid");
                     if (vl.includes("caution")||vl.includes("bear"))           return pillColor("hold");
+                    if (vl.includes("strong bear"))                            return pillColor("avoid");
                     return pillColor("hold");
                   }
                   function aiVerdictScore(v) {
                     if (!v) return 0;
-                    var vl = v.toLowerCase();
+                    var vl = v.toLowerCase().replace(/\*/g,"").trim();
+                    if (vl.includes("exceptional"))              return 5;
+                    if (vl.includes("good"))                     return 4;
+                    if (vl.includes("fair"))                     return 3;
+                    if (vl.includes("stretched"))                return 2;
+                    if (vl.includes("avoid"))                    return 1;
+                    // Legacy fallback for old cached verdicts
                     if (vl.includes("strong buy")||vl.includes("strong bull")) return 5;
-                    if (vl.includes("buy")||vl.includes("bull")) return 4;
-                    if (vl.includes("hold")||vl.includes("neutral")) return 3;
-                    if (vl.includes("caution")||vl.includes("bear")) return 2;
-                    if (vl.includes("avoid")||vl.includes("strong bear")) return 1;
+                    if (vl.includes("buy")||vl.includes("bull"))               return 4;
+                    if (vl.includes("hold")||vl.includes("neutral"))           return 3;
+                    if (vl.includes("caution")||vl.includes("bear"))           return 2;
                     return 0;
                   }
                   var fundC  = aiVerdictColor(aiFundResult ? aiFundResult.verdict : null);
@@ -7710,22 +7721,27 @@ export default function App() {
         var obj = JSON.parse(text);
         if (obj && obj.verdict) {
           var vl = obj.verdict.toLowerCase().replace(/\*/g, "").trim();
+          var isExceptional = vl.indexOf("exceptional") !== -1;
+          var isGood = vl.indexOf("good") !== -1;
+          // Legacy: strong buy / buy
           var isStrongBuy = vl.indexOf("strong buy") !== -1;
           var isBuy = vl.indexOf("buy") !== -1;
-          if (!isStrongBuy && !isBuy) return null;
-          return { fundV: obj.verdict, isStrongBuy: isStrongBuy };
+          if (!isExceptional && !isGood && !isStrongBuy && !isBuy) return null;
+          return { fundV: obj.verdict, isStrongBuy: isExceptional || isStrongBuy };
         }
       } catch(e) {}
-      // Fall back to plain text line parsing (old format)
+      // Fall back to plain text line parsing
       var fundV = exLine(text, "Fundamental");
       if (!fundV) fundV = exLine(text, "Overall Verdict");
       if (!fundV) fundV = exLine(text, "Verdict");
       if (!fundV) return null;
-      var vl = fundV.toLowerCase();
+      var vl = fundV.toLowerCase().replace(/\*/g, "").trim();
+      var isExceptional = vl.indexOf("exceptional") !== -1;
+      var isGood = vl.indexOf("good") !== -1;
       var isStrongBuy = vl.indexOf("strong buy") !== -1;
       var isBuy = vl.indexOf("buy") !== -1;
-      if (!isStrongBuy && !isBuy) return null;
-      return { fundV: fundV, isStrongBuy: isStrongBuy };
+      if (!isExceptional && !isGood && !isStrongBuy && !isBuy) return null;
+      return { fundV: fundV, isStrongBuy: isExceptional || isStrongBuy };
     }
 
     function fetchSignal(sym) {
@@ -7792,7 +7808,7 @@ export default function App() {
       }).catch(function(){});
   }, []);
 
-  // Fetch news for top Buy/Strong Buy tickers when signals load
+  // Fetch news for top Exceptional/Good tickers when signals load
   useEffect(function() {
     if (tickerSignals.length === 0) return;
     var top = tickerSignals.slice(0, 4);
@@ -7977,12 +7993,13 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.35</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.36</span>
           </div>
         </div>
 
       </nav>
 
+      {/* Scrolling AI Signal Ticker Bar - header */}
       {/* Hero */}
       <div style={{ position:"relative", zIndex:5, display:"flex", flexDirection:"column", alignItems:"center", paddingTop:70, paddingBottom:100 }}>
 
@@ -8128,7 +8145,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* AI Favourites + Market News — 2-column section */}
+      {/* AI Favourites + Market News */}
       {tickerSignals.length > 0 && (
         <div style={{ position:"relative", zIndex:5, padding:"0 32px 140px", maxWidth:1100, margin:"0 auto" }}>
           <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:28 }}>
@@ -8142,12 +8159,14 @@ export default function App() {
             <div>
               <div style={{ marginBottom:14 }}>
                 <div style={{ fontSize:10, color:LIME, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:3 }}>AI Favourites</div>
-                <div style={{ fontSize:12, color:"#555" }}>Stocks our AI currently rates Buy or Strong Buy</div>
+                <div style={{ fontSize:12, color:"#555" }}>Stocks our AI currently rates Exceptional or Good</div>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                 {tickerSignals.map(function(sig, i) {
-                  var isStrong = sig.isStrongBuy;
-                  var col = isStrong ? LIME : "#60b8f0";
+                  var vl = (sig.fundV||"").toLowerCase().replace(/\*/g,"").trim();
+                  var isExceptional = vl.indexOf("exceptional") !== -1 || sig.isStrongBuy;
+                  var col = isExceptional ? LIME : "#60b8f0";
+                  var label = isExceptional ? "Exceptional" : "Good";
                   return (
                     <div key={i}
                       onClick={function(){ window.location.hash = sig.sym; }}
@@ -8156,9 +8175,7 @@ export default function App() {
                       onMouseLeave={function(e){ e.currentTarget.style.borderColor="#1e1e18"; }}>
                       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
                         <span style={{ fontSize:14, fontWeight:900, color:"#fff" }}>{sig.sym}</span>
-                        <span style={{ fontSize:9, fontWeight:700, color: isStrong ? "#0e0e0c" : "#fff", background:col, padding:"2px 8px", borderRadius:6 }}>
-                          {isStrong ? "Strong Buy" : "Buy"}
-                        </span>
+                        <span style={{ fontSize:9, fontWeight:700, color: isExceptional ? "#0e0e0c" : "#fff", background:col, padding:"2px 8px", borderRadius:6 }}>{label}</span>
                       </div>
                       <div style={{ fontSize:11, color:"#555", marginBottom:5, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                         {NAMES[sig.sym] || ""}
