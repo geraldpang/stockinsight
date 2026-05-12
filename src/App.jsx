@@ -2559,7 +2559,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.40</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.41</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2613,7 +2613,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.40</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.41</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -4730,20 +4730,20 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               <VerdictBanner title="Fundamental Verdict" verdict={aiFundResult.verdict} confidence={aiFundResult.confidence} />
                               {aiFundResult.strength && (
                                 <div style={{ marginBottom:8, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
-                                  <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:2 }}>KEY STRENGTH</div>
+                                  <div style={{ fontSize:10, color:"#1a6a1a", fontWeight:700, marginBottom:2 }}>KEY STRENGTH</div>
                                   <div style={{ fontSize:12, color:"#444", lineHeight:1.5 }}>{aiFundResult.strength}</div>
                                 </div>
                               )}
                               {aiFundResult.risk && (
                                 <div style={{ marginBottom:8, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
-                                  <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:2 }}>KEY RISK</div>
+                                  <div style={{ fontSize:10, color:"#c03030", fontWeight:700, marginBottom:2 }}>KEY RISK</div>
                                   <div style={{ fontSize:12, color:"#444", lineHeight:1.5 }}>{aiFundResult.risk}</div>
                                 </div>
                               )}
                               {aiFundResult.summary && (
                                 <div style={{ marginBottom:12, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
                                   <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:4 }}>SUMMARY</div>
-                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.7 }}>{aiFundResult.summary}</div>
+                                  <div style={{ fontSize:12, color:"#111", lineHeight:1.7 }}>{aiFundResult.summary}</div>
                                 </div>
                               )}
                               {isAdmin && <div style={{ marginTop:12 }}>
@@ -4797,7 +4797,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               {aiTechResult.summary && (
                                 <div style={{ marginBottom:12, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
                                   <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:4 }}>SUMMARY</div>
-                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.7 }}>{aiTechResult.summary}</div>
+                                  <div style={{ fontSize:12, color:"#111", lineHeight:1.7 }}>{aiTechResult.summary}</div>
                                 </div>
                               )}
                               {isAdmin && <div style={{ marginTop:12 }}>
@@ -8024,7 +8024,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.40</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.41</span>
           </div>
         </div>
 
@@ -8184,7 +8184,7 @@ export default function App() {
             <span style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.12em", whiteSpace:"nowrap" }}>AI Intelligence</span>
             <div style={{ flex:1, height:1, background:"rgba(200,240,0,0.1)" }}></div>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"3fr 2fr", gap:32, alignItems:"start" }}>
+          <div style={{ display:"flex", flexDirection:"column", gap:32 }}>
 
             {/* Left — AI Favourites */}
             <div>
@@ -8192,7 +8192,7 @@ export default function App() {
                 <div style={{ fontSize:10, color:LIME, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:3 }}>AI Favourites</div>
                 <div style={{ fontSize:12, color:"#555" }}>Stocks our AI currently rates Exceptional or Good</div>
               </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))", gap:10 }}>
                 {tickerSignals.map(function(sig, i) {
                   var vl = (sig.fundV||"").toLowerCase().replace(/\*/g,"").trim();
                   var isExceptional = vl.indexOf("exceptional") !== -1 || sig.isStrongBuy;
@@ -8220,17 +8220,38 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right — Market News */}
+            {/* Market News */}
             <div>
-              <div style={{ marginBottom:14 }}>
-                <div style={{ fontSize:10, color:LIME, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:3 }}>Market News</div>
-                <div style={{ fontSize:12, color:"#555" }}>Latest from AI-rated stocks</div>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:10 }}>
+                <div>
+                  <div style={{ fontSize:10, color:LIME, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:3 }}>Market News</div>
+                  <div style={{ fontSize:12, color:"#555" }}>Latest from AI-rated stocks</div>
+                </div>
+                {/* Ticker filter pills */}
+                {landingNews.length > 0 && (
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                    {(function(){
+                      var syms = [];
+                      tickerSignals.forEach(function(s){ if(syms.indexOf(s.sym)===-1) syms.push(s.sym); });
+                      return [{ sym:"ALL", label:"All" }].concat(syms.map(function(s){ return { sym:s, label:s }; }));
+                    })().map(function(f) {
+                      var isActive = (window.__newsFilter||"ALL") === f.sym;
+                      return (
+                        <button key={f.sym}
+                          onClick={function(){ window.__newsFilter = f.sym; window.__forceNewsRender && window.__forceNewsRender(); }}
+                          style={{ fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20, cursor:"pointer", border:"1px solid "+(isActive?LIME:"#333"), background:isActive?LIME:"transparent", color:isActive?"#0e0e0c":"#888", fontFamily:FONT }}>
+                          {f.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               {landingNews.length === 0 && (
                 <div style={{ fontSize:11, color:"#333", padding:"10px 0" }}>Loading news...</div>
               )}
-              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                {landingNews.slice(0, 8).map(function(n, i) {
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:8 }}>
+                {landingNews.filter(function(n){ var f=window.__newsFilter||"ALL"; return f==="ALL"||n.sym===f; }).slice(0, 12).map(function(n, i) {
                   return (
                     <a key={i} href={n.url} target="_blank" rel="noopener noreferrer"
                       style={{ display:"block", padding:"10px 12px", background:"#111", border:"1px solid #1e1e18", borderRadius:8, textDecoration:"none" }}
