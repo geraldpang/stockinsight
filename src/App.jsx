@@ -1121,7 +1121,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
           "ANALYST CONSENSUS: Buy "+sfi(_ov.recBuy)+" | Hold "+sfi(_ov.recHold)+" | Sell "+sfi(_ov.recSell)+" | Target $"+(_ov.targetMedian?_ov.targetMedian.toFixed(2):"N/A")+"\n"+
           "\nRespond in EXACTLY this format. Plain English, no jargon without explanation:\n"+
           "Fundamental (Invest): Exceptional / Good / Fair / Stretched / Avoid\n"+
-          "Confidence: Low / Medium / High\n"+
           "Key Strength: 1-3 sentences plain English.\n"+
           "Key Risk: 1-3 sentences plain English.\n"+
           "Summary (2-3 sentences): Explain to a friend with some finance knowledge. Include your view on whether the intrinsic value models seem reasonable and what that means for whether the stock is cheap or expensive right now.";
@@ -1278,7 +1277,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
           "",
           "Respond in EXACTLY this format. Plain English only -- no jargon without explanation:",
           "Technical (Trade): Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish",
-          "Confidence: Low / Medium / High",
           "Key Level: 1-3 sentences -- what price level to watch and why.",
           "Key Strength: 1-3 sentences -- what the signals say is positive.",
           "Key Risk: 1-3 sentences -- what the signals say is a concern.",
@@ -2559,7 +2557,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.42</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.44</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2613,7 +2611,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.42</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.44</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -4742,7 +4740,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               )}
                               {aiFundResult.summary && (
                                 <div style={{ marginBottom:12, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
-                                  <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:4 }}>SUMMARY</div>
+                                  <div style={{ fontSize:10, color:"#111", fontWeight:700, marginBottom:4 }}>SUMMARY</div>
                                   <div style={{ fontSize:12, color:"#111", lineHeight:1.7 }}>{aiFundResult.summary}</div>
                                 </div>
                               )}
@@ -4796,7 +4794,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               )}
                               {aiTechResult.summary && (
                                 <div style={{ marginBottom:12, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
-                                  <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:4 }}>SUMMARY</div>
+                                  <div style={{ fontSize:10, color:"#111", fontWeight:700, marginBottom:4 }}>SUMMARY</div>
                                   <div style={{ fontSize:12, color:"#111", lineHeight:1.7 }}>{aiTechResult.summary}</div>
                                 </div>
                               )}
@@ -8025,7 +8023,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.42</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.44</span>
           </div>
         </div>
 
@@ -8236,7 +8234,7 @@ export default function App() {
                   <select
                     value={newsFilter}
                     onChange={function(e){ setNewsFilter(e.target.value); }}
-                    style={{ fontSize:11, fontWeight:600, padding:"5px 10px", borderRadius:8, border:"1px solid #333", background:"#1a1a14", color:"#c8f000", fontFamily:FONT, cursor:"pointer", outline:"none" }}>
+                    style={{ fontSize:11, fontWeight:600, padding:"5px 10px", borderRadius:8, border:"1px solid #333", background:"#1a1a14", color:"#60b8f0", fontFamily:FONT, cursor:"pointer", outline:"none" }}>
                     <option value="ALL">All Companies</option>
                     {tickerSignals.map(function(s) {
                       return <option key={s.sym} value={s.sym}>{s.sym + " — " + (NAMES[s.sym] || s.sym)}</option>;
@@ -8255,7 +8253,7 @@ export default function App() {
                       onMouseEnter={function(e){ e.currentTarget.style.borderColor="#333"; }}
                       onMouseLeave={function(e){ e.currentTarget.style.borderColor="#1e1e18"; }}>
                       <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
-                        <span style={{ fontSize:11, fontWeight:800, color:LIME }}>{n.sym}</span>
+                        <span style={{ fontSize:11, fontWeight:800, color:"#60b8f0" }}>{n.sym}</span>
                         <span style={{ fontSize:10, color:"#444" }}>{n.source}</span>
                       </div>
                       <div style={{ fontSize:12, color:"#c0bbb4", lineHeight:1.45, marginBottom:3 }}>{n.title}</div>
