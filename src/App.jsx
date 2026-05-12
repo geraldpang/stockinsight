@@ -2656,7 +2656,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         var sigs = window.__tickerSignals || [];
         var speed = Math.max(20, sigs.length * 5);
         return (
-          <div style={{ position:"relative", zIndex:10, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100vw", left:"50%", right:"50%", marginLeft:"-50vw", marginRight:"-50vw" }}>
+          <div style={{ position:"fixed", zIndex:999, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100%", left:0, right:0, bottom:0 }}>
             <style>{"@keyframes ng-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}"}</style>
             <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
               {sigs.concat(sigs).concat(sigs).concat(sigs).map(function(sig, i) {
@@ -7847,7 +7847,7 @@ export default function App() {
         var sigs = window.__tickerSignals || [];
         var speed = Math.max(20, sigs.length * 5);
         return (
-          <div style={{ position:"relative", zIndex:10, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100vw", left:"50%", right:"50%", marginLeft:"-50vw", marginRight:"-50vw" }}>
+          <div style={{ position:"fixed", zIndex:999, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100%", left:0, right:0, bottom:0 }}>
             <style>{"@keyframes ng-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}"}</style>
             <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
               {sigs.concat(sigs).concat(sigs).concat(sigs).map(function(sig, i) {
