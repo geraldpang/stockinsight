@@ -2651,32 +2651,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         );
       })()}
 
-      {/* Scrolling AI Signal Ticker Bar - header */}
-      {window.__tickerSignals && window.__tickerSignals.length > 0 && (function() {
-        var sigs = window.__tickerSignals || [];
-        var speed = Math.max(20, sigs.length * 5);
-        return (
-          <div style={{ position:"fixed", zIndex:999, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100%", left:0, right:0, bottom:0 }}>
-            <style>{"@keyframes ng-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}"}</style>
-            <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
-              {sigs.concat(sigs).concat(sigs).concat(sigs).map(function(sig, i) {
-                var priceStr = sig.price > 0 ? "$" + sig.price.toFixed(2) : "";
-                var isStrongBuy = sig.fundV && sig.fundV.toLowerCase().indexOf("strong buy") !== -1;
-                var col = isStrongBuy ? "#c8f000" : "#60b8f0";
-                return (
-                  <span key={i}
-                    onClick={function(){ window.location.hash = sig.sym; }}
-                    style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"0 18px", cursor:"pointer", flexShrink:0, lineHeight:"28px", borderRight:"1px solid #1e1e18" }}>
-                    <span style={{ width:5, height:5, borderRadius:"50%", background:col, display:"inline-block", flexShrink:0 }}></span>
-                    <span style={{ fontSize:11, fontWeight:800, color:col }}>{sig.sym}</span>
-                    {priceStr && <span style={{ fontSize:10, color:"#555" }}>{priceStr}</span>}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
       {msg && (
         <div style={{
           background: msg.startsWith("Error") ? "#fff0f0" : "#f0f7ff",
@@ -7503,6 +7477,7 @@ export default function App() {
   const [periodEnd, setPeriodEnd] = useState(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [tickerSignals, setTickerSignals] = useState([]);
+  const [landingNews,   setLandingNews]   = useState([]);
 
   // Mount UserButton on landing page when signed in
   // Uses MutationObserver to detect when the div appears in DOM after navigation
@@ -7676,6 +7651,26 @@ export default function App() {
       }).catch(function(){});
   }, []);
 
+  // Fetch news for top Buy/Strong Buy tickers when signals load
+  useEffect(function() {
+    if (tickerSignals.length === 0) return;
+    var top = tickerSignals.slice(0, 4);
+    var hdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
+    Promise.all(top.map(function(sig) {
+      return fetch("/massive?sym=" + sig.sym, { headers: hdrs })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var news = d && d.news ? d.news : [];
+          return news.slice(0, 5).map(function(n) { return { sym: sig.sym, title: n.title, source: n.source, url: n.url, date: n.published_utc || n.date || "" }; });
+        })
+        .catch(function() { return []; });
+    })).then(function(results) {
+      var combined = [].concat.apply([], results);
+      combined.sort(function(a, b) { return new Date(b.date||0) - new Date(a.date||0); });
+      setLandingNews(combined);
+    });
+  }, [tickerSignals]);
+
   function getHash() {
     var h = window.location.hash.replace("#", "").toUpperCase().trim();
     return h || null;
@@ -7842,31 +7837,6 @@ export default function App() {
 
       </nav>
 
-      {/* Scrolling AI Signal Ticker Bar - header */}
-      {window.__tickerSignals && window.__tickerSignals.length > 0 && (function() {
-        var sigs = window.__tickerSignals || [];
-        var speed = Math.max(20, sigs.length * 5);
-        return (
-          <div style={{ position:"fixed", zIndex:999, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100%", left:0, right:0, bottom:0 }}>
-            <style>{"@keyframes ng-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}"}</style>
-            <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
-              {sigs.concat(sigs).concat(sigs).concat(sigs).map(function(sig, i) {
-                var col = sig.isStrongBuy ? "#c8f000" : "#60b8f0";
-                var priceStr = sig.price > 0 ? "$" + sig.price.toFixed(2) : "";
-                return (
-                  <span key={i}
-                    onClick={function(){ window.location.hash = sig.sym; }}
-                    style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"0 18px", cursor:"pointer", flexShrink:0, lineHeight:"28px", borderRight:"1px solid #1e1e18" }}>
-                    <span style={{ width:5, height:5, borderRadius:"50%", background:col, display:"inline-block", flexShrink:0 }}></span>
-                    <span style={{ fontSize:11, fontWeight:800, color:col }}>{sig.sym}</span>
-                    {priceStr && <span style={{ fontSize:10, color:"#555" }}>{priceStr}</span>}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
       {/* Hero */}
       <div style={{ position:"relative", zIndex:5, display:"flex", flexDirection:"column", alignItems:"center", paddingTop:70, paddingBottom:100 }}>
 
@@ -8011,6 +7981,85 @@ export default function App() {
           )}
         </div>
       </div>
+
+      {/* AI Favourites + Market News — 2-column section */}
+      {tickerSignals.length > 0 && (
+        <div style={{ position:"relative", zIndex:5, padding:"0 32px 140px", maxWidth:1100, margin:"0 auto" }}>
+
+          {/* Section divider */}
+          <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:28 }}>
+            <div style={{ flex:1, height:1, background:"rgba(200,240,0,0.1)" }}></div>
+            <span style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.12em", whiteSpace:"nowrap" }}>AI Intelligence</span>
+            <div style={{ flex:1, height:1, background:"rgba(200,240,0,0.1)" }}></div>
+          </div>
+
+          <div style={{ display:"grid", gridTemplateColumns:"3fr 2fr", gap:32, alignItems:"start" }}>
+
+            {/* Left — AI Favourites */}
+            <div>
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:10, color:LIME, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>AI Favourites</div>
+                <div style={{ fontSize:12, color:"#555" }}>Stocks our AI currently rates Buy or Strong Buy</div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                {tickerSignals.map(function(sig, i) {
+                  var isStrong = sig.isStrongBuy;
+                  var col = isStrong ? LIME : "#60b8f0";
+                  return (
+                    <div key={i}
+                      onClick={function(){ window.location.hash = sig.sym; }}
+                      style={{ background:"#111", border:"1px solid #1e1e18", borderRadius:10, padding:"12px 14px", cursor:"pointer", transition:"border-color 0.15s" }}
+                      onMouseEnter={function(e){ e.currentTarget.style.borderColor = col; }}
+                      onMouseLeave={function(e){ e.currentTarget.style.borderColor = "#1e1e18"; }}>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
+                        <span style={{ fontSize:14, fontWeight:900, color:"#fff" }}>{sig.sym}</span>
+                        <span style={{ fontSize:9, fontWeight:700, color: isStrong ? "#0e0e0c" : "#fff", background:col, padding:"2px 8px", borderRadius:6 }}>
+                          {isStrong ? "Strong Buy" : "Buy"}
+                        </span>
+                      </div>
+                      <div style={{ fontSize:11, color:"#555", marginBottom:5, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                        {NAMES[sig.sym] || ""}
+                      </div>
+                      {sig.price > 0 && (
+                        <div style={{ fontSize:13, fontWeight:700, color:"#a09a8a" }}>{"$" + sig.price.toFixed(2)}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Right — Market News */}
+            <div>
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:10, color:"#60b8f0", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>Market News</div>
+                <div style={{ fontSize:12, color:"#555" }}>Latest from AI-rated stocks</div>
+              </div>
+              {landingNews.length === 0 && (
+                <div style={{ fontSize:11, color:"#333", padding:"10px 0" }}>Loading news...</div>
+              )}
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {landingNews.slice(0, 8).map(function(n, i) {
+                  return (
+                    <a key={i} href={n.url} target="_blank" rel="noopener noreferrer"
+                      style={{ display:"block", padding:"10px 12px", background:"#111", border:"1px solid #1e1e18", borderRadius:8, textDecoration:"none", transition:"border-color 0.15s" }}
+                      onMouseEnter={function(e){ e.currentTarget.style.borderColor="#333"; }}
+                      onMouseLeave={function(e){ e.currentTarget.style.borderColor="#1e1e18"; }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+                        <span style={{ fontSize:9, fontWeight:700, color:"#0e0e0c", background:"#60b8f0", padding:"1px 6px", borderRadius:4 }}>{n.sym}</span>
+                        <span style={{ fontSize:10, color:"#444" }}>{n.source}</span>
+                      </div>
+                      <div style={{ fontSize:12, color:"#c0bbb4", lineHeight:1.45, marginBottom:4 }}>{n.title}</div>
+                      <div style={{ fontSize:10, color:"#444" }}>{n.date ? new Date(n.date).toLocaleDateString("en-AU", { day:"numeric", month:"short" }) : ""}</div>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* Sticky disclaimer footer */}
       <div style={{
