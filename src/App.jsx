@@ -1402,11 +1402,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         var mFallback = text.match(/Economic Moat Rating[^0-9]*([0-9])/);
         score = mFallback ? parseInt(mFallback[1], 10) : 0;
         if (!score) {
-          if (text.indexOf("Wide") !== -1) score = 5;
-          else if (text.indexOf("Strong") !== -1) score = 4;
-          else if (text.indexOf("Moderate") !== -1) score = 3;
-          else if (text.indexOf("Narrow") !== -1) score = 2;
-          else if (text.indexOf("Weak") !== -1) score = 1;
+          if (text.indexOf("Wide") !== -1) score = 4;
+          else if (text.indexOf("Narrow") !== -1) score = 3;
           else score = 1;
         }
       }
@@ -1414,7 +1411,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       var explanation = expIdx !== -1 ? text.substring(expIdx).replace(/^Explanation[^:]*:\s*/, "").split("\n")[0].trim() : "";
       result = {
         score: score,
-        classification: score >= 5 ? "Wide" : score >= 4 ? "Strong" : score >= 3 ? "Moderate" : score >= 2 ? "Narrow" : "Weak",
+        classification: score >= 4 ? "Wide" : score >= 3 ? "Narrow" : "None",
         explanation: explanation,
       };
     } else if (tabId === "financial") {
@@ -3434,7 +3431,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 sections: result,
                 rating: rating,
                 explanation: explanation,
-                classification: rating != null ? (rating >= 5 ? "Wide" : rating >= 4 ? "Strong" : rating >= 3 ? "Moderate" : rating >= 2 ? "Narrow" : "Weak") : null,
+                classification: rating != null ? (rating >= 4 ? "Wide" : rating >= 3 ? "Narrow" : "None") : null,
               };
             }
 
@@ -3939,10 +3936,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           return "#c03030";
                         }
                         function scoreLabel(s) {
-                          if (s >= 5) return "Wide";
                           if (s >= 4) return "Strong";
                           if (s >= 3) return "Moderate";
-                          if (s >= 2) return "Narrow";
+                          if (s >= 2) return "Limited";
                           return "Weak";
                         }
                         function DotBar(props) {
@@ -7603,9 +7599,19 @@ export default function App() {
 
     function parseFromText(text) {
       if (!text) return null;
-      // Try new format first: "Fundamental (Invest): Strong Buy"
+      // Try JSON format first (new ai-fund format stores as JSON object)
+      try {
+        var obj = JSON.parse(text);
+        if (obj && obj.verdict) {
+          var vl = obj.verdict.toLowerCase().replace(/\*/g, "").trim();
+          var isStrongBuy = vl.indexOf("strong buy") !== -1;
+          var isBuy = vl.indexOf("buy") !== -1;
+          if (!isStrongBuy && !isBuy) return null;
+          return { fundV: obj.verdict, isStrongBuy: isStrongBuy };
+        }
+      } catch(e) {}
+      // Fall back to plain text line parsing (old format)
       var fundV = exLine(text, "Fundamental");
-      // Fallback: old aiinsight format "Overall Verdict: Buy"
       if (!fundV) fundV = exLine(text, "Overall Verdict");
       if (!fundV) fundV = exLine(text, "Verdict");
       if (!fundV) return null;
