@@ -2656,7 +2656,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         var sigs = window.__tickerSignals || [];
         var speed = Math.max(20, sigs.length * 5);
         return (
-          <div style={{ position:"relative", zIndex:10, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100%", maxWidth:"100vw" }}>
+          <div style={{ position:"relative", zIndex:10, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100vw", left:"50%", right:"50%", marginLeft:"-50vw", marginRight:"-50vw" }}>
             <style>{"@keyframes ng-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}"}</style>
             <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
               {sigs.concat(sigs).concat(sigs).concat(sigs).map(function(sig, i) {
@@ -7599,19 +7599,9 @@ export default function App() {
 
     function parseFromText(text) {
       if (!text) return null;
-      // Try JSON format first (new ai-fund format stores as JSON object)
-      try {
-        var obj = JSON.parse(text);
-        if (obj && obj.verdict) {
-          var vl = obj.verdict.toLowerCase().replace(/\*/g, "").trim();
-          var isStrongBuy = vl.indexOf("strong buy") !== -1;
-          var isBuy = vl.indexOf("buy") !== -1;
-          if (!isStrongBuy && !isBuy) return null;
-          return { fundV: obj.verdict, isStrongBuy: isStrongBuy };
-        }
-      } catch(e) {}
-      // Fall back to plain text line parsing (old format)
+      // Try new format first: "Fundamental (Invest): Strong Buy"
       var fundV = exLine(text, "Fundamental");
+      // Fallback: old aiinsight format "Overall Verdict: Buy"
       if (!fundV) fundV = exLine(text, "Overall Verdict");
       if (!fundV) fundV = exLine(text, "Verdict");
       if (!fundV) return null;
@@ -7857,7 +7847,7 @@ export default function App() {
         var sigs = window.__tickerSignals || [];
         var speed = Math.max(20, sigs.length * 5);
         return (
-          <div style={{ position:"relative", zIndex:10, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100%", maxWidth:"100vw" }}>
+          <div style={{ position:"relative", zIndex:10, background:"#0a0a08", borderBottom:"1px solid #1e1e18", height:28, overflow:"hidden", display:"flex", alignItems:"center", width:"100vw", left:"50%", right:"50%", marginLeft:"-50vw", marginRight:"-50vw" }}>
             <style>{"@keyframes ng-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}"}</style>
             <div style={{ display:"inline-flex", alignItems:"center", whiteSpace:"nowrap", animation:"ng-ticker " + speed + "s linear infinite", willChange:"transform" }}>
               {sigs.concat(sigs).concat(sigs).concat(sigs).map(function(sig, i) {
