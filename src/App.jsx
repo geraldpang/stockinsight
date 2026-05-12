@@ -2559,7 +2559,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.36</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.37</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2613,7 +2613,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.36</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.37</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3012,7 +3012,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           }
                           {aiFundResult && fundSc > 0 && <Dots score={fundSc} filled={fundC.dot} empty={fundC.dotEmpty} />}
                         </div>
-                        {aiFundResult && aiFundResult.confidence && <div style={{ fontSize:10, color:fundC.fg, marginTop:3, opacity:0.75 }}>{"Confidence: " + aiFundResult.confidence}</div>}
                       </div>
                       {/* Technical AI pill */}
                       <div onClick={function(){ window.__goToTab && window.__goToTab("aianalysis"); }}
@@ -3051,7 +3050,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             </div>;
                           }
                           if(aiTechResult&&aiTechResult.confidence){
-                            return <div style={{fontSize:10,color:techC.fg,marginTop:4,opacity:0.75}}>{"Confidence: "+aiTechResult.confidence}</div>;
+                            return null;
                           }
                           return null;
                         })()}
@@ -3378,7 +3377,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               { id:"debug",     label:"Debug" },
               { id:"admin",     label:"Admin" },
             ];
-            var ADMIN_TABS = ["addlinfo", "debug", "admin"];
+            var ADMIN_TABS = ["addlinfo", "debug", "admin", "whale"];
             var TABS = isAdmin ? ALL_TABS : ALL_TABS.filter(function(t) { return ADMIN_TABS.indexOf(t.id) === -1; });
 
             function handleTab(id) {
@@ -4655,13 +4654,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       );
                     }
                     function VerdictBanner(props) {
-                      var vl = (props.verdict||"").toLowerCase();
-                      var isGood = vl.includes("buy")||vl.includes("bull");
+                      var vl = (props.verdict||"").toLowerCase().replace(/\*/g,"").trim();
+                      var isGood = vl.includes("exceptional")||vl.includes("good")||vl.includes("buy")||vl.includes("bull");
                       var isBad  = vl.includes("avoid")||vl.includes("strong bear");
                       var bg     = isGood?"#EAF3DE":isBad?"#FCEBEB":"#FAEEDA";
                       var border = isGood?"#7abd00":isBad?"#e08080":"#d4a800";
                       var fg     = isGood?"#1a6a1a":isBad?"#c03030":"#b88000";
-                      var score  = vl.includes("strong buy")||vl.includes("strong bull")?5:vl.includes("buy")||vl.includes("bull")?4:vl.includes("hold")||vl.includes("neutral")?3:vl.includes("caution")||vl.includes("bear")?2:1;
+                      var score  = vl.includes("exceptional")?5:vl.includes("good")?4:vl.includes("fair")?3:vl.includes("stretched")?2:vl.includes("avoid")?1:vl.includes("strong buy")||vl.includes("strong bull")?5:vl.includes("buy")||vl.includes("bull")?4:vl.includes("hold")||vl.includes("neutral")?3:vl.includes("caution")||vl.includes("bear")?2:1;
                       return (
                         <div style={{ padding:"12px 14px", background:bg, borderRadius:8, marginBottom:12, border:"0.5px solid "+border }}>
                           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
@@ -4674,7 +4673,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             </div>
                           </div>
                           {props.sub && <div style={{ fontSize:11, color:fg, opacity:0.85 }}>{props.sub}</div>}
-                          {props.confidence && <div style={{ fontSize:10, color:fg, opacity:0.7, marginTop:2 }}>{"Confidence: " + props.confidence}</div>}
                         </div>
                       );
                     }
@@ -7993,7 +7991,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.36</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.37</span>
           </div>
         </div>
 
@@ -8175,7 +8173,7 @@ export default function App() {
                       onMouseLeave={function(e){ e.currentTarget.style.borderColor="#1e1e18"; }}>
                       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
                         <span style={{ fontSize:14, fontWeight:900, color:"#fff" }}>{sig.sym}</span>
-                        <span style={{ fontSize:9, fontWeight:700, color: isExceptional ? "#0e0e0c" : "#fff", background:col, padding:"2px 8px", borderRadius:6 }}>{label}</span>
+                        <span style={{ fontSize:9, fontWeight:700, color:"#0e0e0c", background:col, padding:"2px 8px", borderRadius:6 }}>{label}</span>
                       </div>
                       <div style={{ fontSize:11, color:"#555", marginBottom:5, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                         {NAMES[sig.sym] || ""}
