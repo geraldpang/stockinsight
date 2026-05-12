@@ -2526,7 +2526,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 onBlur={function(){ setTimeout(function(){ setNavFocus(false); }, 180); }}
                 onKeyDown={function(e){ if(e.key==="Enter") navGo(); }}
                 placeholder="Search ticker or company..."
-                style={{ flex:1, border:"0.5px solid #2c2c2e", outline:"none", background:"transparent", fontSize:12, color:"#333", fontFamily:FONT }}
+                style={{ flex:1, border:"none", outline:"none", background:"transparent", fontSize:12, color:"#333", fontFamily:FONT }}
               />
               {navInput && <span onClick={function(){ setNavInput(""); }} style={{ cursor:"pointer", color:"#bbb", fontSize:15, lineHeight:1, flexShrink:0 }}>{String.fromCharCode(0xD7)}</span>}
             </div>
@@ -2559,7 +2559,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.38</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.39</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2613,7 +2613,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.38</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.39</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3205,7 +3205,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             );
           })()}
 
-                {/* SIGNALS -- separate card */}
+                {/* SIGNALS -- separate card, hidden when no signals */}
+                {(function(){
+                  var _hasTechCheck=!!(massiveInfo&&massiveInfo.indicators&&q&&q.price);
+                  if(!_hasTechCheck) return null;
+                  return (
                 <div style={{ background:"#1e1e1e", border:"0.5px solid #2c2c2e", borderRadius:10, overflow:"hidden", marginBottom:8, marginTop:8 }}>
                   <div style={{ background:"#242424", padding:"5px 12px", borderBottom:"0.5px solid #2c2c2e" }}>
                     <span style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.1em" }}>Signals</span>
@@ -3284,6 +3288,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     );
                   })()}
                 </div>
+                  );
+                })()}
 
                     {/* Metric color helpers */}
                     {(function() {
@@ -7991,7 +7997,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.38</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.39</span>
           </div>
         </div>
 
@@ -8163,7 +8169,7 @@ export default function App() {
                 {tickerSignals.map(function(sig, i) {
                   var vl = (sig.fundV||"").toLowerCase().replace(/\*/g,"").trim();
                   var isExceptional = vl.indexOf("exceptional") !== -1 || sig.isStrongBuy;
-                  var col = isExceptional ? LIME : "#60b8f0";
+                  var col = LIME;
                   var label = isExceptional ? "Exceptional" : "Good";
                   return (
                     <div key={i}
@@ -8190,7 +8196,7 @@ export default function App() {
             {/* Right — Market News */}
             <div>
               <div style={{ marginBottom:14 }}>
-                <div style={{ fontSize:10, color:"#60b8f0", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:3 }}>Market News</div>
+                <div style={{ fontSize:10, color:LIME, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:3 }}>Market News</div>
                 <div style={{ fontSize:12, color:"#555" }}>Latest from AI-rated stocks</div>
               </div>
               {landingNews.length === 0 && (
@@ -8204,7 +8210,7 @@ export default function App() {
                       onMouseEnter={function(e){ e.currentTarget.style.borderColor="#333"; }}
                       onMouseLeave={function(e){ e.currentTarget.style.borderColor="#1e1e18"; }}>
                       <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
-                        <span style={{ fontSize:9, fontWeight:700, color:"#0e0e0c", background:"#60b8f0", padding:"1px 6px", borderRadius:4 }}>{n.sym}</span>
+                        <span style={{ fontSize:11, fontWeight:800, color:LIME }}>{n.sym}</span>
                         <span style={{ fontSize:10, color:"#444" }}>{n.source}</span>
                       </div>
                       <div style={{ fontSize:12, color:"#c0bbb4", lineHeight:1.45, marginBottom:3 }}>{n.title}</div>
