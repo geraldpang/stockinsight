@@ -1004,6 +1004,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [addlInfo,      setAddlInfo]      = useState(null);
   const [addlLoading,   setAddlLoading]   = useState(false);
   const [massiveInfo,   setMassiveInfo]   = useState(null);
+  const [whaleData,     setWhaleData]     = useState(null);
+  const [whaleLoading,  setWhaleLoading]  = useState(false);
   const [debugLog,      setDebugLog]      = useState([]);
   const [adminCfg,      setAdminCfg]      = useState(null);
   const [adminStats,    setAdminStats]    = useState({});
@@ -1402,8 +1404,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         var mFallback = text.match(/Economic Moat Rating[^0-9]*([0-9])/);
         score = mFallback ? parseInt(mFallback[1], 10) : 0;
         if (!score) {
-          if (text.indexOf("Wide") !== -1) score = 4;
-          else if (text.indexOf("Narrow") !== -1) score = 3;
+          if (text.indexOf("Wide") !== -1) score = 5;
+          else if (text.indexOf("Strong") !== -1) score = 4;
+          else if (text.indexOf("Moderate") !== -1) score = 3;
+          else if (text.indexOf("Narrow") !== -1) score = 2;
+          else if (text.indexOf("Weak") !== -1) score = 1;
           else score = 1;
         }
       }
@@ -1411,7 +1416,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       var explanation = expIdx !== -1 ? text.substring(expIdx).replace(/^Explanation[^:]*:\s*/, "").split("\n")[0].trim() : "";
       result = {
         score: score,
-        classification: score >= 4 ? "Wide" : score >= 3 ? "Narrow" : "None",
+        classification: score >= 5 ? "Wide" : score >= 4 ? "Strong" : score >= 3 ? "Moderate" : score >= 2 ? "Narrow" : "Weak",
         explanation: explanation,
       };
     } else if (tabId === "financial") {
@@ -1456,7 +1461,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -2552,7 +2557,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"minmax(0,200px) 1fr auto", alignItems:"center", gap:0, minWidth:0 }}>
               {/* Left cell -- Logo + ticker (mirrors 400px left panel) */}
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px" }}>NervousGeek</span>
+                <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+                  <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.35</span>
+                </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
               {/* Right panel cell -- Back + Search aligned to chart panel edge */}
@@ -2603,7 +2611,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             <div className="nav-mobile" style={{ background:"#c8f000", padding:"8px 14px 7px" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:7 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px" }}>NervousGeek</span>
+                  <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+                    <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.35</span>
+                  </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
                 <button onClick={function(){ setMobilePanel("left"); onBack(); }} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"4px 10px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:11, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
@@ -3351,6 +3362,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               { id:"momentum",  label:"Momentum" },
               { id:"reversal",  label:"Reversal Signals" },
               { id:"volume",    label:"Volume Signals" },
+              { id:"whale",     label:"🐋 Whale Tracker" },
               { id:"addlinfo",  label:"Additional Information" },
               { id:"debug",     label:"Debug" },
               { id:"admin",     label:"Admin" },
@@ -3405,7 +3417,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 sections: result,
                 rating: rating,
                 explanation: explanation,
-                classification: rating != null ? (rating >= 4 ? "Wide" : rating >= 3 ? "Narrow" : "None") : null,
+                classification: rating != null ? (rating >= 5 ? "Wide" : rating >= 4 ? "Strong" : rating >= 3 ? "Moderate" : rating >= 2 ? "Narrow" : "Weak") : null,
               };
             }
 
@@ -3446,7 +3458,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             }
 
             var tabContent = insightCache[insightTab];
-            var _noFetch   = ["business","addlinfo","debug","signal","admin","financial","intrinsic","aianalysis","aiinsight","trend","momentum","reversal","volume"];
+            var _noFetch   = ["business","addlinfo","debug","signal","admin","financial","intrinsic","aianalysis","aiinsight","trend","momentum","reversal","volume","whale"];
             var isLoading  = !tabContent && _noFetch.indexOf(insightTab) === -1;           return (
               <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden" }}>
 
@@ -3910,9 +3922,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           return "#c03030";
                         }
                         function scoreLabel(s) {
+                          if (s >= 5) return "Wide";
                           if (s >= 4) return "Strong";
                           if (s >= 3) return "Moderate";
-                          if (s >= 2) return "Limited";
+                          if (s >= 2) return "Narrow";
                           return "Weak";
                         }
                         function DotBar(props) {
@@ -6608,6 +6621,124 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     );
                   })()}
 
+                  {insightTab === "whale" && (function() {
+                    var aggs = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
+                    if (!whaleData && !whaleLoading) {
+                      setWhaleLoading(true);
+                      var _wSym = sym === "BRKB" ? "BRK-B" : sym;
+                      fetch("/options?sym=" + _wSym)
+                        .then(function(r) { return r.json(); })
+                        .then(function(d) { setWhaleData(d); setWhaleLoading(false); })
+                        .catch(function() { setWhaleData({ error: true }); setWhaleLoading(false); });
+                    }
+                    var vol20avg = aggs.length > 0 ? aggs.slice(0,20).reduce(function(s,a){ return s+(a.v||0); },0)/Math.min(aggs.length,20) : 0;
+                    var vol5avg  = aggs.length > 0 ? aggs.slice(0,5).reduce(function(s,a){ return s+(a.v||0); },0)/Math.min(aggs.slice(0,5).length,5) : 0;
+                    var volRatioW = vol20avg > 0 ? vol5avg / vol20avg : null;
+                    var putCallOI  = whaleData && whaleData.putCallOI  ? parseFloat(whaleData.putCallOI)  : null;
+                    var putCallVol = whaleData && whaleData.putCallVol ? parseFloat(whaleData.putCallVol) : null;
+                    var callOIw  = whaleData ? (whaleData.callOI  || 0) : 0;
+                    var putOIw   = whaleData ? (whaleData.putOI   || 0) : 0;
+                    var callVolw = whaleData ? (whaleData.callVol || 0) : 0;
+                    var putVolw  = whaleData ? (whaleData.putVol  || 0) : 0;
+                    var topOIw   = whaleData && whaleData.topOI ? whaleData.topOI : [];
+                    var insiderBuys = ov && ov.insiderTx ? ov.insiderTx.filter(function(t) {
+                      var a = (t.action||"").toLowerCase();
+                      return a.indexOf("purchase")!==-1||a.indexOf("buy")!==-1||a.indexOf("acquisition")!==-1;
+                    }) : [];
+                    var sig1 = putCallOI !== null ? (putCallOI < 0.7 ? "bull" : putCallOI > 1.3 ? "bear" : "neutral") : "nodata";
+                    var sig2 = putCallVol !== null ? (putCallVol < 0.7 ? "bull" : putCallVol > 1.3 ? "bear" : "neutral") : "nodata";
+                    var sig3 = volRatioW !== null ? (volRatioW > 1.5 ? "spike" : volRatioW > 1.1 ? "elevated" : "normal") : "nodata";
+                    var sig4 = insiderBuys.length >= 2 ? "strong" : insiderBuys.length === 1 ? "mild" : "none";
+                    var wScore = 0;
+                    if (sig1==="bull") wScore+=30; if (sig1==="bear") wScore-=30;
+                    if (sig2==="bull") wScore+=25; if (sig2==="bear") wScore-=25;
+                    if (sig3==="spike") wScore+=20; if (sig3==="elevated") wScore+=10;
+                    if (sig4==="strong") wScore+=25; if (sig4==="mild") wScore+=10;
+                    var wLabel = wScore>=40?"Strong Accumulation":wScore>=15?"Mild Accumulation":wScore<=-40?"Strong Distribution":wScore<=-15?"Mild Distribution":"Neutral / No Signal";
+                    var wColor = wScore>=15?"#1a6a1a":wScore<=-15?"#c03030":"#888";
+                    var wBg    = wScore>=15?"#f0f7f0":wScore<=-15?"#fdf0f0":"#f9f7f4";
+                    var wBd    = wScore>=15?"#7abd00":wScore<=-15?"#e05050":"#e0dbd0";
+                    function fmtKw(n) { if(!n) return "-"; if(n>=1e6) return (n/1e6).toFixed(1)+"M"; if(n>=1e3) return (n/1e3).toFixed(0)+"K"; return String(n); }
+                    function WSignalRow(label, value, bullish, neutral) {
+                      var col = bullish===true?"#1a6a1a":neutral===true?"#888":"#c03030";
+                      var icon = bullish===true?"▲":neutral===true?"—":"▼";
+                      var rowBg = bullish===true?"#f5fdf5":neutral===true?"#fafafa":"#fdf5f5";
+                      return (
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 14px", borderBottom:"0.5px solid #f0ede6", background:rowBg }}>
+                          <div>
+                            <div style={{ fontSize:12, fontWeight:700, color:"#222" }}>{label}</div>
+                            <div style={{ fontSize:11, color:"#888", marginTop:2 }}>{value}</div>
+                          </div>
+                          <div style={{ fontSize:16, fontWeight:800, color:col, marginLeft:12 }}>{icon}</div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div>
+                        <div style={{ background:wBg, border:"1px solid "+wBd, borderRadius:10, padding:"16px 18px", marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                          <div>
+                            <div style={{ fontSize:10, color:"#999", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Whale Pressure</div>
+                            <div style={{ fontSize:20, fontWeight:800, color:wColor }}>{wLabel}</div>
+                            <div style={{ fontSize:11, color:"#aaa", marginTop:4 }}>{"Score: "+(wScore>0?"+":"")+wScore+" / 100"}</div>
+                          </div>
+                          <div style={{ fontSize:36 }}>{"🐋"}</div>
+                        </div>
+                        {whaleLoading && <div style={{ textAlign:"center", padding:"24px", color:"#aaa", fontSize:12 }}>{"Loading options data..."}</div>}
+                        {!whaleLoading && (
+                          <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10, overflow:"hidden", marginBottom:16 }}>
+                            <div style={{ padding:"10px 14px", background:"#faf8f4", borderBottom:"1px solid #e8e4dc" }}>
+                              <span style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em" }}>Signal Breakdown</span>
+                            </div>
+                            {WSignalRow("Options OI Skew", putCallOI!==null?"P/C OI: "+putCallOI.toFixed(2)+"  |  Calls: "+fmtKw(callOIw)+"  Puts: "+fmtKw(putOIw):"Options data unavailable", sig1==="bull", sig1==="neutral"||sig1==="nodata")}
+                            {WSignalRow("Options Volume Skew", putCallVol!==null?"P/C Vol: "+putCallVol.toFixed(2)+"  |  Call Vol: "+fmtKw(callVolw)+"  Put Vol: "+fmtKw(putVolw):"Options data unavailable", sig2==="bull", sig2==="neutral"||sig2==="nodata")}
+                            {WSignalRow("Volume Spike (5d vs 20d)", volRatioW!==null?"Ratio: "+volRatioW.toFixed(2)+"x  |  5d: "+fmtKw(Math.round(vol5avg))+"  20d: "+fmtKw(Math.round(vol20avg)):"Volume data unavailable", sig3==="spike"||sig3==="elevated", sig3==="normal"||sig3==="nodata")}
+                            {WSignalRow("Insider Buying", insiderBuys.length>0?insiderBuys.length+" recent buy"+(insiderBuys.length>1?"s":"")+" — "+(insiderBuys[0]?insiderBuys[0].name:""):"No recent insider purchases", sig4==="strong"||sig4==="mild", sig4==="none")}
+                          </div>
+                        )}
+                        {!whaleLoading && topOIw.length > 0 && (
+                          <div style={{ marginBottom:16 }}>
+                            <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Top 10 Contracts by Open Interest</div>
+                            <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10, overflow:"hidden" }}>
+                              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                                <thead><tr style={{ background:"#faf8f4", borderBottom:"1px solid #e8e4dc" }}>
+                                  {["Type","Strike","Expiry","OI","IV","Last"].map(function(h){ return <td key={h} style={{ padding:"6px 10px", color:"#999", fontWeight:700, textTransform:"uppercase", fontSize:9 }}>{h}</td>; })}
+                                </tr></thead>
+                                <tbody>
+                                  {topOIw.map(function(c,i){ var isCall=c.type==="call"; return (
+                                    <tr key={i} style={{ borderBottom:"0.5px solid #f5f2ec", background:i%2===0?"#fff":"#faf8f4" }}>
+                                      <td style={{ padding:"7px 10px", fontWeight:700, color:isCall?"#1a6a1a":"#c03030" }}>{(c.type||"").toUpperCase()}</td>
+                                      <td style={{ padding:"7px 10px", fontWeight:600 }}>{"$"+(c.strike||"-")}</td>
+                                      <td style={{ padding:"7px 10px", color:"#888" }}>{c.expiry||"-"}</td>
+                                      <td style={{ padding:"7px 10px", fontWeight:700 }}>{fmtKw(c.oi)}</td>
+                                      <td style={{ padding:"7px 10px", color:"#666" }}>{c.iv||"-"}</td>
+                                      <td style={{ padding:"7px 10px", color:"#666" }}>{c.last!=null?"$"+parseFloat(c.last).toFixed(2):"-"}</td>
+                                    </tr>
+                                  ); })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                        {ov && (ov.institutionPct>0||ov.insiderPct>0) && (
+                          <div style={{ marginBottom:16 }}>
+                            <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Institutional Footprint</div>
+                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+                              {[["Institution %",ov.institutionPct>0?(ov.institutionPct*100).toFixed(1)+"%":"-"],["Insider %",ov.insiderPct>0?(ov.insiderPct*100).toFixed(1)+"%":"-"],["Short % Float",ov.shortPct>0?(ov.shortPct*100).toFixed(1)+"%":"-"]].map(function(row,i){
+                                return <div key={i} style={{ background:"#f9f7f4", borderRadius:8, padding:"10px 12px", border:"0.5px solid #e8e4dc" }}>
+                                  <div style={{ fontSize:9, color:"#aaa", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>{row[0]}</div>
+                                  <div style={{ fontSize:15, fontWeight:800, color:"#111" }}>{row[1]}</div>
+                                </div>;
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        <div style={{ fontSize:10, color:"#aaa", lineHeight:1.6, padding:"10px 12px", background:"#faf8f4", borderRadius:8, border:"0.5px solid #e8e4de" }}>
+                          {"Whale Tracker combines options OI skew, volume spikes, and insider activity as proxy signals for large-money positioning. Options data covers next 60 days of contracts (limit 250). Not financial advice."}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {insightTab === "signal" && (function() {
                     // Market Signal tab -- uses revised 8-signal scoring (weekly/monthly horizon)
                     // Same methodology as Technical Analysis scoring block
@@ -7574,9 +7705,19 @@ export default function App() {
 
     function parseFromText(text) {
       if (!text) return null;
-      // Try new format first: "Fundamental (Invest): Strong Buy"
+      // Try JSON format first (new ai-fund format stores as JSON object)
+      try {
+        var obj = JSON.parse(text);
+        if (obj && obj.verdict) {
+          var vl = obj.verdict.toLowerCase().replace(/\*/g, "").trim();
+          var isStrongBuy = vl.indexOf("strong buy") !== -1;
+          var isBuy = vl.indexOf("buy") !== -1;
+          if (!isStrongBuy && !isBuy) return null;
+          return { fundV: obj.verdict, isStrongBuy: isStrongBuy };
+        }
+      } catch(e) {}
+      // Fall back to plain text line parsing (old format)
       var fundV = exLine(text, "Fundamental");
-      // Fallback: old aiinsight format "Overall Verdict: Buy"
       if (!fundV) fundV = exLine(text, "Overall Verdict");
       if (!fundV) fundV = exLine(text, "Verdict");
       if (!fundV) return null;
@@ -7661,7 +7802,9 @@ export default function App() {
         .then(function(r) { return r.json(); })
         .then(function(d) {
           var news = d && d.news ? d.news : [];
-          return news.slice(0, 5).map(function(n) { return { sym: sig.sym, title: n.title, source: n.source, url: n.url, date: n.published_utc || n.date || "" }; });
+          return news.slice(0, 5).map(function(n) {
+            return { sym: sig.sym, title: n.title, source: n.source, url: n.url, date: n.published_utc || n.date || "" };
+          });
         })
         .catch(function() { return []; });
     })).then(function(results) {
@@ -7832,7 +7975,10 @@ export default function App() {
             <circle cx="74" cy="52" r="6" fill={LIME}/>
             <line x1="48" y1="76" x2="62" y2="76" stroke={LIME} strokeWidth="3" strokeLinecap="round"/>
           </svg>
-          <span style={{ fontSize:17, fontWeight:900, letterSpacing:0 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
+          <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+            <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.35</span>
+          </div>
         </div>
 
       </nav>
@@ -7985,20 +8131,17 @@ export default function App() {
       {/* AI Favourites + Market News — 2-column section */}
       {tickerSignals.length > 0 && (
         <div style={{ position:"relative", zIndex:5, padding:"0 32px 140px", maxWidth:1100, margin:"0 auto" }}>
-
-          {/* Section divider */}
           <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:28 }}>
             <div style={{ flex:1, height:1, background:"rgba(200,240,0,0.1)" }}></div>
             <span style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.12em", whiteSpace:"nowrap" }}>AI Intelligence</span>
             <div style={{ flex:1, height:1, background:"rgba(200,240,0,0.1)" }}></div>
           </div>
-
           <div style={{ display:"grid", gridTemplateColumns:"3fr 2fr", gap:32, alignItems:"start" }}>
 
             {/* Left — AI Favourites */}
             <div>
-              <div style={{ marginBottom:16 }}>
-                <div style={{ fontSize:10, color:LIME, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>AI Favourites</div>
+              <div style={{ marginBottom:14 }}>
+                <div style={{ fontSize:10, color:LIME, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:3 }}>AI Favourites</div>
                 <div style={{ fontSize:12, color:"#555" }}>Stocks our AI currently rates Buy or Strong Buy</div>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
@@ -8008,9 +8151,9 @@ export default function App() {
                   return (
                     <div key={i}
                       onClick={function(){ window.location.hash = sig.sym; }}
-                      style={{ background:"#111", border:"1px solid #1e1e18", borderRadius:10, padding:"12px 14px", cursor:"pointer", transition:"border-color 0.15s" }}
-                      onMouseEnter={function(e){ e.currentTarget.style.borderColor = col; }}
-                      onMouseLeave={function(e){ e.currentTarget.style.borderColor = "#1e1e18"; }}>
+                      style={{ background:"#111", border:"1px solid #1e1e18", borderRadius:10, padding:"12px 14px", cursor:"pointer" }}
+                      onMouseEnter={function(e){ e.currentTarget.style.borderColor=col; }}
+                      onMouseLeave={function(e){ e.currentTarget.style.borderColor="#1e1e18"; }}>
                       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
                         <span style={{ fontSize:14, fontWeight:900, color:"#fff" }}>{sig.sym}</span>
                         <span style={{ fontSize:9, fontWeight:700, color: isStrong ? "#0e0e0c" : "#fff", background:col, padding:"2px 8px", borderRadius:6 }}>
@@ -8031,8 +8174,8 @@ export default function App() {
 
             {/* Right — Market News */}
             <div>
-              <div style={{ marginBottom:16 }}>
-                <div style={{ fontSize:10, color:"#60b8f0", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>Market News</div>
+              <div style={{ marginBottom:14 }}>
+                <div style={{ fontSize:10, color:"#60b8f0", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:3 }}>Market News</div>
                 <div style={{ fontSize:12, color:"#555" }}>Latest from AI-rated stocks</div>
               </div>
               {landingNews.length === 0 && (
@@ -8042,15 +8185,17 @@ export default function App() {
                 {landingNews.slice(0, 8).map(function(n, i) {
                   return (
                     <a key={i} href={n.url} target="_blank" rel="noopener noreferrer"
-                      style={{ display:"block", padding:"10px 12px", background:"#111", border:"1px solid #1e1e18", borderRadius:8, textDecoration:"none", transition:"border-color 0.15s" }}
+                      style={{ display:"block", padding:"10px 12px", background:"#111", border:"1px solid #1e1e18", borderRadius:8, textDecoration:"none" }}
                       onMouseEnter={function(e){ e.currentTarget.style.borderColor="#333"; }}
                       onMouseLeave={function(e){ e.currentTarget.style.borderColor="#1e1e18"; }}>
                       <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
                         <span style={{ fontSize:9, fontWeight:700, color:"#0e0e0c", background:"#60b8f0", padding:"1px 6px", borderRadius:4 }}>{n.sym}</span>
                         <span style={{ fontSize:10, color:"#444" }}>{n.source}</span>
                       </div>
-                      <div style={{ fontSize:12, color:"#c0bbb4", lineHeight:1.45, marginBottom:4 }}>{n.title}</div>
-                      <div style={{ fontSize:10, color:"#444" }}>{n.date ? new Date(n.date).toLocaleDateString("en-AU", { day:"numeric", month:"short" }) : ""}</div>
+                      <div style={{ fontSize:12, color:"#c0bbb4", lineHeight:1.45, marginBottom:3 }}>{n.title}</div>
+                      <div style={{ fontSize:10, color:"#444" }}>
+                        {n.date ? new Date(n.date).toLocaleDateString("en-AU", { day:"numeric", month:"short" }) : ""}
+                      </div>
                     </a>
                   );
                 })}
