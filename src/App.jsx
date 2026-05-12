@@ -1122,9 +1122,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
           "\nRespond in EXACTLY this format. Plain English, no jargon without explanation:\n"+
           "Fundamental (Invest): Exceptional / Good / Fair / Stretched / Avoid\n"+
           "Confidence: Low / Medium / High\n"+
-          "Key Strength: 1-2 sentences plain English.\n"+
-          "Key Risk: 1-2 sentences plain English.\n"+
-          "Summary (2-3 sentences): Explain to a friend with no finance knowledge. Include your view on whether the intrinsic value models seem reasonable and what that means for whether the stock is cheap or expensive right now.";
+          "Key Strength: 1-3 sentences plain English.\n"+
+          "Key Risk: 1-3 sentences plain English.\n"+
+          "Summary (2-3 sentences): Explain to a friend with some finance knowledge. Include your view on whether the intrinsic value models seem reasonable and what that means for whether the stock is cheap or expensive right now.";
         setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Fund MISS: "+symA+" -- calling Claude" }]); });
         fetch("/anthropic",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:1200, messages:[{role:"user",content:prompt}] }) })
           .then(function(r){ return r.json(); })
@@ -1279,9 +1279,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
           "Respond in EXACTLY this format. Plain English only -- no jargon without explanation:",
           "Technical (Trade): Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish",
           "Confidence: Low / Medium / High",
-          "Key Level: 1-2 sentences -- what price level to watch and why.",
-          "Key Strength: 1-2 sentences -- what the signals say is positive.",
-          "Key Risk: 1-2 sentences -- what the signals say is a concern.",
+          "Key Level: 1-3 sentences -- what price level to watch and why.",
+          "Key Strength: 1-3 sentences -- what the signals say is positive.",
+          "Key Risk: 1-3 sentences -- what the signals say is a concern.",
           "Summary (2-3 sentences): Trend direction, what key signals mean simply, and whether now is a good or risky time to buy.",
         ];
         var tprompt=_tLines.join("\n");
@@ -2559,7 +2559,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.39</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.40</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2613,7 +2613,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.39</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.40</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3209,6 +3209,32 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 {(function(){
                   var _hasTechCheck=!!(massiveInfo&&massiveInfo.indicators&&q&&q.price);
                   if(!_hasTechCheck) return null;
+                  var _ind3c=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
+                  var _aggs3c=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
+                  var _rsiH3c=_ind3c.rsiHistory||[]; var _mH3c=_ind3c.macdHistory||[];
+                  var _hi52c=ov?ov.hi52:0; var _lo52c=ov?ov.lo52:0; var _prPc=q?q.price:0;
+                  var _pos52c=(_hi52c>_lo52c&&_prPc>0)?(_prPc-_lo52c)/(_hi52c-_lo52c):0.5;
+                  var _bearArrC=[(function(){ if(_rsiH3c.length<10||_aggs3c.length<10) return false; var rPH=Math.max.apply(null,_aggs3c.slice(0,5).map(function(a){return a.h||0;})); var pPH=Math.max.apply(null,_aggs3c.slice(5,10).map(function(a){return a.h||0;})); var rRH=Math.max.apply(null,_rsiH3c.slice(0,5)); var pRH=Math.max.apply(null,_rsiH3c.slice(5,10)); return rPH>pPH&&rRH<pRH; })(),false,!!(_ind3c.wsma10&&_ind3c.wsma40&&_ind3c.wsma10>_ind3c.wsma40&&Math.abs(_ind3c.wsma10-_ind3c.wsma40)/_ind3c.wsma40<0.05),!!(_rsiH3c.length>=5&&_rsiH3c.slice(0,5).every(function(v){return v!=null&&v>=72&&v<=85;})),!!(_pos52c>0.95&&_ind3c.rsi14!=null&&parseFloat(_ind3c.rsi14)>70&&parseFloat(_ind3c.rsi14)<80)];
+                  var _revArrC=window.__revArr3&&window.__revSym3===sym?window.__revArr3:[false,false,false,false,false];
+                  var _wB=[3,2,2,1,1]; var _wBe=[3,2,2,1,1];
+                  var _bullSc=_revArrC.reduce(function(s,v,i){return s+(v?_wB[i]:0);},0);
+                  var _bearSc=_bearArrC.reduce(function(s,v,i){return s+(v?_wBe[i]:0);},0);
+                  var _netRevC=_bullSc-_bearSc;
+                  var _aggs4c=_aggs3c; var _vol20c=_aggs4c.slice(0,20).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4c.slice(0,20).length,1);
+                  var _vol5c=_aggs4c.slice(0,5).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4c.slice(0,5).length,1);
+                  var _vol5_20c=_aggs4c.slice(5,20).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4c.slice(5,20).length,1);
+                  var _acc4c=0; var _dist4c=0;
+                  _aggs4c.slice(0,20).forEach(function(a){ if(!a||!a.v||!a.c||!a.o) return; if(a.c>=a.o&&a.v>_vol20c) _acc4c++; else if(a.c<a.o&&a.v>_vol20c) _dist4c++; });
+                  var _vol1c=_aggs4c[0]?_aggs4c[0].v:0;
+                  var _closeUpC=_aggs4c.slice(0,5).filter(function(a){return a&&a.c&&a.o&&a.c>a.o;}).length;
+                  var _closeDnC=_aggs4c.slice(0,5).filter(function(a){return a&&a.c&&a.o&&a.c<a.o;}).length;
+                  var _bSigsC=[_vol1c>0&&_vol20c>0&&_vol1c>_vol20c*2.5,_aggs4c.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c>a.o&&a.v>_vol20c*2;}),_acc4c>_dist4c+1,_vol5_20c>0&&_vol5c>_vol5_20c*1.2,_closeUpC>=3];
+                  var _rSigsC=[!!(_aggs4c[0]&&_aggs4c[0].c&&_aggs4c[0].o&&_aggs4c[0].c>_aggs4c[0].o&&_vol1c<_vol20c*0.5),_dist4c>_acc4c+1,_aggs4c.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c<a.o&&a.v>_vol20c*2;}),_vol5_20c>0&&_vol5c<_vol5_20c*0.8,_closeDnC>=4];
+                  var _wVB=[2,3,3,2,1]; var _wVR=[2,3,3,2,1];
+                  var _volBSc=_bSigsC.reduce(function(s,v,i){return s+(v?_wVB[i]:0);},0);
+                  var _volRSc=_rSigsC.reduce(function(s,v,i){return s+(v?_wVR[i]:0);},0);
+                  var _netVolC=_volBSc-_volRSc;
+                  if (_netRevC===0 && _netVolC===0) return null;
                   return (
                 <div style={{ background:"#1e1e1e", border:"0.5px solid #2c2c2e", borderRadius:10, overflow:"hidden", marginBottom:8, marginTop:8 }}>
                   <div style={{ background:"#242424", padding:"5px 12px", borderBottom:"0.5px solid #2c2c2e" }}>
@@ -3261,6 +3287,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var _volBarPct=Math.min(_absVol/_maxVol,1)*100;
                     function SigRow2(tab, label, netScore, dir, barPct, strength){
                       var _det=_hasTech&&netScore!==0;
+                      if (!_det) return null;
                       var _bull=dir==="bull";
                       var _fg2=_det?(_bull?"#7abd00":"#e05050"):"#555"; var _dot2=_fg2;
                       var _arrow=_bull?String.fromCharCode(0x25B2):String.fromCharCode(0x25BC);
@@ -3499,8 +3526,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   })}
                 </div><div style={{ position:"absolute", right:0, top:0, bottom:0, width:40, background:"linear-gradient(to right, transparent, #faf8f4)", pointerEvents:"none", zIndex:1 }}></div></div>
 
-                {/* Cache status strip */}
-                {(function() {
+                {/* Cache status strip -- admin only */}
+                {isAdmin && (function() {
                   var _cs = window.__cacheStatus && window.__cacheStatus[sym + ":" + insightTab];
                   if (!_cs) return null;
                   var _cfg = {
@@ -4685,12 +4712,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var cachedAtFundStr = aiFundCachedAt ? new Date(aiFundCachedAt).toLocaleDateString() : null;
                     var cachedAtTechStr = aiTechCachedAt ? new Date(aiTechCachedAt).toLocaleDateString() : null;
                     return (
-                      <div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, alignItems:"start" }}>
                         {/* Fundamental AI Card */}
-                        <div style={{ marginBottom:20 }}>
+                        <div>
                           <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:12 }}>
                             <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Fundamental AI</span>
-                            {cachedAtFundStr && <span style={{ fontSize:10, color:"#aaa", marginLeft:8 }}>{"cached " + cachedAtFundStr + " (30d TTL)"}</span>}
+                            {isAdmin && cachedAtFundStr && <span style={{ fontSize:10, color:"#aaa", marginLeft:8 }}>{"cached " + cachedAtFundStr + " (30d TTL)"}</span>}
                           </div>
                           {aiFundLoading && (
                             <div style={{ textAlign:"center", padding:"20px 0" }}>
@@ -4737,7 +4764,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         <div>
                           <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:12 }}>
                             <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Technical AI</span>
-                            {cachedAtTechStr && <span style={{ fontSize:10, color:"#aaa", marginLeft:8 }}>{"cached " + cachedAtTechStr + " (1d TTL)"}</span>}
+                            {isAdmin && cachedAtTechStr && <span style={{ fontSize:10, color:"#aaa", marginLeft:8 }}>{"cached " + cachedAtTechStr + " (1d TTL)"}</span>}
                           </div>
                           {aiTechLoading && (
                             <div style={{ textAlign:"center", padding:"20px 0" }}>
@@ -7997,7 +8024,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.39</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.40</span>
           </div>
         </div>
 
