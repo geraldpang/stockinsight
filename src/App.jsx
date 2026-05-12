@@ -1402,8 +1402,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         var mFallback = text.match(/Economic Moat Rating[^0-9]*([0-9])/);
         score = mFallback ? parseInt(mFallback[1], 10) : 0;
         if (!score) {
-          if (text.indexOf("Wide") !== -1) score = 4;
-          else if (text.indexOf("Narrow") !== -1) score = 3;
+          if (text.indexOf("Wide") !== -1) score = 5;
+          else if (text.indexOf("Strong") !== -1) score = 4;
+          else if (text.indexOf("Moderate") !== -1) score = 3;
+          else if (text.indexOf("Narrow") !== -1) score = 2;
+          else if (text.indexOf("Weak") !== -1) score = 1;
           else score = 1;
         }
       }
@@ -1411,7 +1414,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       var explanation = expIdx !== -1 ? text.substring(expIdx).replace(/^Explanation[^:]*:\s*/, "").split("\n")[0].trim() : "";
       result = {
         score: score,
-        classification: score >= 4 ? "Wide" : score >= 3 ? "Narrow" : "None",
+        classification: score >= 5 ? "Wide" : score >= 4 ? "Strong" : score >= 3 ? "Moderate" : score >= 2 ? "Narrow" : "Weak",
         explanation: explanation,
       };
     } else if (tabId === "financial") {
@@ -2552,10 +2555,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             <div className="nav-desktop" style={{ background:"#c8f000", padding:"7px 20px", display:"grid", gridTemplateColumns:"minmax(0,200px) 1fr auto", alignItems:"center", gap:0, minWidth:0 }}>
               {/* Left cell -- Logo + ticker (mirrors 400px left panel) */}
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
-                  <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.34</span>
-                </div>
+                <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px" }}>NervousGeek</span>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
               {/* Right panel cell -- Back + Search aligned to chart panel edge */}
@@ -2606,10 +2606,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             <div className="nav-mobile" style={{ background:"#c8f000", padding:"8px 14px 7px" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:7 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
-                    <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.34</span>
-                  </div>
+                  <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px" }}>NervousGeek</span>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
                 <button onClick={function(){ setMobilePanel("left"); onBack(); }} style={{ border:"1px solid rgba(0,0,0,0.2)", borderRadius:6, padding:"4px 10px", background:"rgba(0,0,0,0.08)", cursor:"pointer", fontSize:11, fontFamily:FONT, color:"#1a1a14", fontWeight:600 }}>
@@ -3437,7 +3434,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 sections: result,
                 rating: rating,
                 explanation: explanation,
-                classification: rating != null ? (rating >= 4 ? "Wide" : rating >= 3 ? "Narrow" : "None") : null,
+                classification: rating != null ? (rating >= 5 ? "Wide" : rating >= 4 ? "Strong" : rating >= 3 ? "Moderate" : rating >= 2 ? "Narrow" : "Weak") : null,
               };
             }
 
@@ -3942,9 +3939,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           return "#c03030";
                         }
                         function scoreLabel(s) {
+                          if (s >= 5) return "Wide";
                           if (s >= 4) return "Strong";
                           if (s >= 3) return "Moderate";
-                          if (s >= 2) return "Limited";
+                          if (s >= 2) return "Narrow";
                           return "Weak";
                         }
                         function DotBar(props) {
