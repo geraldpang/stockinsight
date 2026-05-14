@@ -2557,7 +2557,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.45</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.46</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2611,7 +2611,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.45</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.46</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7650,6 +7650,7 @@ export default function App() {
   const [tickerSignals, setTickerSignals] = useState([]);
   const [landingNews,   setLandingNews]   = useState([]);
   const [newsFilter,    setNewsFilter]    = useState("ALL");
+  const [tickerEnrich,  setTickerEnrich]  = useState({});
 
   // Mount UserButton on landing page when signed in
   // Uses MutationObserver to detect when the div appears in DOM after navigation
@@ -7863,6 +7864,34 @@ export default function App() {
     });
   }, [tickerSignals]);
 
+  // Batch-fetch enriched data for all AI Favourites tickers
+  useEffect(function() {
+    if (tickerSignals.length === 0) return;
+    var syms = tickerSignals.map(function(s){ return s.sym === "BRKB" ? "BRK-B" : s.sym; }).join(",");
+    fetch("/proxy?url=" + encodeURIComponent("https://query2.finance.yahoo.com/v7/finance/quote?symbols=" + syms))
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var results = data && data.quoteResponse && data.quoteResponse.result;
+        if (!results) return;
+        var map = {};
+        results.forEach(function(q) {
+          var s = q.symbol === "BRK-B" ? "BRKB" : q.symbol;
+          map[s] = {
+            changePct: q.regularMarketChangePercent || 0,
+            mc:        q.marketCap || 0,
+            pe:        q.trailingPE || null,
+            ps:        q.priceToSalesTrailingTwelveMonths || null,
+            hi52:      q.fiftyTwoWeekHigh || 0,
+            lo52:      q.fiftyTwoWeekLow  || 0,
+            sma50:     q.fiftyDayAverage  || 0,
+            sma200:    q.twoHundredDayAverage || 0,
+          };
+        });
+        setTickerEnrich(map);
+      })
+      .catch(function(){});
+  }, [tickerSignals]);
+
   function getHash() {
     var h = window.location.hash.replace("#", "").toUpperCase().trim();
     return h || null;
@@ -8026,7 +8055,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.45</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.46</span>
           </div>
         </div>
 
@@ -8188,56 +8217,71 @@ export default function App() {
           </div>
           <div style={{ display:"flex", flexDirection:"column", gap:32 }}>
 
-            {/* Left — AI Favourites */}
+            {/* AI Favourites */}
             <div>
               <div style={{ marginBottom:14 }}>
                 <div style={{ fontSize:10, color:LIME, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:3 }}>AI Favourites</div>
                 <div style={{ fontSize:12, color:"#555" }}>Stocks our AI currently rates Exceptional or Good</div>
               </div>
-              <div style={{ border:"1px solid #1e1e18", borderRadius:10, overflow:"hidden" }}>
-                {/* Table header */}
-                <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 90px 80px 90px 120px", background:"#161614", borderBottom:"1px solid #1e1e18", padding:"8px 14px", gap:8 }}>
-                  {["Ticker","Company","Price","Chg %","Mkt Cap","AI Rating"].map(function(h) {
+              <div style={{ border:"1px solid #1e1e18", borderRadius:10, overflow:"hidden", overflowX:"auto" }}>
+                <div style={{ display:"grid", gridTemplateColumns:"72px 1fr 80px 68px 55px 55px 150px 70px 115px", background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px", gap:8, minWidth:780 }}>
+                  {["Ticker","Company","Price","Chg %","P/E","P/S","52W Range","Trend","AI Rating"].map(function(h) {
                     return <div key={h} style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em" }}>{h}</div>;
                   })}
                 </div>
-                {/* Table rows */}
                 {tickerSignals.map(function(sig, i) {
-                  var vl = (sig.fundV||"").toLowerCase().replace(/\*/g,"").trim();
-                  var isExceptional = vl.indexOf("exceptional") !== -1 || sig.isStrongBuy;
-                  var label = isExceptional ? "Exceptional" : "Good";
-                  var score = isExceptional ? 5 : 4;
-                  var chgPos = sig.changePct >= 0;
-                  function fmtMc(v) {
-                    if (!v) return "—";
-                    if (v >= 1e12) return "$" + (v/1e12).toFixed(1) + "T";
-                    if (v >= 1e9)  return "$" + (v/1e9).toFixed(1) + "B";
-                    if (v >= 1e6)  return "$" + (v/1e6).toFixed(0) + "M";
-                    return "—";
-                  }
+                  var en      = tickerEnrich[sig.sym] || {};
+                  var vl      = (sig.fundV||"").toLowerCase().replace(/\*/g,"").trim();
+                  var isExcep = vl.indexOf("exceptional") !== -1 || sig.isStrongBuy;
+                  var label   = isExcep ? "Exceptional" : "Good";
+                  var score   = isExcep ? 5 : 4;
+                  var chgPct  = en.changePct || sig.changePct || 0;
+                  var chgPos  = chgPct >= 0;
+                  var price   = sig.price || 0;
+                  var hi52    = en.hi52 || 0;
+                  var lo52    = en.lo52 || 0;
+                  var rangePct = (hi52 > lo52 && price > 0) ? Math.min(100, Math.max(0, ((price - lo52)/(hi52 - lo52))*100)) : null;
+                  var sma50   = en.sma50 || 0;
+                  var sma200  = en.sma200 || 0;
+                  var trendUp = sma50>0 && sma200>0 && price>sma50 && sma50>sma200;
+                  var trendDn = sma50>0 && sma200>0 && price<sma50 && sma50<sma200;
+                  var trendColor = trendUp?"#7abd00":trendDn?"#e05050":"#888";
+                  var trendLabel = trendUp?"\u2191 Up":trendDn?"\u2193 Down":sma50>0?"\u2192 Mixed":"\u2014";
+                  function fmtN(v){ return (v!=null&&v>0)?v.toFixed(1):"\u2014"; }
                   return (
                     <div key={i}
                       onClick={function(){ window.location.hash = sig.sym; }}
-                      style={{ display:"grid", gridTemplateColumns:"80px 1fr 90px 80px 90px 120px", padding:"10px 14px", gap:8, borderBottom: i < tickerSignals.length-1 ? "1px solid #1a1a16" : "none", cursor:"pointer", alignItems:"center", background:"#111" }}
+                      style={{ display:"grid", gridTemplateColumns:"72px 1fr 80px 68px 55px 55px 150px 70px 115px", padding:"10px 14px", gap:8, borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111", minWidth:780 }}
                       onMouseEnter={function(e){ e.currentTarget.style.background="#161614"; }}
                       onMouseLeave={function(e){ e.currentTarget.style.background="#111"; }}>
-                      {/* Ticker */}
                       <div style={{ fontSize:13, fontWeight:900, color:LIME }}>{sig.sym}</div>
-                      {/* Company */}
-                      <div style={{ fontSize:11, color:"#888", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{NAMES[sig.sym] || "—"}</div>
-                      {/* Price */}
-                      <div style={{ fontSize:12, fontWeight:700, color:"#fff" }}>{sig.price > 0 ? "$" + sig.price.toFixed(2) : "—"}</div>
-                      {/* Chg % */}
-                      <div style={{ fontSize:11, fontWeight:700, color: chgPos ? "#7abd00" : "#e05050" }}>
-                        {sig.changePct !== undefined && sig.changePct !== 0 ? (chgPos ? "+" : "") + sig.changePct.toFixed(2) + "%" : "—"}
+                      <div style={{ fontSize:11, color:"#777", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{NAMES[sig.sym]||"\u2014"}</div>
+                      <div style={{ fontSize:12, fontWeight:700, color:"#fff" }}>{price>0?"$"+price.toFixed(2):"\u2014"}</div>
+                      <div style={{ fontSize:11, fontWeight:700, color:chgPct!==0?(chgPos?"#7abd00":"#e05050"):"#555" }}>
+                        {chgPct!==0?(chgPos?"+":"")+chgPct.toFixed(2)+"%":"\u2014"}
                       </div>
-                      {/* Mkt Cap */}
-                      <div style={{ fontSize:11, color:"#666" }}>{fmtMc(sig.mc)}</div>
-                      {/* AI Rating */}
-                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                        <span style={{ fontSize:9, fontWeight:700, color:"#0e0e0c", background:LIME, padding:"2px 7px", borderRadius:5 }}>{label}</span>
+                      <div style={{ fontSize:11, color:"#aaa" }}>{fmtN(en.pe)}</div>
+                      <div style={{ fontSize:11, color:"#aaa" }}>{fmtN(en.ps)}</div>
+                      <div>
+                        {rangePct!==null?(
+                          <div>
+                            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                              <span style={{ fontSize:9, color:"#444" }}>{lo52>0?"$"+lo52.toFixed(0):""}</span>
+                              <span style={{ fontSize:9, color:rangePct>70?"#7abd00":rangePct<30?"#e05050":"#888", fontWeight:700 }}>{rangePct.toFixed(0)+"%"}</span>
+                              <span style={{ fontSize:9, color:"#444" }}>{hi52>0?"$"+hi52.toFixed(0):""}</span>
+                            </div>
+                            <div style={{ height:5, background:"#1e1e18", borderRadius:3, overflow:"visible", position:"relative" }}>
+                              <div style={{ position:"absolute", left:0, top:0, height:"100%", width:rangePct+"%", background:rangePct>70?"#7abd00":rangePct<30?"#e05050":"#EF9F27", borderRadius:3 }}></div>
+                              <div style={{ position:"absolute", top:"-2px", height:9, width:3, background:"#fff", borderRadius:1, left:"calc("+rangePct+"% - 1px)", zIndex:1 }}></div>
+                            </div>
+                          </div>
+                        ):<span style={{ fontSize:11, color:"#444" }}>{String.fromCharCode(0x2014)}</span>}
+                      </div>
+                      <div style={{ fontSize:11, fontWeight:700, color:trendColor }}>{trendLabel}</div>
+                      <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                        <span style={{ fontSize:9, fontWeight:700, color:"#0e0e0c", background:LIME, padding:"2px 7px", borderRadius:5, whiteSpace:"nowrap" }}>{label}</span>
                         <div style={{ display:"flex", gap:2 }}>
-                          {[1,2,3,4,5].map(function(d){ return <span key={d} style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background: d<=score ? LIME : "#2a2a24" }}></span>; })}
+                          {[1,2,3,4,5].map(function(d){ return <span key={d} style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background:d<=score?LIME:"#2a2a24" }}></span>; })}
                         </div>
                       </div>
                     </div>
