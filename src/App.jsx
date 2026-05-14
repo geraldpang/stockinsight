@@ -2557,7 +2557,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.54</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.55</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2611,7 +2611,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.54</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.55</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7803,9 +7803,14 @@ export default function App() {
         .then(function(parsed){
           if (!parsed) return null;
           var ySym = sym === "BRKB" ? "BRK-B" : sym;
-          return fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=1y"))
-            .then(function(r2){ return r2.json(); })
-            .then(function(q){
+          return Promise.all([
+            fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=1y"))
+              .then(function(r2){ return r2.json(); }).catch(function(){ return null; }),
+            fetch("/proxy?url=" + encodeURIComponent("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + ySym + "?modules=defaultKeyStatistics"))
+              .then(function(r3){ return r3.json(); }).catch(function(){ return null; })
+          ]).then(function(fetched) {
+              var q   = fetched[0];
+              var qs  = fetched[1];
               var res       = q&&q.chart&&q.chart.result&&q.chart.result[0];
               var meta      = res&&res.meta;
               var price     = meta?(meta.regularMarketPrice||0):0;
@@ -7829,8 +7834,12 @@ export default function App() {
                 var ag = gains/14, al = losses/14;
                 rsi = al === 0 ? 100 : 100 - (100/(1 + ag/al));
               }
-              return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:price, changePct:changePct, change:change, mc:mc, hi52:hi52, lo52:lo52, sma50:sma50, sma200:sma200, rsi:rsi };
-            }).catch(function(){ return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:0, changePct:0, change:0, mc:0, hi52:0, lo52:0, sma50:0, sma200:0, rsi:null }; });
+              // Analyst target from quoteSummary
+              var ksData      = qs&&qs.quoteSummary&&qs.quoteSummary.result&&qs.quoteSummary.result[0]&&qs.quoteSummary.result[0].defaultKeyStatistics;
+              var targetMean  = ksData&&ksData.targetMeanPrice&&ksData.targetMeanPrice.raw ? ksData.targetMeanPrice.raw : null;
+              var analystUp   = (targetMean && price > 0) ? ((targetMean - price) / price * 100) : null;
+              return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:price, changePct:changePct, change:change, mc:mc, hi52:hi52, lo52:lo52, sma50:sma50, sma200:sma200, rsi:rsi, targetMean:targetMean, analystUp:analystUp };
+            }).catch(function(){ return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:0, changePct:0, change:0, mc:0, hi52:0, lo52:0, sma50:0, sma200:0, rsi:null, targetMean:null, analystUp:null }; });
         }).catch(function(){ return null; });
     }
 
@@ -8056,7 +8065,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.54</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.55</span>
           </div>
         </div>
 
@@ -8225,45 +8234,61 @@ export default function App() {
                 <div style={{ fontSize:12, color:"#555" }}>Stocks our AI rated Exceptional or Good in the last 7 days</div>
               </div>
               <div style={{ border:"1px solid #1e1e18", borderRadius:10, overflow:"hidden", overflowX:"auto" }}>
-                <div style={{ display:"grid", gridTemplateColumns:"72px 180px 90px 1fr 100px 130px", background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px", gap:12, minWidth:580 }}>
-                  {["Ticker","Company","Price","52W Range","Trend","Momentum"].map(function(h) {
+                <div style={{ display:"grid", gridTemplateColumns:"72px 180px 90px 80px 130px 100px 130px", background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px", gap:12, minWidth:640 }}>
+                  {["Ticker","Company","Price","Upside","52W Range","Trend","Momentum"].map(function(h) {
                     return <div key={h} style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em" }}>{h}</div>;
                   })}
                 </div>
                 {tickerSignals.map(function(sig, i) {
-                  var price   = sig.price || 0;
-                  var hi52    = sig.hi52 || 0;
-                  var lo52    = sig.lo52 || 0;
+                  var price    = sig.price || 0;
+                  var hi52     = sig.hi52 || 0;
+                  var lo52     = sig.lo52 || 0;
                   var rangePct = (hi52>lo52&&price>0)?Math.min(100,Math.max(0,((price-lo52)/(hi52-lo52))*100)):null;
-                  var sma50   = sig.sma50 || 0;
-                  var sma200  = sig.sma200 || 0;
-                  var trendUp = sma50>0&&sma200>0&&price>sma50&&sma50>sma200;
-                  var trendDn = sma50>0&&sma200>0&&price<sma50&&sma50<sma200;
+                  var sma50    = sig.sma50 || 0;
+                  var sma200   = sig.sma200 || 0;
+                  var trendUp  = sma50>0&&sma200>0&&price>sma50&&sma50>sma200;
+                  var trendDn  = sma50>0&&sma200>0&&price<sma50&&sma50<sma200;
                   var trendColor = trendUp?"#7abd00":trendDn?"#e05050":"#888";
                   var trendLabel = trendUp?String.fromCharCode(0x2191)+" Up":trendDn?String.fromCharCode(0x2193)+" Down":sma50>0?String.fromCharCode(0x2192)+" Mixed":String.fromCharCode(0x2014);
-                  var rsi = sig.rsi;
+                  var rsi      = sig.rsi;
                   var momLabel = rsi===null?String.fromCharCode(0x2014):rsi>70?"Overbought":rsi>=55?"Strong":rsi>=45?"Neutral":rsi>=30?"Weak":"Oversold";
                   var momColor = rsi===null?"#555":rsi>70?"#EF9F27":rsi>=55?"#7abd00":rsi>=45?"#888":rsi>=30?"#e07020":"#60b8f0";
+                  var upside   = sig.analystUp;
+                  var upPos    = upside !== null && upside >= 0;
                   return (
                     <div key={i}
                       onClick={function(){ window.location.hash = sig.sym; }}
-                      style={{ display:"grid", gridTemplateColumns:"72px 180px 90px 1fr 100px 130px", padding:"11px 14px", gap:12, borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111", minWidth:580 }}
+                      style={{ display:"grid", gridTemplateColumns:"72px 180px 90px 80px 130px 100px 130px", padding:"11px 14px", gap:12, borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111", minWidth:640 }}
                       onMouseEnter={function(e){ e.currentTarget.style.background="#161614"; }}
                       onMouseLeave={function(e){ e.currentTarget.style.background="#111"; }}>
                       <div style={{ fontSize:13, fontWeight:900, color:LIME }}>{sig.sym}</div>
                       <div style={{ fontSize:11, color:"#777", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{NAMES[sig.sym]||String.fromCharCode(0x2014)}</div>
                       <div style={{ fontSize:12, fontWeight:700, color:"#fff" }}>{price>0?"$"+price.toFixed(2):String.fromCharCode(0x2014)}</div>
+                      {/* Analyst Upside */}
+                      <div>
+                        {upside!==null?(
+                          <div>
+                            <div style={{ fontSize:12, fontWeight:700, color:upPos?"#7abd00":"#e05050" }}>
+                              {(upPos?"+":"")+upside.toFixed(1)+"%"}
+                            </div>
+                            <div style={{ fontSize:9, color:"#444", marginTop:1 }}>
+                              {"$"+sig.targetMean.toFixed(0)}
+                            </div>
+                          </div>
+                        ):<span style={{ fontSize:11, color:"#444" }}>{String.fromCharCode(0x2014)}</span>}
+                      </div>
+                      {/* 52W Range — no colour coding */}
                       <div>
                         {rangePct!==null?(
                           <div>
                             <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
                               <span style={{ fontSize:9, color:"#444" }}>{lo52>0?"$"+lo52.toFixed(0):""}</span>
-                              <span style={{ fontSize:9, color:rangePct>70?"#7abd00":rangePct<30?"#e05050":"#888", fontWeight:700 }}>{rangePct.toFixed(0)+"%"}</span>
+                              <span style={{ fontSize:9, color:"#888", fontWeight:700 }}>{rangePct.toFixed(0)+"%"}</span>
                               <span style={{ fontSize:9, color:"#444" }}>{hi52>0?"$"+hi52.toFixed(0):""}</span>
                             </div>
-                            <div style={{ height:5, background:"#1e1e18", borderRadius:3, position:"relative" }}>
-                              <div style={{ position:"absolute", left:0, top:0, height:"100%", width:rangePct+"%", background:rangePct>70?"#7abd00":rangePct<30?"#e05050":"#EF9F27", borderRadius:3 }}></div>
-                              <div style={{ position:"absolute", top:"-2px", height:9, width:3, background:"#fff", borderRadius:1, left:"calc("+rangePct+"% - 1px)", zIndex:1 }}></div>
+                            <div style={{ height:4, background:"#1e1e18", borderRadius:3, position:"relative" }}>
+                              <div style={{ position:"absolute", left:0, top:0, height:"100%", width:rangePct+"%", background:"#555", borderRadius:3 }}></div>
+                              <div style={{ position:"absolute", top:"-3px", height:10, width:3, background:"#fff", borderRadius:1, left:"calc("+rangePct+"% - 1px)", zIndex:1 }}></div>
                             </div>
                           </div>
                         ):<span style={{ fontSize:11, color:"#444" }}>{String.fromCharCode(0x2014)}</span>}
