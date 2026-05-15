@@ -1016,6 +1016,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [aiFundCachedAt,setAiFundCachedAt]= useState(null);
   const [aiTechResult,  setAiTechResult]  = useState(null); // { verdict, stVerdict, confidence, keyLevel, summary, dataSnapshot }
   const [aiTechLoading, setAiTechLoading] = useState(false);
+  const [aiTechRefreshing, setAiTechRefreshing] = useState(false);
   const [aiTechCachedAt,setAiTechCachedAt]= useState(null);
 
   // Expose computed financial strength for left panel pill
@@ -1160,14 +1161,22 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             var cached = JSON.parse(d.value);
             setAiTechResult(cached);
             setAiTechCachedAt(d.cachedAt||null);
+            setAiTechLoading(false);
             setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech HIT: "+symA }]); });
+            // Stale check — if older than 1 day, refresh silently in background
+            var techAge = d.cachedAt ? Date.now() - new Date(d.cachedAt).getTime() : 0;
+            var isStale = techAge > 24 * 60 * 60 * 1000;
+            if (!isStale || window.__aiTechRunning) {
+              window.__aiTechRunning = null;
+              window.__aiTechDone = symA;
+              return;
+            }
+            // Stale — fall through to regeneration as background refresh
+            setAiTechRefreshing(true);
+            window.__aiTechRunning = symA;
           } catch(e) {
             setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech cache parse error: "+String(e) }]); });
           }
-          setAiTechLoading(false);
-          window.__aiTechRunning = null;
-          window.__aiTechDone = symA;
-          return;
         }
         // Safe helpers -- nothing here can throw
         function _sf(v,dec){ try{ return (v!=null&&!isNaN(v)&&isFinite(v))?parseFloat(v).toFixed(dec||2):"N/A"; }catch(e){return "N/A";} }
@@ -1301,6 +1310,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             };
             setAiTechResult(result);
             setAiTechLoading(false);
+            setAiTechRefreshing(false);
             window.__aiTechRunning = null;
             window.__aiTechDone = symA;
             fetch("/cache?sym="+symA+"&tab=ai-tech",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(result)})
@@ -1459,7 +1469,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -2595,7 +2605,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.61</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.62</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2649,7 +2659,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.61</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.62</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3052,7 +3062,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       {/* Technical AI pill */}
                       <div onClick={function(){ window.__goToTab && window.__goToTab("aianalysis"); }}
                         style={{ padding:"9px 12px", background:aiTechResult?techC.bg:"#222", border:"0.5px solid "+(aiTechResult?techC.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color:aiTechResult?techC.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Technical (Trade)</div>
+                        <div style={{ fontSize:9, color:aiTechResult?techC.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8, display:"flex", alignItems:"center", gap:6 }}>
+                          Technical (Trade)
+                          {aiTechRefreshing && <span style={{ fontSize:8, color:"#EF9F27", fontWeight:600, letterSpacing:0 }}>↻ updating</span>}
+                        </div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {aiTechLoading
                             ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
@@ -3244,6 +3257,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 {/* SIGNALS -- separate card, hidden when no signals */}
                 {(function(){
                   var _hasTechCheck=!!(massiveInfo&&massiveInfo.indicators&&q&&q.price);
+                  // Show loading spinner while massive data is loading
+                  if (!massiveInfo && q && q.price) return (
+                    <div style={{ background:"#1e1e1e", border:"0.5px solid #2c2c2e", borderRadius:10, padding:"12px 16px", marginBottom:8, marginTop:8, display:"flex", alignItems:"center", gap:8 }}>
+                      <div style={{ width:10, height:10, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite", flexShrink:0 }}></div>
+                      <span style={{ fontSize:10, color:"#555" }}>Loading signals...</span>
+                    </div>
+                  );
                   if(!_hasTechCheck) return null;
                   var _ind3c=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
                   var _aggs3c=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
@@ -4798,9 +4818,17 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                         {/* Technical AI Card */}
                         <div style={{ marginBottom:8 }}>
-                          <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:12 }}>
-                            <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Technical AI</span>
-                            {isAdmin && cachedAtTechStr && <span style={{ fontSize:10, color:"#aaa", marginLeft:8 }}>{"cached " + cachedAtTechStr + " (1d TTL)"}</span>}
+                          <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:12, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                            <div>
+                              <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Technical AI</span>
+                              {isAdmin && cachedAtTechStr && <span style={{ fontSize:10, color:"#aaa", marginLeft:8 }}>{"cached " + cachedAtTechStr + " (1d TTL)"}</span>}
+                            </div>
+                            {aiTechRefreshing && (
+                              <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                                <div style={{ width:10, height:10, borderRadius:"50%", border:"1.5px solid #e0dbd0", borderTop:"1.5px solid #EF9F27", animation:"spin 0.8s linear infinite" }}></div>
+                                <span style={{ fontSize:10, color:"#EF9F27", fontWeight:600 }}>Refreshing in background...</span>
+                              </div>
+                            )}
                           </div>
                           {aiTechLoading && (
                             <div style={{ textAlign:"center", padding:"20px 0" }}>
@@ -8115,7 +8143,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.61</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.62</span>
           </div>
         </div>
 
