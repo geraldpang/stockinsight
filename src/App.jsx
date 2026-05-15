@@ -1459,7 +1459,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -1886,6 +1886,40 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       clearInterval(fundInterval);
     };
   }, [sym]);
+
+  // -- Write signal cache when ov + key values are ready -----------------------
+  useEffect(function() {
+    if (!ov || !q || !sym) return;
+    if (!window.__clerkToken) return;
+    if (!window.__signalWritten) window.__signalWritten = {};
+    if (window.__signalWritten[sym]) return; // only write once per session per ticker
+    // Delay 2s to allow left-panel renders to compute window globals
+    var t = setTimeout(function() {
+      var ivStore  = window.__ivStore && window.__ivStore[sym];
+      var finStr   = window.__computedFinStrength && window.__computedFinStrength[sym];
+      var ivOracle = ivStore ? parseFloat(ivStore.oracle) : null;
+      var price    = q.price || 0;
+      var ivDiscount = (ivOracle && price > 0) ? ((ivOracle - price) / price * 100) : null;
+      var moatData = parsedInsights && parsedInsights["moat"];
+      var payload  = {
+        moat:      moatData  ? moatData.classification : null,
+        moatScore: moatData  ? moatData.score          : null,
+        fin:       finStr    ? finStr.classification   : null,
+        finScore:  finStr    ? finStr.score            : null,
+        iv:        ivOracle,
+        ivDiscount: ivDiscount,
+        updatedAt: new Date().toISOString()
+      };
+      if (!payload.moat && !payload.fin && !payload.iv) return;
+      window.__signalWritten[sym] = true;
+      fetch("/cache?sym=" + sym + "&tab=signal", {
+        method:  "POST",
+        headers: { "Content-Type": "text/plain", "Authorization": "Bearer " + window.__clerkToken },
+        body:    JSON.stringify(payload)
+      }).catch(function(){});
+    }, 2000);
+    return function() { clearTimeout(t); };
+  }, [ov, parsedInsights, q, sym]);
 
   // -- Admin tab data load -----------------------------------------------------
   useEffect(function() {
@@ -2557,7 +2591,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.56</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.58</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2611,7 +2645,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.56</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.58</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7780,15 +7814,22 @@ export default function App() {
       // Gate 2: ai-fund verdict must be Exceptional or Good
       return Promise.all([
         fetch("/cache?sym=" + sym + "&tab=ai-fund").then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch("/cache?sym=" + sym + "&tab=ai-tech").then(function(r){ return r.json(); }).catch(function(){ return null; })
+        fetch("/cache?sym=" + sym + "&tab=ai-tech").then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch("/cache?sym=" + sym + "&tab=signal").then(function(r){ return r.json(); }).catch(function(){ return null; })
       ]).then(function(results) {
-        var dFund = results[0];
-        var dTech = results[1];
+        var dFund   = results[0];
+        var dTech   = results[1];
+        var dSignal = results[2];
         // Gate 1: ai-tech must exist and be written within last 7 days
         if (!dTech || !dTech.hit || !dTech.cachedAt) return null;
         var techAge = Date.now() - new Date(dTech.cachedAt).getTime();
         if (techAge > 7 * 24 * 60 * 60 * 1000) return null;
         // Gate 2: ai-fund must have Exceptional or Good verdict
+        // Parse signal cache
+        var sigData = null;
+        if (dSignal && dSignal.hit && dSignal.value) {
+          try { sigData = JSON.parse(dSignal.value); } catch(e) {}
+        }
         var parsed = (dFund && dFund.hit && dFund.value) ? parseFromText(dFund.value) : null;
         if (!parsed) {
           // Fallback to old aiinsight cache
@@ -7840,8 +7881,8 @@ export default function App() {
               var targetMean = (ksData&&ksData.targetMeanPrice&&ksData.targetMeanPrice.raw) ? ksData.targetMeanPrice.raw
                              : (fdData&&fdData.targetMeanPrice&&fdData.targetMeanPrice.raw) ? fdData.targetMeanPrice.raw : null;
               var analystUp  = (targetMean && price > 0) ? ((targetMean - price) / price * 100) : null;
-              return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:price, changePct:changePct, change:change, mc:mc, hi52:hi52, lo52:lo52, sma50:sma50, sma200:sma200, rsi:rsi, targetMean:targetMean, analystUp:analystUp };
-            }).catch(function(){ return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:0, changePct:0, change:0, mc:0, hi52:0, lo52:0, sma50:0, sma200:0, rsi:null, targetMean:null, analystUp:null }; });
+              return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:price, changePct:changePct, change:change, mc:mc, hi52:hi52, lo52:lo52, sma50:sma50, sma200:sma200, rsi:rsi, targetMean:targetMean, analystUp:analystUp, sig:sigData };
+            }).catch(function(){ return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:0, changePct:0, change:0, mc:0, hi52:0, lo52:0, sma50:0, sma200:0, rsi:null, targetMean:null, analystUp:null, sig:null }; });
         }).catch(function(){ return null; });
     }
 
@@ -8067,7 +8108,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.56</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.58</span>
           </div>
         </div>
 
@@ -8236,8 +8277,8 @@ export default function App() {
                 <div style={{ fontSize:12, color:"#555" }}>Stocks our AI rated Exceptional or Good in the last 7 days</div>
               </div>
               <div style={{ border:"1px solid #1e1e18", borderRadius:10, overflow:"hidden", overflowX:"auto" }}>
-                <div style={{ display:"grid", gridTemplateColumns:"72px 180px 90px 80px 160px 110px 130px", background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px", gap:12, minWidth:700 }}>
-                  {["Ticker","Company","Price","Upside","52W Range","Trend","Momentum"].map(function(h) {
+                <div style={{ display:"grid", gridTemplateColumns:"68px 140px 80px 70px 70px 80px 140px 90px 120px", columnGap:20, rowGap:0, background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px", minWidth:850 }}>
+                  {["Ticker","Company","Price","Moat","Fin.","IV","52W Range","Trend","Momentum"].map(function(h) {
                     return <div key={h} style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em" }}>{h}</div>;
                   })}
                 </div>
@@ -8255,31 +8296,44 @@ export default function App() {
                   var rsi      = sig.rsi;
                   var momLabel = rsi===null?String.fromCharCode(0x2014):rsi>70?"Overbought":rsi>=55?"Strong":rsi>=45?"Neutral":rsi>=30?"Weak":"Oversold";
                   var momColor = rsi===null?"#555":rsi>70?"#EF9F27":rsi>=55?"#7abd00":rsi>=45?"#888":rsi>=30?"#e07020":"#60b8f0";
-                  var upside   = sig.analystUp;
-                  var upPos    = upside !== null && upside >= 0;
+                  // Signal cache data
+                  var sd       = sig.sig || {};
+                  var moatLbl  = sd.moat || null;
+                  var finLbl   = sd.fin  || null;
+                  var ivDisc   = sd.ivDiscount != null ? sd.ivDiscount : null;
+                  var ivPrice  = sd.iv   || null;
+                  function sigColor(lbl) {
+                    if (!lbl) return "#555";
+                    var l = lbl.toLowerCase();
+                    if (l==="wide"||l==="strong"||l==="exceptional") return "#7abd00";
+                    if (l==="moderate"||l==="good") return "#EF9F27";
+                    return "#e05050";
+                  }
                   return (
                     <div key={i}
                       onClick={function(){ window.location.hash = sig.sym; }}
-                      style={{ display:"grid", gridTemplateColumns:"72px 180px 90px 80px 160px 110px 130px", padding:"11px 14px", gap:12, borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111", minWidth:700 }}
+                      style={{ display:"grid", gridTemplateColumns:"68px 140px 80px 70px 70px 80px 140px 90px 120px", columnGap:20, rowGap:0, padding:"11px 14px", borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111", minWidth:850 }}
                       onMouseEnter={function(e){ e.currentTarget.style.background="#161614"; }}
                       onMouseLeave={function(e){ e.currentTarget.style.background="#111"; }}>
                       <div style={{ fontSize:13, fontWeight:900, color:LIME }}>{sig.sym}</div>
                       <div style={{ fontSize:11, color:"#777", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{NAMES[sig.sym]||String.fromCharCode(0x2014)}</div>
                       <div style={{ fontSize:12, fontWeight:700, color:"#fff" }}>{price>0?"$"+price.toFixed(2):String.fromCharCode(0x2014)}</div>
-                      {/* Analyst Upside */}
+                      {/* Moat */}
+                      <div style={{ fontSize:11, fontWeight:700, color:sigColor(moatLbl) }}>{moatLbl||String.fromCharCode(0x2014)}</div>
+                      {/* Financial Strength */}
+                      <div style={{ fontSize:11, fontWeight:700, color:sigColor(finLbl) }}>{finLbl||String.fromCharCode(0x2014)}</div>
+                      {/* IV Discount */}
                       <div>
-                        {upside!==null?(
+                        {ivDisc!==null?(
                           <div>
-                            <div style={{ fontSize:12, fontWeight:700, color:upPos?"#7abd00":"#e05050" }}>
-                              {(upPos?"+":"")+upside.toFixed(1)+"%"}
+                            <div style={{ fontSize:11, fontWeight:700, color:ivDisc>0?"#7abd00":"#e05050" }}>
+                              {(ivDisc>0?"+":"")+ivDisc.toFixed(0)+"%"}
                             </div>
-                            <div style={{ fontSize:9, color:"#444", marginTop:1 }}>
-                              {"$"+sig.targetMean.toFixed(0)}
-                            </div>
+                            <div style={{ fontSize:9, color:"#444", marginTop:1 }}>{ivPrice?"$"+parseFloat(ivPrice).toFixed(0):""}</div>
                           </div>
                         ):<span style={{ fontSize:11, color:"#444" }}>{String.fromCharCode(0x2014)}</span>}
                       </div>
-                      {/* 52W Range — no colour coding */}
+                      {/* 52W Range */}
                       <div>
                         {rangePct!==null?(
                           <div>
