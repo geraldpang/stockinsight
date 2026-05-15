@@ -1889,7 +1889,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
   // -- Write signal cache when ov + key values are ready -----------------------
   useEffect(function() {
-    if (!ov || !q || !sym) return;
+    if (!ov || !q || !sym || !massiveInfo) return; // wait for massiveInfo so trend/mom are computed
     if (!window.__clerkToken) return;
     if (!window.__signalWritten) window.__signalWritten = {};
     if (window.__signalWritten[sym]) return; // only write once per session per ticker
@@ -1902,15 +1902,19 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       var ivDiscount = (ivOracle && price > 0) ? ((ivOracle - price) / price * 100) : null;
       var moatData = parsedInsights && parsedInsights["moat"];
       var payload  = {
-        moat:      moatData  ? moatData.classification : null,
-        moatScore: moatData  ? moatData.score          : null,
-        fin:       finStr    ? finStr.classification   : null,
-        finScore:  finStr    ? finStr.score            : null,
-        iv:        ivOracle,
+        moat:       moatData  ? moatData.classification : null,
+        moatScore:  moatData  ? moatData.score          : null,
+        fin:        finStr    ? finStr.classification   : null,
+        finScore:   finStr    ? finStr.score            : null,
+        iv:         ivOracle,
         ivDiscount: ivDiscount,
-        updatedAt: new Date().toISOString()
+        trend:      window.__trendLabel  || null,
+        trendScore: window.__trendScore  || null,
+        mom:        window.__momLabel    || null,
+        momScore:   window.__momScore    || null,
+        updatedAt:  new Date().toISOString()
       };
-      if (!payload.moat && !payload.fin && !payload.iv) return;
+      if (!payload.moat && !payload.fin && !payload.iv && !payload.trend) return;
       window.__signalWritten[sym] = true;
       fetch("/cache?sym=" + sym + "&tab=signal", {
         method:  "POST",
@@ -1919,7 +1923,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       }).catch(function(){});
     }, 2000);
     return function() { clearTimeout(t); };
-  }, [ov, parsedInsights, q, sym]);
+  }, [ov, parsedInsights, q, sym, massiveInfo]);
 
   // -- Admin tab data load -----------------------------------------------------
   useEffect(function() {
@@ -2591,7 +2595,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.59</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.61</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2645,7 +2649,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.59</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.61</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -8111,7 +8115,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.59</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.61</span>
           </div>
         </div>
 
@@ -8281,7 +8285,7 @@ export default function App() {
               </div>
               <div style={{ border:"1px solid #1e1e18", borderRadius:10, overflow:"hidden", overflowX:"auto" }}>
                 <div style={{ display:"grid", gridTemplateColumns:"68px 140px 80px 70px 70px 80px 140px 90px 120px", columnGap:20, rowGap:0, background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px", minWidth:850 }}>
-                  {["Ticker","Company","Price","Moat","Fin.","IV","52W Range","Trend","Momentum"].map(function(h) {
+                  {["Ticker","Company","Price","Moat","Fin.","IV Disc.","52W Range","Trend","Momentum"].map(function(h) {
                     return <div key={h} style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em" }}>{h}</div>;
                   })}
                 </div>
@@ -8301,6 +8305,17 @@ export default function App() {
                   var momColor = rsi===null?"#555":rsi>70?"#EF9F27":rsi>=55?"#7abd00":rsi>=45?"#888":rsi>=30?"#e07020":"#60b8f0";
                   // Signal cache data
                   var sd       = sig.sig || {};
+                  // Use Massive-based trend/mom from signal cache if available, else fall back to Yahoo computed
+                  if (sd.trend) {
+                    var tl = sd.trend.toLowerCase();
+                    trendLabel = sd.trend;
+                    trendColor = tl.indexOf("strong up")!==-1||tl==="strong uptrend"?"#7abd00":tl.indexOf("up")!==-1?"#7abd00":tl.indexOf("down")!==-1?"#e05050":"#888";
+                  }
+                  if (sd.mom) {
+                    var ml = sd.mom.toLowerCase();
+                    momLabel = sd.mom;
+                    momColor = ml==="strong"?"#7abd00":ml==="moderate"?"#7abd00":ml==="neutral"?"#888":ml==="weak"||ml==="very weak"?"#e07020":"#888";
+                  }
                   var moatLbl  = sd.moat || null;
                   var finLbl   = sd.fin  || null;
                   var ivDisc   = sd.ivDiscount != null ? sd.ivDiscount : null;
