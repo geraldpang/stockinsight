@@ -2557,7 +2557,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.55</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.56</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2611,7 +2611,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.55</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.56</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -4710,9 +4710,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var cachedAtFundStr = aiFundCachedAt ? new Date(aiFundCachedAt).toLocaleDateString() : null;
                     var cachedAtTechStr = aiTechCachedAt ? new Date(aiTechCachedAt).toLocaleDateString() : null;
                     return (
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, alignItems:"start" }}>
+                      <div>
                         {/* Fundamental AI Card */}
-                        <div>
+                        <div style={{ marginBottom:24 }}>
                           <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:12 }}>
                             <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Fundamental AI</span>
                             {isAdmin && cachedAtFundStr && <span style={{ fontSize:10, color:"#aaa", marginLeft:8 }}>{"cached " + cachedAtFundStr + " (30d TTL)"}</span>}
@@ -4759,7 +4759,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         </div>
 
                         {/* Technical AI Card */}
-                        <div>
+                        <div style={{ marginBottom:8 }}>
                           <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:12 }}>
                             <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Technical AI</span>
                             {isAdmin && cachedAtTechStr && <span style={{ fontSize:10, color:"#aaa", marginLeft:8 }}>{"cached " + cachedAtTechStr + " (1d TTL)"}</span>}
@@ -7806,7 +7806,7 @@ export default function App() {
           return Promise.all([
             fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=1y"))
               .then(function(r2){ return r2.json(); }).catch(function(){ return null; }),
-            fetch("/proxy?url=" + encodeURIComponent("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + ySym + "?modules=defaultKeyStatistics"))
+            fetch("/proxy?url=" + encodeURIComponent("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + ySym + "?modules=defaultKeyStatistics,financialData"))
               .then(function(r3){ return r3.json(); }).catch(function(){ return null; })
           ]).then(function(fetched) {
               var q   = fetched[0];
@@ -7835,9 +7835,11 @@ export default function App() {
                 rsi = al === 0 ? 100 : 100 - (100/(1 + ag/al));
               }
               // Analyst target from quoteSummary
-              var ksData      = qs&&qs.quoteSummary&&qs.quoteSummary.result&&qs.quoteSummary.result[0]&&qs.quoteSummary.result[0].defaultKeyStatistics;
-              var targetMean  = ksData&&ksData.targetMeanPrice&&ksData.targetMeanPrice.raw ? ksData.targetMeanPrice.raw : null;
-              var analystUp   = (targetMean && price > 0) ? ((targetMean - price) / price * 100) : null;
+              var ksData     = qs&&qs.quoteSummary&&qs.quoteSummary.result&&qs.quoteSummary.result[0]&&qs.quoteSummary.result[0].defaultKeyStatistics;
+              var fdData     = qs&&qs.quoteSummary&&qs.quoteSummary.result&&qs.quoteSummary.result[0]&&qs.quoteSummary.result[0].financialData;
+              var targetMean = (ksData&&ksData.targetMeanPrice&&ksData.targetMeanPrice.raw) ? ksData.targetMeanPrice.raw
+                             : (fdData&&fdData.targetMeanPrice&&fdData.targetMeanPrice.raw) ? fdData.targetMeanPrice.raw : null;
+              var analystUp  = (targetMean && price > 0) ? ((targetMean - price) / price * 100) : null;
               return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:price, changePct:changePct, change:change, mc:mc, hi52:hi52, lo52:lo52, sma50:sma50, sma200:sma200, rsi:rsi, targetMean:targetMean, analystUp:analystUp };
             }).catch(function(){ return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:0, changePct:0, change:0, mc:0, hi52:0, lo52:0, sma50:0, sma200:0, rsi:null, targetMean:null, analystUp:null }; });
         }).catch(function(){ return null; });
@@ -8065,7 +8067,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.55</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.56</span>
           </div>
         </div>
 
@@ -8234,7 +8236,7 @@ export default function App() {
                 <div style={{ fontSize:12, color:"#555" }}>Stocks our AI rated Exceptional or Good in the last 7 days</div>
               </div>
               <div style={{ border:"1px solid #1e1e18", borderRadius:10, overflow:"hidden", overflowX:"auto" }}>
-                <div style={{ display:"grid", gridTemplateColumns:"72px 180px 90px 80px 130px 100px 130px", background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px", gap:12, minWidth:640 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"72px 180px 90px 80px 160px 110px 130px", background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px", gap:12, minWidth:700 }}>
                   {["Ticker","Company","Price","Upside","52W Range","Trend","Momentum"].map(function(h) {
                     return <div key={h} style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em" }}>{h}</div>;
                   })}
@@ -8258,7 +8260,7 @@ export default function App() {
                   return (
                     <div key={i}
                       onClick={function(){ window.location.hash = sig.sym; }}
-                      style={{ display:"grid", gridTemplateColumns:"72px 180px 90px 80px 130px 100px 130px", padding:"11px 14px", gap:12, borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111", minWidth:640 }}
+                      style={{ display:"grid", gridTemplateColumns:"72px 180px 90px 80px 160px 110px 130px", padding:"11px 14px", gap:12, borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111", minWidth:700 }}
                       onMouseEnter={function(e){ e.currentTarget.style.background="#161614"; }}
                       onMouseLeave={function(e){ e.currentTarget.style.background="#111"; }}>
                       <div style={{ fontSize:13, fontWeight:900, color:LIME }}>{sig.sym}</div>
