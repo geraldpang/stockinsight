@@ -1941,7 +1941,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
     if (!massiveInfo || !sym) return;
     if (crossData && crossData.sym === sym) return;
     var ySym = sym === "BRKB" ? "BRK-B" : sym;
-    fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=1y"))
+    fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=2y"))
       .then(function(r){ return r.json(); })
       .then(function(data){
         var allC = data&&data.chart&&data.chart.result&&data.chart.result[0]&&data.chart.result[0].indicators&&data.chart.result[0].indicators.quote&&data.chart.result[0].indicators.quote[0]&&data.chart.result[0].indicators.quote[0].close||[];
@@ -2646,7 +2646,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.68</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.69</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2700,7 +2700,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.68</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.69</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6344,7 +6344,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               val={crsG!==null?(crsG>0?"Golden Cross +"+crsG.toFixed(1)+"%":"Death Cross -"+Math.abs(crsG).toFixed(1)+"%"):null}
                               valCol={crsG===null?"#aaa":crsG>0?"#1a6a1a":"#c03030"}
                               score={_cs} dotCol={_cc}
-                              context={crsG!==null?"The 50-day average is currently "+(crsG>0?crsG.toFixed(1)+"% above":Math.abs(crsG).toFixed(1)+"% below")+" the 200-day average."+_crossAgeCtx+" When the 50-day crosses above the 200-day it is called a Golden Cross (bullish), and when it crosses below it is called a Death Cross (bearish). These are major long-term signals watched by professional fund managers worldwide.":null}
+                              context={crsG!==null?"The 50-day average is currently "+(crsG>0?crsG.toFixed(1)+"% above":Math.abs(crsG).toFixed(1)+"% below")+" the 200-day average."+_crossAgeCtx+" When the 50-day crosses above the 200-day it is called a Golden Cross (bullish), and when it crosses below it is called a Death Cross (bearish).":null}
                               desc={_crossSentence || (crsG===null?"Data unavailable.":crsG>5?"50-day is well above 200-day (Golden Cross) -- long-term bullish signal.":crsG>0?"50-day is above 200-day -- mild Golden Cross, long-term trend positive.":crsG>-5?"50-day has crossed below 200-day (Death Cross) -- long-term bearish signal.":"50-day is well below 200-day (Death Cross) -- sustained bearish long-term signal.")}
                               watch={crsG!==null&&Math.abs(crsG)<3?"The 50-day and 200-day are very close -- a cross may be imminent. This would be a major signal.":null} />;
                           })()}
@@ -8200,7 +8200,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.68</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.69</span>
           </div>
         </div>
 
