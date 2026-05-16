@@ -2639,7 +2639,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.64</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.65</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2693,7 +2693,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.64</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.65</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3197,20 +3197,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       if(key==="wsma")   return !ind2.wsma10||!ind2.wsma40?3:wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
                       if(key==="sma200") return !ind2.sma200?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
                       if(key==="cross") {
-                        // Dynamic cross score using 1y candle data
                         var cd = crossData && crossData.sym === sym ? crossData : null;
                         if (!cd || cd.type === "unknown") return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
-                        if (cd.type === "golden") {
-                          var age = cd.ageDays||0;
-                          return age<20&&cd.gapDir==="worsening"?5:age<20?5:cd.gapDir==="worsening"?4:4;
-                        }
-                        if (cd.type === "death") {
-                          var age = cd.ageDays||0;
-                          if (age<20)  return cd.gapDir==="worsening"?1:2;
-                          if (age<60)  return cd.gapDir==="improving"?3:2;
-                          return cd.gapDir==="improving"?3:cd.gapDir==="worsening"?1:2;
-                        }
-                        return 3; // no cross detected
+                        if (cd.type === "golden") return cd.gapDir==="worsening"?5:4;
+                        if (cd.type === "death")  return cd.gapDir==="improving"?3:cd.gapDir==="stable"?2:1;
+                        return 3;
                       }
                       if(key==="pos52")  return pos2>0.80?5:pos2>0.55?4:pos2>0.35?3:pos2>0.15?2:1;
                       if(key==="ema20")  return _ema20g_pill===null?3:_ema20g_pill>5?5:_ema20g_pill>1?4:_ema20g_pill>-5?3:2;
@@ -6332,11 +6323,15 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {(function(){
                             var _cs=crsG===null?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
                             var _cc=crsG===null?"#888":crsG>0?"#1a6a1a":"#c03030";
+                            // Cross age from crossData
+                            var _cd = crossData && crossData.sym === sym ? crossData : null;
+                            var _crossAgeText = _cd && _cd.ageDays ? (" — " + (_cd.type==="death"?"Death":"Golden") + " cross " + _cd.ageDays + " trading days ago") : "";
+                            var _gapDirText = _cd && _cd.gapDir ? (", gap " + _cd.gapDir) : "";
                             return <TRow label="Golden/Death Cross (50-day vs 200-day MA)"
                               val={crsG!==null?(crsG>0?"Golden Cross +"+crsG.toFixed(1)+"%":"Death Cross -"+Math.abs(crsG).toFixed(1)+"%"):null}
                               valCol={crsG===null?"#aaa":crsG>0?"#1a6a1a":"#c03030"}
                               score={_cs} dotCol={_cc}
-                              context={crsG!==null?"The 50-day average is currently "+(crsG>0?crsG.toFixed(1)+"% above":Math.abs(crsG).toFixed(1)+"% below")+" the 200-day average. When the 50-day crosses above the 200-day it is called a Golden Cross (bullish), and when it crosses below it is called a Death Cross (bearish). These are major long-term signals watched by professional fund managers worldwide.":null}
+                              context={crsG!==null?"The 50-day average is currently "+(crsG>0?crsG.toFixed(1)+"% above":Math.abs(crsG).toFixed(1)+"% below")+" the 200-day average"+_crossAgeText+_gapDirText+". When the 50-day crosses above the 200-day it is called a Golden Cross (bullish), and when it crosses below it is called a Death Cross (bearish). These are major long-term signals watched by professional fund managers worldwide.":null}
                               desc={crsG===null?"Data unavailable.":crsG>5?"50-day is well above 200-day (Golden Cross) -- long-term bullish signal widely watched by investors.":crsG>0?"50-day is above 200-day -- mild Golden Cross, long-term trend positive.":crsG>-5?"50-day has crossed below 200-day (Death Cross) -- long-term bearish signal.":"50-day is well below 200-day (Death Cross) -- sustained bearish long-term signal."}
                               watch={crsG!==null&&Math.abs(crsG)<3?"The 50-day and 200-day are very close -- a cross may be imminent. This would be a major signal.":null} />;
                           })()}
@@ -8192,7 +8187,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.64</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.65</span>
           </div>
         </div>
 
