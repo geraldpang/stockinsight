@@ -2646,7 +2646,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.69</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.70</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2700,7 +2700,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.69</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.70</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3190,9 +3190,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 {(function() {
                   // Compute trend, momentum, reversal scores from existing data
                   var _hasTech = !!(ind2 && p2);
-                  // Trend score (wsma, sma200, cross, pos52) -- weighted avg -> 0-100
+                  // Trend score (wsma:30, sma200:30, cross:20, ema20:10, vwap:10) -- 52W position removed
                   var _trendScore = _hasTech ? (function(){
-                    var W={wsma:25,sma200:25,cross:15,pos52:15,ema20:10,vwap:10};
+                    var W={wsma:30,sma200:30,cross:20,ema20:10,vwap:10};
                     var wsmaG=ind2.wsma10&&ind2.wsma40?(ind2.wsma10-ind2.wsma40)/ind2.wsma40*100:0;
                     var s200g=ind2.sma200?(p2-ind2.sma200)/ind2.sma200*100:0;
                     var crsG=ind2.sma50&&ind2.sma200?(ind2.sma50-ind2.sma200)/ind2.sma200*100:0;
@@ -3210,7 +3210,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         if (cd.type === "death")  return cd.gapDir==="improving"?3:cd.gapDir==="stable"?2:1;
                         return 3;
                       }
-                      if(key==="pos52")  return pos2>0.80?5:pos2>0.55?4:pos2>0.35?3:pos2>0.15?2:1;
                       if(key==="ema20")  return _ema20g_pill===null?3:_ema20g_pill>5?5:_ema20g_pill>1?4:_ema20g_pill>-5?3:2;
                       if(key==="vwap")   return _vwapDiff2===null?3:_vwapDiff2>2?5:_vwapDiff2>0.5?4:_vwapDiff2>-0.5?3:_vwapDiff2>-2?2:1;
                       return 3;
@@ -6317,17 +6316,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               watch={s200g!==null&&Math.abs(s200g)<5?"Price is very close to its 200-day average -- a break above or below here is a significant signal.":null} />;
                           })()}
                           {(function(){
-                            var _s5s=s50g===null?3:s50g>5?5:s50g>1?4:s50g>-5?3:2;
-                            var _s5c=_s5s>=4?"#1a6a1a":_s5s===3?"#b88000":"#c03030";
-                            return <TRow label="Price vs 50-day Average (medium-term trend)"
-                              val={s50g!==null?(s50g>0?"+":"")+s50g.toFixed(2)+"%":null}
-                              valCol={s50g===null?"#aaa":s50g>1?"#1a6a1a":s50g>-5?"#888":"#c03030"}
-                              dir={d50} score={_s5s} dotCol={_s5c}
-                              context={s50g!==null?"The stock is "+(s50g>0?s50g.toFixed(1)+"% above":Math.abs(s50g).toFixed(1)+"% below")+" its 50-day average of $"+(ind.sma50?ind.sma50.toFixed(2):"N/A")+". The 50-day average tracks medium-term price direction over roughly 10 trading weeks. It tends to act as a support level in uptrends (price bounces off it) and resistance in downtrends.":null}
-                              desc={s50g===null?"Data unavailable.":s50g>5?"Trading well above 50-day average -- medium-term momentum is strong.":s50g>1?"Above 50-day average -- medium-term uptrend intact.":s50g>-5?"Near 50-day average -- consolidating.":"Below 50-day average -- medium-term trend is weak."}
-                              watch={s50g!==null&&Math.abs(s50g)<2?"Price is testing its 50-day average -- a key support/resistance level to watch.":null} />;
-                          })()}
-                          {(function(){
                             var _cs=crsG===null?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
                             var _cc=crsG===null?"#888":crsG>0?"#1a6a1a":"#c03030";
                             var _cd = crossData && crossData.sym === sym ? crossData : null;
@@ -6347,18 +6335,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               context={crsG!==null?"The 50-day average is currently "+(crsG>0?crsG.toFixed(1)+"% above":Math.abs(crsG).toFixed(1)+"% below")+" the 200-day average."+_crossAgeCtx+" When the 50-day crosses above the 200-day it is called a Golden Cross (bullish), and when it crosses below it is called a Death Cross (bearish).":null}
                               desc={_crossSentence || (crsG===null?"Data unavailable.":crsG>5?"50-day is well above 200-day (Golden Cross) -- long-term bullish signal.":crsG>0?"50-day is above 200-day -- mild Golden Cross, long-term trend positive.":crsG>-5?"50-day has crossed below 200-day (Death Cross) -- long-term bearish signal.":"50-day is well below 200-day (Death Cross) -- sustained bearish long-term signal.")}
                               watch={crsG!==null&&Math.abs(crsG)<3?"The 50-day and 200-day are very close -- a cross may be imminent. This would be a major signal.":null} />;
-                          })()}
-                          {(function(){
-                            var _p5s=pos52pct>80?5:pos52pct>55?4:pos52pct>35?3:pos52pct>15?2:1;
-                            var _p5c=_p5s>=4?"#1a6a1a":_p5s===3?"#b88000":"#c03030";
-                            var _p52badge=pos52pct>95?{text:"\u26A0 NEAR 52-WEEK HIGH",col:"#b88000",bg:"#fdf8e6"}:pos52pct<5?{text:"\u26A0 NEAR 52-WEEK LOW",col:"#b88000",bg:"#fdf8e6"}:null;
-                            return <TRow label={"52-Week Position ("+pos52pct+"% of yearly range)"}
-                              val={pos52pct+"%"}
-                              valCol={pos52pct>55?"#1a6a1a":pos52pct>35?"#888":"#c03030"}
-                              dir={dPos} score={_p5s} dotCol={_p5c} badge={_p52badge}
-                              context={"The stock is at "+pos52pct+"% of its yearly trading range (52-week low: $"+lo52.toFixed(2)+" -- 52-week high: $"+hi52.toFixed(2)+"). A reading above 50% means it is in the upper half of its range, which is generally healthier. Near 100% means it is close to its annual high. Near 0% means it is close to its annual low."}
-                              desc={pos52pct>95?"Trading in the top 5% of its yearly range -- very extended. Risk of pullback increases.":pos52pct>80?"Trading in the top 20% of its yearly range -- showing strong relative strength.":pos52pct>55?"Trading in the upper half of its yearly range -- price is healthy.":pos52pct>35?"Trading in the middle of its yearly range -- no strong directional bias.":pos52pct>15?"Trading in the lower half of its range -- relative weakness.":"Trading near its 52-week low -- significant weakness, but could be a contrarian opportunity."}
-                              watch={pos52pct>90?"Stock is very extended near 52-week highs -- watch for a pullback to the 50-day average as a healthier entry.":pos52pct<15?"Stock is near 52-week lows -- watch for RSI to stabilise above 30 as a sign selling is exhausting.":null} />;
                           })()}
                         </div>
                         <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de"}}>
@@ -8200,7 +8176,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.69</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.70</span>
           </div>
         </div>
 
