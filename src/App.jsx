@@ -2605,7 +2605,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.62</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.63</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2659,7 +2659,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.62</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.63</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -8143,7 +8143,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.62</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.63</span>
           </div>
         </div>
 
@@ -8337,12 +8337,18 @@ export default function App() {
                   if (sd.trend) {
                     var tl = sd.trend.toLowerCase();
                     trendLabel = sd.trend;
-                    trendColor = tl.indexOf("strong up")!==-1||tl==="strong uptrend"?"#7abd00":tl.indexOf("up")!==-1?"#7abd00":tl.indexOf("down")!==-1?"#e05050":"#888";
+                    trendColor = (tl==="strong uptrend"||tl==="uptrend") ? "#7abd00"
+                               : tl==="sideways"                          ? "#EF9F27"
+                               : (tl==="downtrend"||tl==="strong downtrend") ? "#e05050"
+                               : "#888";
                   }
                   if (sd.mom) {
                     var ml = sd.mom.toLowerCase();
                     momLabel = sd.mom;
-                    momColor = ml==="strong"?"#7abd00":ml==="moderate"?"#7abd00":ml==="neutral"?"#888":ml==="weak"||ml==="very weak"?"#e07020":"#888";
+                    momColor = (ml==="strong"||ml==="building") ? "#7abd00"
+                             : ml==="neutral"                   ? "#EF9F27"
+                             : (ml==="fading"||ml==="weak"||ml==="very weak") ? "#e05050"
+                             : "#888";
                   }
                   var moatLbl  = sd.moat || null;
                   var finLbl   = sd.fin  || null;
