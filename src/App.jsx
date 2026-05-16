@@ -1956,13 +1956,19 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         var gap10   = (s50_10-s200_10)/s200_10*100;
         var gapDir  = gapNow>gap10+0.5?"improving":gapNow<gap10-0.5?"worsening":"stable";
         var crossType=null, crossAge=null;
-        for (var i=n-1; i>=201; i--) {
+        for (var i=n-1; i>=50; i--) {
           var s50t  = closes.slice(i-50, i).reduce(function(s,v){return s+v;},0)/50;
-          var s200t = closes.slice(i-200,i).reduce(function(s,v){return s+v;},0)/200;
+          var s200t = i>=200 ? closes.slice(i-200,i).reduce(function(s,v){return s+v;},0)/200 : null;
           var s50p  = closes.slice(i-51, i-1).reduce(function(s,v){return s+v;},0)/50;
-          var s200p = closes.slice(i-201,i-1).reduce(function(s,v){return s+v;},0)/200;
+          var s200p = (i-201>=0) ? closes.slice(i-201,i-1).reduce(function(s,v){return s+v;},0)/200 : null;
+          if (s200t===null||s200p===null) continue; // not enough data for 200-SMA comparison
           if (s50p>s200p&&s50t<=s200t){ crossType="death";  crossAge=n-i; break; }
           if (s50p<s200p&&s50t>=s200t){ crossType="golden"; crossAge=n-i; break; }
+        }
+        // If no cross found in window, infer from current state
+        if (!crossType) {
+          crossType = gapNow < -0.5 ? "death" : gapNow > 0.5 ? "golden" : "none";
+          crossAge  = null; // happened before our 1-year data window
         }
         setCrossData({ sym:sym, type:crossType||"none", ageDays:crossAge, gapDir:gapDir, gapNow:gapNow });
         window.__crossDataDebug = { sym:sym, type:crossType||"none", ageDays:crossAge, gapDir:gapDir, gapNow:gapNow };
@@ -2640,7 +2646,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.67</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.68</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2694,7 +2700,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.67</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.68</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6325,12 +6331,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             var _cs=crsG===null?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
                             var _cc=crsG===null?"#888":crsG>0?"#1a6a1a":"#c03030";
                             var _cd = crossData && crossData.sym === sym ? crossData : null;
-                            var _ageStr = _cd && _cd.ageDays ? _cd.ageDays + " trading days ago" : null;
+                            var _ageStr = _cd && _cd.ageDays ? _cd.ageDays + " trading days ago" : "before our 1-year data window";
                             var _gapDirStr = _cd && _cd.gapDir === "improving" ? "the gap is improving (SMA50 recovering toward SMA200)"
                                            : _cd && _cd.gapDir === "worsening" ? "the gap is worsening (SMA50 moving further from SMA200)"
                                            : _cd && _cd.gapDir === "stable"    ? "the gap is stable (no significant change in last 10 days)"
                                            : null;
-                            var _crossSentence = (_cd && _cd.type && _cd.type !== "none" && _cd.type !== "unknown" && _ageStr && _gapDirStr)
+                            var _crossSentence = (_cd && _cd.type && _cd.type !== "none" && _cd.type !== "unknown" && _gapDirStr)
                               ? "The " + (_cd.type === "death" ? "Death" : "Golden") + " cross occurred " + _ageStr + " and " + _gapDirStr + "."
                               : null;
                             var _crossAgeCtx = _crossSentence ? "  " + _crossSentence : "";
@@ -8194,7 +8200,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.67</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.68</span>
           </div>
         </div>
 
