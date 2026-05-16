@@ -1004,6 +1004,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [addlInfo,      setAddlInfo]      = useState(null);
   const [addlLoading,   setAddlLoading]   = useState(false);
   const [massiveInfo,   setMassiveInfo]   = useState(null);
+  const [crossData,     setCrossData]     = useState(null);
   const [whaleData,     setWhaleData]     = useState(null);
   const [whaleLoading,  setWhaleLoading]  = useState(false);
   const [debugLog,      setDebugLog]      = useState([]);
@@ -1469,7 +1470,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -1934,6 +1935,39 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
     }, 2000);
     return function() { clearTimeout(t); };
   }, [ov, parsedInsights, q, sym, massiveInfo]);
+
+  // -- Fetch 1y candles for SMA cross detection after Massive loads -----------
+  useEffect(function() {
+    if (!massiveInfo || !sym) return;
+    if (crossData && crossData.sym === sym) return;
+    var ySym = sym === "BRKB" ? "BRK-B" : sym;
+    fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=1y"))
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var allC = data&&data.chart&&data.chart.result&&data.chart.result[0]&&data.chart.result[0].indicators&&data.chart.result[0].indicators.quote&&data.chart.result[0].indicators.quote[0]&&data.chart.result[0].indicators.quote[0].close||[];
+        var closes = allC.filter(function(c){ return c!=null; });
+        var n = closes.length;
+        if (n < 201) { setCrossData({ sym:sym, type:"unknown", ageDays:null, gapDir:"unknown" }); return; }
+        var s50n  = closes.slice(n-50).reduce(function(s,v){return s+v;},0)/50;
+        var s200n = closes.slice(n-200).reduce(function(s,v){return s+v;},0)/200;
+        var gapNow = (s50n-s200n)/s200n*100;
+        var s50_10  = closes.slice(n-60,n-10).reduce(function(s,v){return s+v;},0)/50;
+        var s200_10 = closes.slice(n-210,n-10).reduce(function(s,v){return s+v;},0)/200;
+        var gap10   = (s50_10-s200_10)/s200_10*100;
+        var gapDir  = gapNow>gap10+0.5?"improving":gapNow<gap10-0.5?"worsening":"stable";
+        var crossType=null, crossAge=null;
+        for (var i=n-1; i>=201; i--) {
+          var s50t  = closes.slice(i-50, i).reduce(function(s,v){return s+v;},0)/50;
+          var s200t = closes.slice(i-200,i).reduce(function(s,v){return s+v;},0)/200;
+          var s50p  = closes.slice(i-51, i-1).reduce(function(s,v){return s+v;},0)/50;
+          var s200p = closes.slice(i-201,i-1).reduce(function(s,v){return s+v;},0)/200;
+          if (s50p>s200p&&s50t<=s200t){ crossType="death";  crossAge=n-i; break; }
+          if (s50p<s200p&&s50t>=s200t){ crossType="golden"; crossAge=n-i; break; }
+        }
+        setCrossData({ sym:sym, type:crossType||"none", ageDays:crossAge, gapDir:gapDir, gapNow:gapNow });
+      })
+      .catch(function(){ setCrossData({ sym:sym, type:"unknown", ageDays:null, gapDir:"unknown" }); });
+  }, [massiveInfo, sym]);
 
   // -- Admin tab data load -----------------------------------------------------
   useEffect(function() {
@@ -2605,7 +2639,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.63</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.64</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2659,7 +2693,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.63</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.64</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3162,7 +3196,22 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     function sc(key){
                       if(key==="wsma")   return !ind2.wsma10||!ind2.wsma40?3:wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
                       if(key==="sma200") return !ind2.sma200?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
-                      if(key==="cross")  return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
+                      if(key==="cross") {
+                        // Dynamic cross score using 1y candle data
+                        var cd = crossData && crossData.sym === sym ? crossData : null;
+                        if (!cd || cd.type === "unknown") return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
+                        if (cd.type === "golden") {
+                          var age = cd.ageDays||0;
+                          return age<20&&cd.gapDir==="worsening"?5:age<20?5:cd.gapDir==="worsening"?4:4;
+                        }
+                        if (cd.type === "death") {
+                          var age = cd.ageDays||0;
+                          if (age<20)  return cd.gapDir==="worsening"?1:2;
+                          if (age<60)  return cd.gapDir==="improving"?3:2;
+                          return cd.gapDir==="improving"?3:cd.gapDir==="worsening"?1:2;
+                        }
+                        return 3; // no cross detected
+                      }
                       if(key==="pos52")  return pos2>0.80?5:pos2>0.55?4:pos2>0.35?3:pos2>0.15?2:1;
                       if(key==="ema20")  return _ema20g_pill===null?3:_ema20g_pill>5?5:_ema20g_pill>1?4:_ema20g_pill>-5?3:2;
                       if(key==="vwap")   return _vwapDiff2===null?3:_vwapDiff2>2?5:_vwapDiff2>0.5?4:_vwapDiff2>-0.5?3:_vwapDiff2>-2?2:1;
@@ -8143,7 +8192,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.63</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.64</span>
           </div>
         </div>
 
