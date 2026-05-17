@@ -2652,7 +2652,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.80</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.81</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2706,7 +2706,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.80</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.81</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7912,10 +7912,15 @@ export default function App() {
         var dFund   = results[0];
         var dTech   = results[1];
         var dSignal = results[2];
-        // Gate 1: ai-tech must exist and be written within last 7 days
-        if (!dTech || !dTech.hit || !dTech.cachedAt) return null;
-        var techAge = Date.now() - new Date(dTech.cachedAt).getTime();
-        if (techAge > 7 * 24 * 60 * 60 * 1000) return null;
+        // Gate 1: ai-tech written within last 7 days OR signal cache updated within 7 days
+        var _7d = 7 * 24 * 60 * 60 * 1000;
+        var techFresh   = dTech && dTech.hit && dTech.cachedAt && (Date.now() - new Date(dTech.cachedAt).getTime() < _7d);
+        var signalFresh = (function(){
+          if (!dSignal || !dSignal.hit || !dSignal.value) return false;
+          try { var s = JSON.parse(dSignal.value); return s.updatedAt && (Date.now() - new Date(s.updatedAt).getTime() < _7d); }
+          catch(e) { return false; }
+        })();
+        if (!techFresh && !signalFresh) return null;
         // Gate 2: ai-fund must have Exceptional or Good verdict
         // Parse signal cache
         var sigData = null;
@@ -8203,7 +8208,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.80</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.81</span>
           </div>
         </div>
 
