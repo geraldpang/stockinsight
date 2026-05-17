@@ -2646,7 +2646,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.73</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.74</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2700,7 +2700,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.73</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.74</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3204,7 +3204,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     function sc(key){
                       if(key==="wsma")   return !ind2.wsma10||!ind2.wsma40?3:wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
                       if(key==="sma200") return !ind2.sma200?3:s200g_>10?5:s200g_>2?4:s200g_>-10?3:s200g_>-20?2:1;
-                      if(key==="sma50")  return !ind2.sma50?3:s50g_>5?5:s50g_>1?4:s50g_>-5?3:2;
+                      if(key==="sma50")  return !ind2.sma50?3:s50g_>5?5:s50g_>1?4:s50g_>-5?3:s50g_>-10?2:1;
                       if(key==="cross") {
                         var cd = crossData && crossData.sym === sym ? crossData : null;
                         if (!cd || cd.type === "unknown") return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
@@ -3212,7 +3212,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         if (cd.type === "death")  return cd.gapDir==="improving"?3:cd.gapDir==="stable"?2:1;
                         return 3;
                       }
-                      if(key==="ema20")  return _ema20g_pill===null?3:_ema20g_pill>5?5:_ema20g_pill>1?4:_ema20g_pill>-5?3:2;
+                      if(key==="ema20")  return _ema20g_pill===null?3:_ema20g_pill>5?5:_ema20g_pill>1?4:_ema20g_pill>-5?3:_ema20g_pill>-10?2:1;
                       return 3;
                     }
                     var tot=0; Object.keys(W).forEach(function(k){tot+=(sc(k)/5)*W[k];}); return Math.round(tot);
@@ -6259,9 +6259,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               val={ema20g!=null?(ema20g>0?"+":"")+ema20g.toFixed(2)+"%":null}
                               valCol={ema20g===null?"#aaa":ema20g>1?"#1a6a1a":ema20g>-5?"#888":"#c03030"}
                               dir={emaDir} score={_es} dotCol={_ec} weight={10} badge={_emaBadge}
-                              scoring={"●●●●●  5/5: Price > +5% above EMA20\n●●●●○  4/5: Price +1% to +5%\n●●●○○  3/5: Price -5% to +1% (near average)\n●●○○○  2/5: Price below -5%\n●○○○○  1/5: (not applicable -- EMA20 minimum is 2/5)"}
+                              scoring={"●●●●●  5/5: Price > +5% above EMA20\n●●●●○  4/5: Price +1% to +5%\n●●●○○  3/5: Price -5% to +1%\n●●○○○  2/5: Price -10% to -5%\n●○○○○  1/5: Price below -10%"}
                               context={ema20g!=null?("The 20-day EMA is a short-term trend line. The stock is "+(ema20g>0?ema20g.toFixed(1)+"% above":Math.abs(ema20g).toFixed(1)+"% below")+" it at $"+(ind.ema20?ind.ema20.toFixed(2):"N/A")+"."+(ema20g>10?"":"")):null}
-                              desc={ema20g===null?"Data unavailable.":ema20g>5?"Well above 20-day average -- strong short-term trend.":ema20g>1?"Above 20-day average -- short-term uptrend intact.":ema20g>-5?"Near 20-day average -- trend is flat.":"Below 20-day average -- short-term trend is weak."}
+                              desc={ema20g===null?"Data unavailable.":ema20g>5?"Well above 20-day average -- strong short-term trend.":ema20g>1?"Above 20-day average -- short-term uptrend intact.":ema20g>-5?"Near 20-day average -- trend is flat.":ema20g>-10?"Below 20-day average -- short-term trend is weak.":"Well below 20-day average -- significant short-term weakness."}
                               watch={ema20g!=null&&Math.abs(ema20g)<1?"Price is right at its 20-day average -- a key short-term support/resistance to watch.":null} />;
                           })()}
 
@@ -6272,9 +6272,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               val={s50g!==null?(s50g>0?"+":"")+s50g.toFixed(2)+"%":null}
                               valCol={s50g===null?"#aaa":s50g>1?"#1a6a1a":s50g>-5?"#888":"#c03030"}
                               dir={d50} score={_s5s} dotCol={_s5c} weight={10}
-                              scoring={"●●●●●  5/5: Price > +5% above SMA50\n●●●●○  4/5: Price +1% to +5%\n●●●○○  3/5: Price -5% to +1% (near average)\n●●○○○  2/5: Price below -5%\n●○○○○  1/5: (not used — minimum is 2/5 for SMA50)"}
+                              scoring={"●●●●●  5/5: Price > +5% above SMA50\n●●●●○  4/5: Price +1% to +5%\n●●●○○  3/5: Price -5% to +1%\n●●○○○  2/5: Price -10% to -5%\n●○○○○  1/5: Price below -10%"}
                               context={s50g!==null?"The stock is "+(s50g>0?s50g.toFixed(1)+"% above":Math.abs(s50g).toFixed(1)+"% below")+" its 50-day average of $"+(ind.sma50?ind.sma50.toFixed(2):"N/A")+". The 50-day average tracks the medium-term price trend over roughly 10 trading weeks.":null}
-                              desc={s50g===null?"Data unavailable.":s50g>5?"Well above 50-day average -- medium-term trend is strong.":s50g>1?"Above 50-day average -- medium-term uptrend intact.":s50g>-5?"Near 50-day average -- consolidating.":"Below 50-day average -- medium-term trend is weak."}
+                              desc={s50g===null?"Data unavailable.":s50g>5?"Well above 50-day average -- medium-term trend is strong.":s50g>1?"Above 50-day average -- medium-term uptrend intact.":s50g>-5?"Near 50-day average -- consolidating.":s50g>-10?"Below 50-day average -- medium-term trend is weak.":"Well below 50-day average -- significant medium-term weakness."}
                               watch={s50g!==null&&Math.abs(s50g)<2?"Price is testing its 50-day average -- a key support/resistance level to watch.":null} />;
                           })()}
 
@@ -8170,7 +8170,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.73</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.74</span>
           </div>
         </div>
 
