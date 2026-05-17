@@ -2646,7 +2646,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.72</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.73</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2700,7 +2700,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.72</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.73</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3192,9 +3192,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   var _hasTech = !!(ind2 && p2);
                   // Trend score (wsma:30, sma200:30, cross:20, ema20:10, vwap:10) -- 52W position removed
                   var _trendScore = _hasTech ? (function(){
-                    var W={wsma:35,sma200:35,cross:20,ema20:10};
+                    var W={wsma:30,sma200:30,cross:20,ema20:10,sma50:10};
                     var wsmaG=ind2.wsma10&&ind2.wsma40?(ind2.wsma10-ind2.wsma40)/ind2.wsma40*100:0;
-                    var s200g=ind2.sma200?(p2-ind2.sma200)/ind2.sma200*100:0;
+                    var s200g_=ind2.sma200?(p2-ind2.sma200)/ind2.sma200*100:0;
+                    var s50g_=ind2.sma50?(p2-ind2.sma50)/ind2.sma50*100:0;
                     var crsG=ind2.sma50&&ind2.sma200?(ind2.sma50-ind2.sma200)/ind2.sma200*100:0;
                     var _ema20g_pill=ind2.ema20&&p2>0?(p2-ind2.ema20)/ind2.ema20*100:null;
                     var _snap2=massiveInfo&&massiveInfo.snapshot?massiveInfo.snapshot:{};
@@ -3202,7 +3203,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var _vwapDiff2=_vwap2>0&&p2>0?(p2-_vwap2)/_vwap2*100:null;
                     function sc(key){
                       if(key==="wsma")   return !ind2.wsma10||!ind2.wsma40?3:wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
-                      if(key==="sma200") return !ind2.sma200?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
+                      if(key==="sma200") return !ind2.sma200?3:s200g_>10?5:s200g_>2?4:s200g_>-10?3:s200g_>-20?2:1;
+                      if(key==="sma50")  return !ind2.sma50?3:s50g_>5?5:s50g_>1?4:s50g_>-5?3:2;
                       if(key==="cross") {
                         var cd = crossData && crossData.sym === sym ? crossData : null;
                         if (!cd || cd.type === "unknown") return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
@@ -6191,25 +6193,28 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           <span style={{fontSize:12,fontWeight:600,color:"#333"}}>{p.label}</span>
                           <span style={{display:"flex",alignItems:"center",gap:6}}>
                             {p.score!=null && TDots(p.score, p.dotCol)}
-                            {p.score!=null && <span style={{fontSize:10,color:p.dotCol||"#888",fontWeight:700,minWidth:30,textAlign:"right"}}>{p.score+"/5"}</span>}
-                            {p.weight!=null && <span style={{fontSize:9,color:"#bbb",marginLeft:2}}>{"(wt:"+p.weight+"%)"}</span>}
+                            {p.score!=null && p.weight!=null && (
+                              <span style={{fontSize:10,color:p.dotCol||"#888",fontWeight:700,minWidth:36,textAlign:"right"}}>
+                                {Math.round((p.score/5)*p.weight)+"/"+(p.weight)}
+                              </span>
+                            )}
                             <span style={{fontSize:13,fontWeight:700,color:p.valCol||"#111",marginLeft:4}}>{p.val===null?"N/A":p.val}</span>
                             {p.dir && Arrow(p.dir)}
                           </span>
                         </div>
                         {p.badge && <div style={{display:"inline-block",fontSize:9,fontWeight:700,color:p.badge.col,background:p.badge.bg,border:"0.5px solid "+p.badge.col,borderRadius:4,padding:"1px 6px",marginBottom:4}}>{p.badge.text}</div>}
                         <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{p.desc}</div>
+                        {p.context && <div style={{fontSize:10,color:"#666",marginTop:4,padding:"4px 8px",background:"#f5f2ec",borderRadius:4,borderLeft:"2px solid #c8c0b0"}}>{p.context}</div>}
+                        {p.watch && <div style={{fontSize:10,color:"#b88000",marginTop:4,fontStyle:"italic"}}>{"Watch: "+p.watch}</div>}
                         {p.scoring && (
-                          <details style={{marginTop:4}}>
-                            <summary style={{fontSize:10,color:"#9a9a9a",cursor:"pointer",userSelect:"none",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4}}>
-                              <span style={{fontSize:9,color:"#bbb"}}>{"▶"}</span>
+                          <details style={{marginTop:6}}>
+                            <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",userSelect:"none",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4}}>
+                              <span style={{fontSize:9,color:"#ccc"}}>{"▶"}</span>
                               <span>How is this scored?</span>
                             </summary>
                             <div style={{padding:"6px 8px",background:"#f9f7f4",borderRadius:4,marginTop:3,fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line"}}>{p.scoring}</div>
                           </details>
                         )}
-                        {p.context && <div style={{fontSize:10,color:"#666",marginTop:4,padding:"4px 8px",background:"#f5f2ec",borderRadius:4,borderLeft:"2px solid #c8c0b0"}}>{p.context}</div>}
-                        {p.watch && <div style={{fontSize:10,color:"#b88000",marginTop:4,fontStyle:"italic"}}>{"Watch: "+p.watch}</div>}
                       </div>
                     ); }
                     var aggs=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
@@ -6255,7 +6260,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               valCol={ema20g===null?"#aaa":ema20g>1?"#1a6a1a":ema20g>-5?"#888":"#c03030"}
                               dir={emaDir} score={_es} dotCol={_ec} weight={10} badge={_emaBadge}
                               scoring={"●●●●●  5/5: Price > +5% above EMA20\n●●●●○  4/5: Price +1% to +5%\n●●●○○  3/5: Price -5% to +1% (near average)\n●●○○○  2/5: Price below -5%\n●○○○○  1/5: (not applicable -- EMA20 minimum is 2/5)"}
-                              context={ema20g!=null?("The 20-day EMA is a short-term trend line. The stock is "+(ema20g>0?ema20g.toFixed(1)+"% above":Math.abs(ema20g).toFixed(1)+"% below")+" it at $"+(ind.ema20?ind.ema20.toFixed(2):"N/A")+". Think of it as the centre of gravity for short-term price."+(ema20g>10?" At "+ema20g.toFixed(0)+"% above it is stretched and a pullback would be normal.":"")):null}
+                              context={ema20g!=null?("The 20-day EMA is a short-term trend line. The stock is "+(ema20g>0?ema20g.toFixed(1)+"% above":Math.abs(ema20g).toFixed(1)+"% below")+" it at $"+(ind.ema20?ind.ema20.toFixed(2):"N/A")+"."+(ema20g>10?"":"")):null}
                               desc={ema20g===null?"Data unavailable.":ema20g>5?"Well above 20-day average -- strong short-term trend.":ema20g>1?"Above 20-day average -- short-term uptrend intact.":ema20g>-5?"Near 20-day average -- trend is flat.":"Below 20-day average -- short-term trend is weak."}
                               watch={ema20g!=null&&Math.abs(ema20g)<1?"Price is right at its 20-day average -- a key short-term support/resistance to watch.":null} />;
                           })()}
@@ -6266,9 +6271,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             return <TRow label="Price vs 50-day Average"
                               val={s50g!==null?(s50g>0?"+":"")+s50g.toFixed(2)+"%":null}
                               valCol={s50g===null?"#aaa":s50g>1?"#1a6a1a":s50g>-5?"#888":"#c03030"}
-                              dir={d50} score={_s5s} dotCol={_s5c}
-                              scoring={"●●●●●  5/5: Price > +5% above SMA50\n●●●●○  4/5: Price +1% to +5%\n●●●○○  3/5: Price -5% to +1% (near average)\n●●○○○  2/5: Price below -5%\n●○○○○  1/5: (not applicable -- SMA50 minimum is 2/5)\n\nNote: SMA50 is shown for context. It is not included in the overall trend score."}
-                              context={s50g!==null?"The stock is "+(s50g>0?s50g.toFixed(1)+"% above":Math.abs(s50g).toFixed(1)+"% below")+" its 50-day average of $"+(ind.sma50?ind.sma50.toFixed(2):"N/A")+". The 50-day average tracks the medium-term price trend over roughly 10 trading weeks. It tends to act as support in uptrends and resistance in downtrends.":null}
+                              dir={d50} score={_s5s} dotCol={_s5c} weight={10}
+                              scoring={"●●●●●  5/5: Price > +5% above SMA50\n●●●●○  4/5: Price +1% to +5%\n●●●○○  3/5: Price -5% to +1% (near average)\n●●○○○  2/5: Price below -5%\n●○○○○  1/5: (not used — minimum is 2/5 for SMA50)"}
+                              context={s50g!==null?"The stock is "+(s50g>0?s50g.toFixed(1)+"% above":Math.abs(s50g).toFixed(1)+"% below")+" its 50-day average of $"+(ind.sma50?ind.sma50.toFixed(2):"N/A")+". The 50-day average tracks the medium-term price trend over roughly 10 trading weeks.":null}
                               desc={s50g===null?"Data unavailable.":s50g>5?"Well above 50-day average -- medium-term trend is strong.":s50g>1?"Above 50-day average -- medium-term uptrend intact.":s50g>-5?"Near 50-day average -- consolidating.":"Below 50-day average -- medium-term trend is weak."}
                               watch={s50g!==null&&Math.abs(s50g)<2?"Price is testing its 50-day average -- a key support/resistance level to watch.":null} />;
                           })()}
@@ -6279,7 +6284,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             return <TRow label="Weekly Trend (10-week vs 40-week MA)"
                               val={wsmaG!==null?(wsmaG>0?"+":"")+wsmaG.toFixed(2)+"%":null}
                               valCol={wsmaG===null?"#aaa":wsmaG>1?"#1a6a1a":wsmaG>-1?"#888":"#c03030"}
-                              score={_ws} dotCol={_wdc} weight={35}
+                              score={_ws} dotCol={_wdc} weight={30}
                               scoring={"●●●●●  5/5: Gap > +5% (strong uptrend)\n●●●●○  4/5: Gap +1% to +5%\n●●●○○  3/5: Gap -1% to +1% (neutral)\n●●○○○  2/5: Gap -5% to -1%\n●○○○○  1/5: Gap < -5% (strong downtrend)"}
                               context={wsmaG!==null?"The 10-week MA is currently "+(wsmaG>0?"+":"")+wsmaG.toFixed(1)+"% "+(wsmaG>0?"above":"below")+" the 40-week MA. Think of these like a fast and slow speedometer -- when the fast line is above the slow line, the weekly trend is up. The gap is "+(Math.abs(wsmaG)>5?"large":"small")+", meaning the trend is "+(Math.abs(wsmaG)>5?"well established":"just beginning or fading")+".":null}
                               desc={wsmaG===null?"Data unavailable.":wsmaG>5?"10-week average is well above 40-week -- medium-term uptrend is strong and intact.":wsmaG>1?"10-week is above 40-week -- uptrend in place.":wsmaG>-1?"Both averages are flat -- stock is trending sideways.":wsmaG>-5?"10-week is below 40-week -- downtrend developing.":"10-week well below 40-week -- sustained downtrend."}
@@ -6292,9 +6297,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             return <TRow label="Price vs 200-day Average (long-term trend)"
                               val={s200g!==null?(s200g>0?"+":"")+s200g.toFixed(2)+"%":null}
                               valCol={s200g===null?"#aaa":s200g>2?"#1a6a1a":s200g>-10?"#888":"#c03030"}
-                              dir={d200} score={_ss} dotCol={_sdc} weight={35} badge={_s200badge}
+                              dir={d200} score={_ss} dotCol={_sdc} weight={30} badge={_s200badge}
                               scoring={"●●●●●  5/5: Price > +10% above SMA200\n●●●●○  4/5: Price +2% to +10%\n●●●○○  3/5: Price -10% to +2%\n●●○○○  2/5: Price -20% to -10%\n●○○○○  1/5: Price < -20% below SMA200"}
-                              context={s200g!==null?"The stock is trading "+(s200g>0?s200g.toFixed(1)+"% above":Math.abs(s200g).toFixed(1)+"% below")+" its 200-day average price of $"+(ind.sma200?ind.sma200.toFixed(2):"N/A")+". This long-term average is the most widely watched trend indicator -- being above it is generally considered healthy, below it is a warning sign."+(s200g>25?" A gap of "+s200g.toFixed(0)+"% is quite large, and stocks this extended above their 200-day average often pull back toward it eventually.":"")+".":null}
+                              context={s200g!==null?"The stock is trading "+(s200g>0?s200g.toFixed(1)+"% above":Math.abs(s200g).toFixed(1)+"% below")+" its 200-day average price of $"+(ind.sma200?ind.sma200.toFixed(2):"N/A")+". Being above the 200-day average is generally healthy; below it is a warning sign."+(s200g>25?" A gap of "+s200g.toFixed(0)+"% is quite large, and stocks this extended above their 200-day average often pull back toward it eventually.":"")+".":null}
                               desc={s200g===null?"Data unavailable.":s200g>10?"Stock is well above its long-term average -- strong bullish trend.":s200g>2?"Stock is above its long-term average -- healthy uptrend.":s200g>-10?"Stock is near its long-term average -- no clear direction.":s200g>-20?"Stock is below its long-term average -- weak trend.":"Stock is well below its long-term average -- strong downtrend."}
                               watch={s200g!==null&&Math.abs(s200g)<5?"Price is very close to its 200-day average -- a break above or below here is a significant signal.":null} />;
                           })()}
@@ -6484,7 +6489,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               val={ema20g!=null?(ema20g>0?"+":"")+ema20g.toFixed(2)+"%":null}
                               valCol={ema20g===null?"#aaa":ema20g>1?"#1a6a1a":ema20g>-5?"#888":"#c03030"}
                               dir={emaDir} score={_es} dotCol={_ec} weight={10} badge={_emaBadge}
-                              context={ema20g!=null?("The 20-day EMA is a short-term trend line. The stock is "+(ema20g>0?ema20g.toFixed(1)+"% above":Math.abs(ema20g).toFixed(1)+"% below")+" it at $"+(ind.ema20?ind.ema20.toFixed(2):"N/A")+". Think of it as the centre of gravity for short-term price."+(ema20g>10?" At "+ema20g.toFixed(0)+"% above it is stretched -- a pullback is normal.":"")):null}
+                              context={ema20g!=null?("The 20-day EMA is a short-term trend line. The stock is "+(ema20g>0?ema20g.toFixed(1)+"% above":Math.abs(ema20g).toFixed(1)+"% below")+" it at $"+(ind.ema20?ind.ema20.toFixed(2):"N/A")+"."+(ema20g>10?" At "+ema20g.toFixed(0)+"% above it is stretched -- a pullback is normal.":"")):null}
                               desc={ema20g===null?"Data unavailable.":ema20g>5?"Well above 20-day average -- strong short-term momentum.":ema20g>1?"Above 20-day average -- short-term uptrend intact.":ema20g>-5?"Near 20-day average -- momentum is flat, could go either way.":"Below 20-day average -- short-term momentum is weak."}
                               watch={ema20g!=null&&Math.abs(ema20g)<1?"Price is right at its 20-day average -- a key short-term support/resistance to watch.":null} />;
                           })()}
@@ -8165,7 +8170,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.72</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.73</span>
           </div>
         </div>
 
