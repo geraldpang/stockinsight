@@ -2652,7 +2652,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.77</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.79</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2706,7 +2706,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.77</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.79</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -2800,14 +2800,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               var v = (text+"").toLowerCase().replace(/[^a-z ]/g,"").trim();
               if (v.includes("strong buy")||v==="buy"||v.startsWith("buy")||v.includes("wide")||v.includes("strong bullish")||v.startsWith("strong"))
                 return { bg:"#1e2a1e", fg:"#7abd00", border:"#2a5020", dot:"#7abd00", dotEmpty:"#2a5020" };
-              if (v.includes("avoid")) return { bg:"#2a1e1e", fg:"#e05050", border:"#4a2020", dot:"#e05050", dotEmpty:"#4a2020" };
-              if (v.includes("narrow")||v.includes("moderate")||v.includes("bullish"))
+              if (v==="exceptional"||v==="undervalued")
                 return { bg:"#1e2a1e", fg:"#7abd00", border:"#2a5020", dot:"#7abd00", dotEmpty:"#2a5020" };
-              if (v.includes("neutral")||v.includes("fairly")||v==="hold"||v.startsWith("hold")||v==="premium")
+              if (v.includes("moderate")||v.includes("narrow")||v.includes("bullish")||v==="fairlyvalued"||v==="fair"||v.includes("fairly"))
                 return { bg:"#2a2010", fg:"#EF9F27", border:"#4a3810", dot:"#EF9F27", dotEmpty:"#4a3810" };
-              if (v==="exceptional"||v==="undervalued") return { bg:"#1e2a1e", fg:"#7abd00", border:"#2a5020", dot:"#7abd00", dotEmpty:"#2a5020" };
-              if (v==="fairlyvalued"||v==="fair") return { bg:"#1e2a1e", fg:"#9acd50", border:"#2a4020", dot:"#9acd50", dotEmpty:"#2a4020" };
-              if (v.includes("none")||v.includes("weak")||v.includes("bearish")||v.includes("overvalued"))
+              if (v.includes("neutral")||v==="hold"||v.startsWith("hold")||v==="premium")
+                return { bg:"#2a2010", fg:"#EF9F27", border:"#4a3810", dot:"#EF9F27", dotEmpty:"#4a3810" };
+              if (v.includes("avoid")||v.includes("weak")||v.includes("bearish")||v.includes("overvalued")||v.includes("none")||v.includes("poor"))
                 return { bg:"#2a1e1e", fg:"#e05050", border:"#4a2020", dot:"#e05050", dotEmpty:"#4a2020" };
               return { bg:"#222", fg:"#555", border:"#333", dot:"#444", dotEmpty:"#2a2a2a" };
             }
@@ -2881,6 +2880,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 _ft(ov.revGrowth,   _isTF?[20,10,5,0]:_isUF?[8,5,2,0]:_isFF?[10,6,3,0]:_isEF?[15,8,3,0]:[12,7,3,0]),
                 ov.fcfRaw>0?(ov.fcfRaw>10e9?5:ov.fcfRaw>1e9?4:3):0,
                 ov.de>0?(ov.de<0.5?5:ov.de<1?4:ov.de<2?3:ov.de<3?2:1):0,
+                // Debt/EBITDA -- same as Financial tab
+                (function(){ var eb=ov.ebitda; var td=ov.totalDebt; if(!eb||!td||eb<=0) return 0; var r=td/eb; return r<1?5:r<2?4:r<3?3:r<4?2:1; })(),
+                // Debt/OCF -- same as Financial tab
+                (function(){ var ocf=ov.ocfRaw; var td=ov.totalDebt; if(!ocf||!td||ocf<=0) return 0; var r=td/ocf; return r<1?5:r<2?4:r<3?3:r<5?2:1; })(),
               ].filter(function(s){return s>0;});
               var _fa=_fgs.length>0?_fgs.reduce(function(a,b){return a+b;},0)/_fgs.length:0;
               finRating=_fa>=4?"Exceptional":_fa>=3?"Strong":_fa>=2?"Moderate":_fa>=1?"Weak":_fa>0?"Poor":null;
@@ -8199,7 +8202,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.77</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.79</span>
           </div>
         </div>
 
