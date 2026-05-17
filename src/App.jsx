@@ -2655,7 +2655,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.75</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.76</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2709,7 +2709,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.75</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.76</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6308,16 +6308,31 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               watch={wsmaG!==null&&wsmaG>0?"Watch for 10-week crossing below 40-week -- that would signal trend reversal.":wsmaG!==null&&wsmaG<0?"Watch for 10-week crossing above 40-week -- that would signal a bullish recovery.":null} />;
                           })()}
                           {(function(){
-                            var _ss=s200g===null?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
+                            var _cd200 = crossData && crossData.sym === sym ? crossData : null;
+                            var _s200gdir = _cd200 ? _cd200.sma200GapDir : null;
+                            var _ss = s200g===null?3: (function(){
+                              if (s200g > 10) return 5;
+                              if (s200g > 2)  return 4;
+                              if (s200g > -10) return 3;
+                              if (s200g > -20) return _s200gdir==="improving"?3:2;
+                              return _s200gdir==="improving"?2:1;
+                            })();
                             var _sdc=_ss>=4?"#1a6a1a":_ss===3?"#b88000":"#c03030";
                             var _s200badge=s200g!==null&&s200g>25?{text:"\u26A0 EXTENDED",col:"#b88000",bg:"#fdf8e6"}:null;
+                            var _s200desc = s200g===null?"Data unavailable.":
+                              s200g>10?"Stock is well above its long-term average -- strong bullish trend.":
+                              s200g>2?"Stock is above its long-term average -- healthy uptrend.":
+                              s200g>-10?"Stock is near its long-term average -- no clear direction.":
+                              s200g>-20?(_s200gdir==="improving"?"Stock is below its long-term average but the gap is narrowing -- signs of recovery.":"Stock is below its long-term average -- downtrend in place."):
+                              (_s200gdir==="improving"?"Stock is well below its long-term average, but the gap is narrowing -- early signs of flattening.":_s200gdir==="worsening"?"Stock is well below its long-term average and the gap is widening -- downtrend accelerating.":"Stock is well below its long-term average -- strong downtrend.");
+                            var _s200ctx = s200g!==null?"The stock is trading "+Math.abs(s200g).toFixed(1)+"% "+(s200g>0?"above":"below")+" its 200-day average of $"+(ind.sma200?ind.sma200.toFixed(2):"N/A")+"."+(_s200gdir?" The gap is "+_s200gdir+" compared to 10 days ago.":"")+" Being above the 200-day average is generally healthy; below it is a warning sign.":null;
                             return <TRow label="Price vs 200-day Average (long-term trend)"
                               val={s200g!==null?(s200g>0?"+":"")+s200g.toFixed(2)+"%":null}
                               valCol={s200g===null?"#aaa":s200g>2?"#1a6a1a":s200g>-10?"#888":"#c03030"}
                               dir={d200} score={_ss} dotCol={_sdc} weight={30} badge={_s200badge}
                               scoring={"●●●●●  5/5: Price > +10% above SMA200\n●●●●○  4/5: Price +2% to +10%\n●●●○○  3/5: Price -10% to +2%, OR -20% to -10% but improving\n●●○○○  2/5: Price -20% to -10% (stable/worsening), OR below -20% but improving\n●○○○○  1/5: Price < -20% (stable or worsening)"}
-                              context={s200g!==null?"The stock is trading "+(s200g>0?s200g.toFixed(1)+"% above":Math.abs(s200g).toFixed(1)+"% below")+" its 200-day average price of $"+(ind.sma200?ind.sma200.toFixed(2):"N/A")+". Being above the 200-day average is generally healthy; below it is a warning sign."+(s200g>25?" A gap of "+s200g.toFixed(0)+"% is quite large, and stocks this extended above their 200-day average often pull back toward it eventually.":"")+".":null}
-                              desc={s200g===null?"Data unavailable.":s200g>10?"Stock is well above its long-term average -- strong bullish trend.":s200g>2?"Stock is above its long-term average -- healthy uptrend.":s200g>-10?"Stock is near its long-term average -- no clear direction.":s200g>-20?"Stock is below its long-term average -- weak trend.":"Stock is well below its long-term average -- strong downtrend."}
+                              context={_s200ctx}
+                              desc={_s200desc}
                               watch={s200g!==null&&Math.abs(s200g)<5?"Price is very close to its 200-day average -- a break above or below here is a significant signal.":null} />;
                           })()}
                           {(function(){
@@ -8187,7 +8202,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.75</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.76</span>
           </div>
         </div>
 
