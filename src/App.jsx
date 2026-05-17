@@ -1404,22 +1404,19 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
           weightUsed  += driverWeights[dName];
         }
       }
-      // If at least half the drivers parsed, use weighted score; else fall back to AI rating
+      // Always use weighted score if enough drivers parsed; never use AI's stated overall rating
       var score;
       if (weightUsed >= 0.5) {
         score = Math.round(weightedSum / weightUsed);
         score = Math.max(1, Math.min(5, score));
       } else {
-        var mFallback = text.match(/Economic Moat Rating[^0-9]*([0-9])/);
-        score = mFallback ? parseInt(mFallback[1], 10) : 0;
-        if (!score) {
-          if (text.indexOf("Wide") !== -1) score = 5;
-          else if (text.indexOf("Strong") !== -1) score = 4;
-          else if (text.indexOf("Moderate") !== -1) score = 3;
-          else if (text.indexOf("Narrow") !== -1) score = 2;
-          else if (text.indexOf("Weak") !== -1) score = 1;
-          else score = 1;
-        }
+        // Not enough drivers parsed -- fall back to keyword matching only (not AI overall rating)
+        if      (text.indexOf("Wide")     !== -1) score = 5;
+        else if (text.indexOf("Strong")   !== -1) score = 4;
+        else if (text.indexOf("Moderate") !== -1) score = 3;
+        else if (text.indexOf("Narrow")   !== -1) score = 2;
+        else if (text.indexOf("Weak")     !== -1) score = 1;
+        else score = 1;
       }
       var expIdx = text.indexOf("Explanation");
       var explanation = expIdx !== -1 ? text.substring(expIdx).replace(/^Explanation[^:]*:\s*/, "").split("\n")[0].trim() : "";
@@ -2655,7 +2652,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.76</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.77</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2709,7 +2706,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.76</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.77</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -8202,7 +8199,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.76</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.77</span>
           </div>
         </div>
 
