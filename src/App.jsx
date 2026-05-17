@@ -2652,7 +2652,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.79</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.80</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2706,7 +2706,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.79</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.80</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -4192,7 +4192,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var v = col.toLowerCase();
                           if (v.includes("exceptional")) return { text:"#0d4f0d", bg:"#d4edda", border:"#7abd00" };
                           if (v.includes("strong"))      return { text:"#1a6a1a", bg:"#e6f4e6", border:"#7abd00" };
-                          if (v.includes("moderate"))    return { text:"#b88000", bg:"#fdf8e6", border:"#d4a800" };
+                          if (v.includes("moderate")||v.includes("narrow"))
+                                                         return { text:"#b88000", bg:"#fdf8e6", border:"#d4a800" };
                           if (v.includes("weak"))        return { text:"#b84000", bg:"#fff4ee", border:"#e08050" };
                           if (v.includes("poor"))        return { text:"#c03030", bg:"#fff0f0", border:"#e08080" };
                           return { text:"#888", bg:"#f5f5f5", border:"#ddd" };
@@ -8202,7 +8203,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.79</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.80</span>
           </div>
         </div>
 
