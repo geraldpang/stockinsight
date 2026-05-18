@@ -1004,6 +1004,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [addlInfo,      setAddlInfo]      = useState(null);
   const [addlLoading,   setAddlLoading]   = useState(false);
   const [massiveInfo,   setMassiveInfo]   = useState(null);
+  const [crossData,     setCrossData]     = useState(null);
   const [whaleData,     setWhaleData]     = useState(null);
   const [whaleLoading,  setWhaleLoading]  = useState(false);
   const [debugLog,      setDebugLog]      = useState([]);
@@ -1016,6 +1017,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [aiFundCachedAt,setAiFundCachedAt]= useState(null);
   const [aiTechResult,  setAiTechResult]  = useState(null); // { verdict, stVerdict, confidence, keyLevel, summary, dataSnapshot }
   const [aiTechLoading, setAiTechLoading] = useState(false);
+  const [aiTechRefreshing, setAiTechRefreshing] = useState(false);
   const [aiTechCachedAt,setAiTechCachedAt]= useState(null);
 
   // Expose computed financial strength for left panel pill
@@ -1160,14 +1162,22 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             var cached = JSON.parse(d.value);
             setAiTechResult(cached);
             setAiTechCachedAt(d.cachedAt||null);
+            setAiTechLoading(false);
             setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech HIT: "+symA }]); });
+            // Stale check — if older than 1 day, refresh silently in background
+            var techAge = d.cachedAt ? Date.now() - new Date(d.cachedAt).getTime() : 0;
+            var isStale = techAge > 24 * 60 * 60 * 1000;
+            if (!isStale || window.__aiTechRunning) {
+              window.__aiTechRunning = null;
+              window.__aiTechDone = symA;
+              return;
+            }
+            // Stale — fall through to regeneration as background refresh
+            setAiTechRefreshing(true);
+            window.__aiTechRunning = symA;
           } catch(e) {
             setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech cache parse error: "+String(e) }]); });
           }
-          setAiTechLoading(false);
-          window.__aiTechRunning = null;
-          window.__aiTechDone = symA;
-          return;
         }
         // Safe helpers -- nothing here can throw
         function _sf(v,dec){ try{ return (v!=null&&!isNaN(v)&&isFinite(v))?parseFloat(v).toFixed(dec||2):"N/A"; }catch(e){return "N/A";} }
@@ -1301,6 +1311,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             };
             setAiTechResult(result);
             setAiTechLoading(false);
+            setAiTechRefreshing(false);
             window.__aiTechRunning = null;
             window.__aiTechDone = symA;
             fetch("/cache?sym="+symA+"&tab=ai-tech",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(result)})
@@ -1393,22 +1404,19 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
           weightUsed  += driverWeights[dName];
         }
       }
-      // If at least half the drivers parsed, use weighted score; else fall back to AI rating
+      // Always use weighted score if enough drivers parsed; never use AI's stated overall rating
       var score;
       if (weightUsed >= 0.5) {
         score = Math.round(weightedSum / weightUsed);
         score = Math.max(1, Math.min(5, score));
       } else {
-        var mFallback = text.match(/Economic Moat Rating[^0-9]*([0-9])/);
-        score = mFallback ? parseInt(mFallback[1], 10) : 0;
-        if (!score) {
-          if (text.indexOf("Wide") !== -1) score = 5;
-          else if (text.indexOf("Strong") !== -1) score = 4;
-          else if (text.indexOf("Moderate") !== -1) score = 3;
-          else if (text.indexOf("Narrow") !== -1) score = 2;
-          else if (text.indexOf("Weak") !== -1) score = 1;
-          else score = 1;
-        }
+        // Not enough drivers parsed -- fall back to keyword matching only (not AI overall rating)
+        if      (text.indexOf("Wide")     !== -1) score = 5;
+        else if (text.indexOf("Strong")   !== -1) score = 4;
+        else if (text.indexOf("Moderate") !== -1) score = 3;
+        else if (text.indexOf("Narrow")   !== -1) score = 2;
+        else if (text.indexOf("Weak")     !== -1) score = 1;
+        else score = 1;
       }
       var expIdx = text.indexOf("Explanation");
       var explanation = expIdx !== -1 ? text.substring(expIdx).replace(/^Explanation[^:]*:\s*/, "").split("\n")[0].trim() : "";
@@ -1459,7 +1467,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; if(window.__trendSignalWritten)delete window.__trendSignalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -1886,6 +1894,115 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       clearInterval(fundInterval);
     };
   }, [sym]);
+
+  // -- Write signal cache when ov + key values are ready -----------------------
+  useEffect(function() {
+    if (!ov || !q || !sym || !massiveInfo) return; // wait for massiveInfo so trend/mom are computed
+    if (!window.__clerkToken) return;
+    if (!window.__signalWritten) window.__signalWritten = {};
+    if (window.__signalWritten[sym]) return; // only write once per session per ticker
+    // Delay 2s to allow left-panel renders to compute window globals
+    var t = setTimeout(function() {
+      var ivStore  = window.__ivStore && window.__ivStore[sym];
+      var finStr   = window.__computedFinStrength && window.__computedFinStrength[sym];
+      var ivOracle = ivStore ? parseFloat(ivStore.oracle) : null;
+      var price    = q.price || 0;
+      var ivDiscount = (ivOracle && price > 0) ? ((ivOracle - price) / price * 100) : null;
+      var moatData = parsedInsights && parsedInsights["moat"];
+      var payload  = {
+        moat:       moatData  ? moatData.classification : null,
+        moatScore:  moatData  ? moatData.score          : null,
+        fin:        finStr    ? finStr.classification   : null,
+        finScore:   finStr    ? finStr.score            : null,
+        iv:         ivOracle,
+        ivDiscount: ivDiscount,
+        trend:      window.__trendLabel  || null,
+        trendScore: window.__trendScore  || null,
+        mom:        window.__momLabel    || null,
+        momScore:   window.__momScore    || null,
+        updatedAt:  new Date().toISOString()
+      };
+      if (!payload.moat && !payload.fin && !payload.iv && !payload.trend) return;
+      window.__signalWritten[sym] = true;
+      fetch("/cache?sym=" + sym + "&tab=signal", {
+        method:  "POST",
+        headers: { "Content-Type": "text/plain", "Authorization": "Bearer " + window.__clerkToken },
+        body:    JSON.stringify(payload)
+      }).catch(function(){});
+    }, 2000);
+    return function() { clearTimeout(t); };
+  }, [ov, parsedInsights, q, sym, massiveInfo]);
+
+  // -- Fetch 1y candles for SMA cross detection after Massive loads -----------
+  useEffect(function() {
+    if (!massiveInfo || !sym) return;
+    if (crossData && crossData.sym === sym) return;
+    var ySym = sym === "BRKB" ? "BRK-B" : sym;
+    fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=2y"))
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var allC = data&&data.chart&&data.chart.result&&data.chart.result[0]&&data.chart.result[0].indicators&&data.chart.result[0].indicators.quote&&data.chart.result[0].indicators.quote[0]&&data.chart.result[0].indicators.quote[0].close||[];
+        var closes = allC.filter(function(c){ return c!=null; });
+        var n = closes.length;
+        if (n < 201) { setCrossData({ sym:sym, type:"unknown", ageDays:null, gapDir:"unknown" }); return; }
+        var s50n  = closes.slice(n-50).reduce(function(s,v){return s+v;},0)/50;
+        var s200n = closes.slice(n-200).reduce(function(s,v){return s+v;},0)/200;
+        var gapNow = (s50n-s200n)/s200n*100;
+        var s50_10  = closes.slice(n-60,n-10).reduce(function(s,v){return s+v;},0)/50;
+        var s200_10 = closes.slice(n-210,n-10).reduce(function(s,v){return s+v;},0)/200;
+        var gap10   = (s50_10-s200_10)/s200_10*100;
+        var gapDir  = gapNow>gap10+0.5?"improving":gapNow<gap10-0.5?"worsening":"stable";
+        var crossType=null, crossAge=null;
+        for (var i=n-1; i>=50; i--) {
+          var s50t  = closes.slice(i-50, i).reduce(function(s,v){return s+v;},0)/50;
+          var s200t = i>=200 ? closes.slice(i-200,i).reduce(function(s,v){return s+v;},0)/200 : null;
+          var s50p  = closes.slice(i-51, i-1).reduce(function(s,v){return s+v;},0)/50;
+          var s200p = (i-201>=0) ? closes.slice(i-201,i-1).reduce(function(s,v){return s+v;},0)/200 : null;
+          if (s200t===null||s200p===null) continue; // not enough data for 200-SMA comparison
+          if (s50p>s200p&&s50t<=s200t){ crossType="death";  crossAge=n-i; break; }
+          if (s50p<s200p&&s50t>=s200t){ crossType="golden"; crossAge=n-i; break; }
+        }
+        // If no cross found in window, infer from current state
+        if (!crossType) {
+          crossType = gapNow < -0.5 ? "death" : gapNow > 0.5 ? "golden" : "none";
+          crossAge  = null; // happened before our 1-year data window
+        }
+        // Gap direction for price vs SMA200 (today vs 10 days ago)
+        var priceNow   = closes[n-1];
+        var price10    = closes[n-11] || closes[n-1];
+        var sma200_t0  = closes.slice(n-200).reduce(function(s,v){return s+v;},0)/200;
+        var sma200_t10 = n>=210 ? closes.slice(n-210,n-10).reduce(function(s,v){return s+v;},0)/200 : sma200_t0;
+        var s200gNow   = (priceNow - sma200_t0) / sma200_t0 * 100;
+        var s200g10    = (price10  - sma200_t10) / sma200_t10 * 100;
+        var sma200GapDir = s200gNow > s200g10 + 0.5 ? "improving" : s200gNow < s200g10 - 0.5 ? "worsening" : "stable";
+
+        setCrossData({ sym:sym, type:crossType||"none", ageDays:crossAge, gapDir:gapDir, gapNow:gapNow, sma200GapDir:sma200GapDir });
+        window.__crossDataDebug = { sym:sym, type:crossType||"none", ageDays:crossAge, gapDir:gapDir, gapNow:gapNow, sma200GapDir:sma200GapDir };
+      })
+      .catch(function(){ setCrossData({ sym:sym, type:"unknown", ageDays:null, gapDir:"unknown" }); });
+  }, [massiveInfo, sym]);
+
+  // -- Write trend-signal cache (1-day TTL) using exact detail page formula ----
+  useEffect(function() {
+    if (!massiveInfo || !sym || !q) return;
+    if (!window.__clerkToken) return;
+    if (!window.__trendSignalWritten) window.__trendSignalWritten = {};
+    if (window.__trendSignalWritten[sym]) return;
+    var t = setTimeout(function() {
+      var tLabel = window.__trendLabel;
+      var tScore = window.__trendScore;
+      var mLabel = window.__momLabel;
+      var mScore = window.__momScore;
+      if (!tLabel && !mLabel) return;
+      window.__trendSignalWritten[sym] = true;
+      fetch("/cache?sym=" + sym + "&tab=trend-signal", {
+        method:  "POST",
+        headers: { "Content-Type": "text/plain", "Authorization": "Bearer " + window.__clerkToken },
+        body:    JSON.stringify({ trendLabel:tLabel, trendScore:tScore, momLabel:mLabel, momScore:mScore, updatedAt:new Date().toISOString() })
+      }).catch(function(){});
+    }, 3000);
+    return function() { clearTimeout(t); };
+  }, [massiveInfo, sym, q]);
 
   // -- Admin tab data load -----------------------------------------------------
   useEffect(function() {
@@ -2557,7 +2674,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.55</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.83</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2611,7 +2728,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.55</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.83</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -2705,14 +2822,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               var v = (text+"").toLowerCase().replace(/[^a-z ]/g,"").trim();
               if (v.includes("strong buy")||v==="buy"||v.startsWith("buy")||v.includes("wide")||v.includes("strong bullish")||v.startsWith("strong"))
                 return { bg:"#1e2a1e", fg:"#7abd00", border:"#2a5020", dot:"#7abd00", dotEmpty:"#2a5020" };
-              if (v.includes("avoid")) return { bg:"#2a1e1e", fg:"#e05050", border:"#4a2020", dot:"#e05050", dotEmpty:"#4a2020" };
-              if (v.includes("narrow")||v.includes("moderate")||v.includes("bullish"))
+              if (v==="exceptional"||v==="undervalued")
                 return { bg:"#1e2a1e", fg:"#7abd00", border:"#2a5020", dot:"#7abd00", dotEmpty:"#2a5020" };
-              if (v.includes("neutral")||v.includes("fairly")||v==="hold"||v.startsWith("hold")||v==="premium")
+              if (v.includes("moderate")||v.includes("narrow")||v.includes("bullish")||v==="fairlyvalued"||v==="fair"||v.includes("fairly"))
                 return { bg:"#2a2010", fg:"#EF9F27", border:"#4a3810", dot:"#EF9F27", dotEmpty:"#4a3810" };
-              if (v==="exceptional"||v==="undervalued") return { bg:"#1e2a1e", fg:"#7abd00", border:"#2a5020", dot:"#7abd00", dotEmpty:"#2a5020" };
-              if (v==="fairlyvalued"||v==="fair") return { bg:"#1e2a1e", fg:"#9acd50", border:"#2a4020", dot:"#9acd50", dotEmpty:"#2a4020" };
-              if (v.includes("none")||v.includes("weak")||v.includes("bearish")||v.includes("overvalued"))
+              if (v.includes("neutral")||v==="hold"||v.startsWith("hold")||v==="premium")
+                return { bg:"#2a2010", fg:"#EF9F27", border:"#4a3810", dot:"#EF9F27", dotEmpty:"#4a3810" };
+              if (v.includes("avoid")||v.includes("weak")||v.includes("bearish")||v.includes("overvalued")||v.includes("none")||v.includes("poor"))
                 return { bg:"#2a1e1e", fg:"#e05050", border:"#4a2020", dot:"#e05050", dotEmpty:"#4a2020" };
               return { bg:"#222", fg:"#555", border:"#333", dot:"#444", dotEmpty:"#2a2a2a" };
             }
@@ -2786,6 +2902,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 _ft(ov.revGrowth,   _isTF?[20,10,5,0]:_isUF?[8,5,2,0]:_isFF?[10,6,3,0]:_isEF?[15,8,3,0]:[12,7,3,0]),
                 ov.fcfRaw>0?(ov.fcfRaw>10e9?5:ov.fcfRaw>1e9?4:3):0,
                 ov.de>0?(ov.de<0.5?5:ov.de<1?4:ov.de<2?3:ov.de<3?2:1):0,
+                // Debt/EBITDA -- same as Financial tab
+                (function(){ var eb=ov.ebitda; var td=ov.totalDebt; if(!eb||!td||eb<=0) return 0; var r=td/eb; return r<1?5:r<2?4:r<3?3:r<4?2:1; })(),
+                // Debt/OCF -- same as Financial tab
+                (function(){ var ocf=ov.ocfRaw; var td=ov.totalDebt; if(!ocf||!td||ocf<=0) return 0; var r=td/ocf; return r<1?5:r<2?4:r<3?3:r<5?2:1; })(),
               ].filter(function(s){return s>0;});
               var _fa=_fgs.length>0?_fgs.reduce(function(a,b){return a+b;},0)/_fgs.length:0;
               finRating=_fa>=4?"Exceptional":_fa>=3?"Strong":_fa>=2?"Moderate":_fa>=1?"Weak":_fa>0?"Poor":null;
@@ -3014,7 +3134,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       {/* Technical AI pill */}
                       <div onClick={function(){ window.__goToTab && window.__goToTab("aianalysis"); }}
                         style={{ padding:"9px 12px", background:aiTechResult?techC.bg:"#222", border:"0.5px solid "+(aiTechResult?techC.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color:aiTechResult?techC.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Technical (Trade)</div>
+                        <div style={{ fontSize:9, color:aiTechResult?techC.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8, display:"flex", alignItems:"center", gap:6 }}>
+                          Technical (Trade)
+                          {aiTechRefreshing && <span style={{ fontSize:8, color:"#EF9F27", fontWeight:600, letterSpacing:0 }}>↻ updating</span>}
+                        </div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
                           {aiTechLoading
                             ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
@@ -3098,11 +3221,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 {(function() {
                   // Compute trend, momentum, reversal scores from existing data
                   var _hasTech = !!(ind2 && p2);
-                  // Trend score (wsma, sma200, cross, pos52) -- weighted avg -> 0-100
+                  // Trend score (wsma:30, sma200:30, cross:20, ema20:10, vwap:10) -- 52W position removed
                   var _trendScore = _hasTech ? (function(){
-                    var W={wsma:25,sma200:25,cross:15,pos52:15,ema20:10,vwap:10};
+                    var W={wsma:30,sma200:30,cross:20,ema20:10,sma50:10};
                     var wsmaG=ind2.wsma10&&ind2.wsma40?(ind2.wsma10-ind2.wsma40)/ind2.wsma40*100:0;
-                    var s200g=ind2.sma200?(p2-ind2.sma200)/ind2.sma200*100:0;
+                    var s200g_=ind2.sma200?(p2-ind2.sma200)/ind2.sma200*100:0;
+                    var s50g_=ind2.sma50?(p2-ind2.sma50)/ind2.sma50*100:0;
                     var crsG=ind2.sma50&&ind2.sma200?(ind2.sma50-ind2.sma200)/ind2.sma200*100:0;
                     var _ema20g_pill=ind2.ema20&&p2>0?(p2-ind2.ema20)/ind2.ema20*100:null;
                     var _snap2=massiveInfo&&massiveInfo.snapshot?massiveInfo.snapshot:{};
@@ -3110,11 +3234,24 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var _vwapDiff2=_vwap2>0&&p2>0?(p2-_vwap2)/_vwap2*100:null;
                     function sc(key){
                       if(key==="wsma")   return !ind2.wsma10||!ind2.wsma40?3:wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
-                      if(key==="sma200") return !ind2.sma200?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
-                      if(key==="cross")  return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
-                      if(key==="pos52")  return pos2>0.80?5:pos2>0.55?4:pos2>0.35?3:pos2>0.15?2:1;
-                      if(key==="ema20")  return _ema20g_pill===null?3:_ema20g_pill>5?5:_ema20g_pill>1?4:_ema20g_pill>-5?3:2;
-                      if(key==="vwap")   return _vwapDiff2===null?3:_vwapDiff2>2?5:_vwapDiff2>0.5?4:_vwapDiff2>-0.5?3:_vwapDiff2>-2?2:1;
+                      if(key==="sma200") {
+                        var _cd2 = crossData && crossData.sym === sym ? crossData : null;
+                        var _g2dir = _cd2 ? _cd2.sma200GapDir : null;
+                        if (s200g_ > 10)  return 5;
+                        if (s200g_ > 2)   return 4;
+                        if (s200g_ > -10) return 3;
+                        if (s200g_ > -20) return _g2dir === "improving" ? 3 : 2;
+                        return _g2dir === "improving" ? 2 : 1;
+                      }
+                      if(key==="sma50")  return !ind2.sma50?3:s50g_>5?5:s50g_>1?4:s50g_>-5?3:s50g_>-10?2:1;
+                      if(key==="cross") {
+                        var cd = crossData && crossData.sym === sym ? crossData : null;
+                        if (!cd || cd.type === "unknown") return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
+                        if (cd.type === "golden") return cd.gapDir==="worsening"?5:4;
+                        if (cd.type === "death")  return cd.gapDir==="improving"?3:cd.gapDir==="stable"?2:1;
+                        return 3;
+                      }
+                      if(key==="ema20")  return _ema20g_pill===null?3:_ema20g_pill>5?5:_ema20g_pill>1?4:_ema20g_pill>-5?3:_ema20g_pill>-10?2:1;
                       return 3;
                     }
                     var tot=0; Object.keys(W).forEach(function(k){tot+=(sc(k)/5)*W[k];}); return Math.round(tot);
@@ -3206,6 +3343,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 {/* SIGNALS -- separate card, hidden when no signals */}
                 {(function(){
                   var _hasTechCheck=!!(massiveInfo&&massiveInfo.indicators&&q&&q.price);
+                  // Show loading spinner while massive data is loading
+                  if (!massiveInfo && q && q.price) return (
+                    <div style={{ background:"#1e1e1e", border:"0.5px solid #2c2c2e", borderRadius:10, padding:"12px 16px", marginBottom:8, marginTop:8, display:"flex", alignItems:"center", gap:8 }}>
+                      <div style={{ width:10, height:10, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite", flexShrink:0 }}></div>
+                      <span style={{ fontSize:10, color:"#555" }}>Loading signals...</span>
+                    </div>
+                  );
                   if(!_hasTechCheck) return null;
                   var _ind3c=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
                   var _aggs3c=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
@@ -4070,7 +4214,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var v = col.toLowerCase();
                           if (v.includes("exceptional")) return { text:"#0d4f0d", bg:"#d4edda", border:"#7abd00" };
                           if (v.includes("strong"))      return { text:"#1a6a1a", bg:"#e6f4e6", border:"#7abd00" };
-                          if (v.includes("moderate"))    return { text:"#b88000", bg:"#fdf8e6", border:"#d4a800" };
+                          if (v.includes("moderate")||v.includes("narrow"))
+                                                         return { text:"#b88000", bg:"#fdf8e6", border:"#d4a800" };
                           if (v.includes("weak"))        return { text:"#b84000", bg:"#fff4ee", border:"#e08050" };
                           if (v.includes("poor"))        return { text:"#c03030", bg:"#fff0f0", border:"#e08080" };
                           return { text:"#888", bg:"#f5f5f5", border:"#ddd" };
@@ -4710,9 +4855,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var cachedAtFundStr = aiFundCachedAt ? new Date(aiFundCachedAt).toLocaleDateString() : null;
                     var cachedAtTechStr = aiTechCachedAt ? new Date(aiTechCachedAt).toLocaleDateString() : null;
                     return (
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, alignItems:"start" }}>
+                      <div>
                         {/* Fundamental AI Card */}
-                        <div>
+                        <div style={{ marginBottom:24 }}>
                           <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:12 }}>
                             <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Fundamental AI</span>
                             {isAdmin && cachedAtFundStr && <span style={{ fontSize:10, color:"#aaa", marginLeft:8 }}>{"cached " + cachedAtFundStr + " (30d TTL)"}</span>}
@@ -4759,10 +4904,18 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         </div>
 
                         {/* Technical AI Card */}
-                        <div>
-                          <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:12 }}>
-                            <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Technical AI</span>
-                            {isAdmin && cachedAtTechStr && <span style={{ fontSize:10, color:"#aaa", marginLeft:8 }}>{"cached " + cachedAtTechStr + " (1d TTL)"}</span>}
+                        <div style={{ marginBottom:8 }}>
+                          <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:12, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                            <div>
+                              <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Technical AI</span>
+                              {isAdmin && cachedAtTechStr && <span style={{ fontSize:10, color:"#aaa", marginLeft:8 }}>{"cached " + cachedAtTechStr + " (1d TTL)"}</span>}
+                            </div>
+                            {aiTechRefreshing && (
+                              <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                                <div style={{ width:10, height:10, borderRadius:"50%", border:"1.5px solid #e0dbd0", borderTop:"1.5px solid #EF9F27", animation:"spin 0.8s linear infinite" }}></div>
+                                <span style={{ fontSize:10, color:"#EF9F27", fontWeight:600 }}>Refreshing in background...</span>
+                              </div>
+                            )}
                           </div>
                           {aiTechLoading && (
                             <div style={{ textAlign:"center", padding:"20px 0" }}>
@@ -6078,9 +6231,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       <div style={{padding:"10px 14px",borderBottom:"1px solid #f0ede6"}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                           <span style={{fontSize:12,fontWeight:600,color:"#333"}}>{p.label}</span>
-                          <span style={{display:"flex",alignItems:"center"}}>
+                          <span style={{display:"flex",alignItems:"center",gap:6}}>
                             {p.score!=null && TDots(p.score, p.dotCol)}
-                            <span style={{fontSize:13,fontWeight:700,color:p.valCol||"#111",marginLeft:6}}>{p.val===null?"N/A":p.val}</span>
+                            {p.score!=null && p.weight!=null && (
+                              <span style={{fontSize:10,color:p.dotCol||"#888",fontWeight:700,minWidth:36,textAlign:"right"}}>
+                                {Math.round((p.score/5)*p.weight)+"/"+(p.weight)}
+                              </span>
+                            )}
+                            <span style={{fontSize:13,fontWeight:700,color:p.valCol||"#111",marginLeft:4}}>{p.val===null?"N/A":p.val}</span>
                             {p.dir && Arrow(p.dir)}
                           </span>
                         </div>
@@ -6088,6 +6246,15 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{p.desc}</div>
                         {p.context && <div style={{fontSize:10,color:"#666",marginTop:4,padding:"4px 8px",background:"#f5f2ec",borderRadius:4,borderLeft:"2px solid #c8c0b0"}}>{p.context}</div>}
                         {p.watch && <div style={{fontSize:10,color:"#b88000",marginTop:4,fontStyle:"italic"}}>{"Watch: "+p.watch}</div>}
+                        {p.scoring && (
+                          <details style={{marginTop:6}}>
+                            <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",userSelect:"none",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4}}>
+                              <span style={{fontSize:9,color:"#ccc"}}>{"▶"}</span>
+                              <span>How is this scored?</span>
+                            </summary>
+                            <div style={{padding:"6px 8px",background:"#f9f7f4",borderRadius:4,marginTop:3,fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line"}}>{p.scoring}</div>
+                          </details>
+                        )}
                       </div>
                     ); }
                     var aggs=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
@@ -6118,25 +6285,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             </div>
                           );
                         })()}
-                        {/* SHORT-TERM section */}
-                        <div style={{padding:"8px 14px",background:"#eef5ff",borderRadius:"8px 8px 0 0",borderBottom:"1px solid #c8d8f0",marginBottom:0}}>
-                          <div style={{fontSize:10,fontWeight:700,color:"#4a6a9a",textTransform:"uppercase",letterSpacing:"0.08em"}}>Short-Term (days to weeks)</div>
-                          <div style={{fontSize:11,color:"#6a8ab8",marginTop:1}}>Intraday and 1-month price position</div>
-                        </div>
-                        <div style={{border:"1px solid #c8d8f0",borderTop:"none",borderRadius:"0 0 8px 8px",marginBottom:10}}>
-                          {(function(){
-                            var snap=massiveInfo&&massiveInfo.snapshot?massiveInfo.snapshot:{};
-                            var vwap=snap.vwap||0;
-                            var vwapDiff=vwap>0&&price>0?((price-vwap)/vwap*100):null;
-                            var _vs=vwapDiff===null?3:vwapDiff>2?5:vwapDiff>0.5?4:vwapDiff>-0.5?3:vwapDiff>-2?2:1;
-                            var _vc=_vs>=4?"#1a6a1a":_vs===3?"#b88000":"#c03030";
-                            return <TRow label="Price vs VWAP (today)"
-                              val={vwapDiff!==null?(vwapDiff>0?"+":"")+vwapDiff.toFixed(2)+"%":null}
-                              valCol={vwapDiff===null?"#aaa":vwapDiff>0.5?"#1a6a1a":vwapDiff>-0.5?"#888":"#c03030"}
-                              score={_vs} dotCol={_vc}
-                              context={vwapDiff!==null?"VWAP ($"+vwap.toFixed(2)+") is the average price weighted by volume for today. Being "+(vwapDiff>0?"above":"below")+" it means "+(vwapDiff>0?"buyers have been in control today -- institutional traders often use VWAP as a benchmark for intraday strength.":"sellers have dominated today -- price is trading below where most volume occurred today."): null}
-                              desc={vwapDiff===null?"VWAP data unavailable.":vwapDiff>2?"Price is well above today's volume-weighted average -- buyers firmly in control today.":vwapDiff>0.5?"Price is above VWAP -- mild intraday bullish bias.":vwapDiff>-0.5?"Price is near VWAP -- balanced buying and selling today.":vwapDiff>-2?"Price is below VWAP -- sellers slightly in control today.":"Price is well below VWAP -- sellers dominating today."} />;
-                          })()}
+                        {/* TREND SIGNALS - unified, no short/medium/long dividers */}
+                        <div style={{border:"1px solid #e8e4dc",borderRadius:8,marginBottom:10,overflow:"hidden"}}>
                           {(function(){
                             var ema20g=ind.ema20?(price-ind.ema20)/ind.ema20*100:null;
                             var prevEma20g=ind.ema20&&aggs[1]?(aggs[1].c-ind.ema20)/ind.ema20*100:null;
@@ -6148,94 +6298,92 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             return <TRow label="Price vs 20-day EMA (short-term trend)"
                               val={ema20g!=null?(ema20g>0?"+":"")+ema20g.toFixed(2)+"%":null}
                               valCol={ema20g===null?"#aaa":ema20g>1?"#1a6a1a":ema20g>-5?"#888":"#c03030"}
-                              dir={emaDir} score={_es} dotCol={_ec} badge={_emaBadge}
-                              context={ema20g!=null?("The 20-day EMA is a short-term trend line. The stock is "+(ema20g>0?ema20g.toFixed(1)+"% above":Math.abs(ema20g).toFixed(1)+"% below")+" it at $"+(ind.ema20?ind.ema20.toFixed(2):"N/A")+". Think of it as the centre of gravity for short-term price."+(ema20g>10?" At "+ema20g.toFixed(0)+"% above it is stretched and a pullback would be normal.":"")):null}
-                              desc={ema20g===null?"Data unavailable.":ema20g>5?"Well above 20-day average -- strong short-term trend.":ema20g>1?"Above 20-day average -- short-term uptrend intact.":ema20g>-5?"Near 20-day average -- trend is flat.":"Below 20-day average -- short-term trend is weak."}
+                              dir={emaDir} score={_es} dotCol={_ec} weight={10} badge={_emaBadge}
+                              scoring={"●●●●●  5/5: Price > +5% above EMA20\n●●●●○  4/5: Price +1% to +5%\n●●●○○  3/5: Price -5% to +1%\n●●○○○  2/5: Price -10% to -5%\n●○○○○  1/5: Price below -10%"}
+                              context={ema20g!=null?("The 20-day EMA is a short-term trend line. The stock is "+(ema20g>0?ema20g.toFixed(1)+"% above":Math.abs(ema20g).toFixed(1)+"% below")+" it at $"+(ind.ema20?ind.ema20.toFixed(2):"N/A")+"."+(ema20g>10?"":"")):null}
+                              desc={ema20g===null?"Data unavailable.":ema20g>5?"Well above 20-day average -- strong short-term trend.":ema20g>1?"Above 20-day average -- short-term uptrend intact.":ema20g>-5?"Near 20-day average -- trend is flat.":ema20g>-10?"Below 20-day average -- short-term trend is weak.":"Well below 20-day average -- significant short-term weakness."}
                               watch={ema20g!=null&&Math.abs(ema20g)<1?"Price is right at its 20-day average -- a key short-term support/resistance to watch.":null} />;
                           })()}
-                        </div>
 
-                        {/* MEDIUM-TERM section */}
-                        <div style={{padding:"8px 14px",background:"#f0f5ee",borderRadius:"8px 8px 0 0",borderBottom:"1px solid #c0d8b8",marginBottom:0}}>
-                          <div style={{fontSize:10,fontWeight:700,color:"#4a7a3a",textTransform:"uppercase",letterSpacing:"0.08em"}}>Medium-Term (weeks to months)</div>
-                          <div style={{fontSize:11,color:"#6a9a5a",marginTop:1}}>2-3 month price position</div>
-                        </div>
-                        <div style={{border:"1px solid #c0d8b8",borderTop:"none",borderRadius:"0 0 8px 8px",marginBottom:10}}>
                           {(function(){
                             var _s5s=s50g===null?3:s50g>5?5:s50g>1?4:s50g>-5?3:2;
                             var _s5c=_s5s>=4?"#1a6a1a":_s5s===3?"#b88000":"#c03030";
                             return <TRow label="Price vs 50-day Average"
                               val={s50g!==null?(s50g>0?"+":"")+s50g.toFixed(2)+"%":null}
                               valCol={s50g===null?"#aaa":s50g>1?"#1a6a1a":s50g>-5?"#888":"#c03030"}
-                              dir={d50} score={_s5s} dotCol={_s5c}
-                              context={s50g!==null?"The stock is "+(s50g>0?s50g.toFixed(1)+"% above":Math.abs(s50g).toFixed(1)+"% below")+" its 50-day average of $"+(ind.sma50?ind.sma50.toFixed(2):"N/A")+". The 50-day average tracks the medium-term price trend over roughly 10 trading weeks. It tends to act as support in uptrends and resistance in downtrends.":null}
-                              desc={s50g===null?"Data unavailable.":s50g>5?"Well above 50-day average -- medium-term trend is strong.":s50g>1?"Above 50-day average -- medium-term uptrend intact.":s50g>-5?"Near 50-day average -- consolidating.":"Below 50-day average -- medium-term trend is weak."}
+                              dir={d50} score={_s5s} dotCol={_s5c} weight={10}
+                              scoring={"●●●●●  5/5: Price > +5% above SMA50\n●●●●○  4/5: Price +1% to +5%\n●●●○○  3/5: Price -5% to +1%\n●●○○○  2/5: Price -10% to -5%\n●○○○○  1/5: Price below -10%"}
+                              context={s50g!==null?"The stock is "+(s50g>0?s50g.toFixed(1)+"% above":Math.abs(s50g).toFixed(1)+"% below")+" its 50-day average of $"+(ind.sma50?ind.sma50.toFixed(2):"N/A")+". The 50-day average tracks the medium-term price trend over roughly 10 trading weeks.":null}
+                              desc={s50g===null?"Data unavailable.":s50g>5?"Well above 50-day average -- medium-term trend is strong.":s50g>1?"Above 50-day average -- medium-term uptrend intact.":s50g>-5?"Near 50-day average -- consolidating.":s50g>-10?"Below 50-day average -- medium-term trend is weak.":"Well below 50-day average -- significant medium-term weakness."}
                               watch={s50g!==null&&Math.abs(s50g)<2?"Price is testing its 50-day average -- a key support/resistance level to watch.":null} />;
                           })()}
-                        </div>
 
-                        {/* LONG-TERM section */}
-                        <div style={{padding:"8px 14px",background:"#f5f2ec",borderRadius:"8px 8px 0 0",borderBottom:"1px solid #d8cdb8",marginBottom:0}}>
-                          <div style={{fontSize:10,fontWeight:700,color:"#7a6a3a",textTransform:"uppercase",letterSpacing:"0.08em"}}>Long-Term (months to years)</div>
-                          <div style={{fontSize:11,color:"#9a8a5a",marginTop:1}}>10-month and yearly price position</div>
-                        </div>
-                        <div style={{border:"1px solid #d8cdb8",borderTop:"none",borderRadius:"0 0 8px 8px",marginBottom:16}}>
                           {(function(){
                             var _ws=wsmaG===null?3:wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
                             var _wdc=_ws>=4?"#1a6a1a":_ws===3?"#b88000":"#c03030";
                             return <TRow label="Weekly Trend (10-week vs 40-week MA)"
                               val={wsmaG!==null?(wsmaG>0?"+":"")+wsmaG.toFixed(2)+"%":null}
                               valCol={wsmaG===null?"#aaa":wsmaG>1?"#1a6a1a":wsmaG>-1?"#888":"#c03030"}
-                              score={_ws} dotCol={_wdc}
+                              score={_ws} dotCol={_wdc} weight={30}
+                              scoring={"●●●●●  5/5: Gap > +5% (strong uptrend)\n●●●●○  4/5: Gap +1% to +5%\n●●●○○  3/5: Gap -1% to +1% (neutral)\n●●○○○  2/5: Gap -5% to -1%\n●○○○○  1/5: Gap < -5% (strong downtrend)"}
                               context={wsmaG!==null?"The 10-week MA is currently "+(wsmaG>0?"+":"")+wsmaG.toFixed(1)+"% "+(wsmaG>0?"above":"below")+" the 40-week MA. Think of these like a fast and slow speedometer -- when the fast line is above the slow line, the weekly trend is up. The gap is "+(Math.abs(wsmaG)>5?"large":"small")+", meaning the trend is "+(Math.abs(wsmaG)>5?"well established":"just beginning or fading")+".":null}
                               desc={wsmaG===null?"Data unavailable.":wsmaG>5?"10-week average is well above 40-week -- medium-term uptrend is strong and intact.":wsmaG>1?"10-week is above 40-week -- uptrend in place.":wsmaG>-1?"Both averages are flat -- stock is trending sideways.":wsmaG>-5?"10-week is below 40-week -- downtrend developing.":"10-week well below 40-week -- sustained downtrend."}
                               watch={wsmaG!==null&&wsmaG>0?"Watch for 10-week crossing below 40-week -- that would signal trend reversal.":wsmaG!==null&&wsmaG<0?"Watch for 10-week crossing above 40-week -- that would signal a bullish recovery.":null} />;
                           })()}
                           {(function(){
-                            var _ss=s200g===null?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
+                            var _cd200 = crossData && crossData.sym === sym ? crossData : null;
+                            var _s200gdir = _cd200 ? _cd200.sma200GapDir : null;
+                            var _ss = s200g===null?3: (function(){
+                              if (s200g > 10) return 5;
+                              if (s200g > 2)  return 4;
+                              if (s200g > -10) return 3;
+                              if (s200g > -20) return _s200gdir==="improving"?3:2;
+                              return _s200gdir==="improving"?2:1;
+                            })();
                             var _sdc=_ss>=4?"#1a6a1a":_ss===3?"#b88000":"#c03030";
                             var _s200badge=s200g!==null&&s200g>25?{text:"\u26A0 EXTENDED",col:"#b88000",bg:"#fdf8e6"}:null;
+                            var _s200desc = s200g===null?"Data unavailable.":
+                              s200g>10?"Stock is well above its long-term average -- strong bullish trend.":
+                              s200g>2?"Stock is above its long-term average -- healthy uptrend.":
+                              s200g>-10?"Stock is near its long-term average -- no clear direction.":
+                              s200g>-20?(_s200gdir==="improving"?"Stock is below its long-term average but the gap is narrowing -- signs of recovery.":"Stock is below its long-term average -- downtrend in place."):
+                              (_s200gdir==="improving"?"Stock is well below its long-term average, but the gap is narrowing -- early signs of flattening.":_s200gdir==="worsening"?"Stock is well below its long-term average and the gap is widening -- downtrend accelerating.":"Stock is well below its long-term average -- strong downtrend.");
+                            var _s200ctx = s200g!==null?"The stock is trading "+Math.abs(s200g).toFixed(1)+"% "+(s200g>0?"above":"below")+" its 200-day average of $"+(ind.sma200?ind.sma200.toFixed(2):"N/A")+"."+(_s200gdir?" The gap is "+_s200gdir+" compared to 10 days ago.":"")+" Being above the 200-day average is generally healthy; below it is a warning sign.":null;
                             return <TRow label="Price vs 200-day Average (long-term trend)"
                               val={s200g!==null?(s200g>0?"+":"")+s200g.toFixed(2)+"%":null}
                               valCol={s200g===null?"#aaa":s200g>2?"#1a6a1a":s200g>-10?"#888":"#c03030"}
-                              dir={d200} score={_ss} dotCol={_sdc} badge={_s200badge}
-                              context={s200g!==null?"The stock is trading "+(s200g>0?s200g.toFixed(1)+"% above":Math.abs(s200g).toFixed(1)+"% below")+" its 200-day average price of $"+(ind.sma200?ind.sma200.toFixed(2):"N/A")+". This long-term average is the most widely watched trend indicator -- being above it is generally considered healthy, below it is a warning sign."+(s200g>25?" A gap of "+s200g.toFixed(0)+"% is quite large, and stocks this extended above their 200-day average often pull back toward it eventually.":"")+".":null}
-                              desc={s200g===null?"Data unavailable.":s200g>10?"Stock is well above its long-term average -- strong bullish trend.":s200g>2?"Stock is above its long-term average -- healthy uptrend.":s200g>-10?"Stock is near its long-term average -- no clear direction.":s200g>-20?"Stock is below its long-term average -- weak trend.":"Stock is well below its long-term average -- strong downtrend."}
+                              dir={d200} score={_ss} dotCol={_sdc} weight={30} badge={_s200badge}
+                              scoring={"●●●●●  5/5: Price > +10% above SMA200\n●●●●○  4/5: Price +2% to +10%\n●●●○○  3/5: Price -10% to +2%, OR -20% to -10% but improving\n●●○○○  2/5: Price -20% to -10% (stable/worsening), OR below -20% but improving\n●○○○○  1/5: Price < -20% (stable or worsening)"}
+                              context={_s200ctx}
+                              desc={_s200desc}
                               watch={s200g!==null&&Math.abs(s200g)<5?"Price is very close to its 200-day average -- a break above or below here is a significant signal.":null} />;
                           })()}
                           {(function(){
-                            var _s5s=s50g===null?3:s50g>5?5:s50g>1?4:s50g>-5?3:2;
-                            var _s5c=_s5s>=4?"#1a6a1a":_s5s===3?"#b88000":"#c03030";
-                            return <TRow label="Price vs 50-day Average (medium-term trend)"
-                              val={s50g!==null?(s50g>0?"+":"")+s50g.toFixed(2)+"%":null}
-                              valCol={s50g===null?"#aaa":s50g>1?"#1a6a1a":s50g>-5?"#888":"#c03030"}
-                              dir={d50} score={_s5s} dotCol={_s5c}
-                              context={s50g!==null?"The stock is "+(s50g>0?s50g.toFixed(1)+"% above":Math.abs(s50g).toFixed(1)+"% below")+" its 50-day average of $"+(ind.sma50?ind.sma50.toFixed(2):"N/A")+". The 50-day average tracks medium-term price direction over roughly 10 trading weeks. It tends to act as a support level in uptrends (price bounces off it) and resistance in downtrends.":null}
-                              desc={s50g===null?"Data unavailable.":s50g>5?"Trading well above 50-day average -- medium-term momentum is strong.":s50g>1?"Above 50-day average -- medium-term uptrend intact.":s50g>-5?"Near 50-day average -- consolidating.":"Below 50-day average -- medium-term trend is weak."}
-                              watch={s50g!==null&&Math.abs(s50g)<2?"Price is testing its 50-day average -- a key support/resistance level to watch.":null} />;
-                          })()}
-                          {(function(){
-                            var _cs=crsG===null?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
-                            var _cc=crsG===null?"#888":crsG>0?"#1a6a1a":"#c03030";
+                            var _cd = crossData && crossData.sym === sym ? crossData : null;
+                            var _cs = (function(){
+                              if (!_cd || _cd.type === "unknown") return crsG===null?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
+                              if (_cd.type === "golden") return _cd.gapDir==="worsening"?5:4;
+                              if (_cd.type === "death")  return _cd.gapDir==="improving"?3:_cd.gapDir==="stable"?2:1;
+                              return 3;
+                            })();
+                            var _cc = _cs>=4?"#1a6a1a":_cs===3?"#b88000":"#c03030";
+                            var _ageStr = _cd && _cd.ageDays ? _cd.ageDays + " trading days ago" : "before our 1-year data window";
+                            var _gapDirStr = _cd && _cd.gapDir === "improving" ? "the gap is improving (SMA50 recovering toward SMA200)"
+                                           : _cd && _cd.gapDir === "worsening" ? "the gap is worsening (SMA50 moving further from SMA200)"
+                                           : _cd && _cd.gapDir === "stable"    ? "the gap is stable (no significant change in last 10 days)"
+                                           : null;
+                            var _crossSentence = (_cd && _cd.type && _cd.type !== "none" && _cd.type !== "unknown" && _gapDirStr)
+                              ? "The " + (_cd.type === "death" ? "Death" : "Golden") + " cross occurred " + _ageStr + " and " + _gapDirStr + "."
+                              : null;
+                            var _crossAgeCtx = _crossSentence ? "  " + _crossSentence : "";
                             return <TRow label="Golden/Death Cross (50-day vs 200-day MA)"
                               val={crsG!==null?(crsG>0?"Golden Cross +"+crsG.toFixed(1)+"%":"Death Cross -"+Math.abs(crsG).toFixed(1)+"%"):null}
                               valCol={crsG===null?"#aaa":crsG>0?"#1a6a1a":"#c03030"}
-                              score={_cs} dotCol={_cc}
-                              context={crsG!==null?"The 50-day average is currently "+(crsG>0?crsG.toFixed(1)+"% above":Math.abs(crsG).toFixed(1)+"% below")+" the 200-day average. When the 50-day crosses above the 200-day it is called a Golden Cross (bullish), and when it crosses below it is called a Death Cross (bearish). These are major long-term signals watched by professional fund managers worldwide.":null}
-                              desc={crsG===null?"Data unavailable.":crsG>5?"50-day is well above 200-day (Golden Cross) -- long-term bullish signal widely watched by investors.":crsG>0?"50-day is above 200-day -- mild Golden Cross, long-term trend positive.":crsG>-5?"50-day has crossed below 200-day (Death Cross) -- long-term bearish signal.":"50-day is well below 200-day (Death Cross) -- sustained bearish long-term signal."}
+                              score={_cs} dotCol={_cc} weight={20}
+                              scoring={"●●●●●  5/5: Golden cross, gap widening\n●●●●○  4/5: Golden cross\n●●●○○  3/5: Death cross with narrowing gap (recovering)\n●●○○○  2/5: Death cross, gap stable\n●○○○○  1/5: Death cross, gap worsening"}
+                              context={crsG!==null?"The 50-day average is currently "+(crsG>0?crsG.toFixed(1)+"% above":Math.abs(crsG).toFixed(1)+"% below")+" the 200-day average."+_crossAgeCtx+" When the 50-day crosses above the 200-day it is called a Golden Cross (bullish), and when it crosses below it is called a Death Cross (bearish).":null}
+                              desc={_crossSentence || (crsG===null?"Data unavailable.":crsG>5?"50-day is well above 200-day (Golden Cross) -- long-term bullish signal.":crsG>0?"50-day is above 200-day -- mild Golden Cross, long-term trend positive.":crsG>-5?"50-day has crossed below 200-day (Death Cross) -- long-term bearish signal.":"50-day is well below 200-day (Death Cross) -- sustained bearish long-term signal.")}
                               watch={crsG!==null&&Math.abs(crsG)<3?"The 50-day and 200-day are very close -- a cross may be imminent. This would be a major signal.":null} />;
-                          })()}
-                          {(function(){
-                            var _p5s=pos52pct>80?5:pos52pct>55?4:pos52pct>35?3:pos52pct>15?2:1;
-                            var _p5c=_p5s>=4?"#1a6a1a":_p5s===3?"#b88000":"#c03030";
-                            var _p52badge=pos52pct>95?{text:"\u26A0 NEAR 52-WEEK HIGH",col:"#b88000",bg:"#fdf8e6"}:pos52pct<5?{text:"\u26A0 NEAR 52-WEEK LOW",col:"#b88000",bg:"#fdf8e6"}:null;
-                            return <TRow label={"52-Week Position ("+pos52pct+"% of yearly range)"}
-                              val={pos52pct+"%"}
-                              valCol={pos52pct>55?"#1a6a1a":pos52pct>35?"#888":"#c03030"}
-                              dir={dPos} score={_p5s} dotCol={_p5c} badge={_p52badge}
-                              context={"The stock is at "+pos52pct+"% of its yearly trading range (52-week low: $"+lo52.toFixed(2)+" -- 52-week high: $"+hi52.toFixed(2)+"). A reading above 50% means it is in the upper half of its range, which is generally healthier. Near 100% means it is close to its annual high. Near 0% means it is close to its annual low."}
-                              desc={pos52pct>95?"Trading in the top 5% of its yearly range -- very extended. Risk of pullback increases.":pos52pct>80?"Trading in the top 20% of its yearly range -- showing strong relative strength.":pos52pct>55?"Trading in the upper half of its yearly range -- price is healthy.":pos52pct>35?"Trading in the middle of its yearly range -- no strong directional bias.":pos52pct>15?"Trading in the lower half of its range -- relative weakness.":"Trading near its 52-week low -- significant weakness, but could be a contrarian opportunity."}
-                              watch={pos52pct>90?"Stock is very extended near 52-week highs -- watch for a pullback to the 50-day average as a healthier entry.":pos52pct<15?"Stock is near 52-week lows -- watch for RSI to stabilise above 30 as a sign selling is exhausting.":null} />;
                           })()}
                         </div>
                         <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de"}}>
@@ -6395,8 +6543,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             return <MRow label={"Price vs 20-day EMA (short-term)"}
                               val={ema20g!=null?(ema20g>0?"+":"")+ema20g.toFixed(2)+"%":null}
                               valCol={ema20g===null?"#aaa":ema20g>1?"#1a6a1a":ema20g>-5?"#888":"#c03030"}
-                              dir={emaDir} score={_es} dotCol={_ec} badge={_emaBadge}
-                              context={ema20g!=null?("The 20-day EMA is a short-term trend line. The stock is "+(ema20g>0?ema20g.toFixed(1)+"% above":Math.abs(ema20g).toFixed(1)+"% below")+" it at $"+(ind.ema20?ind.ema20.toFixed(2):"N/A")+". Think of it as the centre of gravity for short-term price."+(ema20g>10?" At "+ema20g.toFixed(0)+"% above it is stretched -- a pullback is normal.":"")):null}
+                              dir={emaDir} score={_es} dotCol={_ec} weight={10} badge={_emaBadge}
+                              context={ema20g!=null?("The 20-day EMA is a short-term trend line. The stock is "+(ema20g>0?ema20g.toFixed(1)+"% above":Math.abs(ema20g).toFixed(1)+"% below")+" it at $"+(ind.ema20?ind.ema20.toFixed(2):"N/A")+"."+(ema20g>10?" At "+ema20g.toFixed(0)+"% above it is stretched -- a pullback is normal.":"")):null}
                               desc={ema20g===null?"Data unavailable.":ema20g>5?"Well above 20-day average -- strong short-term momentum.":ema20g>1?"Above 20-day average -- short-term uptrend intact.":ema20g>-5?"Near 20-day average -- momentum is flat, could go either way.":"Below 20-day average -- short-term momentum is weak."}
                               watch={ema20g!=null&&Math.abs(ema20g)<1?"Price is right at its 20-day average -- a key short-term support/resistance to watch.":null} />;
                           })()}
@@ -7780,33 +7928,55 @@ export default function App() {
       // Gate 2: ai-fund verdict must be Exceptional or Good
       return Promise.all([
         fetch("/cache?sym=" + sym + "&tab=ai-fund").then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch("/cache?sym=" + sym + "&tab=ai-tech").then(function(r){ return r.json(); }).catch(function(){ return null; })
+        fetch("/cache?sym=" + sym + "&tab=ai-tech").then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch("/cache?sym=" + sym + "&tab=signal").then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch("/cache?sym=" + sym + "&tab=trend-signal").then(function(r){ return r.json(); }).catch(function(){ return null; })
       ]).then(function(results) {
-        var dFund = results[0];
-        var dTech = results[1];
-        // Gate 1: ai-tech must exist and be written within last 7 days
-        if (!dTech || !dTech.hit || !dTech.cachedAt) return null;
-        var techAge = Date.now() - new Date(dTech.cachedAt).getTime();
-        if (techAge > 7 * 24 * 60 * 60 * 1000) return null;
+        var dFund   = results[0];
+        var dTech   = results[1];
+        var dSignal = results[2];
+        var dTrendSig = results[3];
+        // Gate 1: ai-tech written within last 7 days OR signal cache updated within 7 days
+        var _7d = 7 * 24 * 60 * 60 * 1000;
+        var techFresh   = dTech && dTech.hit && dTech.cachedAt && (Date.now() - new Date(dTech.cachedAt).getTime() < _7d);
+        var signalFresh = (function(){
+          if (!dSignal || !dSignal.hit || !dSignal.value) return false;
+          try { var s = JSON.parse(dSignal.value); return s.updatedAt && (Date.now() - new Date(s.updatedAt).getTime() < _7d); }
+          catch(e) { return false; }
+        })();
+        if (!techFresh && !signalFresh) return null;
         // Gate 2: ai-fund must have Exceptional or Good verdict
+        // Parse signal cache
+        var sigData = null;
+        if (dSignal && dSignal.hit && dSignal.value) {
+          try { sigData = JSON.parse(dSignal.value); } catch(e) {}
+        }
+        // Parse trend-signal cache (1-day TTL, exact detail page formula)
+        var trendSigData = null;
+        if (dTrendSig && dTrendSig.hit && dTrendSig.value) {
+          try { trendSigData = JSON.parse(dTrendSig.value); } catch(e) {}
+        }
         var parsed = (dFund && dFund.hit && dFund.value) ? parseFromText(dFund.value) : null;
         if (!parsed) {
           // Fallback to old aiinsight cache
           return fetch("/cache?sym=" + sym + "&tab=aiinsight")
             .then(function(r2){ return r2.json(); })
             .then(function(d2){
-              return (d2 && d2.hit && d2.value) ? parseFromText(d2.value) : null;
+              var p2 = (d2 && d2.hit && d2.value) ? parseFromText(d2.value) : null;
+              return p2 ? { parsed: p2, sigData: sigData } : null;
             }).catch(function(){ return null; });
         }
-        return parsed;
+        return { parsed: parsed, sigData: sigData };
       })
-        .then(function(parsed){
-          if (!parsed) return null;
+        .then(function(bundle){
+          if (!bundle) return null;
+          var parsed  = bundle.parsed;
+          var sigData = bundle.sigData;
           var ySym = sym === "BRKB" ? "BRK-B" : sym;
           return Promise.all([
             fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=1y"))
               .then(function(r2){ return r2.json(); }).catch(function(){ return null; }),
-            fetch("/proxy?url=" + encodeURIComponent("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + ySym + "?modules=defaultKeyStatistics"))
+            fetch("/proxy?url=" + encodeURIComponent("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + ySym + "?modules=defaultKeyStatistics,financialData"))
               .then(function(r3){ return r3.json(); }).catch(function(){ return null; })
           ]).then(function(fetched) {
               var q   = fetched[0];
@@ -7835,11 +8005,79 @@ export default function App() {
                 rsi = al === 0 ? 100 : 100 - (100/(1 + ag/al));
               }
               // Analyst target from quoteSummary
-              var ksData      = qs&&qs.quoteSummary&&qs.quoteSummary.result&&qs.quoteSummary.result[0]&&qs.quoteSummary.result[0].defaultKeyStatistics;
-              var targetMean  = ksData&&ksData.targetMeanPrice&&ksData.targetMeanPrice.raw ? ksData.targetMeanPrice.raw : null;
-              var analystUp   = (targetMean && price > 0) ? ((targetMean - price) / price * 100) : null;
-              return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:price, changePct:changePct, change:change, mc:mc, hi52:hi52, lo52:lo52, sma50:sma50, sma200:sma200, rsi:rsi, targetMean:targetMean, analystUp:analystUp };
-            }).catch(function(){ return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:0, changePct:0, change:0, mc:0, hi52:0, lo52:0, sma50:0, sma200:0, rsi:null, targetMean:null, analystUp:null }; });
+              var ksData     = qs&&qs.quoteSummary&&qs.quoteSummary.result&&qs.quoteSummary.result[0]&&qs.quoteSummary.result[0].defaultKeyStatistics;
+              var fdData     = qs&&qs.quoteSummary&&qs.quoteSummary.result&&qs.quoteSummary.result[0]&&qs.quoteSummary.result[0].financialData;
+              var targetMean = (ksData&&ksData.targetMeanPrice&&ksData.targetMeanPrice.raw) ? ksData.targetMeanPrice.raw
+                             : (fdData&&fdData.targetMeanPrice&&fdData.targetMeanPrice.raw) ? fdData.targetMeanPrice.raw : null;
+              var analystUp  = (targetMean && price > 0) ? ((targetMean - price) / price * 100) : null;
+              // Compute trend/momentum using same weights as detail page
+              function computeTrend(vc, pr) {
+                var n = vc.length; if (n<201) return null;
+                var s50  = vc.slice(n-50).reduce(function(a,b){return a+b;},0)/50;
+                var s200 = vc.slice(n-200).reduce(function(a,b){return a+b;},0)/200;
+                // EMA20
+                var k=2/21, e20=vc[n-21]||s50;
+                for(var i=n-20;i<n;i++) e20=vc[i]*k+e20*(1-k);
+                var wsmaG=(s50-s200)/s200*100, s200g=(pr-s200)/s200*100, s50g=(pr-s50)/s50*100, ema20g=(pr-e20)/e20*100;
+                // Gap direction for SMA200 (today vs 10 days ago)
+                var s50_10=vc.slice(n-60,n-10).reduce(function(a,b){return a+b;},0)/50;
+                var s200_10=n>=210?vc.slice(n-210,n-10).reduce(function(a,b){return a+b;},0)/200:s200;
+                var g10=(vc[n-11]-s200_10)/s200_10*100, gNow=s200g;
+                var gdir=gNow>g10+0.5?"improving":gNow<g10-0.5?"worsening":"stable";
+                // Cross type
+                var crossType="none",crossScore=3;
+                for(var j=n-1;j>=201;j--){
+                  var st=vc.slice(j-50,j).reduce(function(a,b){return a+b;},0)/50;
+                  var s2=vc.slice(j-200,j).reduce(function(a,b){return a+b;},0)/200;
+                  var sp=vc.slice(j-51,j-1).reduce(function(a,b){return a+b;},0)/50;
+                  var s2p=j>=201?vc.slice(j-201,j-1).reduce(function(a,b){return a+b;},0)/200:0;
+                  if(s2p>0&&sp>s2p&&st<=s2){crossType="death";break;}
+                  if(s2p>0&&sp<s2p&&st>=s2){crossType="golden";break;}
+                }
+                if(crossType==="golden") crossScore=gdir==="worsening"?5:4;
+                else if(crossType==="death") crossScore=gdir==="improving"?3:gdir==="stable"?2:1;
+                // Scores (same weights as detail page)
+                function sc(key){
+                  if(key==="wsma")   return wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
+                  if(key==="sma200") return s200g>10?5:s200g>2?4:s200g>-10?3:(s200g>-20?(gdir==="improving"?3:2):(gdir==="improving"?2:1));
+                  if(key==="sma50")  return s50g>5?5:s50g>1?4:s50g>-5?3:s50g>-10?2:1;
+                  if(key==="cross")  return crossScore;
+                  if(key==="ema20")  return ema20g>5?5:ema20g>1?4:ema20g>-5?3:ema20g>-10?2:1;
+                  return 3;
+                }
+                var W={wsma:30,sma200:30,cross:20,ema20:10,sma50:10};
+                var tot=0; Object.keys(W).forEach(function(k){tot+=(sc(k)/5)*W[k];});
+                var score=Math.round(tot);
+                var label=score>=70?"Strong Uptrend":score>=55?"Uptrend":score>=40?"Sideways":score>=25?"Downtrend":"Strong Downtrend";
+                return {trendLabel:label,trendScore:score};
+              }
+              function computeMom(vc) {
+                var n=vc.length; if(n<15) return null;
+                var gains=0,losses=0;
+                for(var i=n-14;i<n;i++){var d=vc[i]-vc[i-1];if(d>0)gains+=d;else losses+=Math.abs(d);}
+                var ag=gains/14,al=losses/14,rsi=al===0?100:100-(100/(1+ag/al));
+                var label=rsi>70?"Overbought":rsi>=60?"Strong":rsi>=50?"Building":rsi>=40?"Neutral":rsi>=30?"Fading":"Weak";
+                return {momLabel:label,momScore:Math.round(rsi)};
+              }
+
+              // Use cached trend-signal if available, else compute and cache
+              if (!trendSigData) {
+                var tComp = computeTrend(vc, price);
+                var mComp = computeMom(vc);
+                if (tComp && mComp) {
+                  trendSigData = { trendLabel:tComp.trendLabel, trendScore:tComp.trendScore, momLabel:mComp.momLabel, momScore:mComp.momScore, updatedAt:new Date().toISOString() };
+                  // Write to cache (fire-and-forget)
+                  if (window.__clerkToken) {
+                    fetch("/cache?sym=" + sym + "&tab=trend-signal", {
+                      method:"POST", headers:{"Content-Type":"text/plain","Authorization":"Bearer "+window.__clerkToken},
+                      body:JSON.stringify(trendSigData)
+                    }).catch(function(){});
+                  }
+                }
+              }
+
+              return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:price, changePct:changePct, change:change, mc:mc, hi52:hi52, lo52:lo52, sma50:sma50, sma200:sma200, rsi:rsi, targetMean:targetMean, analystUp:analystUp, sig:sigData, trendSig:trendSigData };
+            }).catch(function(){ return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:0, changePct:0, change:0, mc:0, hi52:0, lo52:0, sma50:0, sma200:0, rsi:null, targetMean:null, analystUp:null, sig:null, trendSig:null }; });
         }).catch(function(){ return null; });
     }
 
@@ -8065,7 +8303,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.55</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.83</span>
           </div>
         </div>
 
@@ -8234,8 +8472,8 @@ export default function App() {
                 <div style={{ fontSize:12, color:"#555" }}>Stocks our AI rated Exceptional or Good in the last 7 days</div>
               </div>
               <div style={{ border:"1px solid #1e1e18", borderRadius:10, overflow:"hidden", overflowX:"auto" }}>
-                <div style={{ display:"grid", gridTemplateColumns:"72px 180px 90px 80px 130px 100px 130px", background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px", gap:12, minWidth:640 }}>
-                  {["Ticker","Company","Price","Upside","52W Range","Trend","Momentum"].map(function(h) {
+                <div style={{ display:"grid", gridTemplateColumns:"68px 140px 80px 70px 70px 80px 140px 90px 120px", columnGap:20, rowGap:0, background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px", minWidth:850 }}>
+                  {["Ticker","Company","Price","Moat","Fin.","IV Disc.","52W Range","Trend","Momentum"].map(function(h) {
                     return <div key={h} style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em" }}>{h}</div>;
                   })}
                 </div>
@@ -8246,6 +8484,8 @@ export default function App() {
                   var rangePct = (hi52>lo52&&price>0)?Math.min(100,Math.max(0,((price-lo52)/(hi52-lo52))*100)):null;
                   var sma50    = sig.sma50 || 0;
                   var sma200   = sig.sma200 || 0;
+                  // Use cached detail-page trend/momentum if available (1-day TTL, exact formula)
+                  var ts = sig.trendSig || {};
                   var trendUp  = sma50>0&&sma200>0&&price>sma50&&sma50>sma200;
                   var trendDn  = sma50>0&&sma200>0&&price<sma50&&sma50<sma200;
                   var trendColor = trendUp?"#7abd00":trendDn?"#e05050":"#888";
@@ -8253,31 +8493,53 @@ export default function App() {
                   var rsi      = sig.rsi;
                   var momLabel = rsi===null?String.fromCharCode(0x2014):rsi>70?"Overbought":rsi>=55?"Strong":rsi>=45?"Neutral":rsi>=30?"Weak":"Oversold";
                   var momColor = rsi===null?"#555":rsi>70?"#EF9F27":rsi>=55?"#7abd00":rsi>=45?"#888":rsi>=30?"#e07020":"#60b8f0";
-                  var upside   = sig.analystUp;
-                  var upPos    = upside !== null && upside >= 0;
+                  // Override with cached detail-page values if present
+                  if (ts.trendLabel) {
+                    var tl = ts.trendLabel.toLowerCase();
+                    trendLabel = ts.trendLabel;
+                    trendColor = (tl==="strong uptrend"||tl==="uptrend") ? "#7abd00" : tl==="sideways" ? "#EF9F27" : (tl==="downtrend"||tl==="strong downtrend") ? "#e05050" : "#888";
+                  }
+                  if (ts.momLabel) {
+                    var ml = ts.momLabel.toLowerCase();
+                    momLabel = ts.momLabel;
+                    momColor = (ml==="strong"||ml==="building") ? "#7abd00" : ml==="neutral" ? "#EF9F27" : (ml==="fading"||ml==="weak"||ml==="very weak") ? "#e05050" : "#888";
+                  }
+                  var moatLbl  = sd.moat || null;
+                  var finLbl   = sd.fin  || null;
+                  var ivDisc   = sd.ivDiscount != null ? sd.ivDiscount : null;
+                  var ivPrice  = sd.iv   || null;
+                  function sigColor(lbl) {
+                    if (!lbl) return "#555";
+                    var l = lbl.toLowerCase();
+                    if (l==="wide"||l==="strong"||l==="exceptional") return "#7abd00";
+                    if (l==="moderate"||l==="good") return "#EF9F27";
+                    return "#e05050";
+                  }
                   return (
                     <div key={i}
                       onClick={function(){ window.location.hash = sig.sym; }}
-                      style={{ display:"grid", gridTemplateColumns:"72px 180px 90px 80px 130px 100px 130px", padding:"11px 14px", gap:12, borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111", minWidth:640 }}
+                      style={{ display:"grid", gridTemplateColumns:"68px 140px 80px 70px 70px 80px 140px 90px 120px", columnGap:20, rowGap:0, padding:"11px 14px", borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111", minWidth:850 }}
                       onMouseEnter={function(e){ e.currentTarget.style.background="#161614"; }}
                       onMouseLeave={function(e){ e.currentTarget.style.background="#111"; }}>
                       <div style={{ fontSize:13, fontWeight:900, color:LIME }}>{sig.sym}</div>
                       <div style={{ fontSize:11, color:"#777", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{NAMES[sig.sym]||String.fromCharCode(0x2014)}</div>
                       <div style={{ fontSize:12, fontWeight:700, color:"#fff" }}>{price>0?"$"+price.toFixed(2):String.fromCharCode(0x2014)}</div>
-                      {/* Analyst Upside */}
+                      {/* Moat */}
+                      <div style={{ fontSize:11, fontWeight:700, color:sigColor(moatLbl) }}>{moatLbl||String.fromCharCode(0x2014)}</div>
+                      {/* Financial Strength */}
+                      <div style={{ fontSize:11, fontWeight:700, color:sigColor(finLbl) }}>{finLbl||String.fromCharCode(0x2014)}</div>
+                      {/* IV Discount */}
                       <div>
-                        {upside!==null?(
+                        {ivDisc!==null?(
                           <div>
-                            <div style={{ fontSize:12, fontWeight:700, color:upPos?"#7abd00":"#e05050" }}>
-                              {(upPos?"+":"")+upside.toFixed(1)+"%"}
+                            <div style={{ fontSize:11, fontWeight:700, color:ivDisc>0?"#7abd00":"#e05050" }}>
+                              {(ivDisc>0?"+":"")+ivDisc.toFixed(0)+"%"}
                             </div>
-                            <div style={{ fontSize:9, color:"#444", marginTop:1 }}>
-                              {"$"+sig.targetMean.toFixed(0)}
-                            </div>
+                            <div style={{ fontSize:9, color:"#444", marginTop:1 }}>{ivPrice?"$"+parseFloat(ivPrice).toFixed(0):""}</div>
                           </div>
                         ):<span style={{ fontSize:11, color:"#444" }}>{String.fromCharCode(0x2014)}</span>}
                       </div>
-                      {/* 52W Range — no colour coding */}
+                      {/* 52W Range */}
                       <div>
                         {rangePct!==null?(
                           <div>
