@@ -1467,7 +1467,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; if(window.__trendSignalWritten)delete window.__trendSignalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -1981,6 +1981,28 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       })
       .catch(function(){ setCrossData({ sym:sym, type:"unknown", ageDays:null, gapDir:"unknown" }); });
   }, [massiveInfo, sym]);
+
+  // -- Write trend-signal cache (1-day TTL) using exact detail page formula ----
+  useEffect(function() {
+    if (!massiveInfo || !sym || !q) return;
+    if (!window.__clerkToken) return;
+    if (!window.__trendSignalWritten) window.__trendSignalWritten = {};
+    if (window.__trendSignalWritten[sym]) return;
+    var t = setTimeout(function() {
+      var tLabel = window.__trendLabel;
+      var tScore = window.__trendScore;
+      var mLabel = window.__momLabel;
+      var mScore = window.__momScore;
+      if (!tLabel && !mLabel) return;
+      window.__trendSignalWritten[sym] = true;
+      fetch("/cache?sym=" + sym + "&tab=trend-signal", {
+        method:  "POST",
+        headers: { "Content-Type": "text/plain", "Authorization": "Bearer " + window.__clerkToken },
+        body:    JSON.stringify({ trendLabel:tLabel, trendScore:tScore, momLabel:mLabel, momScore:mScore, updatedAt:new Date().toISOString() })
+      }).catch(function(){});
+    }, 3000);
+    return function() { clearTimeout(t); };
+  }, [massiveInfo, sym, q]);
 
   // -- Admin tab data load -----------------------------------------------------
   useEffect(function() {
@@ -2652,7 +2674,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.81</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.84</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2706,7 +2728,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.81</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.84</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -4112,16 +4134,22 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         var pi = parsedInsights["moat"] || {};
                         return (
                           <div>
-                            {pi.classification && (
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background: pi.score >= 4 ? "#e6f4e6" : pi.score >= 3 ? "#f0f7e6" : "#fff0f0", borderRadius:8, marginBottom:16, border:"0.5px solid " + (pi.score >= 4 ? "#7abd00" : pi.score >= 3 ? "#9ab800" : "#e08080") }}>
-                                <div>
-                                  <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Economic Moat Rating</div>
-                                  <div style={{ fontSize:15, fontWeight:700, color: pi.score >= 4 ? "#1a6a1a" : pi.score >= 3 ? "#2a7a2a" : "#c03030" }}>{pi.classification}</div>
-                                  {pi.explanation ? <div style={{ fontSize:11, color:"#555", marginTop:2, maxWidth:400 }}>{pi.explanation}</div> : null}
+                            {pi.classification && (function(){
+                              var _fc = fsCol(pi.classification);
+                              return (
+                                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:_fc.bg, borderRadius:8, marginBottom:16, border:"0.5px solid "+_fc.border }}>
+                                  <div>
+                                    <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Economic Moat Rating</div>
+                                    <div style={{ fontSize:15, fontWeight:700, color:_fc.text }}>{pi.classification}</div>
+                                    {pi.explanation ? <div style={{ fontSize:11, color:"#555", marginTop:2, maxWidth:400 }}>{pi.explanation}</div> : null}
+                                  </div>
+                                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                                    <DotBar score={pi.score} />
+                                    <span style={{ fontSize:12, fontWeight:700, color:_fc.text }}>{pi.classification}</span>
+                                  </div>
                                 </div>
-                                <DotBar score={pi.score} />
-                              </div>
-                            )}
+                              );
+                            })()}
                             {parsed.sections.map(function(sec, i) {
                               return (
                                 <div key={i} style={{ marginBottom:12, paddingBottom:12, borderBottom: i < parsed.sections.length-1 ? "1px solid #f0ede6" : "none" }}>
@@ -4133,20 +4161,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 </div>
                               );
                             })}
-                            {parsed.rating != null && (
-                              <div style={{ marginTop:14, padding:"12px 16px", background:"#f5f2ec", borderRadius:10 }}>
-                                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: parsed.explanation ? 8 : 0 }}>
-                                  <div>
-                                    <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Economic Moat Rating</div>
-                                    <div style={{ fontSize:14, fontWeight:700, color:scoreColor(parsed.rating) }}>{parsed.classification}</div>
-                                  </div>
-                                  <DotBar score={parsed.rating} />
-                                </div>
-                                {parsed.explanation && (
-                                  <div style={{ fontSize:12, color:"#555", lineHeight:1.7, borderTop:"1px solid #e0dbd0", paddingTop:8 }}>{parsed.explanation}</div>
-                                )}
-                              </div>
-                            )}
                           </div>
                         );
                       })()}
@@ -7907,11 +7921,13 @@ export default function App() {
       return Promise.all([
         fetch("/cache?sym=" + sym + "&tab=ai-fund").then(function(r){ return r.json(); }).catch(function(){ return null; }),
         fetch("/cache?sym=" + sym + "&tab=ai-tech").then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch("/cache?sym=" + sym + "&tab=signal").then(function(r){ return r.json(); }).catch(function(){ return null; })
+        fetch("/cache?sym=" + sym + "&tab=signal").then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        fetch("/cache?sym=" + sym + "&tab=trend-signal").then(function(r){ return r.json(); }).catch(function(){ return null; })
       ]).then(function(results) {
         var dFund   = results[0];
         var dTech   = results[1];
         var dSignal = results[2];
+        var dTrendSig = results[3];
         // Gate 1: ai-tech written within last 7 days OR signal cache updated within 7 days
         var _7d = 7 * 24 * 60 * 60 * 1000;
         var techFresh   = dTech && dTech.hit && dTech.cachedAt && (Date.now() - new Date(dTech.cachedAt).getTime() < _7d);
@@ -7926,6 +7942,11 @@ export default function App() {
         var sigData = null;
         if (dSignal && dSignal.hit && dSignal.value) {
           try { sigData = JSON.parse(dSignal.value); } catch(e) {}
+        }
+        // Parse trend-signal cache (1-day TTL, exact detail page formula)
+        var trendSigData = null;
+        if (dTrendSig && dTrendSig.hit && dTrendSig.value) {
+          try { trendSigData = JSON.parse(dTrendSig.value); } catch(e) {}
         }
         var parsed = (dFund && dFund.hit && dFund.value) ? parseFromText(dFund.value) : null;
         if (!parsed) {
@@ -7981,8 +8002,74 @@ export default function App() {
               var targetMean = (ksData&&ksData.targetMeanPrice&&ksData.targetMeanPrice.raw) ? ksData.targetMeanPrice.raw
                              : (fdData&&fdData.targetMeanPrice&&fdData.targetMeanPrice.raw) ? fdData.targetMeanPrice.raw : null;
               var analystUp  = (targetMean && price > 0) ? ((targetMean - price) / price * 100) : null;
-              return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:price, changePct:changePct, change:change, mc:mc, hi52:hi52, lo52:lo52, sma50:sma50, sma200:sma200, rsi:rsi, targetMean:targetMean, analystUp:analystUp, sig:sigData };
-            }).catch(function(){ return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:0, changePct:0, change:0, mc:0, hi52:0, lo52:0, sma50:0, sma200:0, rsi:null, targetMean:null, analystUp:null, sig:null }; });
+              // Compute trend/momentum using same weights as detail page
+              function computeTrend(vc, pr) {
+                var n = vc.length; if (n<201) return null;
+                var s50  = vc.slice(n-50).reduce(function(a,b){return a+b;},0)/50;
+                var s200 = vc.slice(n-200).reduce(function(a,b){return a+b;},0)/200;
+                // EMA20
+                var k=2/21, e20=vc[n-21]||s50;
+                for(var i=n-20;i<n;i++) e20=vc[i]*k+e20*(1-k);
+                var wsmaG=(s50-s200)/s200*100, s200g=(pr-s200)/s200*100, s50g=(pr-s50)/s50*100, ema20g=(pr-e20)/e20*100;
+                // Gap direction for SMA200 (today vs 10 days ago)
+                var s50_10=vc.slice(n-60,n-10).reduce(function(a,b){return a+b;},0)/50;
+                var s200_10=n>=210?vc.slice(n-210,n-10).reduce(function(a,b){return a+b;},0)/200:s200;
+                var g10=(vc[n-11]-s200_10)/s200_10*100, gNow=s200g;
+                var gdir=gNow>g10+0.5?"improving":gNow<g10-0.5?"worsening":"stable";
+                // Cross type
+                var crossType="none",crossScore=3;
+                for(var j=n-1;j>=201;j--){
+                  var st=vc.slice(j-50,j).reduce(function(a,b){return a+b;},0)/50;
+                  var s2=vc.slice(j-200,j).reduce(function(a,b){return a+b;},0)/200;
+                  var sp=vc.slice(j-51,j-1).reduce(function(a,b){return a+b;},0)/50;
+                  var s2p=j>=201?vc.slice(j-201,j-1).reduce(function(a,b){return a+b;},0)/200:0;
+                  if(s2p>0&&sp>s2p&&st<=s2){crossType="death";break;}
+                  if(s2p>0&&sp<s2p&&st>=s2){crossType="golden";break;}
+                }
+                if(crossType==="golden") crossScore=gdir==="worsening"?5:4;
+                else if(crossType==="death") crossScore=gdir==="improving"?3:gdir==="stable"?2:1;
+                // Scores (same weights as detail page)
+                function sc(key){
+                  if(key==="wsma")   return wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
+                  if(key==="sma200") return s200g>10?5:s200g>2?4:s200g>-10?3:(s200g>-20?(gdir==="improving"?3:2):(gdir==="improving"?2:1));
+                  if(key==="sma50")  return s50g>5?5:s50g>1?4:s50g>-5?3:s50g>-10?2:1;
+                  if(key==="cross")  return crossScore;
+                  if(key==="ema20")  return ema20g>5?5:ema20g>1?4:ema20g>-5?3:ema20g>-10?2:1;
+                  return 3;
+                }
+                var W={wsma:30,sma200:30,cross:20,ema20:10,sma50:10};
+                var tot=0; Object.keys(W).forEach(function(k){tot+=(sc(k)/5)*W[k];});
+                var score=Math.round(tot);
+                var label=score>=70?"Strong Uptrend":score>=55?"Uptrend":score>=40?"Sideways":score>=25?"Downtrend":"Strong Downtrend";
+                return {trendLabel:label,trendScore:score};
+              }
+              function computeMom(vc) {
+                var n=vc.length; if(n<15) return null;
+                var gains=0,losses=0;
+                for(var i=n-14;i<n;i++){var d=vc[i]-vc[i-1];if(d>0)gains+=d;else losses+=Math.abs(d);}
+                var ag=gains/14,al=losses/14,rsi=al===0?100:100-(100/(1+ag/al));
+                var label=rsi>70?"Overbought":rsi>=60?"Strong":rsi>=50?"Building":rsi>=40?"Neutral":rsi>=30?"Fading":"Weak";
+                return {momLabel:label,momScore:Math.round(rsi)};
+              }
+
+              // Use cached trend-signal if available, else compute and cache
+              if (!trendSigData) {
+                var tComp = computeTrend(vc, price);
+                var mComp = computeMom(vc);
+                if (tComp && mComp) {
+                  trendSigData = { trendLabel:tComp.trendLabel, trendScore:tComp.trendScore, momLabel:mComp.momLabel, momScore:mComp.momScore, updatedAt:new Date().toISOString() };
+                  // Write to cache (fire-and-forget)
+                  if (window.__clerkToken) {
+                    fetch("/cache?sym=" + sym + "&tab=trend-signal", {
+                      method:"POST", headers:{"Content-Type":"text/plain","Authorization":"Bearer "+window.__clerkToken},
+                      body:JSON.stringify(trendSigData)
+                    }).catch(function(){});
+                  }
+                }
+              }
+
+              return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:price, changePct:changePct, change:change, mc:mc, hi52:hi52, lo52:lo52, sma50:sma50, sma200:sma200, rsi:rsi, targetMean:targetMean, analystUp:analystUp, sig:sigData, trendSig:trendSigData };
+            }).catch(function(){ return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:0, changePct:0, change:0, mc:0, hi52:0, lo52:0, sma50:0, sma200:0, rsi:null, targetMean:null, analystUp:null, sig:null, trendSig:null }; });
         }).catch(function(){ return null; });
     }
 
@@ -8208,7 +8295,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.81</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.84</span>
           </div>
         </div>
 
@@ -8389,6 +8476,8 @@ export default function App() {
                   var rangePct = (hi52>lo52&&price>0)?Math.min(100,Math.max(0,((price-lo52)/(hi52-lo52))*100)):null;
                   var sma50    = sig.sma50 || 0;
                   var sma200   = sig.sma200 || 0;
+                  // Use cached detail-page trend/momentum if available (1-day TTL, exact formula)
+                  var ts = sig.trendSig || {};
                   var trendUp  = sma50>0&&sma200>0&&price>sma50&&sma50>sma200;
                   var trendDn  = sma50>0&&sma200>0&&price<sma50&&sma50<sma200;
                   var trendColor = trendUp?"#7abd00":trendDn?"#e05050":"#888";
@@ -8396,24 +8485,16 @@ export default function App() {
                   var rsi      = sig.rsi;
                   var momLabel = rsi===null?String.fromCharCode(0x2014):rsi>70?"Overbought":rsi>=55?"Strong":rsi>=45?"Neutral":rsi>=30?"Weak":"Oversold";
                   var momColor = rsi===null?"#555":rsi>70?"#EF9F27":rsi>=55?"#7abd00":rsi>=45?"#888":rsi>=30?"#e07020":"#60b8f0";
-                  // Signal cache data
-                  var sd       = sig.sig || {};
-                  // Use Massive-based trend/mom from signal cache if available, else fall back to Yahoo computed
-                  if (sd.trend) {
-                    var tl = sd.trend.toLowerCase();
-                    trendLabel = sd.trend;
-                    trendColor = (tl==="strong uptrend"||tl==="uptrend") ? "#7abd00"
-                               : tl==="sideways"                          ? "#EF9F27"
-                               : (tl==="downtrend"||tl==="strong downtrend") ? "#e05050"
-                               : "#888";
+                  // Override with cached detail-page values if present
+                  if (ts.trendLabel) {
+                    var tl = ts.trendLabel.toLowerCase();
+                    trendLabel = ts.trendLabel;
+                    trendColor = (tl==="strong uptrend"||tl==="uptrend") ? "#7abd00" : tl==="sideways" ? "#EF9F27" : (tl==="downtrend"||tl==="strong downtrend") ? "#e05050" : "#888";
                   }
-                  if (sd.mom) {
-                    var ml = sd.mom.toLowerCase();
-                    momLabel = sd.mom;
-                    momColor = (ml==="strong"||ml==="building") ? "#7abd00"
-                             : ml==="neutral"                   ? "#EF9F27"
-                             : (ml==="fading"||ml==="weak"||ml==="very weak") ? "#e05050"
-                             : "#888";
+                  if (ts.momLabel) {
+                    var ml = ts.momLabel.toLowerCase();
+                    momLabel = ts.momLabel;
+                    momColor = (ml==="strong"||ml==="building") ? "#7abd00" : ml==="neutral" ? "#EF9F27" : (ml==="fading"||ml==="weak"||ml==="very weak") ? "#e05050" : "#888";
                   }
                   var moatLbl  = sd.moat || null;
                   var finLbl   = sd.fin  || null;
