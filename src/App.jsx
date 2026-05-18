@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.87</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.88</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.87</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.88</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -4115,20 +4115,23 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           return { text:"#888", bg:"#f5f5f5", border:"#ddd" };
                         }
                         function DotBar(props) {
+                          var displayScore = props.score || 0;
+                          // If classification provided, use it to determine dot count and label
+                          var label = props.classification || scoreLabel(displayScore);
+                          var dotCount = props.classification ?
+                            (props.classification==="Wide"?5:props.classification==="Strong"?4:props.classification==="Moderate"?3:props.classification==="Narrow"?2:1)
+                            : displayScore;
+                          var col = props.classification ?
+                            (props.classification==="Wide"||props.classification==="Strong"?"#1a6a1a":props.classification==="Moderate"||props.classification==="Narrow"?"#b88000":"#c03030")
+                            : scoreColor(displayScore);
                           var dots = [];
                           for (var d = 1; d <= 5; d++) {
-                            dots.push(
-                              <span key={d} style={{
-                                display:"inline-block", width:8, height:8, borderRadius:"50%",
-                                background: d <= props.score ? scoreColor(props.score) : "#ddd",
-                                marginRight:3,
-                              }} />
-                            );
+                            dots.push(<span key={d} style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background: d <= dotCount ? col : "#ddd", marginRight:3 }} />);
                           }
                           return (
                             <span style={{ display:"inline-flex", alignItems:"center", gap:0 }}>
                               {dots}
-                              <span style={{ fontSize:10, color:scoreColor(props.score), fontWeight:600, marginLeft:5 }}>{scoreLabel(props.score)}</span>
+                              <span style={{ fontSize:10, color:col, fontWeight:600, marginLeft:5 }}>{label}</span>
                             </span>
                           );
                         }
@@ -4145,8 +4148,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                     {pi.explanation ? <div style={{ fontSize:11, color:"#555", marginTop:2, maxWidth:400 }}>{pi.explanation}</div> : null}
                                   </div>
                                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                                    <DotBar score={pi.score} />
-                                    <span style={{ fontSize:12, fontWeight:700, color:_fc.text }}>{pi.classification}</span>
+                                    <DotBar score={pi.score} classification={pi.classification} />
                                   </div>
                                 </div>
                               );
@@ -8297,7 +8299,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.87</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.88</span>
           </div>
         </div>
 
