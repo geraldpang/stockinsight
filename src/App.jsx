@@ -1404,16 +1404,25 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
           weightUsed  += driverWeights[dName];
         }
       }
-      var floatScore = weightUsed >= 0.5 ? weightedSum / weightUsed : 0;
-      var score = Math.round(floatScore);
-      score = Math.max(1, Math.min(5, score));
-      // Use float for classification so 4.3+ reaches Wide (not just 5.0)
-      var classification = floatScore >= 4.3 ? "Wide" : floatScore >= 3.5 ? "Strong" : floatScore >= 2.5 ? "Moderate" : floatScore >= 1.5 ? "Narrow" : "Weak";
+      // Always use weighted score if enough drivers parsed; never use AI's stated overall rating
+      var score;
+      if (weightUsed >= 0.5) {
+        score = Math.round(weightedSum / weightUsed);
+        score = Math.max(1, Math.min(5, score));
+      } else {
+        // Not enough drivers parsed -- fall back to keyword matching only (not AI overall rating)
+        if      (text.indexOf("Wide")     !== -1) score = 5;
+        else if (text.indexOf("Strong")   !== -1) score = 4;
+        else if (text.indexOf("Moderate") !== -1) score = 3;
+        else if (text.indexOf("Narrow")   !== -1) score = 2;
+        else if (text.indexOf("Weak")     !== -1) score = 1;
+        else score = 1;
+      }
       var expIdx = text.indexOf("Explanation");
       var explanation = expIdx !== -1 ? text.substring(expIdx).replace(/^Explanation[^:]*:\s*/, "").split("\n")[0].trim() : "";
       result = {
         score: score,
-        classification: classification,
+        classification: score >= 5 ? "Wide" : score >= 4 ? "Strong" : score >= 3 ? "Moderate" : score >= 2 ? "Narrow" : "Weak",
         explanation: explanation,
       };
     } else if (tabId === "financial") {
@@ -1521,7 +1530,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       setInsightLoading(true);
       aiTabs.forEach(function(tabId) {
       var prompts = {
-        moat: "You are a professional equity research analyst. Analyze the economic moat of " + sym + " (" + (NAMES[sym]||sym) + ") using only well-known business fundamentals and observable financial indicators. Do not fabricate statistics or unsupported claims. Scoring guide: 5/5 = world-class dominant moat (e.g. Microsoft, Visa, Moody's level). 4/5 = strong durable advantage. 3/5 = moderate. 2/5 = narrow. 1/5 = weak or none. Be objective -- top companies deserve high scores." + _moatFinCtx + "\n\nReturn results in EXACTLY this format:\n\nNetwork Effects: X/5\nAssessment Criteria: The product or platform becomes more valuable as more users join.\nResult: One sentence explaining the score.\n\nSwitching Costs: X/5\nAssessment Criteria: Customers face difficulty, cost, or disruption when changing to competitors.\nResult: One sentence explaining the score.\n\nCost Advantage: X/5\nAssessment Criteria: The company can operate at lower cost or higher efficiency than competitors.\nResult: One sentence explaining the score.\n\nIntangible Assets: X/5\nAssessment Criteria: Brand, patents, intellectual property, regulatory licenses, or proprietary technology.\nResult: One sentence explaining the score.\n\nEfficient Scale: X/5\nAssessment Criteria: The market only supports a few profitable players due to high barriers to entry.\nResult: One sentence explaining the score.\n\nEcosystem Lock-in: X/5\nAssessment Criteria: Customers rely on multiple integrated products or services within the company ecosystem.\nResult: One sentence explaining the score.\n\nEconomic Moat Rating: X / 5\n\nExplanation (maximum 100 words): Summarize the main competitive advantages. Focus only on the most important moat drivers. Assign 5/5 generously where the advantage is genuinely world-class and durable.",
+        moat: "You are a professional equity research analyst. Analyze the economic moat of " + sym + " (" + (NAMES[sym]||sym) + ") using only well-known business fundamentals and observable financial indicators. Do not fabricate statistics or unsupported claims. Most companies do not have strong moats - scores of 4 or 5 should be rare." + _moatFinCtx + "\n\nReturn results in EXACTLY this format:\n\nNetwork Effects: X/5\nAssessment Criteria: The product or platform becomes more valuable as more users join.\nResult: One sentence explaining the score.\n\nSwitching Costs: X/5\nAssessment Criteria: Customers face difficulty, cost, or disruption when changing to competitors.\nResult: One sentence explaining the score.\n\nCost Advantage: X/5\nAssessment Criteria: The company can operate at lower cost or higher efficiency than competitors.\nResult: One sentence explaining the score.\n\nIntangible Assets: X/5\nAssessment Criteria: Brand, patents, intellectual property, regulatory licenses, or proprietary technology.\nResult: One sentence explaining the score.\n\nEfficient Scale: X/5\nAssessment Criteria: The market only supports a few profitable players due to high barriers to entry.\nResult: One sentence explaining the score.\n\nEcosystem Lock-in: X/5\nAssessment Criteria: Customers rely on multiple integrated products or services within the company ecosystem.\nResult: One sentence explaining the score.\n\nEconomic Moat Rating: X / 5\n\nExplanation (maximum 100 words): Summarize the main competitive advantages. Focus only on the most important moat drivers. Only assign 4-5 if advantages are clear, durable, and supported by financial performance.",
         financial: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), assess Financial Strength across these 7 dimensions in concise paragraphs: 1. Revenue Growth Trend 2. Gross Margin Stability 3. Operating Margin Trend 4. Free Cash Flow Consistency 5. Debt Level 6. Share Dilution or Buyback Discipline 7. Earnings Predictability. End with: Financial Strength Classification: Strong / Moderate / Weak and one sentence of reasoning.",
         technical: "You are a professional technical analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), provide a technical analysis covering: Trend (50-day MA, 200-day MA, direction), Momentum (RSI condition, MACD condition), Support and Resistance zones, Volume analysis (confirms move? accumulation or distribution?), Chart Patterns (breakout / consolidation / reversal / double bottom / head and shoulders / flag/pennant / no clear pattern). End with: Technical Rating: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish and Entry Timing View: Good Entry / Wait for Pullback / Breakout Watch / Avoid for Now. Be specific with price levels where possible.",
         aiinsight: "You are a senior investment analyst. For " + sym + " (" + (NAMES[sym]||sym) + "), provide an AI Insight in EXACTLY this format:\\n\\nFundamental: X/5\\nResult: One sentence.\\n\\nTechnical: X/5\\nResult: One sentence.\\n\\nSentiment: X/5\\nResult: One sentence.\\n\\nOverall Verdict: Buy / Hold / Avoid / Strong Buy / Strong Avoid\\nConfidence: Low / Medium / High\\nHorizon: Short-term (1-3m) / Medium-term (3-12m) / Long-term (12m+)\\n\\nKey Risk: One sentence on the most important downside risk.\\nKey Opportunity: One sentence on the most important upside catalyst.\\n\\nAI Insight Summary (max 80 words): Concise investment conclusion."
@@ -2070,7 +2079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
           if (_l2.length === 0) return "";
           return "\n\nFinancial context (use these figures to ground your scores, do not contradict them):\n" + _l2.join("\n");
         })();
-        return "You are a professional equity research analyst. Analyze the economic moat of " + sym + " (" + (NAMES[sym]||sym) + ") using only well-known business fundamentals and observable financial indicators. Do not fabricate statistics or unsupported claims. Scoring guide: 5/5 = world-class dominant moat (e.g. Microsoft, Visa, Moody's level). 4/5 = strong durable advantage. 3/5 = moderate. 2/5 = narrow. 1/5 = weak or none. Be objective -- top companies deserve high scores." + _fc2 + "\n\nReturn results in EXACTLY this format:\n\nNetwork Effects: X/5\nAssessment Criteria: The product or platform becomes more valuable as more users join.\nResult: One sentence explaining the score.\n\nSwitching Costs: X/5\nAssessment Criteria: Customers face difficulty, cost, or disruption when changing to competitors.\nResult: One sentence explaining the score.\n\nCost Advantage: X/5\nAssessment Criteria: The company can operate at lower cost or higher efficiency than competitors.\nResult: One sentence explaining the score.\n\nIntangible Assets: X/5\nAssessment Criteria: Brand, patents, intellectual property, regulatory licenses, or proprietary technology.\nResult: One sentence explaining the score.\n\nEfficient Scale: X/5\nAssessment Criteria: The market only supports a few profitable players due to high barriers to entry.\nResult: One sentence explaining the score.\n\nEcosystem Lock-in: X/5\nAssessment Criteria: Customers rely on multiple integrated products or services within the company ecosystem.\nResult: One sentence explaining the score.\n\nEconomic Moat Rating: X / 5\n\nExplanation (maximum 100 words): Summarize the main competitive advantages. Focus only on the most important moat drivers. Assign 5/5 generously where the advantage is genuinely world-class and durable.";
+        return "You are a professional equity research analyst. Analyze the economic moat of " + sym + " (" + (NAMES[sym]||sym) + ") using only well-known business fundamentals and observable financial indicators. Do not fabricate statistics or unsupported claims. Most companies do not have strong moats - scores of 4 or 5 should be rare." + _fc2 + "\n\nReturn results in EXACTLY this format:\n\nNetwork Effects: X/5\nAssessment Criteria: The product or platform becomes more valuable as more users join.\nResult: One sentence explaining the score.\n\nSwitching Costs: X/5\nAssessment Criteria: Customers face difficulty, cost, or disruption when changing to competitors.\nResult: One sentence explaining the score.\n\nCost Advantage: X/5\nAssessment Criteria: The company can operate at lower cost or higher efficiency than competitors.\nResult: One sentence explaining the score.\n\nIntangible Assets: X/5\nAssessment Criteria: Brand, patents, intellectual property, regulatory licenses, or proprietary technology.\nResult: One sentence explaining the score.\n\nEfficient Scale: X/5\nAssessment Criteria: The market only supports a few profitable players due to high barriers to entry.\nResult: One sentence explaining the score.\n\nEcosystem Lock-in: X/5\nAssessment Criteria: Customers rely on multiple integrated products or services within the company ecosystem.\nResult: One sentence explaining the score.\n\nEconomic Moat Rating: X / 5\n\nExplanation (maximum 100 words): Summarize the main competitive advantages. Focus only on the most important moat drivers. Only assign 4-5 if advantages are clear, durable, and supported by financial performance.";
       })(),
 
       financial: "You are a professional equity research analyst. For the stock " + sym + " (" + (NAMES[sym]||sym) + "), assess Financial Strength across these 7 dimensions in concise paragraphs: 1. Revenue Growth Trend 2. Gross Margin Stability 3. Operating Margin Trend 4. Free Cash Flow Consistency 5. Debt Level 6. Share Dilution or Buyback Discipline 7. Earnings Predictability. End with: Financial Strength Classification: Strong / Moderate / Weak and one sentence of reasoning.",
@@ -2665,7 +2674,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.85</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.83</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2728,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.85</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.83</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -4093,7 +4102,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         }
                         function scoreColor(s) {
                           if (s >= 4) return "#1a6a1a";
-                          if (s >= 3) return "#b88000";
+                          if (s >= 3) return "#2a7a2a";
                           if (s >= 2) return "#b88000";
                           return "#c03030";
                         }
@@ -4103,16 +4112,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           if (s >= 3) return "Moderate";
                           if (s >= 2) return "Narrow";
                           return "Weak";
-                        }
-                        function fsCol(col) {
-                          if (!col) return { text:"#888", bg:"#f5f5f5", border:"#ddd" };
-                          var v = col.toLowerCase();
-                          if (v.includes("exceptional")||v.includes("wide")) return { text:"#0d4f0d", bg:"#d4edda", border:"#7abd00" };
-                          if (v.includes("strong"))      return { text:"#1a6a1a", bg:"#e6f4e6", border:"#7abd00" };
-                          if (v.includes("moderate")||v.includes("narrow")) return { text:"#b88000", bg:"#fdf8e6", border:"#d4a800" };
-                          if (v.includes("weak"))        return { text:"#b84000", bg:"#fff4ee", border:"#e08050" };
-                          if (v.includes("poor"))        return { text:"#c03030", bg:"#fff0f0", border:"#e08080" };
-                          return { text:"#888", bg:"#f5f5f5", border:"#ddd" };
                         }
                         function DotBar(props) {
                           var dots = [];
@@ -4135,22 +4134,16 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         var pi = parsedInsights["moat"] || {};
                         return (
                           <div>
-                            {pi.classification && (function(){
-                              var _fc = fsCol(pi.classification);
-                              return (
-                                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:_fc.bg, borderRadius:8, marginBottom:16, border:"0.5px solid "+_fc.border }}>
-                                  <div>
-                                    <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Economic Moat Rating</div>
-                                    <div style={{ fontSize:15, fontWeight:700, color:_fc.text }}>{pi.classification}</div>
-                                    {pi.explanation ? <div style={{ fontSize:11, color:"#555", marginTop:2, maxWidth:400 }}>{pi.explanation}</div> : null}
-                                  </div>
-                                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                                    <DotBar score={pi.score} />
-                                    <span style={{ fontSize:12, fontWeight:700, color:_fc.text }}>{pi.classification}</span>
-                                  </div>
+                            {pi.classification && (
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background: pi.score >= 4 ? "#e6f4e6" : pi.score >= 3 ? "#f0f7e6" : "#fff0f0", borderRadius:8, marginBottom:16, border:"0.5px solid " + (pi.score >= 4 ? "#7abd00" : pi.score >= 3 ? "#9ab800" : "#e08080") }}>
+                                <div>
+                                  <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Economic Moat Rating</div>
+                                  <div style={{ fontSize:15, fontWeight:700, color: pi.score >= 4 ? "#1a6a1a" : pi.score >= 3 ? "#2a7a2a" : "#c03030" }}>{pi.classification}</div>
+                                  {pi.explanation ? <div style={{ fontSize:11, color:"#555", marginTop:2, maxWidth:400 }}>{pi.explanation}</div> : null}
                                 </div>
-                              );
-                            })()}
+                                <DotBar score={pi.score} />
+                              </div>
+                            )}
                             {parsed.sections.map(function(sec, i) {
                               return (
                                 <div key={i} style={{ marginBottom:12, paddingBottom:12, borderBottom: i < parsed.sections.length-1 ? "1px solid #f0ede6" : "none" }}>
@@ -4162,6 +4155,20 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 </div>
                               );
                             })}
+                            {parsed.rating != null && (
+                              <div style={{ marginTop:14, padding:"12px 16px", background:"#f5f2ec", borderRadius:10 }}>
+                                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: parsed.explanation ? 8 : 0 }}>
+                                  <div>
+                                    <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Economic Moat Rating</div>
+                                    <div style={{ fontSize:14, fontWeight:700, color:scoreColor(parsed.rating) }}>{parsed.classification}</div>
+                                  </div>
+                                  <DotBar score={parsed.rating} />
+                                </div>
+                                {parsed.explanation && (
+                                  <div style={{ fontSize:12, color:"#555", lineHeight:1.7, borderTop:"1px solid #e0dbd0", paddingTop:8 }}>{parsed.explanation}</div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })()}
@@ -8296,7 +8303,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.85</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.83</span>
           </div>
         </div>
 
