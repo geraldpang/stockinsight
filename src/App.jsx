@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.95</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.96</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.95</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.96</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3277,7 +3277,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       var _mDirm=_mH2m.length>=2&&_mH2m[0]&&_mH2m[1]&&_mH2m[0].histogram!=null&&_mH2m[1].histogram!=null?(parseFloat(_mH2m[0].histogram)>parseFloat(_mH2m[1].histogram)?"Rising":"Falling"):"Flat";
                       var _aggs_m=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
                       var _sma5m=_aggs_m.length>=5?(_aggs_m[0].c+_aggs_m[1].c+_aggs_m[2].c+_aggs_m[3].c+_aggs_m[4].c)/5:null;
-                      var _rocm=_sma5m&&_sma5m>0?(p2>0?p2:_aggs_m[0].c-_sma5m)/_sma5m*100:null;
+                      var _rocm=_sma5m&&_sma5m>0?((p2>0?p2:_aggs_m[0].c)-_sma5m)/_sma5m*100:null;
                       function _scm(key){
                         if(key==="rsi") {
                           if(_r2m==null) return 3;
@@ -6559,7 +6559,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {(function(){
                             // ROC = (price - SMA5) / SMA5 × 100  — 1-week momentum vs average
                             var _sma5 = aggs&&aggs.length>=5 ? (aggs[0].c+aggs[1].c+aggs[2].c+aggs[3].c+aggs[4].c)/5 : null;
-                            var _roc10 = _sma5&&_sma5>0 ? (price>0?price:aggs[0].c-_sma5)/_sma5*100 : null;
+                            var _roc10 = _sma5&&_sma5>0 ? ((price>0?price:aggs[0].c) - _sma5)/_sma5*100 : null;
                             var _rocScore=_roc10===null?3:_roc10>5?5:_roc10>2?4:_roc10>-2?3:_roc10>-5?2:1;
                             var _rocCol=_rocScore>=4?"#1a6a1a":_rocScore===3?"#b88000":"#c03030";
                             var _rocBadge=_roc10!=null&&_roc10>10?{text:"\u26A0 OVERHEATED",col:"#b88000",bg:"#fdf8e6"}:_roc10!=null&&_roc10<-10?{text:"\u26A0 OVERSOLD DROP",col:"#b88000",bg:"#fdf8e6"}:null;
@@ -8352,7 +8352,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.95</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.96</span>
           </div>
         </div>
 
