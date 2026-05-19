@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.96</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.98</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.96</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.98</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3564,7 +3564,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               { id:"momentum",  label:"Momentum" },
               { id:"reversal",  label:"Reversal Signals" },
               { id:"volume",    label:"Volume Signals" },
-              { id:"whale",     label:"🐋 Whale Tracker" },
+              { id:"whale",     label:"Smart Money Flow" },
               { id:"addlinfo",  label:"Additional Information" },
               { id:"debug",     label:"Debug" },
               { id:"admin",     label:"Admin" },
@@ -6562,11 +6562,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             var _roc10 = _sma5&&_sma5>0 ? ((price>0?price:aggs[0].c) - _sma5)/_sma5*100 : null;
                             var _rocScore=_roc10===null?3:_roc10>5?5:_roc10>2?4:_roc10>-2?3:_roc10>-5?2:1;
                             var _rocCol=_rocScore>=4?"#1a6a1a":_rocScore===3?"#b88000":"#c03030";
-                            var _rocBadge=_roc10!=null&&_roc10>10?{text:"\u26A0 OVERHEATED",col:"#b88000",bg:"#fdf8e6"}:_roc10!=null&&_roc10<-10?{text:"\u26A0 OVERSOLD DROP",col:"#b88000",bg:"#fdf8e6"}:null;
                             return <MRow label={"Price vs SMA5 (1-week momentum)"}
                               val={_roc10!=null?("ROC "+(_roc10>0?"+":"")+_roc10.toFixed(2)+"%"):null}
                               valCol={_rocCol}
-                              score={_rocScore} dotCol={_rocCol} weight={20} badge={_rocBadge}
+                              score={_rocScore} dotCol={_rocCol} weight={20}
                               scoring={"●●●●●  5/5: ROC > +5% (price well above 1-week average)\n●●●●○  4/5: ROC +2% to +5%\n●●●○○  3/5: ROC -2% to +2% (flat)\n●●○○○  2/5: ROC -5% to -2%\n●○○○○  1/5: ROC < -5% (price well below 1-week average)\n\nROC = (price - SMA5) / SMA5 × 100\nSMA5 = average closing price of last 5 days (1 week)"}
                               context={_roc10!=null?"Price is "+(_roc10>0?"+":"")+_roc10.toFixed(1)+"% "+(Math.abs(_roc10)<0.5?"at":"relative to")+" its 5-day average of $"+(_sma5?_sma5.toFixed(2):"N/A")+". A positive reading means price is above its recent average -- short-term buyers in control. Negative means below -- sellers have the edge this week.":null}
                               desc={_roc10===null?"Data unavailable.":_roc10>5?"Price well above its 1-week average -- strong short-term buying momentum.":_roc10>2?"Price above its 1-week average -- mild bullish momentum.":_roc10>-2?"Price near its 1-week average -- no clear short-term direction.":_roc10>-5?"Price below its 1-week average -- mild selling pressure.":"Price well below its 1-week average -- strong short-term selling pressure."}
@@ -6858,18 +6857,158 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   })()}
 
                   {insightTab === "whale" && (function() {
-                    var aggs = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
+                    var rawAggs = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
+                    // Whale/options data still loaded for secondary section
                     if (!whaleData && !whaleLoading) {
                       setWhaleLoading(true);
                       var _wSym = sym === "BRKB" ? "BRK-B" : sym;
                       fetch("/options?sym=" + _wSym)
-                        .then(function(r) { return r.json(); })
-                        .then(function(d) { setWhaleData(d); setWhaleLoading(false); })
-                        .catch(function() { setWhaleData({ error: true }); setWhaleLoading(false); });
+                        .then(function(r){ return r.json(); })
+                        .then(function(d){ setWhaleData(d); setWhaleLoading(false); })
+                        .catch(function(){ setWhaleData({ error:true }); setWhaleLoading(false); });
                     }
-                    var vol20avg = aggs.length > 0 ? aggs.slice(0,20).reduce(function(s,a){ return s+(a.v||0); },0)/Math.min(aggs.length,20) : 0;
-                    var vol5avg  = aggs.length > 0 ? aggs.slice(0,5).reduce(function(s,a){ return s+(a.v||0); },0)/Math.min(aggs.slice(0,5).length,5) : 0;
-                    var volRatioW = vol20avg > 0 ? vol5avg / vol20avg : null;
+
+                    // --- OHLCV Validation ---
+                    // rawAggs is newest-first from Massive; each bar: { c, o, h, l, v, date }
+                    function validateOHLCV(ag) {
+                      var errors = [];
+                      if (!ag || ag.length === 0) { errors.push("No OHLCV data available."); return { isValid:false, hasThirtyDays:false, canCalculateTodaySignal:false, errors:errors }; }
+                      var valid = ag.filter(function(b){ return b&&b.c>0&&b.h>0&&b.l>0&&b.v>=0; });
+                      if (valid.length < 2) errors.push("Fewer than 2 valid trading days.");
+                      var hasThirty = valid.length >= 30;
+                      var canToday  = valid.length >= 2 && valid.length >= 20;
+                      if (!hasThirty) errors.push("Fewer than 30 trading days -- 30-Day Signal unavailable.");
+                      return { isValid: valid.length >= 2, hasThirtyDays: hasThirty, canCalculateTodaySignal: canToday, validBars: valid, errors: errors };
+                    }
+
+                    function getScoreLabel(s) {
+                      return s >= 86 ? "Very High" : s >= 71 ? "High" : s >= 51 ? "Moderate" : s >= 31 ? "Mild" : "Low";
+                    }
+
+                    function scoreLabelColor(lbl) {
+                      return lbl==="Very High"||lbl==="High" ? "#1a6a1a" : lbl==="Moderate" ? "#b88000" : "#c03030";
+                    }
+
+                    function calcOBV(bars) {
+                      // bars = oldest-first
+                      var obv = [0];
+                      for (var i = 1; i < bars.length; i++) {
+                        if (bars[i].c > bars[i-1].c)      obv.push(obv[i-1] + bars[i].v);
+                        else if (bars[i].c < bars[i-1].c) obv.push(obv[i-1] - bars[i].v);
+                        else                               obv.push(obv[i-1]);
+                      }
+                      return obv;
+                    }
+
+                    function calcTodaySignal(bars) {
+                      // bars = oldest-first, bars[n-1] = today, bars[n-2] = yesterday
+                      var n = bars.length;
+                      var today = bars[n-1], yesterday = bars[n-2];
+                      var avg30v = bars.slice(Math.max(0, n-30)).reduce(function(s,b){ return s+b.v; },0) / Math.min(n, 30);
+
+                      // A. Volume Surge Score
+                      var vRatio = avg30v > 0 ? today.v / avg30v : 0;
+                      var volScore = vRatio >= 3.0 ? 100 : vRatio >= 2.0 ? 75 : vRatio >= 1.5 ? 50 : vRatio >= 1.2 ? 25 : 0;
+
+                      // B. Price Strength Score
+                      var pctChg = yesterday.c > 0 ? (today.c - yesterday.c) / yesterday.c * 100 : 0;
+                      var priceScore = pctChg > 5 ? 100 : pctChg > 2 ? 80 : pctChg > 0 ? 60 : pctChg > -2 ? 30 : 0;
+
+                      // C. Strong Close Score
+                      var rng = today.h - today.l;
+                      var closePos = rng > 0 ? (today.c - today.l) / rng : 0.5;
+                      var closeScore = closePos > 0.85 ? 100 : closePos > 0.7 ? 80 : closePos > 0.5 ? 60 : closePos > 0.3 ? 30 : 0;
+
+                      // D. OBV Daily Direction Score
+                      var obv = calcOBV(bars);
+                      var obvDir = obv[n-1] > obv[n-2] ? 100 : obv[n-1] < obv[n-2] ? 0 : 50;
+
+                      var total = Math.round(volScore*0.35 + priceScore*0.30 + closeScore*0.20 + obvDir*0.15);
+                      return {
+                        score: total,
+                        label: getScoreLabel(total),
+                        breakdown: [
+                          { name:"Volume Surge", score:Math.round(volScore), weight:35,
+                            explanation: avg30v>0 ? "Volume is "+vRatio.toFixed(1)+"x the 30-day average ("+(today.v>=1e6?(today.v/1e6).toFixed(1)+"M":(today.v/1e3).toFixed(0)+"K")+" vs avg "+(avg30v>=1e6?(avg30v/1e6).toFixed(1)+"M":(avg30v/1e3).toFixed(0)+"K")+")." : "Volume data unavailable." },
+                          { name:"Price Strength", score:Math.round(priceScore), weight:30,
+                            explanation: "Price changed "+(pctChg>0?"+":"")+pctChg.toFixed(2)+"% today vs previous close." },
+                          { name:"Strong Close", score:Math.round(closeScore), weight:20,
+                            explanation: rng>0 ? "Closed at "+(closePos*100).toFixed(0)+"% of today's range (low $"+today.l.toFixed(2)+" — high $"+today.h.toFixed(2)+")." : "No price range today (open = close)." },
+                          { name:"OBV Direction", score:Math.round(obvDir), weight:15,
+                            explanation: obvDir===100 ? "On-balance volume rose today -- volume supported the move up." : obvDir===0 ? "On-balance volume fell today -- volume supported the move down." : "OBV unchanged today." }
+                        ],
+                        meta: { vRatio:vRatio, pctChg:pctChg, closePos:closePos }
+                      };
+                    }
+
+                    function calcThirtyDaySignal(bars) {
+                      var n = bars.length;
+                      var avg30v = bars.slice(n-30).reduce(function(s,b){ return s+b.v; },0) / 30;
+                      var obv = calcOBV(bars);
+
+                      // A. OBV Trend Score
+                      var obvNow = obv[n-1], obvOld = obv[n-30];
+                      var obvPct = obvOld !== 0 ? (obvNow - obvOld) / Math.abs(obvOld) * 100 : 0;
+                      var obvScore = obvPct > 15 ? 100 : obvPct > 0 ? 75 : obvPct > -10 ? 50 : obvPct > -25 ? 25 : 0;
+
+                      // B. High-Volume Green/Red Days
+                      var hvGreen = 0, hvRed = 0;
+                      for (var i = n-29; i < n; i++) {
+                        if (bars[i].v > 1.5 * avg30v) {
+                          if (bars[i].c > bars[i-1].c) hvGreen++;
+                          else if (bars[i].c < bars[i-1].c) hvRed++;
+                        }
+                      }
+                      var hvScore = hvGreen >= hvRed * 2 ? 100 : hvGreen > hvRed ? 75 : hvGreen === hvRed ? 50 : 0;
+
+                      // C. Price Stability / Strength
+                      var p30 = bars[n-30].c, pNow = bars[n-1].c;
+                      var pct30 = p30 > 0 ? (pNow - p30) / p30 * 100 : 0;
+                      var priceScore = pct30 > 10 ? 100 : pct30 > 0 ? 75 : pct30 > -5 ? 50 : pct30 > -10 ? 25 : 0;
+
+                      // D. Strong Close Frequency
+                      var strongCloseDays = 0;
+                      for (var j = n-30; j < n; j++) {
+                        var rng = bars[j].h - bars[j].l;
+                        if (rng > 0 && (bars[j].c - bars[j].l) / rng > 0.6) strongCloseDays++;
+                      }
+                      var scFreq = strongCloseDays / 30;
+                      var scScore = scFreq > 0.65 ? 100 : scFreq > 0.5 ? 75 : scFreq > 0.4 ? 50 : scFreq > 0.3 ? 25 : 0;
+
+                      var total = Math.round(obvScore*0.35 + hvScore*0.25 + priceScore*0.25 + scScore*0.15);
+                      return {
+                        score: total,
+                        label: getScoreLabel(total),
+                        breakdown: [
+                          { name:"OBV Trend", score:Math.round(obvScore), weight:35,
+                            explanation: "OBV changed "+(obvPct>0?"+":"")+obvPct.toFixed(1)+"% over 30 trading days." },
+                          { name:"High-Volume Green Days", score:Math.round(hvScore), weight:25,
+                            explanation: hvGreen+" high-volume up days vs "+hvRed+" high-volume down days in 30 sessions." },
+                          { name:"Price Stability / Strength", score:Math.round(priceScore), weight:25,
+                            explanation: "Price is "+(pct30>0?"+":"")+pct30.toFixed(1)+"% vs 30 trading days ago." },
+                          { name:"Strong Close Frequency", score:Math.round(scScore), weight:15,
+                            explanation: strongCloseDays+" of 30 days closed in the upper 40% of daily range ("+(scFreq*100).toFixed(0)+"%)." }
+                        ]
+                      };
+                    }
+
+                    function getInterpretation(tScore, dScore) {
+                      var tHigh = tScore >= 51, dHigh = dScore >= 51;
+                      if (tHigh && dHigh)   return "Possible accumulation detected. Today's trading shows unusual price and volume behaviour, and the 30-day trend suggests it may have been building over time.";
+                      if (tHigh && !dHigh)  return "Short-term activity spike detected. Today's trading is unusual, but there is limited evidence of sustained 30-day accumulation.";
+                      if (!tHigh && dHigh)  return "Possible quiet accumulation. Today is not unusual, but the 30-day trend in price and volume remains constructive.";
+                      return "No clear accumulation signal detected from recent price and volume behaviour.";
+                    }
+
+                    // --- Data prep ---
+                    var validation = validateOHLCV(rawAggs);
+                    // Reverse to oldest-first for calculations
+                    var bars = validation.validBars ? validation.validBars.slice().reverse() : [];
+                    var todaySig   = validation.canCalculateTodaySignal ? calcTodaySignal(bars) : null;
+                    var thirtyDaySig = validation.hasThirtyDays ? calcThirtyDaySignal(bars) : null;
+                    var interp = todaySig||thirtyDaySig ? getInterpretation(todaySig?todaySig.score:0, thirtyDaySig?thirtyDaySig.score:0) : null;
+
+                    // Options secondary data
                     var putCallOI  = whaleData && whaleData.putCallOI  ? parseFloat(whaleData.putCallOI)  : null;
                     var putCallVol = whaleData && whaleData.putCallVol ? parseFloat(whaleData.putCallVol) : null;
                     var callOIw  = whaleData ? (whaleData.callOI  || 0) : 0;
@@ -6877,84 +7016,118 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var callVolw = whaleData ? (whaleData.callVol || 0) : 0;
                     var putVolw  = whaleData ? (whaleData.putVol  || 0) : 0;
                     var topOIw   = whaleData && whaleData.topOI ? whaleData.topOI : [];
-                    var insiderBuys = ov && ov.insiderTx ? ov.insiderTx.filter(function(t) {
-                      var a = (t.action||"").toLowerCase();
-                      return a.indexOf("purchase")!==-1||a.indexOf("buy")!==-1||a.indexOf("acquisition")!==-1;
+                    var insiderBuys = ov && ov.insiderTx ? ov.insiderTx.filter(function(t){
+                      var a=(t.action||"").toLowerCase(); return a.indexOf("purchase")!==-1||a.indexOf("buy")!==-1||a.indexOf("acquisition")!==-1;
                     }) : [];
-                    var sig1 = putCallOI !== null ? (putCallOI < 0.7 ? "bull" : putCallOI > 1.3 ? "bear" : "neutral") : "nodata";
-                    var sig2 = putCallVol !== null ? (putCallVol < 0.7 ? "bull" : putCallVol > 1.3 ? "bear" : "neutral") : "nodata";
-                    var sig3 = volRatioW !== null ? (volRatioW > 1.5 ? "spike" : volRatioW > 1.1 ? "elevated" : "normal") : "nodata";
-                    var sig4 = insiderBuys.length >= 2 ? "strong" : insiderBuys.length === 1 ? "mild" : "none";
-                    var wScore = 0;
-                    if (sig1==="bull") wScore+=30; if (sig1==="bear") wScore-=30;
-                    if (sig2==="bull") wScore+=25; if (sig2==="bear") wScore-=25;
-                    if (sig3==="spike") wScore+=20; if (sig3==="elevated") wScore+=10;
-                    if (sig4==="strong") wScore+=25; if (sig4==="mild") wScore+=10;
-                    var wLabel = wScore>=40?"Strong Accumulation":wScore>=15?"Mild Accumulation":wScore<=-40?"Strong Distribution":wScore<=-15?"Mild Distribution":"Neutral / No Signal";
-                    var wColor = wScore>=15?"#1a6a1a":wScore<=-15?"#c03030":"#888";
-                    var wBg    = wScore>=15?"#f0f7f0":wScore<=-15?"#fdf0f0":"#f9f7f4";
-                    var wBd    = wScore>=15?"#7abd00":wScore<=-15?"#e05050":"#e0dbd0";
-                    function fmtKw(n) { if(!n) return "-"; if(n>=1e6) return (n/1e6).toFixed(1)+"M"; if(n>=1e3) return (n/1e3).toFixed(0)+"K"; return String(n); }
-                    function WSignalRow(label, value, bullish, neutral) {
-                      var col = bullish===true?"#1a6a1a":neutral===true?"#888":"#c03030";
-                      var icon = bullish===true?"▲":neutral===true?"—":"▼";
-                      var rowBg = bullish===true?"#f5fdf5":neutral===true?"#fafafa":"#fdf5f5";
+                    function fmtKw(n){ if(!n) return "-"; if(n>=1e6) return (n/1e6).toFixed(1)+"M"; if(n>=1e3) return (n/1e3).toFixed(0)+"K"; return String(n); }
+
+                    function SignalCard(props) {
+                      var sig = props.sig, title = props.title, subtitle = props.subtitle;
+                      if (!sig) return (
+                        <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10, padding:"16px 18px", marginBottom:16, background:"#faf8f4" }}>
+                          <div style={{ fontSize:11, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>{title}</div>
+                          <div style={{ fontSize:11, color:"#aaa" }}>{props.unavailMsg || "Not enough data to calculate this signal."}</div>
+                        </div>
+                      );
+                      var lbl = sig.label, col = scoreLabelColor(lbl);
+                      var bgMap = { "Very High":"#e6f4e6", "High":"#e6f4e6", "Moderate":"#fdf8e6", "Mild":"#fff4ee", "Low":"#fff0f0" };
+                      var bdMap = { "Very High":"#7abd00", "High":"#7abd00", "Moderate":"#d4a800", "Mild":"#e08050", "Low":"#e08080" };
                       return (
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 14px", borderBottom:"0.5px solid #f0ede6", background:rowBg }}>
-                          <div>
-                            <div style={{ fontSize:12, fontWeight:700, color:"#222" }}>{label}</div>
-                            <div style={{ fontSize:11, color:"#888", marginTop:2 }}>{value}</div>
+                        <div style={{ border:"0.5px solid "+bdMap[lbl], borderRadius:10, marginBottom:16, overflow:"hidden" }}>
+                          <div style={{ background:bgMap[lbl], padding:"14px 16px", borderBottom:"0.5px solid "+bdMap[lbl] }}>
+                            <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:2 }}>{title}</div>
+                            <div style={{ fontSize:11, color:"#888", marginBottom:8 }}>{subtitle}</div>
+                            <div style={{ display:"flex", alignItems:"baseline", gap:10 }}>
+                              <span style={{ fontSize:22, fontWeight:800, color:col }}>{sig.score}</span>
+                              <span style={{ fontSize:13, color:"#aaa" }}>/ 100</span>
+                              <span style={{ fontSize:13, fontWeight:700, color:col, marginLeft:4 }}>{lbl}</span>
+                            </div>
                           </div>
-                          <div style={{ fontSize:16, fontWeight:800, color:col, marginLeft:12 }}>{icon}</div>
+                          <div>
+                            {sig.breakdown.map(function(b, i) {
+                              var bCol = b.score>=71?"#1a6a1a":b.score>=51?"#b88000":"#c03030";
+                              return (
+                                <div key={i} style={{ padding:"10px 14px", borderBottom: i<sig.breakdown.length-1?"0.5px solid #f0ede6":"none", display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
+                                  <div style={{ flex:1 }}>
+                                    <div style={{ fontSize:12, fontWeight:700, color:"#333", marginBottom:2 }}>{b.name}
+                                      <span style={{ fontSize:9, color:"#bbb", fontWeight:400, marginLeft:6 }}>{"(wt:"+b.weight+"%)"}</span>
+                                    </div>
+                                    <div style={{ fontSize:11, color:"#888", lineHeight:1.5 }}>{b.explanation}</div>
+                                  </div>
+                                  <div style={{ textAlign:"right", flexShrink:0 }}>
+                                    <span style={{ fontSize:13, fontWeight:700, color:bCol }}>{b.score}</span>
+                                    <span style={{ fontSize:10, color:"#bbb" }}>{"/100"}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     }
+
                     return (
                       <div>
-                        <div style={{ background:wBg, border:"1px solid "+wBd, borderRadius:10, padding:"16px 18px", marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                          <div>
-                            <div style={{ fontSize:10, color:"#999", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Whale Pressure</div>
-                            <div style={{ fontSize:20, fontWeight:800, color:wColor }}>{wLabel}</div>
-                            <div style={{ fontSize:11, color:"#aaa", marginTop:4 }}>{"Score: "+(wScore>0?"+":"")+wScore+" / 100"}</div>
-                          </div>
-                          <div style={{ fontSize:36 }}>{"🐋"}</div>
+                        <div style={{ marginBottom:16 }}>
+                          <div style={{ fontSize:13, fontWeight:700, color:"#111", marginBottom:2 }}>Smart Money Flow</div>
+                          <div style={{ fontSize:11, color:"#888" }}>Tracks possible accumulation using price and volume behaviour.</div>
                         </div>
-                        {whaleLoading && <div style={{ textAlign:"center", padding:"24px", color:"#aaa", fontSize:12 }}>{"Loading options data..."}</div>}
-                        {!whaleLoading && (
-                          <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10, overflow:"hidden", marginBottom:16 }}>
-                            <div style={{ padding:"10px 14px", background:"#faf8f4", borderBottom:"1px solid #e8e4dc" }}>
-                              <span style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em" }}>Signal Breakdown</span>
-                            </div>
-                            {WSignalRow("Options OI Skew", putCallOI!==null?"P/C OI: "+putCallOI.toFixed(2)+"  |  Calls: "+fmtKw(callOIw)+"  Puts: "+fmtKw(putOIw):"Options data unavailable", sig1==="bull", sig1==="neutral"||sig1==="nodata")}
-                            {WSignalRow("Options Volume Skew", putCallVol!==null?"P/C Vol: "+putCallVol.toFixed(2)+"  |  Call Vol: "+fmtKw(callVolw)+"  Put Vol: "+fmtKw(putVolw):"Options data unavailable", sig2==="bull", sig2==="neutral"||sig2==="nodata")}
-                            {WSignalRow("Volume Spike (5d vs 20d)", volRatioW!==null?"Ratio: "+volRatioW.toFixed(2)+"x  |  5d: "+fmtKw(Math.round(vol5avg))+"  20d: "+fmtKw(Math.round(vol20avg)):"Volume data unavailable", sig3==="spike"||sig3==="elevated", sig3==="normal"||sig3==="nodata")}
-                            {WSignalRow("Insider Buying", insiderBuys.length>0?insiderBuys.length+" recent buy"+(insiderBuys.length>1?"s":"")+" — "+(insiderBuys[0]?insiderBuys[0].name:""):"No recent insider purchases", sig4==="strong"||sig4==="mild", sig4==="none")}
+
+                        {SignalCard({ sig:todaySig, title:"Today Signal", subtitle:"Is something unusual happening now?", unavailMsg: validation.errors.join(" ") })}
+                        {SignalCard({ sig:thirtyDaySig, title:"30-Day Signal", subtitle:"Has accumulation been building?", unavailMsg:"Not enough price and volume data to calculate the 30-Day Signal. At least 30 trading days of OHLCV data is required." })}
+
+                        {interp && (
+                          <div style={{ padding:"12px 14px", background:"#f5f2ec", borderRadius:10, marginBottom:16, border:"0.5px solid #e0dbd0" }}>
+                            <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Interpretation</div>
+                            <div style={{ fontSize:12, color:"#444", lineHeight:1.7 }}>{interp}</div>
                           </div>
                         )}
-                        {!whaleLoading && topOIw.length > 0 && (
-                          <div style={{ marginBottom:16 }}>
-                            <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Top 10 Contracts by Open Interest</div>
-                            <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10, overflow:"hidden" }}>
-                              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-                                <thead><tr style={{ background:"#faf8f4", borderBottom:"1px solid #e8e4dc" }}>
-                                  {["Type","Strike","Expiry","OI","IV","Last"].map(function(h){ return <td key={h} style={{ padding:"6px 10px", color:"#999", fontWeight:700, textTransform:"uppercase", fontSize:9 }}>{h}</td>; })}
-                                </tr></thead>
-                                <tbody>
-                                  {topOIw.map(function(c,i){ var isCall=c.type==="call"; return (
-                                    <tr key={i} style={{ borderBottom:"0.5px solid #f5f2ec", background:i%2===0?"#fff":"#faf8f4" }}>
-                                      <td style={{ padding:"7px 10px", fontWeight:700, color:isCall?"#1a6a1a":"#c03030" }}>{(c.type||"").toUpperCase()}</td>
-                                      <td style={{ padding:"7px 10px", fontWeight:600 }}>{"$"+(c.strike||"-")}</td>
-                                      <td style={{ padding:"7px 10px", color:"#888" }}>{c.expiry||"-"}</td>
-                                      <td style={{ padding:"7px 10px", fontWeight:700 }}>{fmtKw(c.oi)}</td>
-                                      <td style={{ padding:"7px 10px", color:"#666" }}>{c.iv||"-"}</td>
-                                      <td style={{ padding:"7px 10px", color:"#666" }}>{c.last!=null?"$"+parseFloat(c.last).toFixed(2):"-"}</td>
-                                    </tr>
-                                  ); })}
-                                </tbody>
-                              </table>
+
+                        {!whaleLoading && (putCallOI!==null||topOIw.length>0) && (
+                          <div style={{ marginBottom:12 }}>
+                            <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Options Context</div>
+                            <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10, overflow:"hidden", marginBottom:12 }}>
+                              {[
+                                ["Options OI Skew", putCallOI!==null?"P/C OI: "+putCallOI.toFixed(2)+"  |  Calls: "+fmtKw(callOIw)+"  Puts: "+fmtKw(putOIw):"Unavailable", putCallOI!==null&&putCallOI<0.7],
+                                ["Options Volume Skew", putCallVol!==null?"P/C Vol: "+putCallVol.toFixed(2)+"  |  Call Vol: "+fmtKw(callVolw)+"  Put Vol: "+fmtKw(putVolw):"Unavailable", putCallVol!==null&&putCallVol<0.7],
+                              ].map(function(row,i){
+                                var bullish=row[2]; var col=bullish?"#1a6a1a":"#888";
+                                return <div key={i} style={{ padding:"10px 14px", borderBottom:i===0?"0.5px solid #f0ede6":"none", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                                  <div>
+                                    <div style={{ fontSize:12, fontWeight:700, color:"#333" }}>{row[0]}</div>
+                                    <div style={{ fontSize:11, color:"#888", marginTop:2 }}>{row[1]}</div>
+                                  </div>
+                                  <span style={{ fontSize:14, color:col, fontWeight:700 }}>{bullish?"▲":"—"}</span>
+                                </div>;
+                              })}
                             </div>
+                            {topOIw.length > 0 && (
+                              <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10, overflow:"hidden", marginBottom:12 }}>
+                                <div style={{ padding:"8px 14px", background:"#faf8f4", borderBottom:"1px solid #e8e4dc" }}>
+                                  <span style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em" }}>Top Contracts by Open Interest</span>
+                                </div>
+                                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                                  <thead><tr style={{ background:"#faf8f4", borderBottom:"1px solid #e8e4dc" }}>
+                                    {["Type","Strike","Expiry","OI","IV","Last"].map(function(h){ return <td key={h} style={{ padding:"6px 10px", color:"#999", fontWeight:700, textTransform:"uppercase", fontSize:9 }}>{h}</td>; })}
+                                  </tr></thead>
+                                  <tbody>
+                                    {topOIw.map(function(c,i){ var isCall=c.type==="call"; return (
+                                      <tr key={i} style={{ borderBottom:"0.5px solid #f5f2ec", background:i%2===0?"#fff":"#faf8f4" }}>
+                                        <td style={{ padding:"7px 10px", fontWeight:700, color:isCall?"#1a6a1a":"#c03030" }}>{(c.type||"").toUpperCase()}</td>
+                                        <td style={{ padding:"7px 10px", fontWeight:600 }}>{"$"+(c.strike||"-")}</td>
+                                        <td style={{ padding:"7px 10px", color:"#888" }}>{c.expiry||"-"}</td>
+                                        <td style={{ padding:"7px 10px", fontWeight:700 }}>{fmtKw(c.oi)}</td>
+                                        <td style={{ padding:"7px 10px", color:"#666" }}>{c.iv||"-"}</td>
+                                        <td style={{ padding:"7px 10px", color:"#666" }}>{c.last!=null?"$"+parseFloat(c.last).toFixed(2):"-"}</td>
+                                      </tr>
+                                    ); })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
                           </div>
                         )}
+
                         {ov && (ov.institutionPct>0||ov.insiderPct>0) && (
                           <div style={{ marginBottom:16 }}>
                             <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Institutional Footprint</div>
@@ -6968,8 +7141,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             </div>
                           </div>
                         )}
-                        <div style={{ fontSize:10, color:"#aaa", lineHeight:1.6, padding:"10px 12px", background:"#faf8f4", borderRadius:8, border:"0.5px solid #e8e4de" }}>
-                          {"Whale Tracker combines options OI skew, volume spikes, and insider activity as proxy signals for large-money positioning. Options data covers next 60 days of contracts (limit 250). Not financial advice."}
+
+                        <div style={{ fontSize:10, color:"#aaa", lineHeight:1.6, padding:"10px 12px", background:"#faf8f4", borderRadius:8, border:"0.5px solid #e8e4dc" }}>
+                          {"This signal is based on price and volume behaviour only. It does not confirm actual institutional or whale purchases. Not financial advice."}
                         </div>
                       </div>
                     );
@@ -8352,7 +8526,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.96</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.98</span>
           </div>
         </div>
 
