@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.90</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.91</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.90</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.91</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6548,7 +6548,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             return <MRow label={"RSI (Relative Strength Index)"}
                               val={rsi!=null?rsi.toFixed(1)+" ("+_dirLabel+")":null}
                               valCol={rsi==null?"#aaa":rsi>75?"#b88000":rsi>=50?"#1a6a1a":rsi>=30?"#888":"#c03030"}
-                              dir={rsiDir} score={_rs} dotCol={_rc} weight={40} badge={rsiBadge}
+                              dir={null} score={_rs} dotCol={_rc} weight={40} badge={rsiBadge}
                               scoring={"●●●●●  5/5: RSI ≥65, not declining\n●●●●○  4/5: RSI ≥55 not declining, OR RSI ≥65 declining, OR RSI >70 (overbought cap)\n●●●○○  3/5: RSI ≥45 stable, OR RSI ≥55 declining, OR RSI ≥35 improving\n●●○○○  2/5: RSI ≥35 declining, OR RSI ≥45 declining\n●○○○○  1/5: RSI < 35\n\nDirection = avg(T-0,T-1) minus avg(T-2 to T-6)\nImproving: > +3 pts  |  Stable: -3 to +3  |  Declining: < -3 pts"}
                               context={rsi!=null?"RSI "+rsi.toFixed(1)+" with 5-day direction "+(_rsiDirDisp>0?"+":"")+_rsiDirDisp.toFixed(1)+" pts ("+_dirLabel+"). RSI above 50 means buyers are in control; below 50 sellers have the edge. Above 70 is overbought (capped at 4/5). Below 35 is oversold.":null}
                               desc={rsi===null?"Data unavailable.":rsi>75?"RSI "+rsi.toFixed(0)+" -- overbought. Momentum strong but risk of pullback. Capped at 4/5.":rsi>=65?"RSI "+rsi.toFixed(0)+" -- strong momentum. "+(_rsiDirDisp<-3?"Declining -- watch for continuation.":"Buyers firmly in control."):rsi>=55?"RSI "+rsi.toFixed(0)+" -- good momentum. "+(_rsiDirDisp<-3?"Weakening -- momentum may be fading.":"Trending positively."):rsi>=45?"RSI "+rsi.toFixed(0)+" -- neutral zone. "+(_rsiDirDisp>3?"Improving -- recovering momentum.":_rsiDirDisp<-3?"Declining -- losing momentum.":"No clear edge for buyers or sellers."):rsi>=35?"RSI "+rsi.toFixed(0)+" -- weak. "+(_rsiDirDisp>0?"Slightly improving -- watch for recovery.":"Sellers have the edge."):"RSI "+rsi.toFixed(0)+" -- oversold. Stock has been heavily sold down."}
@@ -8351,7 +8351,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.90</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.91</span>
           </div>
         </div>
 
