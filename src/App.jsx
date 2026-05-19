@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.94</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.95</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.94</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.95</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3276,8 +3276,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       var _mH2m=ind2.macdHistory||[];
                       var _mDirm=_mH2m.length>=2&&_mH2m[0]&&_mH2m[1]&&_mH2m[0].histogram!=null&&_mH2m[1].histogram!=null?(parseFloat(_mH2m[0].histogram)>parseFloat(_mH2m[1].histogram)?"Rising":"Falling"):"Flat";
                       var _aggs_m=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
-                      var _rocm=_aggs_m.length>=11&&_aggs_m[9]&&_aggs_m[9].c&&p2>0?(p2-_aggs_m[9].c)/_aggs_m[9].c*100:
-                               _aggs_m.length>=11&&_aggs_m[0]&&_aggs_m[10]?(_aggs_m[0].c-_aggs_m[10].c)/_aggs_m[10].c*100:null;
+                      var _sma5m=_aggs_m.length>=5?(_aggs_m[0].c+_aggs_m[1].c+_aggs_m[2].c+_aggs_m[3].c+_aggs_m[4].c)/5:null;
+                      var _rocm=_sma5m&&_sma5m>0?(p2>0?p2:_aggs_m[0].c-_sma5m)/_sma5m*100:null;
                       function _scm(key){
                         if(key==="rsi") {
                           if(_r2m==null) return 3;
@@ -3296,7 +3296,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           return 1;                               // below 35
                         }
                         if(key==="macd") return _h2m==null?3:(_h2m>0&&_mDirm==="Rising")?5:(_h2m>0&&_mDirm!=="Falling")?4:(_h2m>0)?3:(_h2m<=0&&_mDirm==="Rising")?3:_h2m>-0.5?2:1;
-                        if(key==="roc")  return _rocm==null?3:_rocm>10?5:_rocm>3?4:_rocm>-3?3:_rocm>-10?2:1;
+                        if(key==="roc")  return _rocm==null?3:_rocm>5?5:_rocm>2?4:_rocm>-2?3:_rocm>-5?2:1;
                         return 3;
                       }
                       var _mTot=0; Object.keys(_mW2).forEach(function(k){_mTot+=(_scm(k)/5)*_mW2[k];}); _momScore=Math.round(_mTot);
@@ -6557,20 +6557,20 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           })()}
 
                           {(function(){
-                            // Rate of Change (ROC) 10-day — pure snapshot, no direction (value is inherently directional)
-                            var _roc10=aggs&&aggs.length>=11&&aggs[9]&&aggs[9].c&&price>0?((price-aggs[9].c)/aggs[9].c*100):
-                                       aggs&&aggs.length>=11&&aggs[0]&&aggs[10]?((aggs[0].c-aggs[10].c)/aggs[10].c*100):null;
-                            var _rocScore=_roc10===null?3:_roc10>10?5:_roc10>3?4:_roc10>-3?3:_roc10>-10?2:1;
+                            // ROC = (price - SMA5) / SMA5 × 100  — 1-week momentum vs average
+                            var _sma5 = aggs&&aggs.length>=5 ? (aggs[0].c+aggs[1].c+aggs[2].c+aggs[3].c+aggs[4].c)/5 : null;
+                            var _roc10 = _sma5&&_sma5>0 ? (price>0?price:aggs[0].c-_sma5)/_sma5*100 : null;
+                            var _rocScore=_roc10===null?3:_roc10>5?5:_roc10>2?4:_roc10>-2?3:_roc10>-5?2:1;
                             var _rocCol=_rocScore>=4?"#1a6a1a":_rocScore===3?"#b88000":"#c03030";
-                            var _rocBadge=_roc10!=null&&_roc10>15?{text:"\u26A0 OVERHEATED",col:"#b88000",bg:"#fdf8e6"}:_roc10!=null&&_roc10<-15?{text:"\u26A0 OVERSOLD DROP",col:"#b88000",bg:"#fdf8e6"}:null;
-                            return <MRow label={"Rate of Change (ROC 10-day)"}
+                            var _rocBadge=_roc10!=null&&_roc10>10?{text:"\u26A0 OVERHEATED",col:"#b88000",bg:"#fdf8e6"}:_roc10!=null&&_roc10<-10?{text:"\u26A0 OVERSOLD DROP",col:"#b88000",bg:"#fdf8e6"}:null;
+                            return <MRow label={"Price vs SMA5 (1-week momentum)"}
                               val={_roc10!=null?("ROC "+(_roc10>0?"+":"")+_roc10.toFixed(2)+"%"):null}
                               valCol={_rocCol}
                               score={_rocScore} dotCol={_rocCol} weight={20} badge={_rocBadge}
-                              scoring={"●●●●●  5/5: ROC > +10% (strong upward momentum)\n●●●●○  4/5: ROC +3% to +10%\n●●●○○  3/5: ROC -3% to +3% (flat)\n●●○○○  2/5: ROC -10% to -3%\n●○○○○  1/5: ROC < -10% (strong downward momentum)\n\nROC is a pure snapshot -- no direction adjustment.\nThe value itself is directional: positive = up, negative = down."}
-                              context={_roc10!=null?"ROC measures how much price has moved over the last 10 trading days. Currently "+(_roc10>0?"+":"")+_roc10.toFixed(1)+"%. Positive means price is higher than 2 weeks ago; negative means lower.":null}
-                              desc={_roc10===null?"Data unavailable.":_roc10>10?"Price up "+_roc10.toFixed(1)+"% in 10 days -- strong upward momentum.":_roc10>3?"Price up "+_roc10.toFixed(1)+"% over 10 days -- positive momentum.":_roc10>-3?"Price roughly flat over 10 days -- no clear direction.":_roc10>-10?"Price down "+Math.abs(_roc10).toFixed(1)+"% over 10 days -- negative momentum.":"Price down "+Math.abs(_roc10).toFixed(1)+"% in 10 days -- strong downward momentum."}
-                              watch={_roc10!=null&&Math.abs(_roc10)>15?"Extreme ROC readings often revert -- momentum may normalise soon.":null} />;
+                              scoring={"●●●●●  5/5: ROC > +5% (price well above 1-week average)\n●●●●○  4/5: ROC +2% to +5%\n●●●○○  3/5: ROC -2% to +2% (flat)\n●●○○○  2/5: ROC -5% to -2%\n●○○○○  1/5: ROC < -5% (price well below 1-week average)\n\nROC = (price - SMA5) / SMA5 × 100\nSMA5 = average closing price of last 5 days (1 week)"}
+                              context={_roc10!=null?"Price is "+(_roc10>0?"+":"")+_roc10.toFixed(1)+"% "+(Math.abs(_roc10)<0.5?"at":"relative to")+" its 5-day average of $"+(_sma5?_sma5.toFixed(2):"N/A")+". A positive reading means price is above its recent average -- short-term buyers in control. Negative means below -- sellers have the edge this week.":null}
+                              desc={_roc10===null?"Data unavailable.":_roc10>5?"Price well above its 1-week average -- strong short-term buying momentum.":_roc10>2?"Price above its 1-week average -- mild bullish momentum.":_roc10>-2?"Price near its 1-week average -- no clear short-term direction.":_roc10>-5?"Price below its 1-week average -- mild selling pressure.":"Price well below its 1-week average -- strong short-term selling pressure."}
+                              watch={_roc10!=null&&Math.abs(_roc10)>10?"Extreme reading -- price is very extended from its 1-week average. A mean reversion is likely.":null} />;
                           })()}
                           {(function(){
                             var _ms=macdH===null?3:macdH>0&&macdDir==="Rising"?5:macdH>0&&macdDir!=="Falling"?4:macdH>0?3:macdDir==="Rising"?3:macdH>-0.5?2:1;
@@ -8352,7 +8352,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.94</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.95</span>
           </div>
         </div>
 
