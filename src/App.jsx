@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.88</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.89</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.88</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.89</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3180,7 +3180,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   </div>
                   {(function(){
                     function FRow(p){
-                      var _d=[]; for(var i=1;i<=5;i++) _d.push(<span key={i} style={{display:"inline-block",width:5,height:5,borderRadius:"50%",background:i<=(p.score||0)?(p.dotCol||"#7abd00"):"#2a2a2a",marginRight:2}}/>);
+                      // Use classification to determine dot count if provided (e.g. "Wide" = 5 even if score rounds to 4)
+                      var dotCount = p.classification ?
+                        (p.classification==="Wide"?5:p.classification==="Strong"?4:p.classification==="Moderate"?3:p.classification==="Narrow"?2:1)
+                        : (p.score||0);
+                      var _d=[]; for(var i=1;i<=5;i++) _d.push(<span key={i} style={{display:"inline-block",width:5,height:5,borderRadius:"50%",background:i<=dotCount?(p.dotCol||"#7abd00"):"#2a2a2a",marginRight:2}}/>);
                       return (
                         <div onClick={function(){ window.__goToTab && window.__goToTab(p.tab); }}
                           style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
@@ -3188,14 +3192,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
                           <span style={{fontSize:11,color:"#666",width:115,flexShrink:0}}>{p.label}</span>
                           <span style={{fontSize:12,fontWeight:600,color:p.loading?"#444":(p.valCol||"#aaa"),flex:1}}>{p.loading?"--":(p.value||"--")}</span>
-                          {!p.loading&&p.score>0&&<span style={{display:"inline-flex",alignItems:"center",marginRight:8}}>{_d}</span>}
+                          {!p.loading&&dotCount>0&&<span style={{display:"inline-flex",alignItems:"center",marginRight:8}}>{_d}</span>}
                           <span style={{fontSize:11,color:"#444"}}>{"\u203A"}</span>
                         </div>
                       );
                     }
                     return (
                       <div>
-                        <FRow label="Economic Moat" value={moatRating} score={moatScore} dotCol={moatColors.dot} valCol={moatColors.fg} loading={!moatRating&&insightLoading} tab="moat" />
+                        <FRow label="Economic Moat" value={moatRating} score={moatScore} classification={parsedInsights&&parsedInsights["moat"]?parsedInsights["moat"].classification:null} dotCol={moatColors.dot} valCol={moatColors.fg} loading={!moatRating&&insightLoading} tab="moat" />
                         <FRow label="Financial Strength" value={finRating} score={finScore} dotCol={finColors.dot} valCol={finColors.fg} loading={false} tab="financial" />
                         <FRow label="Intrinsic Value" value={ivSublabel||ivLabel||"--"} score={ivScore} dotCol={ivColors.dot} valCol={ivColors.fg} loading={!ivOracle&&!ov} tab="intrinsic" />
                       </div>
@@ -8299,7 +8303,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.88</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.89</span>
           </div>
         </div>
 
@@ -8555,7 +8559,7 @@ export default function App() {
                       <div style={{ fontSize:11, fontWeight:700, color:trendColor }}>{trendLabel}</div>
                       <div>
                         <div style={{ fontSize:11, fontWeight:700, color:momColor }}>{momLabel}</div>
-                        {rsi!==null&&<div style={{ fontSize:9, color:"#444", marginTop:1 }}>{"RSI "+rsi.toFixed(0)}</div>}
+                        {rsi!==null && !ts.momLabel && <div style={{ fontSize:9, color:"#444", marginTop:1 }}>{"RSI "+rsi.toFixed(0)}</div>}
                       </div>
                     </div>
                   );
