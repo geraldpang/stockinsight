@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.96</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.97</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.96</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.97</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6562,11 +6562,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             var _roc10 = _sma5&&_sma5>0 ? ((price>0?price:aggs[0].c) - _sma5)/_sma5*100 : null;
                             var _rocScore=_roc10===null?3:_roc10>5?5:_roc10>2?4:_roc10>-2?3:_roc10>-5?2:1;
                             var _rocCol=_rocScore>=4?"#1a6a1a":_rocScore===3?"#b88000":"#c03030";
-                            var _rocBadge=_roc10!=null&&_roc10>10?{text:"\u26A0 OVERHEATED",col:"#b88000",bg:"#fdf8e6"}:_roc10!=null&&_roc10<-10?{text:"\u26A0 OVERSOLD DROP",col:"#b88000",bg:"#fdf8e6"}:null;
                             return <MRow label={"Price vs SMA5 (1-week momentum)"}
                               val={_roc10!=null?("ROC "+(_roc10>0?"+":"")+_roc10.toFixed(2)+"%"):null}
                               valCol={_rocCol}
-                              score={_rocScore} dotCol={_rocCol} weight={20} badge={_rocBadge}
+                              score={_rocScore} dotCol={_rocCol} weight={20}
                               scoring={"●●●●●  5/5: ROC > +5% (price well above 1-week average)\n●●●●○  4/5: ROC +2% to +5%\n●●●○○  3/5: ROC -2% to +2% (flat)\n●●○○○  2/5: ROC -5% to -2%\n●○○○○  1/5: ROC < -5% (price well below 1-week average)\n\nROC = (price - SMA5) / SMA5 × 100\nSMA5 = average closing price of last 5 days (1 week)"}
                               context={_roc10!=null?"Price is "+(_roc10>0?"+":"")+_roc10.toFixed(1)+"% "+(Math.abs(_roc10)<0.5?"at":"relative to")+" its 5-day average of $"+(_sma5?_sma5.toFixed(2):"N/A")+". A positive reading means price is above its recent average -- short-term buyers in control. Negative means below -- sellers have the edge this week.":null}
                               desc={_roc10===null?"Data unavailable.":_roc10>5?"Price well above its 1-week average -- strong short-term buying momentum.":_roc10>2?"Price above its 1-week average -- mild bullish momentum.":_roc10>-2?"Price near its 1-week average -- no clear short-term direction.":_roc10>-5?"Price below its 1-week average -- mild selling pressure.":"Price well below its 1-week average -- strong short-term selling pressure."}
@@ -8352,7 +8351,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.96</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.97</span>
           </div>
         </div>
 
