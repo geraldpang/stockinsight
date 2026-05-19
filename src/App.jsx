@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.89</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.90</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.89</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.90</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3265,14 +3265,35 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       _momScore = window.__momScore;
                     } else {
                       var _mW2={rsi:40,macd:40,roc:20};
-                      var _r2m=ind2.rsi14!=null?parseFloat(ind2.rsi14):null;
-                      var _h2m=ind2.macd&&ind2.macd.histogram!=null?parseFloat(ind2.macd.histogram):null;
+                      var _r2m   = ind2.rsi14!=null ? parseFloat(ind2.rsi14) : null;
+                      var _rsiH2 = ind2.rsiHistory || [];
+                      // Direction: avg(T-0, T-1) vs avg(T-2, T-3, T-4, T-5, T-6)
+                      var _rsiDir = (_rsiH2.length>=7 && _rsiH2[0]!=null && _rsiH2[1]!=null)
+                        ? ((parseFloat(_rsiH2[0])+parseFloat(_rsiH2[1]))/2) -
+                          ((parseFloat(_rsiH2[2])+parseFloat(_rsiH2[3])+parseFloat(_rsiH2[4])+parseFloat(_rsiH2[5])+parseFloat(_rsiH2[6]))/5)
+                        : 0;
+                      var _h2m   = ind2.macd&&ind2.macd.histogram!=null?parseFloat(ind2.macd.histogram):null;
                       var _mH2m=ind2.macdHistory||[];
                       var _mDirm=_mH2m.length>=2&&_mH2m[0]&&_mH2m[1]&&_mH2m[0].histogram!=null&&_mH2m[1].histogram!=null?(parseFloat(_mH2m[0].histogram)>parseFloat(_mH2m[1].histogram)?"Rising":"Falling"):"Flat";
                       var _aggs_m=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
                       var _rocm=_aggs_m.length>=10&&_aggs_m[9]&&_aggs_m[9].c&&p2>0?(p2-_aggs_m[9].c)/_aggs_m[9].c*100:null;
                       function _scm(key){
-                        if(key==="rsi")  return _r2m==null?3:_r2m>=65?5:_r2m>=55?4:_r2m>=45?3:_r2m>=35?2:1;
+                        if(key==="rsi") {
+                          if(_r2m==null) return 3;
+                          // RSI > 70 overbought cap
+                          if(_r2m>70 && _rsiDir<-3) return 4;  // overbought but declining
+                          if(_r2m>70) return 4;                  // overbought, capped
+                          if(_r2m>=65 && _rsiDir>=-3) return 5; // strong, not declining
+                          if(_r2m>=65 && _rsiDir<-3)  return 4; // strong but declining
+                          if(_r2m>=55 && _rsiDir>=-3) return 4; // good momentum
+                          if(_r2m>=55 && _rsiDir<-3)  return 3; // good but declining
+                          if(_r2m>=45 && _rsiDir>3)   return 4; // neutral improving strongly
+                          if(_r2m>=45 && _rsiDir>=-3) return 3; // neutral stable
+                          if(_r2m>=45 && _rsiDir<-3)  return 2; // neutral declining
+                          if(_r2m>=35 && _rsiDir>0)   return 3; // weak improving
+                          if(_r2m>=35)                return 2; // weak declining
+                          return 1;                               // below 35
+                        }
                         if(key==="macd") return _h2m==null?3:(_h2m>0&&_mDirm==="Rising")?5:(_h2m>0&&_mDirm!=="Falling")?4:(_h2m>0)?3:(_h2m<=0&&_mDirm==="Rising")?3:_h2m>-0.5?2:1;
                         if(key==="roc")  return _rocm==null?3:_rocm>10?5:_rocm>3?4:_rocm>-3?3:_rocm>-10?2:1;
                         return 3;
@@ -6437,9 +6458,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       <div style={{padding:"10px 14px",borderBottom:"1px solid #f0ede6"}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                           <span style={{fontSize:12,fontWeight:600,color:"#333"}}>{p.label}</span>
-                          <span style={{display:"flex",alignItems:"center"}}>
+                          <span style={{display:"flex",alignItems:"center",gap:6}}>
                             {p.score!=null && MDots(p.score, p.dotCol)}
-                            <span style={{fontSize:13,fontWeight:700,color:p.valCol||"#111",marginLeft:6}}>{p.val===null?"N/A":p.val}</span>
+                            {p.score!=null && p.weight!=null && <span style={{fontSize:10,color:p.dotCol||"#888",fontWeight:700,minWidth:36,textAlign:"right"}}>{Math.round((p.score/5)*p.weight)+"/"+(p.weight)}</span>}
+                            <span style={{fontSize:13,fontWeight:700,color:p.valCol||"#111",marginLeft:4}}>{p.val===null?"N/A":p.val}</span>
                             {p.dir && Arrow(p.dir)}
                           </span>
                         </div>
@@ -6447,6 +6469,15 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{p.desc}</div>
                         {p.context && <div style={{fontSize:10,color:"#666",marginTop:4,padding:"4px 8px",background:"#f5f2ec",borderRadius:4,borderLeft:"2px solid #c8c0b0"}}>{p.context}</div>}
                         {p.watch && <div style={{fontSize:10,color:"#b88000",marginTop:4,fontStyle:"italic"}}>{"Watch: "+p.watch}</div>}
+                        {p.scoring && (
+                          <details style={{marginTop:6}}>
+                            <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",userSelect:"none",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4}}>
+                              <span style={{fontSize:9,color:"#ccc"}}>{"▶"}</span>
+                              <span>How is this scored?</span>
+                            </summary>
+                            <div style={{padding:"6px 8px",background:"#f9f7f4",borderRadius:4,marginTop:3,fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line"}}>{p.scoring}</div>
+                          </details>
+                        )}
                       </div>
                     ); }
                     // RSI overbought/oversold badge
@@ -6496,15 +6527,32 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         })()}
                         <div style={{border:"1px solid #e0dbd0",borderRadius:8,marginBottom:10}}>
                           {(function(){
-                            var _rs=rsi==null?3:rsi>=65?5:rsi>=55?4:rsi>=45?3:rsi>=35?2:1;
+                            // Direction: avg(T-0,T-1) vs avg(T-2..T-6)
+                            var _rsiHist = ind.rsiHistory || [];
+                            var _rsiDirDisp = (_rsiHist.length>=7)
+                              ? ((parseFloat(_rsiHist[0])+parseFloat(_rsiHist[1]))/2) -
+                                ((parseFloat(_rsiHist[2])+parseFloat(_rsiHist[3])+parseFloat(_rsiHist[4])+parseFloat(_rsiHist[5])+parseFloat(_rsiHist[6]))/5)
+                              : 0;
+                            var _dirLabel = _rsiDirDisp>3?"↑ improving":_rsiDirDisp<-3?"↓ declining":"→ stable";
+                            // Direction-aware RSI score
+                            var _rs=(function(){
+                              if(rsi==null) return 3;
+                              if(rsi>70) return _rsiDirDisp<-3?4:4; // overbought capped at 4
+                              if(rsi>=65) return _rsiDirDisp<-3?4:5;
+                              if(rsi>=55) return _rsiDirDisp<-3?3:4;
+                              if(rsi>=45) return _rsiDirDisp>3?4:_rsiDirDisp<-3?2:3;
+                              if(rsi>=35) return _rsiDirDisp>0?3:2;
+                              return 1;
+                            })();
                             var _rc=_rs>=4?"#1a6a1a":_rs===3?"#b88000":"#c03030";
                             return <MRow label={"RSI (Relative Strength Index)"}
-                              val={rsi!=null?rsi.toFixed(1):null}
-                              valCol={rsi==null?"#aaa":rsi>80?"#c03030":rsi>75?"#b88000":rsi>=50?"#1a6a1a":rsi>=30?"#888":"#c03030"}
-                              dir={rsiDir} score={_rs} dotCol={_rc} badge={rsiBadge}
-                              context={rsi!=null?"RSI measures buying and selling momentum on a scale of 0-100. Think of it like a speedometer -- above 65 means strong buying, 45-65 is healthy, below 45 means sellers are gaining. Above 75 is overbought (badge appears as a caution), below 35 is oversold. Current RSI of "+rsi.toFixed(1)+(rsiDir==="up"?" and rising":rsiDir==="down"?" and falling":" and flat")+".":null}
-                              desc={rsi===null?"Data unavailable.":rsi>80?"RSI above 80 -- extremely overbought. Stock has been aggressively bought. High risk of pullback.":rsi>75?"RSI above 75 -- overbought. Momentum is still strong but the stock may be due for a breather.":rsi>=65?"RSI "+rsi.toFixed(0)+" -- strong healthy momentum. Buyers are clearly in control.":rsi>=55?"RSI "+rsi.toFixed(0)+" -- good momentum. Stock is trending positively.":rsi>=45?"RSI near 50 -- neutral. Neither buyers nor sellers have clear control.":rsi>=35?"RSI between 35-45 -- weak momentum. Sellers have a slight edge.":"RSI below 35 -- weak to oversold. Stock has been sold down significantly."}
-                              watch={rsi!=null&&rsi>75?"Watch for RSI to drop below 70 -- that often signals the overbought move is fading.":rsi!=null&&rsi<35?"Watch for RSI to recover above 45 -- that would signal selling pressure is easing.":rsi!=null&&rsi>45&&rsi<55?"RSI near 50 -- a move above 55 turns bullish, below 45 turns bearish.":null} />;
+                              val={rsi!=null?rsi.toFixed(1)+" ("+_dirLabel+")":null}
+                              valCol={rsi==null?"#aaa":rsi>75?"#b88000":rsi>=50?"#1a6a1a":rsi>=30?"#888":"#c03030"}
+                              dir={rsiDir} score={_rs} dotCol={_rc} weight={40} badge={rsiBadge}
+                              scoring={"●●●●●  5/5: RSI ≥65, not declining\n●●●●○  4/5: RSI ≥55 not declining, OR RSI ≥65 declining, OR RSI >70 (overbought cap)\n●●●○○  3/5: RSI ≥45 stable, OR RSI ≥55 declining, OR RSI ≥35 improving\n●●○○○  2/5: RSI ≥35 declining, OR RSI ≥45 declining\n●○○○○  1/5: RSI < 35\n\nDirection = avg(T-0,T-1) minus avg(T-2 to T-6)\nImproving: > +3 pts  |  Stable: -3 to +3  |  Declining: < -3 pts"}
+                              context={rsi!=null?"RSI "+rsi.toFixed(1)+" with 5-day direction "+(_rsiDirDisp>0?"+":"")+_rsiDirDisp.toFixed(1)+" pts ("+_dirLabel+"). RSI above 50 means buyers are in control; below 50 sellers have the edge. Above 70 is overbought (capped at 4/5). Below 35 is oversold.":null}
+                              desc={rsi===null?"Data unavailable.":rsi>75?"RSI "+rsi.toFixed(0)+" -- overbought. Momentum strong but risk of pullback. Capped at 4/5.":rsi>=65?"RSI "+rsi.toFixed(0)+" -- strong momentum. "+(_rsiDirDisp<-3?"Declining -- watch for continuation.":"Buyers firmly in control."):rsi>=55?"RSI "+rsi.toFixed(0)+" -- good momentum. "+(_rsiDirDisp<-3?"Weakening -- momentum may be fading.":"Trending positively."):rsi>=45?"RSI "+rsi.toFixed(0)+" -- neutral zone. "+(_rsiDirDisp>3?"Improving -- recovering momentum.":_rsiDirDisp<-3?"Declining -- losing momentum.":"No clear edge for buyers or sellers."):rsi>=35?"RSI "+rsi.toFixed(0)+" -- weak. "+(_rsiDirDisp>0?"Slightly improving -- watch for recovery.":"Sellers have the edge."):"RSI "+rsi.toFixed(0)+" -- oversold. Stock has been heavily sold down."}
+                              watch={rsi!=null&&rsi>75?"Watch for RSI to drop below 70 -- often signals overbought move is fading.":rsi!=null&&rsi<35?"Watch for RSI to recover above 45 -- signals selling pressure easing.":rsi!=null&&rsi>45&&rsi<55?"RSI near 50 -- move above 55 turns bullish, below 45 turns bearish.":null} />;
                           })()}
 
                           {(function(){
@@ -8303,7 +8351,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.89</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.90</span>
           </div>
         </div>
 
