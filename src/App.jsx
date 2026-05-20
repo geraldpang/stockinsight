@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.11</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.12</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.11</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.12</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7025,19 +7025,44 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var bearScore = calcWeightedScore([{score:dsScore,weight:40},{score:dtScore,weight:30},{score:dcScore,weight:30}]);
 
                     // --- Overall status ---
-                    function getOverallRevStatus(bS, beS) {
+                    function getDirectionStatus(setupS, trigS, confS, dir) {
+                      var s = setupS||0, t = trigS||0, c = confS||0;
+                      var hasSetup = setupS!==null, hasTrig = trigS!==null, hasConf = confS!==null;
+                      // Confirmed: all three strong
+                      if (s>=60 && t>=60 && hasConf && c>=70) return { label:"Reversal Confirmed",   expl:dir+" setup, momentum trigger, and price confirmation are aligned." };
+                      // Triggered: setup+trigger strong, confirmation partial
+                      if (s>=60 && t>=60 && hasConf && c>=40) return { label:"Reversal Triggered",   expl:dir+" momentum appears to be turning with some supporting confirmation." };
+                      // Forming: setup+trigger strong but confirmation weak/missing
+                      if (s>=60 && t>=60)                     return { label:"Reversal Forming",     expl:dir+" setup and momentum trigger are positive, but price confirmation is still missing." };
+                      // Watch: setup forming, trigger not yet there
+                      if (s>=40)                              return { label:"Reversal Watch",        expl:"Early "+dir.toLowerCase()+" reversal conditions may be appearing, but trigger and confirmation are still limited." };
+                      return { label:"No Signal", expl:"" };
+                    }
+
+                    function getOverallRevStatus(bS, beS, bsScore, btScore, bcScore, dsScore, dtScore, dcScore) {
                       if (bS===null&&beS===null) return {status:"Not Enough Data",explanation:"Not enough price and volume data is available to calculate a reliable reversal watch signal.",primaryScore:null};
-                      var bs = bS||0, bes = beS||0;
+                      var bs=bS||0, bes=beS||0;
                       if (bs<21&&bes<21) return {status:"No Clear Reversal",explanation:"No meaningful bullish or bearish reversal setup is currently detected.",primaryScore:Math.max(bs,bes)};
+
+                      var bullDir = getDirectionStatus(bsScore, btScore, bcScore, "Bullish");
+                      var bearDir = getDirectionStatus(dsScore, dtScore, dcScore, "Bearish");
                       var diff = bs - bes;
-                      var bLbl = getReversalLabel(bs), beLbl = getReversalLabel(bes);
+
+                      // Mixed: both sides meaningful and close
                       if (bs>=40&&bes>=40&&Math.abs(diff)<=15) return {status:"Mixed Reversal Signals",explanation:"Both bullish and bearish reversal signals are present. Price action is unclear and confirmation is needed.",primaryScore:Math.max(bs,bes)};
-                      if (diff>15) return {status:"Bullish Reversal "+bLbl,explanation:bLbl==="Confirmed"?"Bullish setup, momentum trigger, and price confirmation are aligned.":bLbl==="Triggered"?"Bullish momentum appears to be turning upward, with some supporting confirmation.":bLbl==="Forming"?"Bullish reversal signals are forming, but price confirmation is still needed.":"Early bullish reversal conditions may be appearing, but trigger and confirmation are still limited.",primaryScore:bs};
-                      if (diff<-15) return {status:"Bearish Reversal "+beLbl,explanation:beLbl==="Confirmed"?"Bearish setup, momentum trigger, and price confirmation are aligned.":beLbl==="Triggered"?"Bearish momentum appears to be turning downward, with some supporting confirmation.":beLbl==="Forming"?"Bearish reversal signals are forming, but price confirmation is still needed.":"Early bearish reversal conditions may be appearing, but trigger and confirmation are still limited.",primaryScore:bes};
+
+                      // Bullish leads
+                      if (diff>15 && bullDir.label!=="No Signal") return {status:"Bullish "+bullDir.label, explanation:bullDir.expl, primaryScore:bs};
+
+                      // Bearish leads
+                      if (diff<-15 && bearDir.label!=="No Signal") return {status:"Bearish "+bearDir.label, explanation:bearDir.expl, primaryScore:bes};
+
+                      // Neither side meaningfully stronger but at least one has signal
                       return {status:"Mixed Reversal Signals",explanation:"Both bullish and bearish reversal signals are present. Price action is unclear and confirmation is needed.",primaryScore:Math.max(bs,bes)};
                     }
-                    var revStatus = getOverallRevStatus(bullScore, bearScore);
-                    var bLbl  = getReversalLabel(bullScore), beLbl = getReversalLabel(bearScore);
+                    var revStatus = getOverallRevStatus(bullScore, bearScore, bsScore, btScore, bcScore, dsScore, dtScore, dcScore);
+                    var bLbl  = getDirectionStatus(bsScore, btScore, bcScore, "Bullish").label.replace("Reversal ","") || getReversalLabel(bullScore);
+                    var beLbl = getDirectionStatus(dsScore, dtScore, dcScore, "Bearish").label.replace("Reversal ","") || getReversalLabel(bearScore);
                     var statusCol = revStatus.status.startsWith("Bullish")?"#1a6a1a":revStatus.status.startsWith("Bearish")?"#c03030":revStatus.status==="Mixed Reversal Signals"?"#b88000":"#888";
                     var statusBg  = revStatus.status.startsWith("Bullish")?"#e6f4e6":revStatus.status.startsWith("Bearish")?"#fff0f0":revStatus.status==="Mixed Reversal Signals"?"#fdf8e6":"#f5f5f5";
                     var statusBd  = revStatus.status.startsWith("Bullish")?"#7abd00":revStatus.status.startsWith("Bearish")?"#e08080":revStatus.status==="Mixed Reversal Signals"?"#d4a800":"#e0dbd0";
@@ -9024,7 +9049,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.11</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.12</span>
           </div>
         </div>
 
