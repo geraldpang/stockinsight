@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.01</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.02</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.01</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.02</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7073,33 +7073,34 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           <div>
                             {sig.breakdown.map(function(b, i) {
                               var bCol = b.score>=71?"#1a6a1a":b.score>=51?"#b88000":"#c03030";
+                              var _sm={"Volume Surge":"●●●●●  100: Volume ≥ 3.0x average\n●●●●○   75: Volume 2.0x to 3.0x\n●●●○○   50: Volume 1.5x to 2.0x\n●●○○○   25: Volume 1.2x to 1.5x\n●○○○○    0: Volume < 1.2x (no surge)","Vol / Price Divergence":"High vol + flat price    → 100 (stealth accumulation)\nHigh vol + mild down     →  90 (absorption)\nHigh vol + mild up       →  80 (controlled buying)\nHigh vol + strong up     →  65 (ambiguous)\nHigh vol + strong down   →  10 (distribution)\nElevated vol + flat/down → 70–80\nNormal/low vol + any     → 40–50","Strong Close":"●●●●●  100: Closed in top 15% of range (>85%)\n●●●●○   80: Closed in top 30% (>70%)\n●●●○○   60: Closed in upper half (>50%)\n●●○○○   30: Closed in lower half (30–50%)\n●○○○○    0: Closed near low (<30%)","OBV Direction":"●●●●●  100: OBV rose (close > yesterday)\n●●●○○   50: OBV flat (close = yesterday)\n●○○○○    0: OBV fell (close < yesterday)","OBV Trend":"●●●●●  100: Net OBV > +5 days of avg volume\n●●●●○   75: Net OBV 0 to +5 days (rising)\n●●●○○   50: Net OBV -5 to 0 (flat)\n●●○○○   25: Net OBV -10 to -5 (falling)\n●○○○○    0: Net OBV < -10 days\n\nFormula: (OBV today − OBV day 1) ÷ avg 30-day volume","High-Volume Green Days":"●●●●●  100: Green days ≥ 2× red days\n●●●●○   75: More green than red\n●●●○○   50: Equal green and red\n●○○○○    0: More red than green\n\nHigh-volume day = volume > 1.5× 30-day average","Price Stability / Strength":"●●●●●  100: Price > +10% vs 30 days ago\n●●●●○   75: Price 0% to +10%\n●●●○○   50: Price -5% to 0%\n●●○○○   25: Price -10% to -5%\n●○○○○    0: Price < -10%","Strong Close Frequency":"●●●●●  100: > 65% of days closed in upper 40% of range\n●●●●○   75: 50% to 65%\n●●●○○   50: 40% to 50%\n●●○○○   25: 30% to 40%\n●○○○○    0: < 30%\n\nStrong close = closed above 60% of day's high-low range"};
+                              var _sc = _sm[b.name];
                               return (
-                                <div key={i} style={{ padding:"10px 14px", borderBottom: i<sig.breakdown.length-1?"0.5px solid #f0ede6":"none", display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
-                                  <div style={{ flex:1 }}>
-                                    <div style={{ fontSize:12, fontWeight:700, color:"#333", marginBottom:2 }}>{b.name}
-                                      <span style={{ fontSize:9, color:"#bbb", fontWeight:400, marginLeft:6 }}>{"(wt:"+b.weight+"%)"}</span>
+                                <div key={i} style={{ borderBottom: i<sig.breakdown.length-1?"0.5px solid #f0ede6":"none" }}>
+                                  <div style={{ padding:"10px 14px", display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
+                                    <div style={{ flex:1 }}>
+                                      <div style={{ fontSize:12, fontWeight:700, color:"#333", marginBottom:2 }}>{b.name}
+                                        <span style={{ fontSize:9, color:"#bbb", fontWeight:400, marginLeft:6 }}>{"(wt:"+b.weight+"%)"}</span>
+                                      </div>
+                                      <div style={{ fontSize:11, color:"#888", lineHeight:1.5 }}>{b.explanation}</div>
                                     </div>
-                                    <div style={{ fontSize:11, color:"#888", lineHeight:1.5 }}>{b.explanation}</div>
+                                    <div style={{ textAlign:"right", flexShrink:0 }}>
+                                      <span style={{ fontSize:13, fontWeight:700, color:bCol }}>{b.score}</span>
+                                      <span style={{ fontSize:10, color:"#bbb" }}>{"/100"}</span>
+                                    </div>
                                   </div>
-                                  <div style={{ textAlign:"right", flexShrink:0 }}>
-                                    <span style={{ fontSize:13, fontWeight:700, color:bCol }}>{b.score}</span>
-                                    <span style={{ fontSize:10, color:"#bbb" }}>{"/100"}</span>
-                                  </div>
+                                  {_sc && (
+                                    <div style={{ padding:"0 14px 8px 14px" }}>
+                                      <details>
+                                        <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",userSelect:"none",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4}}>
+                                          <span style={{fontSize:9,color:"#ccc"}}>{"\u25b6"}</span>
+                                          <span>How is this scored?</span>
+                                        </summary>
+                                        <div style={{padding:"6px 8px",background:"#f9f7f4",borderRadius:4,marginTop:3,fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line"}}>{_sc}</div>
+                                      </details>
+                                    </div>
+                                  )}
                                 </div>
-                                {(function(){
-                                  var _sm={"Volume Surge": "●●●●●  100: Volume ≥ 3.0x average\n●●●●○   75: Volume 2.0x to 3.0x\n●●●○○   50: Volume 1.5x to 2.0x\n●●○○○   25: Volume 1.2x to 1.5x\n●○○○○    0: Volume < 1.2x (no surge)","Vol / Price Divergence": "High vol + flat price     → 100 (stealth accumulation)\nHigh vol + mild down      →  90 (absorption)\nHigh vol + mild up        →  80 (controlled buying)\nHigh vol + strong up      →  65 (ambiguous — could be retail)\nHigh vol + strong down    →  10 (distribution)\nElevated vol + flat       →  80\nElevated vol + mild down  →  70\nNormal/low vol + any      → 40–50\n\nVolume tiers: High ≥2x | Elevated ≥1.5x | Normal ≥1x | Low <1x\nPrice tiers: Strong Up >+3% | Mild Up +1 to +3% | Flat ±1% | Mild Down -3 to -1% | Strong Down <-3%","Strong Close": "●●●●●  100: Closed in top 15% of day range (>85%)\n●●●●○   80: Closed in top 30% (>70%)\n●●●○○   60: Closed in upper half (>50%)\n●●○○○   30: Closed in lower half (30–50%)\n●○○○○    0: Closed near low (<30%)","OBV Direction": "●●●●●  100: OBV rose today (close > yesterday)\n●●●○○   50: OBV flat (close = yesterday)\n●○○○○    0: OBV fell today (close < yesterday)","OBV Trend": "●●●●●  100: Net OBV > +5 days of avg volume (strongly rising)\n●●●●○   75: Net OBV 0 to +5 days (rising)\n●●●○○   50: Net OBV -5 to 0 days (flat)\n●●○○○   25: Net OBV -10 to -5 days (falling)\n●○○○○    0: Net OBV < -10 days (strongly falling)\n\nFormula: (OBV today − OBV day 1) ÷ avg 30-day volume","High-Volume Green Days": "●●●●●  100: Green days ≥ 2× red days\n●●●●○   75: More green than red\n●●●○○   50: Equal green and red\n●○○○○    0: More red than green\n\nHigh-volume day = volume > 1.5× 30-day average","Price Stability / Strength": "●●●●●  100: Price > +10% vs 30 days ago\n●●●●○   75: Price 0% to +10%\n●●●○○   50: Price -5% to 0%\n●●○○○   25: Price -10% to -5%\n●○○○○    0: Price < -10%","Strong Close Frequency": "●●●●●  100: > 65% of days closed in upper 40% of range\n●●●○○   75: 50% to 65%\n●●●○○   50: 40% to 50%\n●●○○○   25: 30% to 40%\n●○○○○    0: < 30%\n\nStrong close = closed above 60% of day's high-low range",};
-                                  var _sc=_sm[b.name];
-                                  if(!_sc) return null;
-                                  return (
-                                    <details style={{padding:"0 14px 8px 14px"}}>
-                                      <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",userSelect:"none",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4}}>
-                                        <span style={{fontSize:9,color:"#ccc"}}>{"▶"}</span>
-                                        <span>How is this scored?</span>
-                                      </summary>
-                                      <div style={{padding:"6px 8px",background:"#f9f7f4",borderRadius:4,marginTop:3,fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line"}}>{_sc}</div>
-                                    </details>
-                                  );
-                                })()}
                               );
                             })}
                           </div>
@@ -8567,7 +8568,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.01</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.02</span>
           </div>
         </div>
 
