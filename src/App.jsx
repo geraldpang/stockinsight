@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.99</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.00</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.99</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.00</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6972,10 +6972,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       var avg30v = bars.slice(n-30).reduce(function(s,b){ return s+b.v; },0) / 30;
                       var obv = calcOBV(bars);
 
-                      // A. OBV Trend Score
-                      var obvNow = obv[n-1], obvOld = obv[n-30];
-                      var obvPct = obvOld !== 0 ? (obvNow - obvOld) / Math.abs(obvOld) * 100 : 0;
-                      var obvScore = obvPct > 15 ? 100 : obvPct > 0 ? 75 : obvPct > -10 ? 50 : obvPct > -25 ? 25 : 0;
+                      // A. OBV Trend Score — net OBV change expressed in avg daily volume units
+                      var avg30v = bars.slice(n-30).reduce(function(s,b){ return s+b.v; },0) / 30;
+                      var obvChange = obv[n-1] - obv[1]; // skip obv[0]=0 baseline
+                      var obvInDays = avg30v > 0 ? obvChange / avg30v : 0;
+                      var obvScore = obvInDays > 5 ? 100 : obvInDays > 0 ? 75 : obvInDays > -5 ? 50 : obvInDays > -10 ? 25 : 0;
 
                       // B. High-Volume Green/Red Days
                       var hvGreen = 0, hvRed = 0;
@@ -7007,7 +7008,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         label: getScoreLabel(total),
                         breakdown: [
                           { name:"OBV Trend", score:Math.round(obvScore), weight:35,
-                            explanation: "OBV changed "+(obvPct>0?"+":"")+obvPct.toFixed(1)+"% over 30 trading days." },
+                            explanation: "Net OBV change over 30 days equals "+(obvInDays>0?"+":"")+obvInDays.toFixed(1)+" days of average volume ("+(obvChange>0?"+":"")+Math.round(obvChange/1e6*10)/10+"M net). "+(obvInDays>5?"Strong buying pressure accumulated.":obvInDays>0?"Net buying over the period.":obvInDays>-5?"Roughly balanced buying and selling.":obvInDays>-10?"Net selling pressure.":"Strong selling pressure accumulated.") },
                           { name:"High-Volume Green Days", score:Math.round(hvScore), weight:25,
                             explanation: hvGreen+" high-volume up days vs "+hvRed+" high-volume down days in 30 sessions." },
                           { name:"Price Stability / Strength", score:Math.round(priceScore), weight:25,
@@ -8552,7 +8553,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.99</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.00</span>
           </div>
         </div>
 
