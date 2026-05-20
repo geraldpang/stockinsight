@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.08</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.09</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.08</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.09</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3470,12 +3470,43 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       <div>
                         {SigRow2("reversal","Reversal",_netRev3,_revDir,_revBarPct,_revStrength)}
                         {(function(){
-                          var _smfScore = window.__smfScore && window.__smfScore[sym] ? window.__smfScore[sym] : null;
-                          if (!_smfScore) return null;
-                          var _smfLabel = _smfScore>=86?"Very High":_smfScore>=71?"High":_smfScore>=51?"Moderate":_smfScore>=31?"Mild":"Low";
-                          var _smfCol = _smfScore>=71?"#7abd00":_smfScore>=31?"#EF9F27":"#e05050";
-                          var _smfPct = _smfScore;
-                          return SigRow2("whale","Smart Money",_smfScore,null,_smfPct,_smfLabel,_smfCol);
+                          var _smf = window.__smfScore && window.__smfScore[sym] ? window.__smfScore[sym] : null;
+                          // Compact status labels
+                          var _compactMap = {
+                            "Strong Multi-Timeframe Flow":"Strong Flow",
+                            "Constructive but Cooling":"Constructive",
+                            "Accumulation Trend Positive":"Trend Positive",
+                            "Early Accumulation":"Early Flow",
+                            "Short-Term Spike":"Spike",
+                            "No Clear Signal":"No Signal"
+                          };
+                          var _status  = _smf ? (_compactMap[_smf.status]||_smf.status) : "No Data";
+                          var _tLbl    = _smf ? _smf.todayLabel   : "N/A";
+                          var _fLbl    = _smf ? _smf.fiveDayLabel : "N/A";
+                          var _dLbl    = _smf ? _smf.thirtyDayLabel : "N/A";
+                          var _sCol    = _smf ? (_smf.primaryScore>=71?"#7abd00":_smf.primaryScore>=31?"#EF9F27":"#e05050") : "#666";
+                          function _lCol(lbl){ return lbl==="High"||lbl==="Very High"?"#7abd00":lbl==="Moderate"||lbl==="Mild"?"#EF9F27":lbl==="Low"?"#e05050":"#888"; }
+                          return (
+                            <div onClick={function(){ window.__goToTab&&window.__goToTab("whale"); }}
+                              style={{padding:"10px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer"}}
+                              onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
+                              onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
+                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                                <span style={{fontSize:11,color:"#666"}}>Smart Money Flow</span>
+                                <span style={{display:"flex",alignItems:"center",gap:6}}>
+                                  <span style={{fontSize:12,fontWeight:600,color:_sCol}}>{_status}</span>
+                                  <span style={{fontSize:11,color:"#444"}}>{"›"}</span>
+                                </span>
+                              </div>
+                              <div style={{fontSize:9,color:"#555",lineHeight:1.4}}>
+                                <span>{"30D "}</span><span style={{color:_lCol(_dLbl),fontWeight:600}}>{_dLbl}</span>
+                                <span style={{margin:"0 4px",color:"#333"}}>{"·"}</span>
+                                <span>{"5D "}</span><span style={{color:_lCol(_fLbl),fontWeight:600}}>{_fLbl}</span>
+                                <span style={{margin:"0 4px",color:"#333"}}>{"·"}</span>
+                                <span>{"Today "}</span><span style={{color:_lCol(_tLbl),fontWeight:600}}>{_tLbl}</span>
+                              </div>
+                            </div>
+                          );
                         })()}
                       </div>
                     );
@@ -7013,10 +7044,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var dScore = thirtyDaySig ? thirtyDaySig.score : 0;
                     var smCard = getSmartMoneySummaryCard(tScore, fScore, dScore, todaySig, fiveDaySig, thirtyDaySig);
                     var interp = (todaySig||fiveDaySig||thirtyDaySig) ? getOverallSmartMoneyInterpretation(sym, tScore, fScore, dScore) : null;
-                    // Store primary score for left panel
+                    // Store full card data for left panel
                     if (smCard.primaryScore !== null) {
                       if (!window.__smfScore) window.__smfScore = {};
-                      window.__smfScore[sym] = smCard.primaryScore;
+                      window.__smfScore[sym] = smCard; // store full card, not just score
                     }
 
                     // Options secondary data
@@ -8580,7 +8611,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.08</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.09</span>
           </div>
         </div>
 
