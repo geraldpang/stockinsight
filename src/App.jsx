@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.98</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.99</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.98</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.99</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6900,6 +6900,34 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       return obv;
                     }
 
+                    function calcVolPriceDivergence(today, yesterday, avg30v) {
+                      var vRatio = avg30v > 0 ? today.v / avg30v : 0;
+                      var pct    = yesterday.c > 0 ? (today.c - yesterday.c) / yesterday.c * 100 : 0;
+                      var vTier  = vRatio>=2.0?"high":vRatio>=1.5?"elevated":vRatio>=1.0?"normal":"low";
+                      var pTier  = pct>3?"strongUp":pct>1?"mildUp":pct>-1?"flat":pct>-3?"mildDown":"strongDown";
+                      var matrix = {
+                        high:     { strongUp:65, mildUp:80, flat:100, mildDown:90, strongDown:10 },
+                        elevated: { strongUp:55, mildUp:65, flat:80,  mildDown:70, strongDown:15 },
+                        normal:   { strongUp:50, mildUp:50, flat:50,  mildDown:45, strongDown:30 },
+                        low:      { strongUp:45, mildUp:45, flat:40,  mildDown:40, strongDown:25 }
+                      };
+                      var textMap = {
+                        "high-flat":         "High volume with flat price — possible stealth accumulation. Buyers may be absorbing sellers.",
+                        "high-mildDown":     "High volume on a slight down day — possible absorption of selling pressure.",
+                        "high-mildUp":       "High volume with steady price rise — controlled institutional buying.",
+                        "high-strongUp":     "High volume on a strong up day — could be breakout or retail momentum. Ambiguous signal.",
+                        "high-strongDown":   "High volume on a down day — possible distribution. Sellers may be in control.",
+                        "elevated-flat":     "Elevated volume with flat price — mild accumulation signal worth watching.",
+                        "elevated-mildDown": "Elevated volume on a slight pullback — possible quiet buying into weakness.",
+                        "elevated-mildUp":   "Elevated volume with mild price gain — modest buying activity.",
+                        "elevated-strongUp": "Elevated volume on a strong up day — momentum with some conviction.",
+                        "elevated-strongDown":"Elevated volume selling — caution.",
+                      };
+                      var key = vTier+"-"+pTier;
+                      var explanation = textMap[key] || (vTier==="normal"||vTier==="low" ? "Volume is not elevated. No unusual activity detected from price-volume behaviour." : "No clear signal from this combination.");
+                      return { score: matrix[vTier][pTier], vTier:vTier, pTier:pTier, vRatio:vRatio, pct:pct, explanation:explanation };
+                    }
+
                     function calcTodaySignal(bars) {
                       // bars = oldest-first, bars[n-1] = today, bars[n-2] = yesterday
                       var n = bars.length;
@@ -6910,9 +6938,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       var vRatio = avg30v > 0 ? today.v / avg30v : 0;
                       var volScore = vRatio >= 3.0 ? 100 : vRatio >= 2.0 ? 75 : vRatio >= 1.5 ? 50 : vRatio >= 1.2 ? 25 : 0;
 
-                      // B. Price Strength Score
-                      var pctChg = yesterday.c > 0 ? (today.c - yesterday.c) / yesterday.c * 100 : 0;
-                      var priceScore = pctChg > 5 ? 100 : pctChg > 2 ? 80 : pctChg > 0 ? 60 : pctChg > -2 ? 30 : 0;
+                      // B. Volume + Price Divergence (replaces raw Price Strength)
+                      var vpd = calcVolPriceDivergence(today, yesterday, avg30v);
 
                       // C. Strong Close Score
                       var rng = today.h - today.l;
@@ -6923,21 +6950,20 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       var obv = calcOBV(bars);
                       var obvDir = obv[n-1] > obv[n-2] ? 100 : obv[n-1] < obv[n-2] ? 0 : 50;
 
-                      var total = Math.round(volScore*0.35 + priceScore*0.30 + closeScore*0.20 + obvDir*0.15);
+                      var total = Math.round(volScore*0.35 + vpd.score*0.30 + closeScore*0.20 + obvDir*0.15);
                       return {
                         score: total,
                         label: getScoreLabel(total),
                         breakdown: [
                           { name:"Volume Surge", score:Math.round(volScore), weight:35,
                             explanation: avg30v>0 ? "Volume is "+vRatio.toFixed(1)+"x the 30-day average ("+(today.v>=1e6?(today.v/1e6).toFixed(1)+"M":(today.v/1e3).toFixed(0)+"K")+" vs avg "+(avg30v>=1e6?(avg30v/1e6).toFixed(1)+"M":(avg30v/1e3).toFixed(0)+"K")+")." : "Volume data unavailable." },
-                          { name:"Price Strength", score:Math.round(priceScore), weight:30,
-                            explanation: "Price changed "+(pctChg>0?"+":"")+pctChg.toFixed(2)+"% today vs previous close." },
+                          { name:"Vol / Price Divergence", score:Math.round(vpd.score), weight:30,
+                            explanation: vpd.explanation },
                           { name:"Strong Close", score:Math.round(closeScore), weight:20,
                             explanation: rng>0 ? "Closed at "+(closePos*100).toFixed(0)+"% of today's range (low $"+today.l.toFixed(2)+" — high $"+today.h.toFixed(2)+")." : "No price range today (open = close)." },
                           { name:"OBV Direction", score:Math.round(obvDir), weight:15,
-                            explanation: obvDir===100 ? "On-balance volume rose today -- volume supported the move up." : obvDir===0 ? "On-balance volume fell today -- volume supported the move down." : "OBV unchanged today." }
-                        ],
-                        meta: { vRatio:vRatio, pctChg:pctChg, closePos:closePos }
+                            explanation: obvDir===100 ? "On-balance volume rose today — volume supported the move up." : obvDir===0 ? "On-balance volume fell today — volume supported the move down." : "OBV unchanged today." }
+                        ]
                       };
                     }
 
@@ -8526,7 +8552,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.98</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.99</span>
           </div>
         </div>
 
