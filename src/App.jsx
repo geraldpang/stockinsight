@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.07</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.08</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.07</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.08</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3469,6 +3469,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     return (
                       <div>
                         {SigRow2("reversal","Reversal",_netRev3,_revDir,_revBarPct,_revStrength)}
+                        {(function(){
+                          var _smfScore = window.__smfScore && window.__smfScore[sym] ? window.__smfScore[sym] : null;
+                          if (!_smfScore) return null;
+                          var _smfLabel = _smfScore>=86?"Very High":_smfScore>=71?"High":_smfScore>=51?"Moderate":_smfScore>=31?"Mild":"Low";
+                          var _smfCol = _smfScore>=71?"#7abd00":_smfScore>=31?"#EF9F27":"#e05050";
+                          var _smfPct = _smfScore;
+                          return SigRow2("whale","Smart Money",_smfScore,null,_smfPct,_smfLabel,_smfCol);
+                        })()}
                       </div>
                     );
                   })()}
@@ -6930,12 +6938,68 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       };
                     }
 
-                    function getInterpretation(tScore, dScore) {
-                      var tHigh = tScore >= 51, dHigh = dScore >= 51;
-                      if (tHigh && dHigh)   return "Possible accumulation detected. Today's trading shows unusual price and volume behaviour, and the 30-day trend suggests it may have been building over time.";
-                      if (tHigh && !dHigh)  return "Short-term activity spike detected. Today's trading is unusual, but there is limited evidence of sustained 30-day accumulation.";
-                      if (!tHigh && dHigh)  return "Possible quiet accumulation. Today is not unusual, but the 30-day trend in price and volume remains constructive.";
-                      return "No clear accumulation signal detected from recent price and volume behaviour.";
+                    function isHigh(score) { return score >= 71; }
+                    function isMild(score) { return score >= 31 && score < 71; }
+                    function isLow(score)  { return score < 31; }
+
+                    function getOverallStatus(tScore, fScore, dScore) {
+                      var tH=isHigh(tScore), fH=isHigh(fScore), dH=isHigh(dScore);
+                      var tL=isLow(tScore)||isMild(tScore), fL=isLow(fScore)||isMild(fScore), dL=isLow(dScore)||isMild(dScore);
+                      if (tH && fH && dH)   return "Strong Multi-Timeframe Flow";
+                      if (fH && dH && !tH)  return "Accumulation Trend Positive";
+                      if (dH && !tH && !fH) return "Constructive but Cooling";
+                      if (tH && fH && !dH)  return "Early Accumulation";
+                      if (tH && !fH && !dH) return "Short-Term Spike";
+                      return "No Clear Signal";
+                    }
+
+                    function getStatusExplanation(status) {
+                      if (status === "Strong Multi-Timeframe Flow")   return "Today, short-term, and 30-day signals are all positive, suggesting broad price-volume support.";
+                      if (status === "Accumulation Trend Positive")   return "The 5-day and 30-day signals remain positive, although today's activity is quieter.";
+                      if (status === "Constructive but Cooling")      return "30-day accumulation trend is strong, but today and short-term flow are mild.";
+                      if (status === "Early Accumulation")            return "Today and short-term flow are positive, but the 30-day trend has not yet confirmed sustained accumulation.";
+                      if (status === "Short-Term Spike")              return "Today's activity is unusual, but there is limited evidence of sustained accumulation.";
+                      return "No clear smart money flow signal is detected from recent price and volume behaviour.";
+                    }
+
+                    // --- Smart Money Flow Helper Functions ---
+                    function getOverallSmartMoneyStatus(tScore, fScore, dScore) {
+                      var tH=isHigh(tScore), fH=isHigh(fScore), dH=isHigh(dScore);
+                      if (tH && fH && dH)   return "Strong Multi-Timeframe Flow";
+                      if (!tH && fH && dH)  return "Accumulation Trend Positive";
+                      if (dH && !tH && !fH) return "Constructive but Cooling";
+                      if (tH && fH && !dH)  return "Early Accumulation";
+                      if (tH && !fH && !dH) return "Short-Term Spike";
+                      return "No Clear Signal";
+                    }
+
+                    function getStatusExplanation(status) {
+                      if (status==="Strong Multi-Timeframe Flow")  return "Today, short-term, and 30-day signals are all positive, suggesting broad price-volume support.";
+                      if (status==="Accumulation Trend Positive")  return "The 5-day and 30-day signals remain positive, although today's activity is quieter.";
+                      if (status==="Constructive but Cooling")     return "30-day accumulation trend is strong, but today and short-term flow are mild.";
+                      if (status==="Early Accumulation")           return "Today and short-term flow are positive, but the 30-day trend has not yet confirmed sustained accumulation.";
+                      if (status==="Short-Term Spike")             return "Today's activity is unusual, but there is limited evidence of sustained accumulation.";
+                      return "No clear smart money flow signal is detected from recent price and volume behaviour.";
+                    }
+
+                    function getOverallSmartMoneyInterpretation(ticker, tScore, fScore, dScore) {
+                      var tH=isHigh(tScore), fH=isHigh(fScore), dH=isHigh(dScore);
+                      if (tH && fH && dH)   return ticker+" shows strong multi-timeframe accumulation signals. Today's activity is elevated, short-term flow is positive, and the 30-day trend supports sustained accumulation.";
+                      if (!tH && fH && dH)  return ticker+" accumulation trend remains constructive, although today's activity is quieter. The 5-day and 30-day signals suggest buying pressure may still be building.";
+                      if (dH && !tH && !fH) return ticker+" shows a strong 30-day accumulation trend, but today and the past 5 days are only mild. This may suggest accumulation built earlier in the month, while current buying pressure is cooling or consolidating.";
+                      if (tH && fH && !dH)  return ticker+" shows early accumulation may be forming. Today and the 5-day signal are positive, but the 30-day trend has not yet confirmed sustained accumulation.";
+                      if (tH && !fH && !dH) return ticker+" shows a short-term activity spike today. There is limited evidence of sustained accumulation over the 5-day or 30-day period.";
+                      return ticker+" shows no clear smart money accumulation signal from recent price and volume behaviour.";
+                    }
+
+                    function getSmartMoneySummaryCard(tScore, fScore, dScore, tSig, fSig, dSig) {
+                      var status  = getOverallSmartMoneyStatus(tScore||0, fScore||0, dScore||0);
+                      var expl    = getStatusExplanation(status);
+                      var primary = dSig ? dScore : fSig ? fScore : tSig ? tScore : null;
+                      return { status:status, explanation:expl, primaryScore:primary,
+                        todayLabel:   tSig ? getScoreLabel(tScore) : "N/A",
+                        fiveDayLabel: fSig ? getScoreLabel(fScore) : "N/A",
+                        thirtyDayLabel: dSig ? getScoreLabel(dScore) : "N/A" };
                     }
 
                     // --- Data prep ---
@@ -6944,7 +7008,16 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var todaySig     = validation.canCalculateTodaySignal ? calcTodaySignal(bars) : null;
                     var fiveDaySig   = bars.length >= 6 ? calcFiveDaySignal(bars) : null;
                     var thirtyDaySig = validation.hasThirtyDays ? calcThirtyDaySignal(bars) : null;
-                    var interp = (todaySig||thirtyDaySig) ? getInterpretation(todaySig?todaySig.score:0, thirtyDaySig?thirtyDaySig.score:0) : null;
+                    var tScore = todaySig   ? todaySig.score   : 0;
+                    var fScore = fiveDaySig ? fiveDaySig.score : 0;
+                    var dScore = thirtyDaySig ? thirtyDaySig.score : 0;
+                    var smCard = getSmartMoneySummaryCard(tScore, fScore, dScore, todaySig, fiveDaySig, thirtyDaySig);
+                    var interp = (todaySig||fiveDaySig||thirtyDaySig) ? getOverallSmartMoneyInterpretation(sym, tScore, fScore, dScore) : null;
+                    // Store primary score for left panel
+                    if (smCard.primaryScore !== null) {
+                      if (!window.__smfScore) window.__smfScore = {};
+                      window.__smfScore[sym] = smCard.primaryScore;
+                    }
 
                     // Options secondary data
                     var putCallOI  = whaleData && whaleData.putCallOI  ? parseFloat(whaleData.putCallOI)  : null;
@@ -7018,16 +7091,44 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       );
                     }
 
+                    // Summary card color mapping
+                    var smStatusCol = {"Strong Multi-Timeframe Flow":"#1a6a1a","Accumulation Trend Positive":"#1a6a1a","Constructive but Cooling":"#b88000","Early Accumulation":"#b88000","Short-Term Spike":"#b88000","No Clear Signal":"#888"};
+                    var smStatusBg  = {"Strong Multi-Timeframe Flow":"#e6f4e6","Accumulation Trend Positive":"#e6f4e6","Constructive but Cooling":"#fdf8e6","Early Accumulation":"#fdf8e6","Short-Term Spike":"#fff4ee","No Clear Signal":"#f5f5f5"};
+                    var smStatusBd  = {"Strong Multi-Timeframe Flow":"#7abd00","Accumulation Trend Positive":"#7abd00","Constructive but Cooling":"#d4a800","Early Accumulation":"#d4a800","Short-Term Spike":"#e08050","No Clear Signal":"#e0dbd0"};
+                    var _sCol = smStatusCol[smCard.status]||"#888";
+                    var _sBg  = smStatusBg[smCard.status]||"#f5f5f5";
+                    var _sBd  = smStatusBd[smCard.status]||"#e0dbd0";
+
                     return (
                       <div>
-                        <div style={{ marginBottom:16 }}>
-                          <div style={{ fontSize:13, fontWeight:700, color:"#111", marginBottom:2 }}>Smart Money Flow</div>
-                          <div style={{ fontSize:11, color:"#888" }}>Tracks possible accumulation using price and volume behaviour.</div>
-                        </div>
+                        {/* Summary Card */}
+                        {smCard.primaryScore !== null && (
+                          <div style={{ border:"0.5px solid "+_sBd, borderRadius:10, marginBottom:16, overflow:"hidden" }}>
+                            <div style={{ background:_sBg, padding:"14px 16px 12px 16px", display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                              <div style={{ flex:1 }}>
+                                <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>Smart Money Flow</div>
+                                <div style={{ fontSize:15, fontWeight:700, color:_sCol, marginBottom:4 }}>{smCard.status}</div>
+                                <div style={{ fontSize:11, color:"#555", marginBottom:8, lineHeight:1.5 }}>{smCard.explanation}</div>
+                                <div style={{ fontSize:11, color:"#888" }}>
+                                  <span>{"Today: "}</span><span style={{ fontWeight:700, color:scoreLabelColor(smCard.todayLabel) }}>{smCard.todayLabel}</span>
+                                  <span style={{ margin:"0 6px", color:"#ccc" }}>{"·"}</span>
+                                  <span>{"5D: "}</span><span style={{ fontWeight:700, color:scoreLabelColor(smCard.fiveDayLabel) }}>{smCard.fiveDayLabel}</span>
+                                  <span style={{ margin:"0 6px", color:"#ccc" }}>{"·"}</span>
+                                  <span>{"30D: "}</span><span style={{ fontWeight:700, color:scoreLabelColor(smCard.thirtyDayLabel) }}>{smCard.thirtyDayLabel}</span>
+                                </div>
+                              </div>
+                              <div style={{ textAlign:"right", flexShrink:0, paddingLeft:16 }}>
+                                <div style={{ fontSize:32, fontWeight:800, color:_sCol, lineHeight:1 }}>{smCard.primaryScore}</div>
+                                <div style={{ fontSize:11, color:"#aaa", marginTop:2 }}>{"/ 100"}</div>
+                                {!thirtyDaySig && <div style={{ fontSize:9, color:"#bbb", marginTop:4, maxWidth:80, textAlign:"right", lineHeight:1.3 }}>{"30-day data unavailable"}</div>}
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
-                        {SignalCard({ sig:todaySig, title:"Today Signal", subtitle:"Is something unusual happening now?", unavailMsg: validation.errors.join(" ") })}
-                        {SignalCard({ sig:fiveDaySig, title:"5-Day Signal", subtitle:"Has short-term accumulation started?", unavailMsg:"Not enough data for 5-Day Signal. At least 6 trading days required." })}
-                        {SignalCard({ sig:thirtyDaySig, title:"30-Day Signal", subtitle:"Has accumulation been building?", unavailMsg:"Not enough price and volume data to calculate the 30-Day Signal. At least 30 trading days of OHLCV data is required." })}
+                        {SignalCard({ sig:todaySig, title:"Today Activity", subtitle:"Is something unusual happening today?", unavailMsg: validation.errors.join(" ") })}
+                        {SignalCard({ sig:fiveDaySig, title:"Short-Term Flow", subtitle:"Is short-term accumulation starting?", unavailMsg:"Not enough data for Short-Term Flow. At least 6 trading days required." })}
+                        {SignalCard({ sig:thirtyDaySig, title:"30-Day Accumulation Trend", subtitle:"Has accumulation been building over time?", unavailMsg:"Not enough data for 30-Day Accumulation Trend. At least 30 trading days of OHLCV data is required." })}
 
                         {interp && (
                           <div style={{ padding:"12px 14px", background:"#f5f2ec", borderRadius:10, marginBottom:16, border:"0.5px solid #e0dbd0" }}>
@@ -8479,7 +8580,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.07</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.08</span>
           </div>
         </div>
 
