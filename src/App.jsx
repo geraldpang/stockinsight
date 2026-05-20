@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.03</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.04</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.03</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.04</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6932,30 +6932,40 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       var n = bars.length;
                       var today = bars[n-1], yesterday = bars[n-2];
                       var avg30v = bars.slice(Math.max(0,n-30)).reduce(function(s,b){return s+b.v;},0)/Math.min(n,30);
-                      // 1. OBV Direction (40%)
                       var obv = calcOBV(bars);
-                      var obvDir = obv[n-1]>obv[n-2]?100:obv[n-1]<obv[n-2]?0:50;
-                      // 2. Volume Surge (25%)
-                      var vRatio = avg30v>0?today.v/avg30v:0;
-                      var volScore = vRatio>=3.0?100:vRatio>=2.0?75:vRatio>=1.5?50:vRatio>=1.2?25:0;
-                      // 3. Vol/Price Divergence (20%)
-                      var vpd = calcVolPriceDivergence(today, yesterday, avg30v);
-                      // 4. Strong Close (15%)
-                      var rng = today.h-today.l;
-                      var closePos = rng>0?(today.c-today.l)/rng:0.5;
-                      var closeScore = closePos>0.85?100:closePos>0.7?80:closePos>0.5?60:closePos>0.3?30:0;
 
-                      var total = Math.round(obvDir*0.40 + volScore*0.25 + vpd.score*0.20 + closeScore*0.15);
+                      // 1. OBV Direction (20%) — magnitude-aware, 5 levels
+                      var obvDayChange = obv[n-1] - obv[n-2]; // signed volume today
+                      var obvDayRatio = avg30v > 0 ? obvDayChange / avg30v : 0;
+                      var obvDir = obvDayRatio > 1.0 ? 100 : obvDayRatio > 0.3 ? 75 : obvDayRatio > -0.3 ? 50 : obvDayRatio > -1.0 ? 25 : 0;
+                      var obvDirExpl = obvDayRatio > 1.0 ? "Strong buying day — OBV rose by more than one average day of volume." : obvDayRatio > 0.3 ? "Mild buying day — OBV rose on moderate volume." : obvDayRatio > -0.3 ? "Balanced — buying and selling roughly equal today." : obvDayRatio > -1.0 ? "Mild selling day — OBV fell on moderate volume." : "Strong selling day — OBV fell by more than one average day of volume.";
+
+                      // 2. Volume Surge (30%)
+                      var vRatio = avg30v > 0 ? today.v / avg30v : 0;
+                      var volScore = vRatio >= 3.0 ? 100 : vRatio >= 2.0 ? 75 : vRatio >= 1.5 ? 50 : vRatio >= 1.2 ? 25 : 0;
+
+                      // 3. Vol/Price Divergence (35%)
+                      var vpd = calcVolPriceDivergence(today, yesterday, avg30v);
+
+                      // 4. Strong Close (15%)
+                      var rng = today.h - today.l;
+                      var closePos = rng > 0 ? (today.c - today.l) / rng : 0.5;
+                      var closeScore = closePos > 0.85 ? 100 : closePos > 0.7 ? 80 : closePos > 0.5 ? 60 : closePos > 0.3 ? 30 : 0;
+
+                      var total = Math.round(obvDir*0.20 + volScore*0.30 + vpd.score*0.35 + closeScore*0.15);
                       return {
                         score: total, label: getScoreLabel(total),
                         breakdown: [
-                          { name:"OBV Direction", score:Math.round(obvDir), weight:40,
-                            explanation: obvDir===100?"On-balance volume rose today — volume supported the move up.":obvDir===0?"On-balance volume fell today — volume supported the move down.":"OBV unchanged today." },
-                          { name:"Volume Surge", score:Math.round(volScore), weight:25,
-                            explanation: avg30v>0?"Volume is "+vRatio.toFixed(1)+"x the 30-day average ("+(today.v>=1e6?(today.v/1e6).toFixed(1)+"M":(today.v/1e3).toFixed(0)+"K")+" vs avg "+(avg30v>=1e6?(avg30v/1e6).toFixed(1)+"M":(avg30v/1e3).toFixed(0)+"K")+").":"Volume data unavailable." },
-                          { name:"Vol / Price Divergence", score:Math.round(vpd.score), weight:20, explanation: vpd.explanation },
+                          { name:"OBV Direction", score:Math.round(obvDir), weight:20, explanation: obvDirExpl,
+                            scoring:"●●●●●  100: OBV rose > 1.0x avg daily volume (strong buying)\n●●●●○   75: OBV rose 0.3x to 1.0x avg volume (mild buying)\n●●●○○   50: OBV flat ±0.3x avg volume (balanced)\n●●○○○   25: OBV fell 0.3x to 1.0x avg volume (mild selling)\n●○○○○    0: OBV fell > 1.0x avg daily volume (strong selling)\n\nNOTE: Single-day OBV has low weight (20%) — one day is noisy.\nMore reliable over 5 and 30 days." },
+                          { name:"Volume Surge", score:Math.round(volScore), weight:30,
+                            explanation: avg30v>0?"Volume is "+vRatio.toFixed(1)+"x the 30-day average ("+(today.v>=1e6?(today.v/1e6).toFixed(1)+"M":(today.v/1e3).toFixed(0)+"K")+" vs avg "+(avg30v>=1e6?(avg30v/1e6).toFixed(1)+"M":(avg30v/1e3).toFixed(0)+"K")+").":"Volume data unavailable.",
+                            scoring:"●●●●●  100: Volume ≥ 3.0x 30-day average\n●●●●○   75: Volume 2.0x to 3.0x\n●●●○○   50: Volume 1.5x to 2.0x\n●●○○○   25: Volume 1.2x to 1.5x\n●○○○○    0: Volume < 1.2x (no surge)" },
+                          { name:"Vol / Price Divergence", score:Math.round(vpd.score), weight:35, explanation: vpd.explanation,
+                            scoring:"High vol + flat price    → 100 (stealth accumulation)\nHigh vol + mild down     →  90 (absorption)\nHigh vol + mild up       →  80 (controlled buying)\nHigh vol + strong up     →  65 (ambiguous)\nHigh vol + strong down   →  10 (distribution)\nElevated vol + flat/down → 70–80\nNormal/low vol + any     → 40–50\n\nVolume: High ≥2x | Elevated ≥1.5x | Normal ≥1x | Low <1x\nPrice: Strong Up >+3% | Mild Up +1–3% | Flat ±1% | Mild Down -3–-1% | Strong Down <-3%" },
                           { name:"Strong Close", score:Math.round(closeScore), weight:15,
-                            explanation: rng>0?"Closed at "+(closePos*100).toFixed(0)+"% of today's range (low $"+today.l.toFixed(2)+" — high $"+today.h.toFixed(2)+").":"No price range today." }
+                            explanation: rng>0?"Closed at "+(closePos*100).toFixed(0)+"% of today's range (low $"+today.l.toFixed(2)+" — high $"+today.h.toFixed(2)+").":"No price range today.",
+                            scoring:"●●●●●  100: Closed in top 15% of day range (>85%)\n●●●●○   80: Closed in top 30% (>70%)\n●●●○○   60: Closed in upper half (>50%)\n●●○○○   30: Closed in lower half (30–50%)\n●○○○○    0: Closed near low (<30%)" }
                         ]
                       };
                     }
@@ -6984,17 +6994,21 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       for(var i=n-5;i<n;i++){var r=bars[i].h-bars[i].l;if(r>0&&(bars[i].c-bars[i].l)/r>0.6)sc5++;}
                       var sc5Score = sc5>=4?100:sc5===3?75:sc5===2?50:sc5===1?25:0;
 
-                      var total = Math.round(obv5Score*0.40 + volScore5*0.25 + vpd5Score*0.20 + sc5Score*0.15);
+                      var total = Math.round(obv5Score*0.35 + volScore5*0.25 + vpd5Score*0.25 + sc5Score*0.15);
                       return {
                         score: total, label: getScoreLabel(total),
                         breakdown: [
-                          { name:"OBV Net (5-day)", score:Math.round(obv5Score), weight:40,
-                            explanation: "Net OBV over 5 days = "+(obvNet5Days>0?"+":"")+obvNet5Days.toFixed(1)+" days of avg volume ("+(obvNet5>0?"+":"")+Math.round(obvNet5/1e6*10)/10+"M net). "+(obvNet5Days>2?"Strong net buying.":obvNet5Days>0?"Mild net buying.":obvNet5Days>-2?"Roughly balanced.":"Net selling pressure.") },
+                          { name:"OBV Net (5-day)", score:Math.round(obv5Score), weight:35,
+                            explanation: "Net OBV over 5 days = "+(obvNet5Days>0?"+":"")+obvNet5Days.toFixed(1)+" days of avg volume ("+(obvNet5>0?"+":"")+Math.round(obvNet5/1e6*10)/10+"M net). "+(obvNet5Days>2?"Strong net buying.":obvNet5Days>0?"Mild net buying.":obvNet5Days>-2?"Roughly balanced.":"Net selling pressure."),
+                            scoring:"●●●●●  100: Net OBV > +2 days of avg volume\n●●●●○   75: Net OBV 0 to +2 days (net buying)\n●●●○○   50: Net OBV -2 to 0 days (balanced)\n●●○○○   25: Net OBV -4 to -2 days (net selling)\n●○○○○    0: Net OBV < -4 days (strong selling)\n\nFormula: (OBV today − OBV 5 days ago) ÷ avg 30-day volume" },
                           { name:"Volume (5-day avg)", score:Math.round(volScore5), weight:25,
-                            explanation: "5-day avg volume is "+vRatio5.toFixed(1)+"x the 30-day average ("+(avg5v>=1e6?(avg5v/1e6).toFixed(1)+"M":(avg5v/1e3).toFixed(0)+"K")+" vs avg "+(avg30v>=1e6?(avg30v/1e6).toFixed(1)+"M":(avg30v/1e3).toFixed(0)+"K")+")." },
-                          { name:"Vol / Price (5-day)", score:Math.round(vpd5Score), weight:20, explanation: vpd5Expl },
+                            explanation: "5-day avg volume is "+vRatio5.toFixed(1)+"x the 30-day average ("+(avg5v>=1e6?(avg5v/1e6).toFixed(1)+"M":(avg5v/1e3).toFixed(0)+"K")+" vs avg "+(avg30v>=1e6?(avg30v/1e6).toFixed(1)+"M":(avg30v/1e3).toFixed(0)+"K")+").",
+                            scoring:"●●●●●  100: 5d avg ≥ 2.0x 30-day average\n●●●●○   75: 5d avg 1.5x to 2.0x\n●●●○○   50: 5d avg 1.2x to 1.5x (slightly elevated)\n●●○○○   25: 5d avg 1.0x to 1.2x (normal)\n●○○○○    0: 5d avg < 1.0x (below average)" },
+                          { name:"Vol / Price (5-day)", score:Math.round(vpd5Score), weight:25, explanation: vpd5Expl,
+                            scoring:"Same matrix as Today Signal — applied to 5-day price change and 5-day avg volume ratio.\n\nHigh vol + flat 5d price    → 100\nHigh vol + mild 5d down     →  90\nHigh vol + mild 5d up       →  80\nHigh vol + strong 5d up     →  65\nHigh vol + strong 5d down   →  10\nNormal/low vol              → 40–50" },
                           { name:"Strong Close (5-day)", score:Math.round(sc5Score), weight:15,
-                            explanation: sc5+" of last 5 days closed in the upper 40% of daily range." }
+                            explanation: sc5+" of last 5 days closed in the upper 40% of daily range.",
+                            scoring:"●●●●●  100: 4–5 of 5 days with strong close\n●●●○○   75: 3 of 5 days\n●●●○○   50: 2 of 5 days\n●●○○○   25: 1 of 5 days\n●○○○○    0: 0 of 5 days\n\nStrong close = closed above 60% of day's high-low range" }
                         ]
                       };
                     }
@@ -7026,13 +7040,17 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         score: total, label: getScoreLabel(total),
                         breakdown: [
                           { name:"OBV Trend (30-day)", score:Math.round(obvScore), weight:40,
-                            explanation: "Net OBV change equals "+(obvInDays>0?"+":"")+obvInDays.toFixed(1)+" days of avg volume ("+(obvChange>0?"+":"")+Math.round(obvChange/1e6*10)/10+"M net). "+(obvInDays>5?"Strong buying pressure accumulated.":obvInDays>0?"Net buying over the period.":obvInDays>-5?"Roughly balanced.":obvInDays>-10?"Net selling pressure.":"Strong selling pressure accumulated.") },
+                            explanation: "Net OBV change equals "+(obvInDays>0?"+":"")+obvInDays.toFixed(1)+" days of avg volume ("+(obvChange>0?"+":"")+Math.round(obvChange/1e6*10)/10+"M net). "+(obvInDays>5?"Strong buying pressure accumulated.":obvInDays>0?"Net buying over the period.":obvInDays>-5?"Roughly balanced.":obvInDays>-10?"Net selling pressure.":"Strong selling pressure accumulated."),
+                            scoring:"●●●●●  100: Net OBV > +5 days of avg volume (strongly rising)\n●●●●○   75: Net OBV 0 to +5 days (rising)\n●●●○○   50: Net OBV -5 to 0 days (flat)\n●●○○○   25: Net OBV -10 to -5 days (falling)\n●○○○○    0: Net OBV < -10 days (strongly falling)\n\nFormula: (OBV today − OBV day 1) ÷ avg 30-day volume\nMost reliable OBV signal — 30 days removes daily noise." },
                           { name:"High-Volume Green Days", score:Math.round(hvScore), weight:25,
-                            explanation: hvGreen+" high-volume up days vs "+hvRed+" high-volume down days in 30 sessions." },
+                            explanation: hvGreen+" high-volume up days vs "+hvRed+" high-volume down days in 30 sessions.",
+                            scoring:"●●●●●  100: Green days ≥ 2× red days\n●●●●○   75: More green than red\n●●●○○   50: Equal green and red\n●○○○○    0: More red than green\n\nHigh-volume day = volume > 1.5× 30-day average" },
                           { name:"Price Stability / Strength", score:Math.round(priceScore), weight:20,
-                            explanation: "Price is "+(pct30>0?"+":"")+pct30.toFixed(1)+"% vs 30 trading days ago." },
+                            explanation: "Price is "+(pct30>0?"+":"")+pct30.toFixed(1)+"% vs 30 trading days ago.",
+                            scoring:"●●●●●  100: Price > +10% vs 30 days ago\n●●●●○   75: Price 0% to +10%\n●●●○○   50: Price -5% to 0%\n●●○○○   25: Price -10% to -5%\n●○○○○    0: Price < -10%" },
                           { name:"Strong Close Frequency", score:Math.round(scScore), weight:15,
-                            explanation: scDays+" of 30 days closed in upper 40% of daily range ("+(scFreq*100).toFixed(0)+"%)." }
+                            explanation: scDays+" of 30 days closed in upper 40% of daily range ("+(scFreq*100).toFixed(0)+"%).",
+                            scoring:"●●●●●  100: > 65% of days with strong close\n●●●○○   75: 50% to 65%\n●●●○○   50: 40% to 50%\n●●○○○   25: 30% to 40%\n●○○○○    0: < 30%\n\nStrong close = closed above 60% of day's high-low range" }
                         ]
                       };
                     }
@@ -7091,8 +7109,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           <div>
                             {sig.breakdown.map(function(b, i) {
                               var bCol = b.score>=71?"#1a6a1a":b.score>=51?"#b88000":"#c03030";
-                              var _sm={"Volume Surge":"●●●●●  100: Volume ≥ 3.0x average\n●●●●○   75: Volume 2.0x to 3.0x\n●●●○○   50: Volume 1.5x to 2.0x\n●●○○○   25: Volume 1.2x to 1.5x\n●○○○○    0: Volume < 1.2x (no surge)","Vol / Price Divergence":"High vol + flat price    → 100 (stealth accumulation)\nHigh vol + mild down     →  90 (absorption)\nHigh vol + mild up       →  80 (controlled buying)\nHigh vol + strong up     →  65 (ambiguous)\nHigh vol + strong down   →  10 (distribution)\nElevated vol + flat/down → 70–80\nNormal/low vol + any     → 40–50","Strong Close":"●●●●●  100: Closed in top 15% of range (>85%)\n●●●●○   80: Closed in top 30% (>70%)\n●●●○○   60: Closed in upper half (>50%)\n●●○○○   30: Closed in lower half (30–50%)\n●○○○○    0: Closed near low (<30%)","OBV Direction":"●●●●●  100: OBV rose (close > yesterday)\n●●●○○   50: OBV flat (close = yesterday)\n●○○○○    0: OBV fell (close < yesterday)","OBV Trend":"●●●●●  100: Net OBV > +5 days of avg volume\n●●●●○   75: Net OBV 0 to +5 days (rising)\n●●●○○   50: Net OBV -5 to 0 (flat)\n●●○○○   25: Net OBV -10 to -5 (falling)\n●○○○○    0: Net OBV < -10 days\n\nFormula: (OBV today − OBV day 1) ÷ avg 30-day volume","High-Volume Green Days":"●●●●●  100: Green days ≥ 2× red days\n●●●●○   75: More green than red\n●●●○○   50: Equal green and red\n●○○○○    0: More red than green\n\nHigh-volume day = volume > 1.5× 30-day average","Price Stability / Strength":"●●●●●  100: Price > +10% vs 30 days ago\n●●●●○   75: Price 0% to +10%\n●●●○○   50: Price -5% to 0%\n●●○○○   25: Price -10% to -5%\n●○○○○    0: Price < -10%","Strong Close Frequency":"●●●●●  100: > 65% of days closed in upper 40% of range\n●●●●○   75: 50% to 65%\n●●●○○   50: 40% to 50%\n●●○○○   25: 30% to 40%\n●○○○○    0: < 30%\n\nStrong close = closed above 60% of day's high-low range"};
-                              var _sc = _sm[b.name];
+                              var _sc = b.scoring || null; // scoring text comes from breakdown item
                               return (
                                 <div key={i} style={{ borderBottom: i<sig.breakdown.length-1?"0.5px solid #f0ede6":"none" }}>
                                   <div style={{ padding:"10px 14px", display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
@@ -8587,7 +8604,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.03</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.04</span>
           </div>
         </div>
 
