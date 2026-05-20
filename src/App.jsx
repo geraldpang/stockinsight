@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.04</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.05</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.04</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.05</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7008,7 +7008,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             scoring:"Same matrix as Today Signal — applied to 5-day price change and 5-day avg volume ratio.\n\nHigh vol + flat 5d price    → 100\nHigh vol + mild 5d down     →  90\nHigh vol + mild 5d up       →  80\nHigh vol + strong 5d up     →  65\nHigh vol + strong 5d down   →  10\nNormal/low vol              → 40–50" },
                           { name:"Strong Close (5-day)", score:Math.round(sc5Score), weight:15,
                             explanation: sc5+" of last 5 days closed in the upper 40% of daily range.",
-                            scoring:"●●●●●  100: 4–5 of 5 days with strong close\n●●●○○   75: 3 of 5 days\n●●●○○   50: 2 of 5 days\n●●○○○   25: 1 of 5 days\n●○○○○    0: 0 of 5 days\n\nStrong close = closed above 60% of day's high-low range" }
+                            scoring:"●●●●●  100: 4–5 of 5 days with strong close\n●●●●○   75: 3 of 5 days\n●●●○○   50: 2 of 5 days\n●●○○○   25: 1 of 5 days\n●○○○○    0: 0 of 5 days\n\nStrong close = closed above 60% of day's high-low range" }
                         ]
                       };
                     }
@@ -7024,7 +7024,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       // 2. High-Volume Green Days (25%)
                       var hvGreen=0,hvRed=0;
                       for(var i=n-29;i<n;i++){if(bars[i].v>1.5*avg30v){if(bars[i].c>bars[i-1].c)hvGreen++;else if(bars[i].c<bars[i-1].c)hvRed++;}}
-                      var hvScore = hvGreen>=hvRed*2?100:hvGreen>hvRed?75:hvGreen===hvRed?50:0;
+                      var hvScore = hvGreen>=hvRed*2?100:hvGreen>hvRed?75:hvGreen===hvRed?50:hvRed>hvGreen?25:0;
                       // 3. Price Stability / Strength (20%)
                       var p30=bars[n-30].c,pNow=bars[n-1].c;
                       var pct30=p30>0?(pNow-p30)/p30*100:0;
@@ -7044,13 +7044,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             scoring:"●●●●●  100: Net OBV > +5 days of avg volume (strongly rising)\n●●●●○   75: Net OBV 0 to +5 days (rising)\n●●●○○   50: Net OBV -5 to 0 days (flat)\n●●○○○   25: Net OBV -10 to -5 days (falling)\n●○○○○    0: Net OBV < -10 days (strongly falling)\n\nFormula: (OBV today − OBV day 1) ÷ avg 30-day volume\nMost reliable OBV signal — 30 days removes daily noise." },
                           { name:"High-Volume Green Days", score:Math.round(hvScore), weight:25,
                             explanation: hvGreen+" high-volume up days vs "+hvRed+" high-volume down days in 30 sessions.",
-                            scoring:"●●●●●  100: Green days ≥ 2× red days\n●●●●○   75: More green than red\n●●●○○   50: Equal green and red\n●○○○○    0: More red than green\n\nHigh-volume day = volume > 1.5× 30-day average" },
+                            scoring:"●●●●●  100: Green days ≥ 2× red days\n●●●●○   75: More green than red\n●●●○○   50: Equal green and red\n●●○○○   25: More red than green\n●○○○○    0: Red days ≥ 2× green days\n\nHigh-volume day = volume > 1.5× 30-day average" },
                           { name:"Price Stability / Strength", score:Math.round(priceScore), weight:20,
                             explanation: "Price is "+(pct30>0?"+":"")+pct30.toFixed(1)+"% vs 30 trading days ago.",
                             scoring:"●●●●●  100: Price > +10% vs 30 days ago\n●●●●○   75: Price 0% to +10%\n●●●○○   50: Price -5% to 0%\n●●○○○   25: Price -10% to -5%\n●○○○○    0: Price < -10%" },
                           { name:"Strong Close Frequency", score:Math.round(scScore), weight:15,
                             explanation: scDays+" of 30 days closed in upper 40% of daily range ("+(scFreq*100).toFixed(0)+"%).",
-                            scoring:"●●●●●  100: > 65% of days with strong close\n●●●○○   75: 50% to 65%\n●●●○○   50: 40% to 50%\n●●○○○   25: 30% to 40%\n●○○○○    0: < 30%\n\nStrong close = closed above 60% of day's high-low range" }
+                            scoring:"●●●●●  100: > 65% of days with strong close\n●●●●○   75: 50% to 65%\n●●●○○   50: 40% to 50%\n●●○○○   25: 30% to 40%\n●○○○○    0: < 30%\n\nStrong close = closed above 60% of day's high-low range" }
                         ]
                       };
                     }
@@ -8604,7 +8604,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.04</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.05</span>
           </div>
         </div>
 
