@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.05</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.07</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.05</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.07</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3469,7 +3469,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     return (
                       <div>
                         {SigRow2("reversal","Reversal",_netRev3,_revDir,_revBarPct,_revStrength)}
-                        {SigRow2("volume","Volume",_netVol,_volDir,_volBarPct,_volStrength)}
                       </div>
                     );
                   })()}
@@ -3563,7 +3562,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               { id:"trend",     label:"Trend" },
               { id:"momentum",  label:"Momentum" },
               { id:"reversal",  label:"Reversal Signals" },
-              { id:"volume",    label:"Volume Signals" },
               { id:"whale",     label:"Smart Money Flow" },
               { id:"addlinfo",  label:"Additional Information" },
               { id:"debug",     label:"Debug" },
@@ -3660,7 +3658,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             }
 
             var tabContent = insightCache[insightTab];
-            var _noFetch   = ["business","addlinfo","debug","signal","admin","financial","intrinsic","aianalysis","aiinsight","trend","momentum","reversal","volume","whale"];
+            var _noFetch   = ["business","addlinfo","debug","signal","admin","financial","intrinsic","aianalysis","aiinsight","trend","momentum","reversal","whale"];
             var isLoading  = !tabContent && _noFetch.indexOf(insightTab) === -1;           return (
               <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden" }}>
 
@@ -3975,7 +3973,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   {/* AI-powered tabs */}
                   {insightTab !== "intrinsic" && (
                     <div>
-                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && insightTab !== "trend" && insightTab !== "momentum" && insightTab !== "reversal" && insightTab !== "aianalysis" && insightTab !== "financial" && insightTab !== "volume" && insightTab !== "admin" && insightTab !== "whale" && (
+                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && insightTab !== "trend" && insightTab !== "momentum" && insightTab !== "reversal" && insightTab !== "aianalysis" && insightTab !== "financial" && insightTab !== "admin" && insightTab !== "whale" && (
                         <div style={{ textAlign:"center", padding:"40px 0" }}>
                           <div style={{ fontSize:12, color:"#888", marginBottom:14 }}>Generating {insightTab} analysis for {sym}...</div>
                           <div style={{ display:"inline-block", width:26, height:26, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
@@ -6732,129 +6730,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   })()}
 
                   {/* VOLUME SPIKE TAB */}
-                  {insightTab === "volume" && (function() {
-                    var ind=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
-                    var aggs=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
-                    var snap=massiveInfo&&massiveInfo.snapshot?massiveInfo.snapshot:{};
-                    var price=q?q.price:0;
-                    if (!aggs.length||!price) return <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>Volume data requires Massive.com feed.</div>;
-                    var vol5=aggs.slice(0,5).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(aggs.slice(0,5).length,1);
-                    var vol20=aggs.slice(0,20).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(aggs.slice(0,20).length,1);
-                    var vol1=aggs[0]?aggs[0].v:0;
-                    var vwap=snap.vwap||0;
-                    var accDays=0; var distDays=0;
-                    aggs.slice(0,20).forEach(function(a){ if(!a||!a.v||!a.c||!a.o) return; if(a.c>=a.o&&a.v>vol20) accDays++; else if(a.c<a.o&&a.v>vol20) distDays++; });
-                    var closeUpDays=aggs.slice(0,5).filter(function(a){return a&&a.c&&a.o&&a.c>a.o;}).length;
-                    var closeDnDays=aggs.slice(0,5).filter(function(a){return a&&a.c&&a.o&&a.c<a.o;}).length;
-                    var volRatio=vol20>0?vol5/vol20:1;
-
-                    var _wVolBull=window.__volBull&&window.__volSym===sym?window.__volBull:[false,false,false,false,false];
-                    var _wVolBear=window.__volBear&&window.__volSym===sym?window.__volBear:[false,false,false,false,false];
-                    var bullVol=[
-                      { label:"Single Day Volume Spike",
-                        active:_wVolBull[0]||(vol1>0&&vol20>0&&vol1>vol20*2.5),
-                        what:"Today's trading volume is more than 2.5x the 20-day average.",
-                        why:"Unusually high volume on a single day often signals a major event -- earnings, news, or large institutional activity. Big volume moves tend to set the direction for days ahead." },
-                      { label:"Bullish Volume Surge (last 5 days)",
-                        active:aggs.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c>a.o&&a.v>vol20*2;}),
-                        what:"At least one up day in the last 5 sessions had volume more than 2x the normal average.",
-                        why:"A large up day on heavy volume shows buyers were aggressive and committed. This is one of the strongest bullish signals technical analysts look for." },
-                      { label:"Accumulation Pattern (20 days)",
-                        active:accDays>distDays+1,
-                        what:"Over the last 20 trading days, there have been significantly more high-volume up days than high-volume down days ("+accDays+" vs "+distDays+").",
-                        why:"When institutions buy, they often spread purchases over days to avoid moving the price. A pattern of more up days on high volume than down days suggests quiet accumulation." },
-                      { label:"Volume Trend Rising",
-                        active:vol20>0&&vol5>vol20*1.2,
-                        what:"The average volume over the last 5 days is more than 20% above the 20-day average ("+Math.round(volRatio*100)+"% of normal).",
-                        why:"Rising volume while a trend continues is a sign of increasing conviction. More participants are joining the move, making it more likely to continue." },
-                      { label:"Consistent Up Days (last 5)",
-                        active:closeUpDays>=3,
-                        what:"The stock closed above its opening price on "+closeUpDays+" of the last 5 trading days.",
-                        why:"When price consistently closes above where it opened, buyers are winning the daily battle. Three or more up-close days in a row signals sustained buying pressure." },
-                    ];
-
-                    var bearVol=[
-                      { label:"Volume Dry-Up on Rally",
-                        active:aggs[0]&&aggs[0].c&&aggs[0].o&&aggs[0].c>aggs[0].o&&vol1<vol20*0.5,
-                        what:"Price moved up today but on volume that is less than half the normal average.",
-                        why:"A rally on very low volume is a warning sign -- it means few participants are behind the move. Without volume conviction, rallies tend to fade quickly." },
-                      { label:"Distribution Pattern (20 days)",
-                        active:distDays>accDays+1,
-                        what:"Over the last 20 trading days, there have been significantly more high-volume down days than high-volume up days ("+distDays+" vs "+accDays+").",
-                        why:"Distribution is when smart money quietly sells into strength. More high-volume down days than up days suggests institutions are reducing positions." },
-                      { label:"Bearish Volume Surge (last 5 days)",
-                        active:aggs.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c<a.o&&a.v>vol20*2;}),
-                        what:"At least one down day in the last 5 sessions had volume more than 2x the normal average.",
-                        why:"Heavy volume on a down day shows sellers were aggressive and committed. This is a strong bearish signal -- institutions were selling heavily." },
-                      { label:"Volume Trend Falling",
-                        active:vol20>0&&vol5<vol20*0.8,
-                        what:"The average volume over the last 5 days is more than 20% below the 20-day average ("+Math.round(volRatio*100)+"% of normal).",
-                        why:"Declining volume often signals fading interest in a trend. If price is rising but volume is falling, the move may be losing steam." },
-                      { label:"Consistent Down Days (last 5)",
-                        active:closeDnDays>=4,
-                        what:"The stock closed below its opening price on "+closeDnDays+" of the last 5 trading days.",
-                        why:"When price consistently closes below where it opened, sellers are winning the daily battle. Four or more down-close days signals sustained selling pressure." },
-                    ];
-
-                    var bullCount=bullVol.filter(function(r){return r.active;}).length;
-                    var bearCount=bearVol.filter(function(r){return r.active;}).length;
-
-                    var _bBg=bullCount>=3?"#e6f4e6":bullCount>=1?"#f0f7e6":"#f5f5f5";
-                    var _bBd=bullCount>=3?"#7abd00":bullCount>=1?"#b0d080":"#ddd";
-                    var _bFg=bullCount>=3?"#1a6a1a":bullCount>=1?"#2a7a2a":"#888";
-                    var _rBg=bearCount>=3?"#fff0f0":bearCount>=1?"#fff4f4":"#f5f5f5";
-                    var _rBd=bearCount>=3?"#e05050":bearCount>=1?"#f0a0a0":"#ddd";
-                    var _rFg=bearCount>=3?"#c03030":bearCount>=1?"#c05050":"#888";
-
-                    function VolRow(r, isBull) {
-                      var dot = isBull?(r.active?"#7abd00":"#ccc"):(r.active?"#e05050":"#ccc");
-                      var labelCol = isBull?(r.active?"#1a6a1a":"#888"):(r.active?"#c03030":"#888");
-                      var statusCol = isBull?(r.active?"#1a6a1a":"#aaa"):(r.active?"#c03030":"#aaa");
-                      var bg = r.active?(isBull?"#f0f7e6":"#fff4f4"):"#faf8f4";
-                      var bd = r.active?(isBull?"#b0d080":"#f0a0a0"):"#e0dbd0";
-                      return (
-                        <div style={{marginBottom:8,padding:"10px 14px",background:bg,borderRadius:8,border:"0.5px solid "+bd}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:r.active?6:0}}>
-                            <div style={{width:10,height:10,borderRadius:"50%",background:dot,flexShrink:0}}></div>
-                            <span style={{fontSize:12,fontWeight:700,color:labelCol}}>{r.label}</span>
-                            <span style={{fontSize:10,color:statusCol,marginLeft:"auto"}}>{r.active?"ACTIVE":"Not detected"}</span>
-                          </div>
-                          {r.active && <div>
-                            <div style={{fontSize:11,color:"#555",lineHeight:1.5,marginBottom:3}}><span style={{fontWeight:600}}>What: </span>{r.what}</div>
-                            <div style={{fontSize:11,color:"#777",lineHeight:1.5}}><span style={{fontWeight:600}}>Why it matters: </span>{r.why}</div>
-                          </div>}
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div>
-                        {/* Summary banner */}
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
-                          <div style={{padding:"10px 14px",background:_bBg,borderRadius:8,border:"0.5px solid "+_bBd}}>
-                            <div style={{fontSize:9,color:_bFg,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>Bullish Volume</div>
-                            <div style={{fontSize:15,fontWeight:700,color:_bFg}}>{bullCount + " / 5"}</div>
-                            <div style={{display:"flex",gap:3,marginTop:5}}>{bullVol.map(function(r,i){return <span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:r.active?"#7abd00":"#ccc"}}/>;})}</div>
-                          </div>
-                          <div style={{padding:"10px 14px",background:_rBg,borderRadius:8,border:"0.5px solid "+_rBd}}>
-                            <div style={{fontSize:9,color:_rFg,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>Bearish Volume</div>
-                            <div style={{fontSize:15,fontWeight:700,color:_rFg}}>{bearCount + " / 5"}</div>
-                            <div style={{display:"flex",gap:3,marginTop:5}}>{bearVol.map(function(r,i){return <span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:r.active?"#e05050":"#ccc"}}/>;})}</div>
-                          </div>
-                        </div>
-
-                        <div style={{fontSize:10,fontWeight:700,color:"#1a6a1a",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Bullish Volume Signals</div>
-                        {bullVol.map(function(r,i){ return <div key={i}>{VolRow(r,true)}</div>; })}
-
-                        <div style={{fontSize:10,fontWeight:700,color:"#c03030",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8,marginTop:16}}>Bearish Volume Signals</div>
-                        {bearVol.map(function(r,i){ return <div key={i}>{VolRow(r,false)}</div>; })}
-
-                        <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de",marginTop:8}}>
-                          {"Volume signals are based on available daily bar data. VWAP is intraday only. Accumulation/distribution counts use 20-day window. Not financial advice."}
-                        </div>
-                      </div>
-                    );
-                  })()}
 
                   {insightTab === "whale" && (function() {
                     var rawAggs = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
@@ -8604,7 +8479,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.05</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.07</span>
           </div>
         </div>
 
