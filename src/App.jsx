@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.09</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.10</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.09</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.10</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3484,8 +3484,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var _tLbl    = _smf ? _smf.todayLabel   : "N/A";
                           var _fLbl    = _smf ? _smf.fiveDayLabel : "N/A";
                           var _dLbl    = _smf ? _smf.thirtyDayLabel : "N/A";
-                          var _sCol    = _smf ? (_smf.primaryScore>=71?"#7abd00":_smf.primaryScore>=31?"#EF9F27":"#e05050") : "#666";
-                          function _lCol(lbl){ return lbl==="High"||lbl==="Very High"?"#7abd00":lbl==="Moderate"||lbl==="Mild"?"#EF9F27":lbl==="Low"?"#e05050":"#888"; }
+                          var _sCol    = _smf ? (_smf.primaryScore>=71?"#1a6a1a":_smf.primaryScore>=51?"#b88000":"#c03030") : "#666";
+                          function _lCol(lbl){ return lbl==="High"||lbl==="Very High"?"#1a6a1a":lbl==="Moderate"?"#b88000":"#c03030"; }
                           return (
                             <div onClick={function(){ window.__goToTab&&window.__goToTab("whale"); }}
                               style={{padding:"10px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer"}}
@@ -7122,6 +7122,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       );
                     }
 
+                    // Consistent SMF label color used in both card and left panel
+                    function smfLabelColor(lbl) {
+                      if (lbl==="Very High"||lbl==="High") return "#1a6a1a";
+                      if (lbl==="Moderate")                return "#b88000";
+                      if (lbl==="Mild"||lbl==="Low")       return "#c03030";
+                      return "#888";
+                    }
+
                     // Summary card color mapping
                     var smStatusCol = {"Strong Multi-Timeframe Flow":"#1a6a1a","Accumulation Trend Positive":"#1a6a1a","Constructive but Cooling":"#b88000","Early Accumulation":"#b88000","Short-Term Spike":"#b88000","No Clear Signal":"#888"};
                     var smStatusBg  = {"Strong Multi-Timeframe Flow":"#e6f4e6","Accumulation Trend Positive":"#e6f4e6","Constructive but Cooling":"#fdf8e6","Early Accumulation":"#fdf8e6","Short-Term Spike":"#fff4ee","No Clear Signal":"#f5f5f5"};
@@ -7132,26 +7140,24 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                     return (
                       <div>
-                        {/* Summary Card */}
+                        {/* Summary Card — matches screenshot layout */}
                         {smCard.primaryScore !== null && (
-                          <div style={{ border:"0.5px solid "+_sBd, borderRadius:10, marginBottom:16, overflow:"hidden" }}>
-                            <div style={{ background:_sBg, padding:"14px 16px 12px 16px", display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                          <div style={{ border:"0.5px solid "+_sBd, borderRadius:10, marginBottom:16, background:_sBg, padding:"14px 16px" }}>
+                            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                               <div style={{ flex:1 }}>
                                 <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>Smart Money Flow</div>
-                                <div style={{ fontSize:15, fontWeight:700, color:_sCol, marginBottom:4 }}>{smCard.status}</div>
-                                <div style={{ fontSize:11, color:"#555", marginBottom:8, lineHeight:1.5 }}>{smCard.explanation}</div>
-                                <div style={{ fontSize:11, color:"#888" }}>
-                                  <span>{"Today: "}</span><span style={{ fontWeight:700, color:scoreLabelColor(smCard.todayLabel) }}>{smCard.todayLabel}</span>
-                                  <span style={{ margin:"0 6px", color:"#ccc" }}>{"·"}</span>
-                                  <span>{"5D: "}</span><span style={{ fontWeight:700, color:scoreLabelColor(smCard.fiveDayLabel) }}>{smCard.fiveDayLabel}</span>
-                                  <span style={{ margin:"0 6px", color:"#ccc" }}>{"·"}</span>
-                                  <span>{"30D: "}</span><span style={{ fontWeight:700, color:scoreLabelColor(smCard.thirtyDayLabel) }}>{smCard.thirtyDayLabel}</span>
-                                </div>
+                                <div style={{ fontSize:14, fontWeight:700, color:_sCol, marginBottom:4 }}>{smCard.status}</div>
+                                <div style={{ fontSize:11, color:"#666", lineHeight:1.5 }}>{smCard.explanation}</div>
                               </div>
-                              <div style={{ textAlign:"right", flexShrink:0, paddingLeft:16 }}>
-                                <div style={{ fontSize:32, fontWeight:800, color:_sCol, lineHeight:1 }}>{smCard.primaryScore}</div>
-                                <div style={{ fontSize:11, color:"#aaa", marginTop:2 }}>{"/ 100"}</div>
-                                {!thirtyDaySig && <div style={{ fontSize:9, color:"#bbb", marginTop:4, maxWidth:80, textAlign:"right", lineHeight:1.3 }}>{"30-day data unavailable"}</div>}
+                              <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0, paddingLeft:24, paddingTop:2 }}>
+                                <span style={{ fontSize:12, color:"#888" }}>{"Today:"}</span>
+                                <span style={{ fontSize:12, fontWeight:700, color:smfLabelColor(smCard.todayLabel) }}>{smCard.todayLabel}</span>
+                                <span style={{ color:"#ccc", fontSize:10 }}>{"·"}</span>
+                                <span style={{ fontSize:12, color:"#888" }}>{"5D:"}</span>
+                                <span style={{ fontSize:12, fontWeight:700, color:smfLabelColor(smCard.fiveDayLabel) }}>{smCard.fiveDayLabel}</span>
+                                <span style={{ color:"#ccc", fontSize:10 }}>{"·"}</span>
+                                <span style={{ fontSize:12, color:"#888" }}>{"30D:"}</span>
+                                <span style={{ fontSize:12, fontWeight:700, color:smfLabelColor(smCard.thirtyDayLabel) }}>{smCard.thirtyDayLabel}</span>
                               </div>
                             </div>
                           </div>
@@ -8611,7 +8617,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.09</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.10</span>
           </div>
         </div>
 
