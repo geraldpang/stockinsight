@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.97</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.07</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.97</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.07</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3469,7 +3469,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     return (
                       <div>
                         {SigRow2("reversal","Reversal",_netRev3,_revDir,_revBarPct,_revStrength)}
-                        {SigRow2("volume","Volume",_netVol,_volDir,_volBarPct,_volStrength)}
                       </div>
                     );
                   })()}
@@ -3563,8 +3562,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               { id:"trend",     label:"Trend" },
               { id:"momentum",  label:"Momentum" },
               { id:"reversal",  label:"Reversal Signals" },
-              { id:"volume",    label:"Volume Signals" },
-              { id:"whale",     label:"🐋 Whale Tracker" },
+              { id:"whale",     label:"Smart Money Flow" },
               { id:"addlinfo",  label:"Additional Information" },
               { id:"debug",     label:"Debug" },
               { id:"admin",     label:"Admin" },
@@ -3660,7 +3658,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             }
 
             var tabContent = insightCache[insightTab];
-            var _noFetch   = ["business","addlinfo","debug","signal","admin","financial","intrinsic","aianalysis","aiinsight","trend","momentum","reversal","volume","whale"];
+            var _noFetch   = ["business","addlinfo","debug","signal","admin","financial","intrinsic","aianalysis","aiinsight","trend","momentum","reversal","whale"];
             var isLoading  = !tabContent && _noFetch.indexOf(insightTab) === -1;           return (
               <div style={{ border:"1px solid #e0dbd0", borderRadius:12, overflow:"hidden" }}>
 
@@ -3975,7 +3973,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   {/* AI-powered tabs */}
                   {insightTab !== "intrinsic" && (
                     <div>
-                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && insightTab !== "trend" && insightTab !== "momentum" && insightTab !== "reversal" && insightTab !== "aianalysis" && insightTab !== "financial" && insightTab !== "volume" && insightTab !== "admin" && (
+                      {!tabContent && insightTab !== "business" && insightTab !== "addlinfo" && insightTab !== "debug" && insightTab !== "signal" && insightTab !== "trend" && insightTab !== "momentum" && insightTab !== "reversal" && insightTab !== "aianalysis" && insightTab !== "financial" && insightTab !== "admin" && insightTab !== "whale" && (
                         <div style={{ textAlign:"center", padding:"40px 0" }}>
                           <div style={{ fontSize:12, color:"#888", marginBottom:14 }}>Generating {insightTab} analysis for {sym}...</div>
                           <div style={{ display:"inline-block", width:26, height:26, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
@@ -6732,143 +6730,223 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   })()}
 
                   {/* VOLUME SPIKE TAB */}
-                  {insightTab === "volume" && (function() {
-                    var ind=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
-                    var aggs=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
-                    var snap=massiveInfo&&massiveInfo.snapshot?massiveInfo.snapshot:{};
-                    var price=q?q.price:0;
-                    if (!aggs.length||!price) return <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>Volume data requires Massive.com feed.</div>;
-                    var vol5=aggs.slice(0,5).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(aggs.slice(0,5).length,1);
-                    var vol20=aggs.slice(0,20).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(aggs.slice(0,20).length,1);
-                    var vol1=aggs[0]?aggs[0].v:0;
-                    var vwap=snap.vwap||0;
-                    var accDays=0; var distDays=0;
-                    aggs.slice(0,20).forEach(function(a){ if(!a||!a.v||!a.c||!a.o) return; if(a.c>=a.o&&a.v>vol20) accDays++; else if(a.c<a.o&&a.v>vol20) distDays++; });
-                    var closeUpDays=aggs.slice(0,5).filter(function(a){return a&&a.c&&a.o&&a.c>a.o;}).length;
-                    var closeDnDays=aggs.slice(0,5).filter(function(a){return a&&a.c&&a.o&&a.c<a.o;}).length;
-                    var volRatio=vol20>0?vol5/vol20:1;
-
-                    var _wVolBull=window.__volBull&&window.__volSym===sym?window.__volBull:[false,false,false,false,false];
-                    var _wVolBear=window.__volBear&&window.__volSym===sym?window.__volBear:[false,false,false,false,false];
-                    var bullVol=[
-                      { label:"Single Day Volume Spike",
-                        active:_wVolBull[0]||(vol1>0&&vol20>0&&vol1>vol20*2.5),
-                        what:"Today's trading volume is more than 2.5x the 20-day average.",
-                        why:"Unusually high volume on a single day often signals a major event -- earnings, news, or large institutional activity. Big volume moves tend to set the direction for days ahead." },
-                      { label:"Bullish Volume Surge (last 5 days)",
-                        active:aggs.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c>a.o&&a.v>vol20*2;}),
-                        what:"At least one up day in the last 5 sessions had volume more than 2x the normal average.",
-                        why:"A large up day on heavy volume shows buyers were aggressive and committed. This is one of the strongest bullish signals technical analysts look for." },
-                      { label:"Accumulation Pattern (20 days)",
-                        active:accDays>distDays+1,
-                        what:"Over the last 20 trading days, there have been significantly more high-volume up days than high-volume down days ("+accDays+" vs "+distDays+").",
-                        why:"When institutions buy, they often spread purchases over days to avoid moving the price. A pattern of more up days on high volume than down days suggests quiet accumulation." },
-                      { label:"Volume Trend Rising",
-                        active:vol20>0&&vol5>vol20*1.2,
-                        what:"The average volume over the last 5 days is more than 20% above the 20-day average ("+Math.round(volRatio*100)+"% of normal).",
-                        why:"Rising volume while a trend continues is a sign of increasing conviction. More participants are joining the move, making it more likely to continue." },
-                      { label:"Consistent Up Days (last 5)",
-                        active:closeUpDays>=3,
-                        what:"The stock closed above its opening price on "+closeUpDays+" of the last 5 trading days.",
-                        why:"When price consistently closes above where it opened, buyers are winning the daily battle. Three or more up-close days in a row signals sustained buying pressure." },
-                    ];
-
-                    var bearVol=[
-                      { label:"Volume Dry-Up on Rally",
-                        active:aggs[0]&&aggs[0].c&&aggs[0].o&&aggs[0].c>aggs[0].o&&vol1<vol20*0.5,
-                        what:"Price moved up today but on volume that is less than half the normal average.",
-                        why:"A rally on very low volume is a warning sign -- it means few participants are behind the move. Without volume conviction, rallies tend to fade quickly." },
-                      { label:"Distribution Pattern (20 days)",
-                        active:distDays>accDays+1,
-                        what:"Over the last 20 trading days, there have been significantly more high-volume down days than high-volume up days ("+distDays+" vs "+accDays+").",
-                        why:"Distribution is when smart money quietly sells into strength. More high-volume down days than up days suggests institutions are reducing positions." },
-                      { label:"Bearish Volume Surge (last 5 days)",
-                        active:aggs.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c<a.o&&a.v>vol20*2;}),
-                        what:"At least one down day in the last 5 sessions had volume more than 2x the normal average.",
-                        why:"Heavy volume on a down day shows sellers were aggressive and committed. This is a strong bearish signal -- institutions were selling heavily." },
-                      { label:"Volume Trend Falling",
-                        active:vol20>0&&vol5<vol20*0.8,
-                        what:"The average volume over the last 5 days is more than 20% below the 20-day average ("+Math.round(volRatio*100)+"% of normal).",
-                        why:"Declining volume often signals fading interest in a trend. If price is rising but volume is falling, the move may be losing steam." },
-                      { label:"Consistent Down Days (last 5)",
-                        active:closeDnDays>=4,
-                        what:"The stock closed below its opening price on "+closeDnDays+" of the last 5 trading days.",
-                        why:"When price consistently closes below where it opened, sellers are winning the daily battle. Four or more down-close days signals sustained selling pressure." },
-                    ];
-
-                    var bullCount=bullVol.filter(function(r){return r.active;}).length;
-                    var bearCount=bearVol.filter(function(r){return r.active;}).length;
-
-                    var _bBg=bullCount>=3?"#e6f4e6":bullCount>=1?"#f0f7e6":"#f5f5f5";
-                    var _bBd=bullCount>=3?"#7abd00":bullCount>=1?"#b0d080":"#ddd";
-                    var _bFg=bullCount>=3?"#1a6a1a":bullCount>=1?"#2a7a2a":"#888";
-                    var _rBg=bearCount>=3?"#fff0f0":bearCount>=1?"#fff4f4":"#f5f5f5";
-                    var _rBd=bearCount>=3?"#e05050":bearCount>=1?"#f0a0a0":"#ddd";
-                    var _rFg=bearCount>=3?"#c03030":bearCount>=1?"#c05050":"#888";
-
-                    function VolRow(r, isBull) {
-                      var dot = isBull?(r.active?"#7abd00":"#ccc"):(r.active?"#e05050":"#ccc");
-                      var labelCol = isBull?(r.active?"#1a6a1a":"#888"):(r.active?"#c03030":"#888");
-                      var statusCol = isBull?(r.active?"#1a6a1a":"#aaa"):(r.active?"#c03030":"#aaa");
-                      var bg = r.active?(isBull?"#f0f7e6":"#fff4f4"):"#faf8f4";
-                      var bd = r.active?(isBull?"#b0d080":"#f0a0a0"):"#e0dbd0";
-                      return (
-                        <div style={{marginBottom:8,padding:"10px 14px",background:bg,borderRadius:8,border:"0.5px solid "+bd}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:r.active?6:0}}>
-                            <div style={{width:10,height:10,borderRadius:"50%",background:dot,flexShrink:0}}></div>
-                            <span style={{fontSize:12,fontWeight:700,color:labelCol}}>{r.label}</span>
-                            <span style={{fontSize:10,color:statusCol,marginLeft:"auto"}}>{r.active?"ACTIVE":"Not detected"}</span>
-                          </div>
-                          {r.active && <div>
-                            <div style={{fontSize:11,color:"#555",lineHeight:1.5,marginBottom:3}}><span style={{fontWeight:600}}>What: </span>{r.what}</div>
-                            <div style={{fontSize:11,color:"#777",lineHeight:1.5}}><span style={{fontWeight:600}}>Why it matters: </span>{r.why}</div>
-                          </div>}
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div>
-                        {/* Summary banner */}
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
-                          <div style={{padding:"10px 14px",background:_bBg,borderRadius:8,border:"0.5px solid "+_bBd}}>
-                            <div style={{fontSize:9,color:_bFg,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>Bullish Volume</div>
-                            <div style={{fontSize:15,fontWeight:700,color:_bFg}}>{bullCount + " / 5"}</div>
-                            <div style={{display:"flex",gap:3,marginTop:5}}>{bullVol.map(function(r,i){return <span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:r.active?"#7abd00":"#ccc"}}/>;})}</div>
-                          </div>
-                          <div style={{padding:"10px 14px",background:_rBg,borderRadius:8,border:"0.5px solid "+_rBd}}>
-                            <div style={{fontSize:9,color:_rFg,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>Bearish Volume</div>
-                            <div style={{fontSize:15,fontWeight:700,color:_rFg}}>{bearCount + " / 5"}</div>
-                            <div style={{display:"flex",gap:3,marginTop:5}}>{bearVol.map(function(r,i){return <span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:r.active?"#e05050":"#ccc"}}/>;})}</div>
-                          </div>
-                        </div>
-
-                        <div style={{fontSize:10,fontWeight:700,color:"#1a6a1a",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Bullish Volume Signals</div>
-                        {bullVol.map(function(r,i){ return <div key={i}>{VolRow(r,true)}</div>; })}
-
-                        <div style={{fontSize:10,fontWeight:700,color:"#c03030",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8,marginTop:16}}>Bearish Volume Signals</div>
-                        {bearVol.map(function(r,i){ return <div key={i}>{VolRow(r,false)}</div>; })}
-
-                        <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de",marginTop:8}}>
-                          {"Volume signals are based on available daily bar data. VWAP is intraday only. Accumulation/distribution counts use 20-day window. Not financial advice."}
-                        </div>
-                      </div>
-                    );
-                  })()}
 
                   {insightTab === "whale" && (function() {
-                    var aggs = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
+                    var rawAggs = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
+                    // Whale/options data still loaded for secondary section
                     if (!whaleData && !whaleLoading) {
                       setWhaleLoading(true);
                       var _wSym = sym === "BRKB" ? "BRK-B" : sym;
                       fetch("/options?sym=" + _wSym)
-                        .then(function(r) { return r.json(); })
-                        .then(function(d) { setWhaleData(d); setWhaleLoading(false); })
-                        .catch(function() { setWhaleData({ error: true }); setWhaleLoading(false); });
+                        .then(function(r){ return r.json(); })
+                        .then(function(d){ setWhaleData(d); setWhaleLoading(false); })
+                        .catch(function(){ setWhaleData({ error:true }); setWhaleLoading(false); });
                     }
-                    var vol20avg = aggs.length > 0 ? aggs.slice(0,20).reduce(function(s,a){ return s+(a.v||0); },0)/Math.min(aggs.length,20) : 0;
-                    var vol5avg  = aggs.length > 0 ? aggs.slice(0,5).reduce(function(s,a){ return s+(a.v||0); },0)/Math.min(aggs.slice(0,5).length,5) : 0;
-                    var volRatioW = vol20avg > 0 ? vol5avg / vol20avg : null;
+
+                    // --- OHLCV Validation ---
+                    // rawAggs is newest-first from Massive; each bar: { c, o, h, l, v, date }
+                    function validateOHLCV(ag) {
+                      var errors = [];
+                      if (!ag || ag.length === 0) { errors.push("No OHLCV data available."); return { isValid:false, hasThirtyDays:false, canCalculateTodaySignal:false, errors:errors }; }
+                      var valid = ag.filter(function(b){ return b&&b.c>0&&b.h>0&&b.l>0&&b.v>=0; });
+                      if (valid.length < 2) errors.push("Fewer than 2 valid trading days.");
+                      var hasThirty = valid.length >= 30;
+                      var canToday  = valid.length >= 2 && valid.length >= 20;
+                      if (!hasThirty) errors.push("Fewer than 30 trading days -- 30-Day Signal unavailable.");
+                      return { isValid: valid.length >= 2, hasThirtyDays: hasThirty, canCalculateTodaySignal: canToday, validBars: valid, errors: errors };
+                    }
+
+                    function getScoreLabel(s) {
+                      return s >= 86 ? "Very High" : s >= 71 ? "High" : s >= 51 ? "Moderate" : s >= 31 ? "Mild" : "Low";
+                    }
+
+                    function scoreLabelColor(lbl) {
+                      return lbl==="Very High"||lbl==="High" ? "#1a6a1a" : lbl==="Moderate" ? "#b88000" : "#c03030";
+                    }
+
+                    function calcOBV(bars) {
+                      // bars = oldest-first
+                      var obv = [0];
+                      for (var i = 1; i < bars.length; i++) {
+                        if (bars[i].c > bars[i-1].c)      obv.push(obv[i-1] + bars[i].v);
+                        else if (bars[i].c < bars[i-1].c) obv.push(obv[i-1] - bars[i].v);
+                        else                               obv.push(obv[i-1]);
+                      }
+                      return obv;
+                    }
+
+                    function calcVolPriceDivergence(today, yesterday, avg30v) {
+                      var vRatio = avg30v > 0 ? today.v / avg30v : 0;
+                      var pct    = yesterday.c > 0 ? (today.c - yesterday.c) / yesterday.c * 100 : 0;
+                      var vTier  = vRatio>=2.0?"high":vRatio>=1.5?"elevated":vRatio>=1.0?"normal":"low";
+                      var pTier  = pct>3?"strongUp":pct>1?"mildUp":pct>-1?"flat":pct>-3?"mildDown":"strongDown";
+                      var matrix = {
+                        high:     { strongUp:65, mildUp:80, flat:100, mildDown:90, strongDown:10 },
+                        elevated: { strongUp:55, mildUp:65, flat:80,  mildDown:70, strongDown:15 },
+                        normal:   { strongUp:50, mildUp:50, flat:50,  mildDown:45, strongDown:30 },
+                        low:      { strongUp:45, mildUp:45, flat:40,  mildDown:40, strongDown:25 }
+                      };
+                      var textMap = {
+                        "high-flat":         "High volume with flat price — possible stealth accumulation. Buyers may be absorbing sellers.",
+                        "high-mildDown":     "High volume on a slight down day — possible absorption of selling pressure.",
+                        "high-mildUp":       "High volume with steady price rise — controlled institutional buying.",
+                        "high-strongUp":     "High volume on a strong up day — could be breakout or retail momentum. Ambiguous signal.",
+                        "high-strongDown":   "High volume on a down day — possible distribution. Sellers may be in control.",
+                        "elevated-flat":     "Elevated volume with flat price — mild accumulation signal worth watching.",
+                        "elevated-mildDown": "Elevated volume on a slight pullback — possible quiet buying into weakness.",
+                        "elevated-mildUp":   "Elevated volume with mild price gain — modest buying activity.",
+                        "elevated-strongUp": "Elevated volume on a strong up day — momentum with some conviction.",
+                        "elevated-strongDown":"Elevated volume selling — caution.",
+                      };
+                      var key = vTier+"-"+pTier;
+                      var explanation = textMap[key] || (vTier==="normal"||vTier==="low" ? "Volume is not elevated. No unusual activity detected from price-volume behaviour." : "No clear signal from this combination.");
+                      return { score: matrix[vTier][pTier], vTier:vTier, pTier:pTier, vRatio:vRatio, pct:pct, explanation:explanation };
+                    }
+
+                    function calcTodaySignal(bars) {
+                      var n = bars.length;
+                      var today = bars[n-1], yesterday = bars[n-2];
+                      var avg30v = bars.slice(Math.max(0,n-30)).reduce(function(s,b){return s+b.v;},0)/Math.min(n,30);
+                      var obv = calcOBV(bars);
+
+                      // 1. OBV Direction (20%) — magnitude-aware, 5 levels
+                      var obvDayChange = obv[n-1] - obv[n-2]; // signed volume today
+                      var obvDayRatio = avg30v > 0 ? obvDayChange / avg30v : 0;
+                      var obvDir = obvDayRatio > 1.0 ? 100 : obvDayRatio > 0.3 ? 75 : obvDayRatio > -0.3 ? 50 : obvDayRatio > -1.0 ? 25 : 0;
+                      var obvDirExpl = obvDayRatio > 1.0 ? "Strong buying day — OBV rose by more than one average day of volume." : obvDayRatio > 0.3 ? "Mild buying day — OBV rose on moderate volume." : obvDayRatio > -0.3 ? "Balanced — buying and selling roughly equal today." : obvDayRatio > -1.0 ? "Mild selling day — OBV fell on moderate volume." : "Strong selling day — OBV fell by more than one average day of volume.";
+
+                      // 2. Volume Surge (30%)
+                      var vRatio = avg30v > 0 ? today.v / avg30v : 0;
+                      var volScore = vRatio >= 3.0 ? 100 : vRatio >= 2.0 ? 75 : vRatio >= 1.5 ? 50 : vRatio >= 1.2 ? 25 : 0;
+
+                      // 3. Vol/Price Divergence (35%)
+                      var vpd = calcVolPriceDivergence(today, yesterday, avg30v);
+
+                      // 4. Strong Close (15%)
+                      var rng = today.h - today.l;
+                      var closePos = rng > 0 ? (today.c - today.l) / rng : 0.5;
+                      var closeScore = closePos > 0.85 ? 100 : closePos > 0.7 ? 80 : closePos > 0.5 ? 60 : closePos > 0.3 ? 30 : 0;
+
+                      var total = Math.round(obvDir*0.20 + volScore*0.30 + vpd.score*0.35 + closeScore*0.15);
+                      return {
+                        score: total, label: getScoreLabel(total),
+                        breakdown: [
+                          { name:"OBV Direction", score:Math.round(obvDir), weight:20, explanation: obvDirExpl,
+                            scoring:"●●●●●  100: OBV rose > 1.0x avg daily volume (strong buying)\n●●●●○   75: OBV rose 0.3x to 1.0x avg volume (mild buying)\n●●●○○   50: OBV flat ±0.3x avg volume (balanced)\n●●○○○   25: OBV fell 0.3x to 1.0x avg volume (mild selling)\n●○○○○    0: OBV fell > 1.0x avg daily volume (strong selling)\n\nNOTE: Single-day OBV has low weight (20%) — one day is noisy.\nMore reliable over 5 and 30 days." },
+                          { name:"Volume Surge", score:Math.round(volScore), weight:30,
+                            explanation: avg30v>0?"Volume is "+vRatio.toFixed(1)+"x the 30-day average ("+(today.v>=1e6?(today.v/1e6).toFixed(1)+"M":(today.v/1e3).toFixed(0)+"K")+" vs avg "+(avg30v>=1e6?(avg30v/1e6).toFixed(1)+"M":(avg30v/1e3).toFixed(0)+"K")+").":"Volume data unavailable.",
+                            scoring:"●●●●●  100: Volume ≥ 3.0x 30-day average\n●●●●○   75: Volume 2.0x to 3.0x\n●●●○○   50: Volume 1.5x to 2.0x\n●●○○○   25: Volume 1.2x to 1.5x\n●○○○○    0: Volume < 1.2x (no surge)" },
+                          { name:"Vol / Price Divergence", score:Math.round(vpd.score), weight:35, explanation: vpd.explanation,
+                            scoring:"High vol + flat price    → 100 (stealth accumulation)\nHigh vol + mild down     →  90 (absorption)\nHigh vol + mild up       →  80 (controlled buying)\nHigh vol + strong up     →  65 (ambiguous)\nHigh vol + strong down   →  10 (distribution)\nElevated vol + flat/down → 70–80\nNormal/low vol + any     → 40–50\n\nVolume: High ≥2x | Elevated ≥1.5x | Normal ≥1x | Low <1x\nPrice: Strong Up >+3% | Mild Up +1–3% | Flat ±1% | Mild Down -3–-1% | Strong Down <-3%" },
+                          { name:"Strong Close", score:Math.round(closeScore), weight:15,
+                            explanation: rng>0?"Closed at "+(closePos*100).toFixed(0)+"% of today's range (low $"+today.l.toFixed(2)+" — high $"+today.h.toFixed(2)+").":"No price range today.",
+                            scoring:"●●●●●  100: Closed in top 15% of day range (>85%)\n●●●●○   80: Closed in top 30% (>70%)\n●●●○○   60: Closed in upper half (>50%)\n●●○○○   30: Closed in lower half (30–50%)\n●○○○○    0: Closed near low (<30%)" }
+                        ]
+                      };
+                    }
+
+                    function calcFiveDaySignal(bars) {
+                      var n = bars.length;
+                      var avg30v = bars.slice(Math.max(0,n-30)).reduce(function(s,b){return s+b.v;},0)/Math.min(n,30);
+                      var obv = calcOBV(bars);
+                      // 1. OBV Net 5-Day (40%)
+                      var obvNet5 = obv[n-1] - obv[n-6];
+                      var obvNet5Days = avg30v>0?obvNet5/avg30v:0;
+                      var obv5Score = obvNet5Days>2?100:obvNet5Days>0?75:obvNet5Days>-2?50:obvNet5Days>-4?25:0;
+                      // 2. Volume Surge 5d avg vs 30d avg (25%)
+                      var avg5v = bars.slice(n-5).reduce(function(s,b){return s+b.v;},0)/5;
+                      var vRatio5 = avg30v>0?avg5v/avg30v:0;
+                      var volScore5 = vRatio5>=2.0?100:vRatio5>=1.5?75:vRatio5>=1.2?50:vRatio5>=1.0?25:0;
+                      // 3. Vol/Price Divergence 5d (20%) — 5d price change vs 5d avg volume
+                      var pct5 = bars[n-6].c>0?(bars[n-1].c-bars[n-6].c)/bars[n-6].c*100:0;
+                      var vTier5 = vRatio5>=2.0?"high":vRatio5>=1.5?"elevated":vRatio5>=1.0?"normal":"low";
+                      var pTier5 = pct5>3?"strongUp":pct5>1?"mildUp":pct5>-1?"flat":pct5>-3?"mildDown":"strongDown";
+                      var matrix5 = {high:{strongUp:65,mildUp:80,flat:100,mildDown:90,strongDown:10},elevated:{strongUp:55,mildUp:65,flat:80,mildDown:70,strongDown:15},normal:{strongUp:50,mildUp:50,flat:50,mildDown:45,strongDown:30},low:{strongUp:45,mildUp:45,flat:40,mildDown:40,strongDown:25}};
+                      var vpd5Score = matrix5[vTier5][pTier5];
+                      var vpd5Expl = vTier5==="high"&&pTier5==="flat"?"High avg volume with flat 5-day price — possible short-term accumulation.":vTier5==="high"&&pTier5==="mildDown"?"High avg volume on slight 5-day decline — possible absorption.":vTier5==="high"&&pTier5==="strongDown"?"High volume with falling price over 5 days — possible distribution.":"5-day price "+(pct5>0?"+":"")+pct5.toFixed(1)+"% on "+(vRatio5.toFixed(1))+"x average volume.";
+                      // 4. Strong Close Frequency 5d (15%)
+                      var sc5 = 0;
+                      for(var i=n-5;i<n;i++){var r=bars[i].h-bars[i].l;if(r>0&&(bars[i].c-bars[i].l)/r>0.6)sc5++;}
+                      var sc5Score = sc5>=4?100:sc5===3?75:sc5===2?50:sc5===1?25:0;
+
+                      var total = Math.round(obv5Score*0.35 + volScore5*0.25 + vpd5Score*0.25 + sc5Score*0.15);
+                      return {
+                        score: total, label: getScoreLabel(total),
+                        breakdown: [
+                          { name:"OBV Net (5-day)", score:Math.round(obv5Score), weight:35,
+                            explanation: "Net OBV over 5 days = "+(obvNet5Days>0?"+":"")+obvNet5Days.toFixed(1)+" days of avg volume ("+(obvNet5>0?"+":"")+Math.round(obvNet5/1e6*10)/10+"M net). "+(obvNet5Days>2?"Strong net buying.":obvNet5Days>0?"Mild net buying.":obvNet5Days>-2?"Roughly balanced.":"Net selling pressure."),
+                            scoring:"●●●●●  100: Net OBV > +2 days of avg volume\n●●●●○   75: Net OBV 0 to +2 days (net buying)\n●●●○○   50: Net OBV -2 to 0 days (balanced)\n●●○○○   25: Net OBV -4 to -2 days (net selling)\n●○○○○    0: Net OBV < -4 days (strong selling)\n\nFormula: (OBV today − OBV 5 days ago) ÷ avg 30-day volume" },
+                          { name:"Volume (5-day avg)", score:Math.round(volScore5), weight:25,
+                            explanation: "5-day avg volume is "+vRatio5.toFixed(1)+"x the 30-day average ("+(avg5v>=1e6?(avg5v/1e6).toFixed(1)+"M":(avg5v/1e3).toFixed(0)+"K")+" vs avg "+(avg30v>=1e6?(avg30v/1e6).toFixed(1)+"M":(avg30v/1e3).toFixed(0)+"K")+").",
+                            scoring:"●●●●●  100: 5d avg ≥ 2.0x 30-day average\n●●●●○   75: 5d avg 1.5x to 2.0x\n●●●○○   50: 5d avg 1.2x to 1.5x (slightly elevated)\n●●○○○   25: 5d avg 1.0x to 1.2x (normal)\n●○○○○    0: 5d avg < 1.0x (below average)" },
+                          { name:"Vol / Price (5-day)", score:Math.round(vpd5Score), weight:25, explanation: vpd5Expl,
+                            scoring:"Same matrix as Today Signal — applied to 5-day price change and 5-day avg volume ratio.\n\nHigh vol + flat 5d price    → 100\nHigh vol + mild 5d down     →  90\nHigh vol + mild 5d up       →  80\nHigh vol + strong 5d up     →  65\nHigh vol + strong 5d down   →  10\nNormal/low vol              → 40–50" },
+                          { name:"Strong Close (5-day)", score:Math.round(sc5Score), weight:15,
+                            explanation: sc5+" of last 5 days closed in the upper 40% of daily range.",
+                            scoring:"●●●●●  100: 4–5 of 5 days with strong close\n●●●●○   75: 3 of 5 days\n●●●○○   50: 2 of 5 days\n●●○○○   25: 1 of 5 days\n●○○○○    0: 0 of 5 days\n\nStrong close = closed above 60% of day's high-low range" }
+                        ]
+                      };
+                    }
+
+                    function calcThirtyDaySignal(bars) {
+                      var n = bars.length;
+                      var avg30v = bars.slice(n-30).reduce(function(s,b){return s+b.v;},0)/30;
+                      var obv = calcOBV(bars);
+                      // 1. OBV Trend 30-Day (40%)
+                      var obvChange = obv[n-1]-obv[1];
+                      var obvInDays = avg30v>0?obvChange/avg30v:0;
+                      var obvScore = obvInDays>5?100:obvInDays>0?75:obvInDays>-5?50:obvInDays>-10?25:0;
+                      // 2. High-Volume Green Days (25%)
+                      var hvGreen=0,hvRed=0;
+                      for(var i=n-29;i<n;i++){if(bars[i].v>1.5*avg30v){if(bars[i].c>bars[i-1].c)hvGreen++;else if(bars[i].c<bars[i-1].c)hvRed++;}}
+                      var hvScore = hvGreen>=hvRed*2?100:hvGreen>hvRed?75:hvGreen===hvRed?50:hvRed>hvGreen?25:0;
+                      // 3. Price Stability / Strength (20%)
+                      var p30=bars[n-30].c,pNow=bars[n-1].c;
+                      var pct30=p30>0?(pNow-p30)/p30*100:0;
+                      var priceScore = pct30>10?100:pct30>0?75:pct30>-5?50:pct30>-10?25:0;
+                      // 4. Strong Close Frequency 30d (15%)
+                      var scDays=0;
+                      for(var j=n-30;j<n;j++){var rng=bars[j].h-bars[j].l;if(rng>0&&(bars[j].c-bars[j].l)/rng>0.6)scDays++;}
+                      var scFreq=scDays/30;
+                      var scScore=scFreq>0.65?100:scFreq>0.5?75:scFreq>0.4?50:scFreq>0.3?25:0;
+
+                      var total = Math.round(obvScore*0.40 + hvScore*0.25 + priceScore*0.20 + scScore*0.15);
+                      return {
+                        score: total, label: getScoreLabel(total),
+                        breakdown: [
+                          { name:"OBV Trend (30-day)", score:Math.round(obvScore), weight:40,
+                            explanation: "Net OBV change equals "+(obvInDays>0?"+":"")+obvInDays.toFixed(1)+" days of avg volume ("+(obvChange>0?"+":"")+Math.round(obvChange/1e6*10)/10+"M net). "+(obvInDays>5?"Strong buying pressure accumulated.":obvInDays>0?"Net buying over the period.":obvInDays>-5?"Roughly balanced.":obvInDays>-10?"Net selling pressure.":"Strong selling pressure accumulated."),
+                            scoring:"●●●●●  100: Net OBV > +5 days of avg volume (strongly rising)\n●●●●○   75: Net OBV 0 to +5 days (rising)\n●●●○○   50: Net OBV -5 to 0 days (flat)\n●●○○○   25: Net OBV -10 to -5 days (falling)\n●○○○○    0: Net OBV < -10 days (strongly falling)\n\nFormula: (OBV today − OBV day 1) ÷ avg 30-day volume\nMost reliable OBV signal — 30 days removes daily noise." },
+                          { name:"High-Volume Green Days", score:Math.round(hvScore), weight:25,
+                            explanation: hvGreen+" high-volume up days vs "+hvRed+" high-volume down days in 30 sessions.",
+                            scoring:"●●●●●  100: Green days ≥ 2× red days\n●●●●○   75: More green than red\n●●●○○   50: Equal green and red\n●●○○○   25: More red than green\n●○○○○    0: Red days ≥ 2× green days\n\nHigh-volume day = volume > 1.5× 30-day average" },
+                          { name:"Price Stability / Strength", score:Math.round(priceScore), weight:20,
+                            explanation: "Price is "+(pct30>0?"+":"")+pct30.toFixed(1)+"% vs 30 trading days ago.",
+                            scoring:"●●●●●  100: Price > +10% vs 30 days ago\n●●●●○   75: Price 0% to +10%\n●●●○○   50: Price -5% to 0%\n●●○○○   25: Price -10% to -5%\n●○○○○    0: Price < -10%" },
+                          { name:"Strong Close Frequency", score:Math.round(scScore), weight:15,
+                            explanation: scDays+" of 30 days closed in upper 40% of daily range ("+(scFreq*100).toFixed(0)+"%).",
+                            scoring:"●●●●●  100: > 65% of days with strong close\n●●●●○   75: 50% to 65%\n●●●○○   50: 40% to 50%\n●●○○○   25: 30% to 40%\n●○○○○    0: < 30%\n\nStrong close = closed above 60% of day's high-low range" }
+                        ]
+                      };
+                    }
+
+                    function getInterpretation(tScore, dScore) {
+                      var tHigh = tScore >= 51, dHigh = dScore >= 51;
+                      if (tHigh && dHigh)   return "Possible accumulation detected. Today's trading shows unusual price and volume behaviour, and the 30-day trend suggests it may have been building over time.";
+                      if (tHigh && !dHigh)  return "Short-term activity spike detected. Today's trading is unusual, but there is limited evidence of sustained 30-day accumulation.";
+                      if (!tHigh && dHigh)  return "Possible quiet accumulation. Today is not unusual, but the 30-day trend in price and volume remains constructive.";
+                      return "No clear accumulation signal detected from recent price and volume behaviour.";
+                    }
+
+                    // --- Data prep ---
+                    var validation = validateOHLCV(rawAggs);
+                    var bars = validation.validBars ? validation.validBars.slice().reverse() : [];
+                    var todaySig     = validation.canCalculateTodaySignal ? calcTodaySignal(bars) : null;
+                    var fiveDaySig   = bars.length >= 6 ? calcFiveDaySignal(bars) : null;
+                    var thirtyDaySig = validation.hasThirtyDays ? calcThirtyDaySignal(bars) : null;
+                    var interp = (todaySig||thirtyDaySig) ? getInterpretation(todaySig?todaySig.score:0, thirtyDaySig?thirtyDaySig.score:0) : null;
+
+                    // Options secondary data
                     var putCallOI  = whaleData && whaleData.putCallOI  ? parseFloat(whaleData.putCallOI)  : null;
                     var putCallVol = whaleData && whaleData.putCallVol ? parseFloat(whaleData.putCallVol) : null;
                     var callOIw  = whaleData ? (whaleData.callOI  || 0) : 0;
@@ -6876,84 +6954,133 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var callVolw = whaleData ? (whaleData.callVol || 0) : 0;
                     var putVolw  = whaleData ? (whaleData.putVol  || 0) : 0;
                     var topOIw   = whaleData && whaleData.topOI ? whaleData.topOI : [];
-                    var insiderBuys = ov && ov.insiderTx ? ov.insiderTx.filter(function(t) {
-                      var a = (t.action||"").toLowerCase();
-                      return a.indexOf("purchase")!==-1||a.indexOf("buy")!==-1||a.indexOf("acquisition")!==-1;
+                    var insiderBuys = ov && ov.insiderTx ? ov.insiderTx.filter(function(t){
+                      var a=(t.action||"").toLowerCase(); return a.indexOf("purchase")!==-1||a.indexOf("buy")!==-1||a.indexOf("acquisition")!==-1;
                     }) : [];
-                    var sig1 = putCallOI !== null ? (putCallOI < 0.7 ? "bull" : putCallOI > 1.3 ? "bear" : "neutral") : "nodata";
-                    var sig2 = putCallVol !== null ? (putCallVol < 0.7 ? "bull" : putCallVol > 1.3 ? "bear" : "neutral") : "nodata";
-                    var sig3 = volRatioW !== null ? (volRatioW > 1.5 ? "spike" : volRatioW > 1.1 ? "elevated" : "normal") : "nodata";
-                    var sig4 = insiderBuys.length >= 2 ? "strong" : insiderBuys.length === 1 ? "mild" : "none";
-                    var wScore = 0;
-                    if (sig1==="bull") wScore+=30; if (sig1==="bear") wScore-=30;
-                    if (sig2==="bull") wScore+=25; if (sig2==="bear") wScore-=25;
-                    if (sig3==="spike") wScore+=20; if (sig3==="elevated") wScore+=10;
-                    if (sig4==="strong") wScore+=25; if (sig4==="mild") wScore+=10;
-                    var wLabel = wScore>=40?"Strong Accumulation":wScore>=15?"Mild Accumulation":wScore<=-40?"Strong Distribution":wScore<=-15?"Mild Distribution":"Neutral / No Signal";
-                    var wColor = wScore>=15?"#1a6a1a":wScore<=-15?"#c03030":"#888";
-                    var wBg    = wScore>=15?"#f0f7f0":wScore<=-15?"#fdf0f0":"#f9f7f4";
-                    var wBd    = wScore>=15?"#7abd00":wScore<=-15?"#e05050":"#e0dbd0";
-                    function fmtKw(n) { if(!n) return "-"; if(n>=1e6) return (n/1e6).toFixed(1)+"M"; if(n>=1e3) return (n/1e3).toFixed(0)+"K"; return String(n); }
-                    function WSignalRow(label, value, bullish, neutral) {
-                      var col = bullish===true?"#1a6a1a":neutral===true?"#888":"#c03030";
-                      var icon = bullish===true?"▲":neutral===true?"—":"▼";
-                      var rowBg = bullish===true?"#f5fdf5":neutral===true?"#fafafa":"#fdf5f5";
+                    function fmtKw(n){ if(!n) return "-"; if(n>=1e6) return (n/1e6).toFixed(1)+"M"; if(n>=1e3) return (n/1e3).toFixed(0)+"K"; return String(n); }
+
+                    function SignalCard(props) {
+                      var sig = props.sig, title = props.title, subtitle = props.subtitle;
+                      if (!sig) return (
+                        <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10, padding:"16px 18px", marginBottom:16, background:"#faf8f4" }}>
+                          <div style={{ fontSize:11, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>{title}</div>
+                          <div style={{ fontSize:11, color:"#aaa" }}>{props.unavailMsg || "Not enough data to calculate this signal."}</div>
+                        </div>
+                      );
+                      var lbl = sig.label, col = scoreLabelColor(lbl);
+                      var bgMap = { "Very High":"#e6f4e6", "High":"#e6f4e6", "Moderate":"#fdf8e6", "Mild":"#fff4ee", "Low":"#fff0f0" };
+                      var bdMap = { "Very High":"#7abd00", "High":"#7abd00", "Moderate":"#d4a800", "Mild":"#e08050", "Low":"#e08080" };
                       return (
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 14px", borderBottom:"0.5px solid #f0ede6", background:rowBg }}>
-                          <div>
-                            <div style={{ fontSize:12, fontWeight:700, color:"#222" }}>{label}</div>
-                            <div style={{ fontSize:11, color:"#888", marginTop:2 }}>{value}</div>
+                        <div style={{ border:"0.5px solid "+bdMap[lbl], borderRadius:10, marginBottom:16, overflow:"hidden" }}>
+                          <div style={{ background:bgMap[lbl], padding:"14px 16px", borderBottom:"0.5px solid "+bdMap[lbl] }}>
+                            <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:2 }}>{title}</div>
+                            <div style={{ fontSize:11, color:"#888", marginBottom:8 }}>{subtitle}</div>
+                            <div style={{ display:"flex", alignItems:"baseline", gap:10 }}>
+                              <span style={{ fontSize:22, fontWeight:800, color:col }}>{sig.score}</span>
+                              <span style={{ fontSize:13, color:"#aaa" }}>/ 100</span>
+                              <span style={{ fontSize:13, fontWeight:700, color:col, marginLeft:4 }}>{lbl}</span>
+                            </div>
                           </div>
-                          <div style={{ fontSize:16, fontWeight:800, color:col, marginLeft:12 }}>{icon}</div>
+                          <div>
+                            {sig.breakdown.map(function(b, i) {
+                              var bCol = b.score>=71?"#1a6a1a":b.score>=51?"#b88000":"#c03030";
+                              var _sc = b.scoring || null; // scoring text comes from breakdown item
+                              return (
+                                <div key={i} style={{ borderBottom: i<sig.breakdown.length-1?"0.5px solid #f0ede6":"none" }}>
+                                  <div style={{ padding:"10px 14px", display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
+                                    <div style={{ flex:1 }}>
+                                      <div style={{ fontSize:12, fontWeight:700, color:"#333", marginBottom:2 }}>{b.name}
+                                        <span style={{ fontSize:9, color:"#bbb", fontWeight:400, marginLeft:6 }}>{"(wt:"+b.weight+"%)"}</span>
+                                      </div>
+                                      <div style={{ fontSize:11, color:"#888", lineHeight:1.5 }}>{b.explanation}</div>
+                                    </div>
+                                    <div style={{ textAlign:"right", flexShrink:0 }}>
+                                      <span style={{ fontSize:13, fontWeight:700, color:bCol }}>{b.score}</span>
+                                      <span style={{ fontSize:10, color:"#bbb" }}>{"/100"}</span>
+                                    </div>
+                                  </div>
+                                  {_sc && (
+                                    <div style={{ padding:"0 14px 8px 14px" }}>
+                                      <details>
+                                        <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",userSelect:"none",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4}}>
+                                          <span style={{fontSize:9,color:"#ccc"}}>{"\u25b6"}</span>
+                                          <span>How is this scored?</span>
+                                        </summary>
+                                        <div style={{padding:"6px 8px",background:"#f9f7f4",borderRadius:4,marginTop:3,fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line"}}>{_sc}</div>
+                                      </details>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     }
+
                     return (
                       <div>
-                        <div style={{ background:wBg, border:"1px solid "+wBd, borderRadius:10, padding:"16px 18px", marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                          <div>
-                            <div style={{ fontSize:10, color:"#999", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Whale Pressure</div>
-                            <div style={{ fontSize:20, fontWeight:800, color:wColor }}>{wLabel}</div>
-                            <div style={{ fontSize:11, color:"#aaa", marginTop:4 }}>{"Score: "+(wScore>0?"+":"")+wScore+" / 100"}</div>
-                          </div>
-                          <div style={{ fontSize:36 }}>{"🐋"}</div>
+                        <div style={{ marginBottom:16 }}>
+                          <div style={{ fontSize:13, fontWeight:700, color:"#111", marginBottom:2 }}>Smart Money Flow</div>
+                          <div style={{ fontSize:11, color:"#888" }}>Tracks possible accumulation using price and volume behaviour.</div>
                         </div>
-                        {whaleLoading && <div style={{ textAlign:"center", padding:"24px", color:"#aaa", fontSize:12 }}>{"Loading options data..."}</div>}
-                        {!whaleLoading && (
-                          <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10, overflow:"hidden", marginBottom:16 }}>
-                            <div style={{ padding:"10px 14px", background:"#faf8f4", borderBottom:"1px solid #e8e4dc" }}>
-                              <span style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em" }}>Signal Breakdown</span>
-                            </div>
-                            {WSignalRow("Options OI Skew", putCallOI!==null?"P/C OI: "+putCallOI.toFixed(2)+"  |  Calls: "+fmtKw(callOIw)+"  Puts: "+fmtKw(putOIw):"Options data unavailable", sig1==="bull", sig1==="neutral"||sig1==="nodata")}
-                            {WSignalRow("Options Volume Skew", putCallVol!==null?"P/C Vol: "+putCallVol.toFixed(2)+"  |  Call Vol: "+fmtKw(callVolw)+"  Put Vol: "+fmtKw(putVolw):"Options data unavailable", sig2==="bull", sig2==="neutral"||sig2==="nodata")}
-                            {WSignalRow("Volume Spike (5d vs 20d)", volRatioW!==null?"Ratio: "+volRatioW.toFixed(2)+"x  |  5d: "+fmtKw(Math.round(vol5avg))+"  20d: "+fmtKw(Math.round(vol20avg)):"Volume data unavailable", sig3==="spike"||sig3==="elevated", sig3==="normal"||sig3==="nodata")}
-                            {WSignalRow("Insider Buying", insiderBuys.length>0?insiderBuys.length+" recent buy"+(insiderBuys.length>1?"s":"")+" — "+(insiderBuys[0]?insiderBuys[0].name:""):"No recent insider purchases", sig4==="strong"||sig4==="mild", sig4==="none")}
+
+                        {SignalCard({ sig:todaySig, title:"Today Signal", subtitle:"Is something unusual happening now?", unavailMsg: validation.errors.join(" ") })}
+                        {SignalCard({ sig:fiveDaySig, title:"5-Day Signal", subtitle:"Has short-term accumulation started?", unavailMsg:"Not enough data for 5-Day Signal. At least 6 trading days required." })}
+                        {SignalCard({ sig:thirtyDaySig, title:"30-Day Signal", subtitle:"Has accumulation been building?", unavailMsg:"Not enough price and volume data to calculate the 30-Day Signal. At least 30 trading days of OHLCV data is required." })}
+
+                        {interp && (
+                          <div style={{ padding:"12px 14px", background:"#f5f2ec", borderRadius:10, marginBottom:16, border:"0.5px solid #e0dbd0" }}>
+                            <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Interpretation</div>
+                            <div style={{ fontSize:12, color:"#444", lineHeight:1.7 }}>{interp}</div>
                           </div>
                         )}
-                        {!whaleLoading && topOIw.length > 0 && (
-                          <div style={{ marginBottom:16 }}>
-                            <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Top 10 Contracts by Open Interest</div>
-                            <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10, overflow:"hidden" }}>
-                              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-                                <thead><tr style={{ background:"#faf8f4", borderBottom:"1px solid #e8e4dc" }}>
-                                  {["Type","Strike","Expiry","OI","IV","Last"].map(function(h){ return <td key={h} style={{ padding:"6px 10px", color:"#999", fontWeight:700, textTransform:"uppercase", fontSize:9 }}>{h}</td>; })}
-                                </tr></thead>
-                                <tbody>
-                                  {topOIw.map(function(c,i){ var isCall=c.type==="call"; return (
-                                    <tr key={i} style={{ borderBottom:"0.5px solid #f5f2ec", background:i%2===0?"#fff":"#faf8f4" }}>
-                                      <td style={{ padding:"7px 10px", fontWeight:700, color:isCall?"#1a6a1a":"#c03030" }}>{(c.type||"").toUpperCase()}</td>
-                                      <td style={{ padding:"7px 10px", fontWeight:600 }}>{"$"+(c.strike||"-")}</td>
-                                      <td style={{ padding:"7px 10px", color:"#888" }}>{c.expiry||"-"}</td>
-                                      <td style={{ padding:"7px 10px", fontWeight:700 }}>{fmtKw(c.oi)}</td>
-                                      <td style={{ padding:"7px 10px", color:"#666" }}>{c.iv||"-"}</td>
-                                      <td style={{ padding:"7px 10px", color:"#666" }}>{c.last!=null?"$"+parseFloat(c.last).toFixed(2):"-"}</td>
-                                    </tr>
-                                  ); })}
-                                </tbody>
-                              </table>
+
+                        {!whaleLoading && (putCallOI!==null||topOIw.length>0) && (
+                          <div style={{ marginBottom:12 }}>
+                            <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Options Context</div>
+                            <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10, overflow:"hidden", marginBottom:12 }}>
+                              {[
+                                ["Options OI Skew", putCallOI!==null?"P/C OI: "+putCallOI.toFixed(2)+"  |  Calls: "+fmtKw(callOIw)+"  Puts: "+fmtKw(putOIw):"Unavailable", putCallOI!==null&&putCallOI<0.7],
+                                ["Options Volume Skew", putCallVol!==null?"P/C Vol: "+putCallVol.toFixed(2)+"  |  Call Vol: "+fmtKw(callVolw)+"  Put Vol: "+fmtKw(putVolw):"Unavailable", putCallVol!==null&&putCallVol<0.7],
+                              ].map(function(row,i){
+                                var bullish=row[2]; var col=bullish?"#1a6a1a":"#888";
+                                return <div key={i} style={{ padding:"10px 14px", borderBottom:i===0?"0.5px solid #f0ede6":"none", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                                  <div>
+                                    <div style={{ fontSize:12, fontWeight:700, color:"#333" }}>{row[0]}</div>
+                                    <div style={{ fontSize:11, color:"#888", marginTop:2 }}>{row[1]}</div>
+                                  </div>
+                                  <span style={{ fontSize:14, color:col, fontWeight:700 }}>{bullish?"▲":"—"}</span>
+                                </div>;
+                              })}
                             </div>
+                            {topOIw.length > 0 && (
+                              <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10, overflow:"hidden", marginBottom:12 }}>
+                                <div style={{ padding:"8px 14px", background:"#faf8f4", borderBottom:"1px solid #e8e4dc" }}>
+                                  <span style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em" }}>Top Contracts by Open Interest</span>
+                                </div>
+                                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                                  <thead><tr style={{ background:"#faf8f4", borderBottom:"1px solid #e8e4dc" }}>
+                                    {["Type","Strike","Expiry","OI","IV","Last"].map(function(h){ return <td key={h} style={{ padding:"6px 10px", color:"#999", fontWeight:700, textTransform:"uppercase", fontSize:9 }}>{h}</td>; })}
+                                  </tr></thead>
+                                  <tbody>
+                                    {topOIw.map(function(c,i){ var isCall=c.type==="call"; return (
+                                      <tr key={i} style={{ borderBottom:"0.5px solid #f5f2ec", background:i%2===0?"#fff":"#faf8f4" }}>
+                                        <td style={{ padding:"7px 10px", fontWeight:700, color:isCall?"#1a6a1a":"#c03030" }}>{(c.type||"").toUpperCase()}</td>
+                                        <td style={{ padding:"7px 10px", fontWeight:600 }}>{"$"+(c.strike||"-")}</td>
+                                        <td style={{ padding:"7px 10px", color:"#888" }}>{c.expiry||"-"}</td>
+                                        <td style={{ padding:"7px 10px", fontWeight:700 }}>{fmtKw(c.oi)}</td>
+                                        <td style={{ padding:"7px 10px", color:"#666" }}>{c.iv||"-"}</td>
+                                        <td style={{ padding:"7px 10px", color:"#666" }}>{c.last!=null?"$"+parseFloat(c.last).toFixed(2):"-"}</td>
+                                      </tr>
+                                    ); })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
                           </div>
                         )}
+
                         {ov && (ov.institutionPct>0||ov.insiderPct>0) && (
                           <div style={{ marginBottom:16 }}>
                             <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Institutional Footprint</div>
@@ -6967,8 +7094,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             </div>
                           </div>
                         )}
-                        <div style={{ fontSize:10, color:"#aaa", lineHeight:1.6, padding:"10px 12px", background:"#faf8f4", borderRadius:8, border:"0.5px solid #e8e4de" }}>
-                          {"Whale Tracker combines options OI skew, volume spikes, and insider activity as proxy signals for large-money positioning. Options data covers next 60 days of contracts (limit 250). Not financial advice."}
+
+                        <div style={{ fontSize:10, color:"#aaa", lineHeight:1.6, padding:"10px 12px", background:"#faf8f4", borderRadius:8, border:"0.5px solid #e8e4dc" }}>
+                          {"This signal is based on price and volume behaviour only. It does not confirm actual institutional or whale purchases. Not financial advice."}
                         </div>
                       </div>
                     );
@@ -8351,7 +8479,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v1.97</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.07</span>
           </div>
         </div>
 
