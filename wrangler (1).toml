@@ -1,0 +1,7 @@
+name = "stockinsight"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "stockinsight-journal"
+database_id = "37ecfbdc-dcd1-4873-8217-10c7285199c5"
