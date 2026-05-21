@@ -2666,7 +2666,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.16</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.17</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2720,7 +2720,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.16</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.17</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -8581,7 +8581,7 @@ function PaywallCard({ sym, name, onBack, isPaid, clerkUser, mode }) {
 
 // -- Landing page -------------------------------------------------------------
 // ─── Technical Signal Journal ─────────────────────────────────────────────────
-function JournalPage() {
+export function JournalPage() {
   var F = "'Inter', system-ui, sans-serif";
   var [adminKey, setAdminKey]       = useState(localStorage.getItem("journal_admin_key") || "");
   var [authed, setAuthed]           = useState(false);
@@ -9010,15 +9010,6 @@ export default function App() {
   const [landingNews,   setLandingNews]   = useState([]);
   const [newsFilter,    setNewsFilter]    = useState("ALL");
   const [tickerEnrich,  setTickerEnrich]  = useState({});
-
-  // Journal route
-  const [journalMode, setJournalMode] = useState(window.location.hash === "#journal");
-  useEffect(function() {
-    function onHash() { setJournalMode(window.location.hash === "#journal"); }
-    window.addEventListener("hashchange", onHash);
-    return function() { window.removeEventListener("hashchange", onHash); };
-  }, []);
-  if (journalMode) return <JournalPage />;
 
   // Mount UserButton on landing page when signed in
   // Uses MutationObserver to detect when the div appears in DOM after navigation
@@ -9524,7 +9515,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.16</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.17</span>
           </div>
         </div>
 
