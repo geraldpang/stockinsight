@@ -97,13 +97,20 @@ export async function onRequest(context) {
     }
 
     if (isPremiumRoute && !isFreeTickerReq) {
-      var clerkSecretKey = context.env.CLERK_SECRET_KEY;
-      var isAuthed = await verifyClerkToken(context.request, clerkSecretKey);
-      if (!isAuthed) {
-        return new Response(JSON.stringify({ error: "Unauthorised. Please sign in to access this ticker." }), {
-          status: 401,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
+      // Admin key bypass — journal snapshot generation
+      var adminKeyCheck = context.env.ADMIN_KEY || "stockinsight-admin";
+      var reqAdminKey   = context.request.headers.get("X-Admin-Key") || "";
+      var isAdminBypass = reqAdminKey === adminKeyCheck;
+
+      if (!isAdminBypass) {
+        var clerkSecretKey = context.env.CLERK_SECRET_KEY;
+        var isAuthed = await verifyClerkToken(context.request, clerkSecretKey);
+        if (!isAuthed) {
+          return new Response(JSON.stringify({ error: "Unauthorised. Please sign in to access this ticker." }), {
+            status: 401,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
       }
     }
 
