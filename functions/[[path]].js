@@ -771,6 +771,180 @@ export async function onRequest(context) {
       }
     }
 
+    // ── Journal API (D1 database) ─────────────────────────────────────────────
+    if (url.pathname.startsWith("/journal")) {
+      var DB = context.env.DB;
+      if (!DB) return new Response(JSON.stringify({ error: "D1 database not configured" }), { status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+
+      var jHeaders = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
+      var jAction = url.searchParams.get("action");
+
+      // ── Admin auth check ────────────────────────────────────────────────────
+      var jAdminKey = context.env.ADMIN_KEY || "stockinsight-admin";
+      var jAuth = context.request.headers.get("X-Admin-Key") || url.searchParams.get("adminKey");
+      if (jAuth !== jAdminKey) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: jHeaders });
+
+      try {
+        // GET watchlist
+        if (context.request.method === "GET" && jAction === "watchlist") {
+          var rows = await DB.prepare("SELECT * FROM technical_journal_watchlist WHERE is_active = 1 ORDER BY ticker").all();
+          return new Response(JSON.stringify({ watchlist: rows.results }), { headers: jHeaders });
+        }
+
+        // POST add ticker
+        if (context.request.method === "POST" && jAction === "addTicker") {
+          var body = await context.request.json();
+          var ticker = (body.ticker || "").toUpperCase().trim();
+          if (!ticker) return new Response(JSON.stringify({ error: "Ticker required" }), { status: 400, headers: jHeaders });
+          // Check existing
+          var existing = await DB.prepare("SELECT id, is_active FROM technical_journal_watchlist WHERE ticker = ?").bind(ticker).first();
+          if (existing && existing.is_active) return new Response(JSON.stringify({ error: ticker + " is already being tracked." }), { status: 409, headers: jHeaders });
+          if (existing && !existing.is_active) {
+            await DB.prepare("UPDATE technical_journal_watchlist SET is_active = 1, updated_at = datetime('now') WHERE ticker = ?").bind(ticker).run();
+            return new Response(JSON.stringify({ ok: true, message: ticker + " reactivated." }), { headers: jHeaders });
+          }
+          await DB.prepare("INSERT INTO technical_journal_watchlist (ticker, company_name) VALUES (?, ?)").bind(ticker, body.companyName || null).run();
+          return new Response(JSON.stringify({ ok: true, message: ticker + " added." }), { headers: jHeaders });
+        }
+
+        // POST remove ticker (soft delete)
+        if (context.request.method === "POST" && jAction === "removeTicker") {
+          var body2 = await context.request.json();
+          var ticker2 = (body2.ticker || "").toUpperCase().trim();
+          await DB.prepare("UPDATE technical_journal_watchlist SET is_active = 0, updated_at = datetime('now') WHERE ticker = ?").bind(ticker2).run();
+          return new Response(JSON.stringify({ ok: true }), { headers: jHeaders });
+        }
+
+        // POST upsert snapshot
+        if (context.request.method === "POST" && jAction === "upsertSnapshot") {
+          var snap = await context.request.json();
+          var t = snap.ticker, d = snap.snapshotDate;
+          if (!t || !d || !snap.close) return new Response(JSON.stringify({ error: "ticker, snapshotDate, close required" }), { status: 400, headers: jHeaders });
+
+          var sql = `INSERT INTO technical_signal_journal (
+            ticker, snapshot_date, open_price, high_price, low_price, close_price, volume,
+            trend_status, trend_score, price_vs_20d_ema_pct, price_vs_50d_sma_pct, price_vs_200d_sma_pct, weekly_trend_score, golden_death_cross_status,
+            momentum_status, momentum_score, rsi_value, rsi_direction_5d, macd_histogram, macd_histogram_direction, price_vs_sma5_pct,
+            reversal_status, reversal_score, bullish_reversal_score, bearish_reversal_score,
+            bullish_setup_score, bullish_trigger_score, bullish_confirmation_score,
+            bearish_setup_score, bearish_trigger_score, bearish_confirmation_score,
+            smart_money_status, smart_money_score, today_activity_score, five_day_flow_score, thirty_day_accumulation_score,
+            obv_value, obv_trend_30d, volume_ratio, data_source
+          ) VALUES (
+            ?,?,?,?,?,?,?,
+            ?,?,?,?,?,?,?,
+            ?,?,?,?,?,?,?,
+            ?,?,?,?,
+            ?,?,?,
+            ?,?,?,
+            ?,?,?,?,?,
+            ?,?,?,?
+          ) ON CONFLICT(ticker, snapshot_date) DO UPDATE SET
+            open_price=excluded.open_price, high_price=excluded.high_price, low_price=excluded.low_price, close_price=excluded.close_price, volume=excluded.volume,
+            trend_status=excluded.trend_status, trend_score=excluded.trend_score,
+            momentum_status=excluded.momentum_status, momentum_score=excluded.momentum_score,
+            reversal_status=excluded.reversal_status, reversal_score=excluded.reversal_score,
+            bullish_reversal_score=excluded.bullish_reversal_score, bearish_reversal_score=excluded.bearish_reversal_score,
+            smart_money_status=excluded.smart_money_status, smart_money_score=excluded.smart_money_score,
+            today_activity_score=excluded.today_activity_score, five_day_flow_score=excluded.five_day_flow_score,
+            thirty_day_accumulation_score=excluded.thirty_day_accumulation_score,
+            updated_at=datetime('now')`;
+
+          var tr = snap.trend || {}, mo = snap.momentum || {}, rev = snap.reversalWatch || {}, smf = snap.smartMoneyFlow || {};
+          await DB.prepare(sql).bind(
+            t, d, snap.open||null, snap.high||null, snap.low||null, snap.close, snap.volume||null,
+            tr.status||null, tr.score||null, tr.priceVs20dEmaPct||null, tr.priceVs50dSmaPct||null, tr.priceVs200dSmaPct||null, tr.weeklyTrendScore||null, tr.goldenDeathCrossStatus||null,
+            mo.status||null, mo.score||null, mo.rsiValue||null, mo.rsiDirection5d||null, mo.macdHistogram||null, mo.macdHistogramDirection||null, mo.priceVsSma5Pct||null,
+            rev.status||null, rev.score||null, rev.bullishScore||null, rev.bearishScore||null,
+            rev.bullishSetupScore||null, rev.bullishTriggerScore||null, rev.bullishConfirmationScore||null,
+            rev.bearishSetupScore||null, rev.bearishTriggerScore||null, rev.bearishConfirmationScore||null,
+            smf.status||null, smf.score||null, smf.todayActivityScore||null, smf.fiveDayFlowScore||null, smf.thirtyDayAccumulationScore||null,
+            smf.obvValue||null, smf.obvTrend30d||null, smf.volumeRatio||null, "massive+yahoo"
+          ).run();
+
+          // Update watchlist latest status
+          await DB.prepare(`UPDATE technical_journal_watchlist SET
+            last_snapshot_date=?, last_close_price=?,
+            latest_trend_status=?, latest_trend_score=?,
+            latest_momentum_status=?, latest_momentum_score=?,
+            latest_reversal_status=?, latest_reversal_score=?,
+            latest_smart_money_status=?, latest_smart_money_score=?,
+            updated_at=datetime('now') WHERE ticker=?`
+          ).bind(d, snap.close,
+            tr.status||null, tr.score||null,
+            mo.status||null, mo.score||null,
+            rev.status||null, rev.score||null,
+            smf.status||null, smf.score||null,
+            t).run();
+
+          return new Response(JSON.stringify({ ok: true }), { headers: jHeaders });
+        }
+
+        // POST update future returns
+        if (context.request.method === "POST" && jAction === "updateFutureReturns") {
+          var body3 = await context.request.json();
+          var ticker3 = (body3.ticker || "").toUpperCase();
+          // Fetch all snapshots for ticker ordered by date
+          var snaps = await DB.prepare("SELECT id, snapshot_date, close_price FROM technical_signal_journal WHERE ticker = ? ORDER BY snapshot_date ASC").bind(ticker3).all();
+          var rows3 = snaps.results;
+          var updated = 0;
+          for (var si = 0; si < rows3.length; si++) {
+            var row = rows3[si];
+            var windows = [1,3,5,10,20,30,45,60,90];
+            var updates = {};
+            for (var wi = 0; wi < windows.length; wi++) {
+              var w = windows[wi];
+              var futIdx = si + w;
+              if (futIdx < rows3.length) {
+                var futClose = rows3[futIdx].close_price;
+                var ret = parseFloat(((futClose - row.close_price) / row.close_price * 100).toFixed(2));
+                updates["future_return_" + w + "d"] = ret;
+              }
+            }
+            // Max gain/drawdown 30/60/90d
+            for (var ww of [30, 60, 90]) {
+              var futSlice = rows3.slice(si + 1, si + ww + 1).map(function(r){ return r.close_price; });
+              if (futSlice.length > 0) {
+                var maxG = Math.max.apply(null, futSlice);
+                var minG = Math.min.apply(null, futSlice);
+                updates["max_gain_" + ww + "d"]     = parseFloat(((maxG - row.close_price) / row.close_price * 100).toFixed(2));
+                updates["max_drawdown_" + ww + "d"] = parseFloat(((minG - row.close_price) / row.close_price * 100).toFixed(2));
+              }
+            }
+            // Outcome labels
+            if (updates.future_return_20d !== undefined) {
+              var r20 = updates.future_return_20d;
+              updates.bullish_outcome_label = r20 >= 10 ? "Strong Win" : r20 >= 5 ? "Win" : r20 > -5 ? "Neutral" : r20 > -10 ? "Failed" : "Strong Failed";
+              updates.bearish_outcome_label = r20 <= -10 ? "Strong Bearish Win" : r20 <= -5 ? "Bearish Win" : r20 < 5 ? "Neutral" : r20 < 10 ? "Bearish Failed" : "Strong Bearish Failed";
+            }
+            if (Object.keys(updates).length > 0) {
+              var setClauses = Object.keys(updates).map(function(k){ return k + "=?"; }).join(", ");
+              var vals = Object.values(updates);
+              vals.push(row.id);
+              await DB.prepare("UPDATE technical_signal_journal SET " + setClauses + ", updated_at=datetime('now') WHERE id=?").bind(...vals).run();
+              updated++;
+            }
+          }
+          return new Response(JSON.stringify({ ok: true, updated: updated }), { headers: jHeaders });
+        }
+
+        // GET journal entries
+        if (context.request.method === "GET" && jAction === "journal") {
+          var ticker4 = url.searchParams.get("ticker") || "";
+          var limit4  = parseInt(url.searchParams.get("limit") || "200");
+          var offset4 = parseInt(url.searchParams.get("offset") || "0");
+          var where4  = ticker4 ? "WHERE ticker = '" + ticker4.toUpperCase() + "'" : "";
+          var rows4 = await DB.prepare("SELECT * FROM technical_signal_journal " + where4 + " ORDER BY snapshot_date DESC, ticker ASC LIMIT ? OFFSET ?").bind(limit4, offset4).all();
+          return new Response(JSON.stringify({ entries: rows4.results }), { headers: jHeaders });
+        }
+
+        return new Response(JSON.stringify({ error: "Unknown journal action: " + jAction }), { status: 400, headers: jHeaders });
+
+      } catch(e) {
+        return new Response(JSON.stringify({ error: "Journal DB error: " + e.message }), { status: 500, headers: jHeaders });
+      }
+    }
+
     if (!target) return new Response("Missing url", { status: 400 });
 
     if (target.includes("financialmodelingprep.com")) {
