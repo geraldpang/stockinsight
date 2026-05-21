@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { calculateTechnicalSignalSnapshot } from "./technicalSignals.js";
 
 const FONT = "'Inter', system-ui, sans-serif";
 const LIME = "#c8f000";
@@ -2665,7 +2666,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.13</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.14</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2720,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.13</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.14</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -8579,6 +8580,413 @@ function PaywallCard({ sym, name, onBack, isPaid, clerkUser, mode }) {
 }
 
 // -- Landing page -------------------------------------------------------------
+// ─── Technical Signal Journal ─────────────────────────────────────────────────
+function JournalPage() {
+  var F = "'Inter', system-ui, sans-serif";
+  var [adminKey, setAdminKey]       = useState(localStorage.getItem("journal_admin_key") || "");
+  var [authed, setAuthed]           = useState(false);
+  var [authError, setAuthError]     = useState("");
+  var [watchlist, setWatchlist]     = useState([]);
+  var [journal, setJournal]         = useState([]);
+  var [addTicker, setAddTicker]     = useState("");
+  var [loading, setLoading]         = useState("");
+  var [toast, setToast]             = useState(null);
+  var [filter, setFilter]           = useState({ ticker:"", trend:"", momentum:"", reversal:"", smartMoney:"", outcome:"" });
+  var [generating, setGenerating]   = useState({});
+  var [sortCol, setSortCol]         = useState("snapshot_date");
+  var [sortDir, setSortDir]         = useState("desc");
+
+  function showToast(msg, type) {
+    setToast({ msg:msg, type:type||"ok" });
+    setTimeout(function(){ setToast(null); }, 3500);
+  }
+
+  function jFetch(action, method, body) {
+    var opts = { method: method||"GET", headers: { "X-Admin-Key": adminKey, "Content-Type": "application/json" } };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch("/journal?action=" + action, opts).then(function(r){ return r.json(); });
+  }
+
+  function loadWatchlist() {
+    return jFetch("watchlist").then(function(d){ if (d.watchlist) setWatchlist(d.watchlist); });
+  }
+
+  function loadJournal(tk) {
+    var url = "/journal?action=journal&limit=500" + (tk ? "&ticker=" + tk : "");
+    return fetch(url, { headers:{ "X-Admin-Key": adminKey } }).then(function(r){ return r.json(); })
+      .then(function(d){ if (d.entries) setJournal(d.entries); });
+  }
+
+  function handleAuth() {
+    setAuthError("");
+    jFetch("watchlist").then(function(d) {
+      if (d.error) { setAuthError("Invalid admin key. Please check and retry."); return; }
+      localStorage.setItem("journal_admin_key", adminKey);
+      setAuthed(true);
+      setWatchlist(d.watchlist || []);
+      loadJournal();
+    });
+  }
+
+  function handleAddTicker() {
+    var t = addTicker.trim().toUpperCase();
+    if (!t) return;
+    jFetch("addTicker", "POST", { ticker: t }).then(function(d) {
+      if (d.error) { showToast(d.error, "err"); return; }
+      showToast(d.message || t + " added.", "ok");
+      setAddTicker(""); loadWatchlist();
+    });
+  }
+
+  function handleRemove(ticker) {
+    jFetch("removeTicker", "POST", { ticker:ticker }).then(function(d) {
+      if (d.ok) { showToast(ticker + " removed.", "ok"); loadWatchlist(); }
+    });
+  }
+
+  async function fetchSnapshotData(ticker) {
+    var [massRes, yahooRes] = await Promise.all([
+      fetch("/massive?sym=" + ticker).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+      fetch("/proxy?url=https://query2.finance.yahoo.com/v8/finance/chart/" + ticker + "?range=2y%26interval=1d").then(function(r){ return r.json(); }).catch(function(){ return null; })
+    ]);
+    if (!massRes) return null;
+    var aggs = massRes.aggs || [];
+    var ind  = massRes.indicators || {};
+    var snap = massRes.snapshot || {};
+    // Massive aggs are newest-first → reverse to oldest-first
+    var bars = aggs.filter(function(b){ return b&&b.c>0; }).reverse().map(function(b) {
+      return { date: b.t ? new Date(b.t).toISOString().split("T")[0] : "", open:b.o, high:b.h, low:b.l, close:b.c, volume:b.v||0 };
+    });
+    var today = new Date().toISOString().split("T")[0];
+    var price = snap.close || (bars.length > 0 ? bars[bars.length-1].close : 0);
+    return { bars:bars, ind:ind, price:price, date:today };
+  }
+
+  async function generateSnapshot(ticker) {
+    setGenerating(function(g){ return Object.assign({}, g, { [ticker]: true }); });
+    try {
+      var data = await fetchSnapshotData(ticker);
+      if (!data) { showToast("Failed to fetch data for " + ticker, "err"); return; }
+      var snapshot = calculateTechnicalSignalSnapshot({
+        ticker:     ticker,
+        date:       data.date,
+        ohlcv:      data.bars,
+        indicators: data.ind,
+        meta:       { price: data.price },
+      });
+      var postSnap = Object.assign({}, snapshot, {
+        open:   snapshot.open,   high:  snapshot.high,
+        low:    snapshot.low,    close: snapshot.close,
+        volume: snapshot.volume,
+      });
+      var res = await jFetch("upsertSnapshot", "POST", postSnap);
+      if (res.ok) {
+        showToast(ticker + " snapshot saved.", "ok");
+        loadWatchlist(); loadJournal();
+      } else {
+        showToast("Error saving " + ticker + ": " + (res.error||"unknown"), "err");
+      }
+    } catch(e) {
+      showToast("Error: " + e.message, "err");
+    } finally {
+      setGenerating(function(g){ var n=Object.assign({},g); delete n[ticker]; return n; });
+    }
+  }
+
+  async function generateAll() {
+    setLoading("generating");
+    for (var i = 0; i < watchlist.length; i++) {
+      await generateSnapshot(watchlist[i].ticker);
+    }
+    setLoading("");
+    showToast("All snapshots generated.", "ok");
+  }
+
+  async function updateFutureReturns() {
+    setLoading("future");
+    var tickers = [...new Set(watchlist.map(function(w){ return w.ticker; }))];
+    for (var tk of tickers) {
+      await jFetch("updateFutureReturns", "POST", { ticker:tk });
+    }
+    setLoading("");
+    showToast("Future returns updated.", "ok");
+    loadJournal();
+  }
+
+  function exportCSV() {
+    var rows = filteredJournal();
+    if (rows.length === 0) { showToast("No data to export.", "err"); return; }
+    var cols = ["snapshot_date","ticker","close_price","trend_status","trend_score","momentum_status","momentum_score","reversal_status","bullish_reversal_score","bearish_reversal_score","smart_money_status","smart_money_score","today_activity_score","five_day_flow_score","thirty_day_accumulation_score","rsi_value","macd_histogram","future_return_1d","future_return_3d","future_return_5d","future_return_10d","future_return_20d","future_return_30d","future_return_60d","future_return_90d","max_gain_30d","max_drawdown_30d","bullish_outcome_label","bearish_outcome_label"];
+    var csv = cols.join(",") + "\n" + rows.map(function(r) {
+      return cols.map(function(c){ var v=r[c]; return v===null||v===undefined?"":String(v).includes(",")?"\""+v+"\"":v; }).join(",");
+    }).join("\n");
+    var a = document.createElement("a");
+    a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+    a.download = "signal_journal_" + new Date().toISOString().split("T")[0] + ".csv";
+    a.click();
+    showToast("Exported " + rows.length + " rows.", "ok");
+  }
+
+  function filteredJournal() {
+    return journal.filter(function(r) {
+      if (filter.ticker   && r.ticker !== filter.ticker.toUpperCase()) return false;
+      if (filter.trend    && r.trend_status    !== filter.trend)       return false;
+      if (filter.momentum && r.momentum_status !== filter.momentum)    return false;
+      if (filter.reversal && !(r.reversal_status||"").includes(filter.reversal)) return false;
+      if (filter.smartMoney && !(r.smart_money_status||"").includes(filter.smartMoney)) return false;
+      if (filter.outcome  && r.bullish_outcome_label !== filter.outcome) return false;
+      return true;
+    }).sort(function(a, b) {
+      var av = a[sortCol], bv = b[sortCol];
+      if (av === null || av === undefined) return 1;
+      if (bv === null || bv === undefined) return -1;
+      var cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }
+
+  function Th(props) {
+    var active = sortCol === props.col;
+    return (
+      <th onClick={function(){ setSortDir(active&&sortDir==="asc"?"desc":"asc"); setSortCol(props.col); }}
+        style={{ padding:"8px 10px", fontSize:10, fontWeight:700, color: active?"#c8f000":"#666", textTransform:"uppercase", letterSpacing:"0.06em", cursor:"pointer", whiteSpace:"nowrap", background:"#1a1a18", borderBottom:"1px solid #2a2a28", userSelect:"none" }}>
+        {props.children}{active?(sortDir==="asc"?" ▲":" ▼"):""}
+      </th>
+    );
+  }
+
+  function FmtReturn(val) {
+    if (val === null || val === undefined) return <span style={{color:"#444", fontSize:10}}>Pending</span>;
+    var col = val >= 5 ? "#7abd00" : val >= 0 ? "#5a9a40" : val > -5 ? "#e08050" : "#e05050";
+    return <span style={{color:col, fontWeight:600}}>{val > 0 ? "+" : ""}{val.toFixed(1)}%</span>;
+  }
+
+  function OutcomeBadge(label) {
+    if (!label || label === "Pending") return <span style={{fontSize:9,color:"#444"}}>Pending</span>;
+    var col = label.includes("Strong Win")?"#7abd00":label==="Win"?"#5a9a40":label==="Neutral"?"#888":label.includes("Failed")?"#e05050":"#e08050";
+    return <span style={{fontSize:9,fontWeight:700,color:col,background:col+"20",padding:"2px 6px",borderRadius:3}}>{label}</span>;
+  }
+
+  function StatusBadge(val, col) {
+    if (!val) return <span style={{color:"#444", fontSize:10}}>—</span>;
+    var c = col || "#888";
+    return <span style={{fontSize:10, fontWeight:600, color:c}}>{val}</span>;
+  }
+
+  function scoreColor(s) {
+    if (s===null||s===undefined) return "#444";
+    return s >= 65 ? "#7abd00" : s >= 40 ? "#EF9F27" : "#e05050";
+  }
+
+  // ── Auth screen ─────────────────────────────────────────────────────────────
+  if (!authed) return (
+    <div style={{ fontFamily:F, background:"#0e0e0c", minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:"#181816", border:"0.5px solid #2a2a28", borderRadius:12, padding:32, width:340 }}>
+        <div style={{ fontSize:11, color:"#c8f000", fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:4 }}>Colaboree StockInsight</div>
+        <div style={{ fontSize:20, fontWeight:800, color:"#f0ede6", marginBottom:4 }}>Signal Journal</div>
+        <div style={{ fontSize:12, color:"#666", marginBottom:24 }}>Research access only. Enter your admin key to continue.</div>
+        <input value={adminKey} onChange={function(e){ setAdminKey(e.target.value); }}
+          onKeyDown={function(e){ if(e.key==="Enter") handleAuth(); }}
+          type="password" placeholder="Admin key"
+          style={{ width:"100%", background:"#111", border:"0.5px solid #333", borderRadius:8, padding:"10px 12px", color:"#f0ede6", fontSize:13, outline:"none", boxSizing:"border-box", marginBottom:10 }} />
+        {authError && <div style={{ fontSize:11, color:"#e05050", marginBottom:10 }}>{authError}</div>}
+        <button onClick={handleAuth}
+          style={{ width:"100%", background:"#c8f000", color:"#0e0e0c", fontWeight:800, fontSize:13, border:"none", borderRadius:8, padding:"10px", cursor:"pointer" }}>
+          Access Journal
+        </button>
+        <div style={{ marginTop:16, textAlign:"center" }}>
+          <a href="/" style={{ fontSize:11, color:"#555", textDecoration:"none" }}>← Back to StockInsight</a>
+        </div>
+      </div>
+    </div>
+  );
+
+  var fj = filteredJournal();
+  var activeTickers = [...new Set(watchlist.map(function(w){ return w.ticker; }))];
+
+  // ── Main journal UI ─────────────────────────────────────────────────────────
+  return (
+    <div style={{ fontFamily:F, background:"#0e0e0c", minHeight:"100vh", color:"#f0ede6" }}>
+      {/* Toast */}
+      {toast && <div style={{ position:"fixed", top:16, right:16, zIndex:9999, background: toast.type==="err"?"#3a1a1a":"#1a3a1a", border:"0.5px solid "+(toast.type==="err"?"#e05050":"#7abd00"), borderRadius:8, padding:"10px 16px", fontSize:12, color: toast.type==="err"?"#e05050":"#7abd00", boxShadow:"0 4px 20px rgba(0,0,0,0.5)" }}>{toast.msg}</div>}
+
+      {/* Header */}
+      <div style={{ borderBottom:"0.5px solid #2a2a28", padding:"14px 24px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+          <a href="/" style={{ fontSize:11, color:"#555", textDecoration:"none" }}>← StockInsight</a>
+          <div style={{ width:1, height:16, background:"#2a2a28" }} />
+          <div style={{ fontSize:13, fontWeight:800, color:"#c8f000" }}>Signal Journal</div>
+          <div style={{ fontSize:10, color:"#555" }}>Research use only · Not financial advice</div>
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={generateAll} disabled={loading==="generating"}
+            style={{ background:"#c8f000", color:"#0e0e0c", fontWeight:700, fontSize:11, border:"none", borderRadius:6, padding:"7px 14px", cursor:"pointer", opacity:loading==="generating"?0.6:1 }}>
+            {loading==="generating" ? "Generating..." : "⚡ Generate Today's Snapshots"}
+          </button>
+          <button onClick={updateFutureReturns} disabled={loading==="future"}
+            style={{ background:"#1a2a1a", color:"#7abd00", fontWeight:700, fontSize:11, border:"0.5px solid #2a5020", borderRadius:6, padding:"7px 14px", cursor:"pointer", opacity:loading==="future"?0.6:1 }}>
+            {loading==="future" ? "Updating..." : "📈 Update Future Returns"}
+          </button>
+          <button onClick={exportCSV}
+            style={{ background:"#1a1a2a", color:"#9090f0", fontWeight:700, fontSize:11, border:"0.5px solid #2a2a50", borderRadius:6, padding:"7px 14px", cursor:"pointer" }}>
+            ⬇ Export CSV
+          </button>
+        </div>
+      </div>
+
+      <div style={{ padding:"20px 24px", maxWidth:1600, margin:"0 auto" }}>
+
+        {/* Tracked Tickers */}
+        <div style={{ marginBottom:24 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>Tracked Tickers</div>
+          <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+            <input value={addTicker} onChange={function(e){ setAddTicker(e.target.value.toUpperCase()); }}
+              onKeyDown={function(e){ if(e.key==="Enter") handleAddTicker(); }}
+              placeholder="Add ticker e.g. AAPL"
+              style={{ background:"#181816", border:"0.5px solid #333", borderRadius:8, padding:"8px 12px", color:"#f0ede6", fontSize:13, outline:"none", width:180 }} />
+            <button onClick={handleAddTicker}
+              style={{ background:"#c8f000", color:"#0e0e0c", fontWeight:700, fontSize:12, border:"none", borderRadius:8, padding:"8px 16px", cursor:"pointer" }}>
+              Add
+            </button>
+          </div>
+
+          {watchlist.length === 0 ? (
+            <div style={{ fontSize:12, color:"#555", padding:"20px 0" }}>No tickers tracked yet. Add one above.</div>
+          ) : (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(240px, 1fr))", gap:10 }}>
+              {watchlist.map(function(w) {
+                var isGen = generating[w.ticker];
+                return (
+                  <div key={w.ticker} style={{ background:"#181816", border:"0.5px solid #2a2a28", borderRadius:10, padding:"12px 14px" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                      <div>
+                        <div style={{ fontSize:14, fontWeight:800, color:"#c8f000" }}>{w.ticker}</div>
+                        {w.company_name && <div style={{ fontSize:10, color:"#555", marginTop:1 }}>{w.company_name}</div>}
+                      </div>
+                      <button onClick={function(){ handleRemove(w.ticker); }}
+                        style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:14, padding:0 }}>✕</button>
+                    </div>
+                    {w.last_close_price && <div style={{ fontSize:12, color:"#888", marginBottom:4 }}>${parseFloat(w.last_close_price).toFixed(2)} · {w.last_snapshot_date||"No snapshot"}</div>}
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:4, marginBottom:8 }}>
+                      {[["Trend", w.latest_trend_status, w.latest_trend_score],
+                        ["Mom.", w.latest_momentum_status, w.latest_momentum_score]].map(function(row) {
+                        return <div key={row[0]} style={{ background:"#111", borderRadius:4, padding:"4px 6px" }}>
+                          <div style={{ fontSize:9, color:"#555", textTransform:"uppercase" }}>{row[0]}</div>
+                          <div style={{ fontSize:10, fontWeight:600, color:scoreColor(row[2]) }}>{row[1]||"—"}</div>
+                        </div>;
+                      })}
+                    </div>
+                    <button onClick={function(){ generateSnapshot(w.ticker); }} disabled={isGen}
+                      style={{ width:"100%", background:isGen?"#1a1a18":"#1a2a10", border:"0.5px solid "+(isGen?"#333":"#2a5020"), borderRadius:6, color:isGen?"#555":"#7abd00", fontSize:11, fontWeight:700, padding:"6px", cursor:isGen?"not-allowed":"pointer" }}>
+                      {isGen ? "Generating..." : "⚡ Refresh Snapshot"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Signal Journal */}
+        <div>
+          <div style={{ fontSize:12, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>Signal Journal ({fj.length} records)</div>
+
+          {/* Filters */}
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:12 }}>
+            {[
+              ["Ticker", "ticker", activeTickers],
+              ["Trend", "trend", ["Strong Uptrend","Uptrend","Sideways","Downtrend","Strong Downtrend"]],
+              ["Momentum", "momentum", ["Strong","Building","Neutral","Fading","Weak"]],
+              ["Outcome", "outcome", ["Strong Win","Win","Neutral","Failed","Strong Failed","Pending"]],
+            ].map(function(f) {
+              return <select key={f[0]} value={filter[f[1]]} onChange={function(e){ setFilter(function(prev){ return Object.assign({},prev,{ [f[1]]: e.target.value }); })}
+                style={{ background:"#181816", border:"0.5px solid #333", borderRadius:6, padding:"6px 10px", color:filter[f[1]]?"#c8f000":"#666", fontSize:11, outline:"none" }}>
+                <option value="">All {f[0]}</option>
+                {f[2].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
+              </select>;
+            })}
+            <button onClick={function(){ setFilter({ ticker:"", trend:"", momentum:"", reversal:"", smartMoney:"", outcome:"" }); }}
+              style={{ background:"none", border:"0.5px solid #333", borderRadius:6, padding:"6px 10px", color:"#555", fontSize:11, cursor:"pointer" }}>
+              Clear Filters
+            </button>
+          </div>
+
+          {/* Table */}
+          {fj.length === 0 ? (
+            <div style={{ fontSize:12, color:"#555", padding:"40px", textAlign:"center", background:"#181816", borderRadius:10 }}>
+              No records yet. Generate snapshots for your tracked tickers to start collecting data.
+            </div>
+          ) : (
+            <div style={{ overflowX:"auto", borderRadius:10, border:"0.5px solid #2a2a28" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                <thead>
+                  <tr>
+                    <Th col="snapshot_date">Date</Th>
+                    <Th col="ticker">Ticker</Th>
+                    <Th col="close_price">Close</Th>
+                    <Th col="trend_status">Trend</Th>
+                    <Th col="trend_score">T.Score</Th>
+                    <Th col="momentum_status">Momentum</Th>
+                    <Th col="momentum_score">M.Score</Th>
+                    <Th col="rsi_value">RSI</Th>
+                    <Th col="reversal_status">Reversal</Th>
+                    <Th col="bullish_reversal_score">Bull</Th>
+                    <Th col="bearish_reversal_score">Bear</Th>
+                    <Th col="smart_money_status">Smart Money</Th>
+                    <Th col="smart_money_score">SM.Score</Th>
+                    <Th col="future_return_5d">5D Ret.</Th>
+                    <Th col="future_return_10d">10D</Th>
+                    <Th col="future_return_20d">20D</Th>
+                    <Th col="future_return_30d">30D</Th>
+                    <Th col="future_return_60d">60D</Th>
+                    <Th col="max_gain_30d">MaxGain30</Th>
+                    <Th col="max_drawdown_30d">MaxDD30</Th>
+                    <Th col="bullish_outcome_label">Outcome</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fj.map(function(r, i) {
+                    var rowBg = i % 2 === 0 ? "#181816" : "#141412";
+                    return (
+                      <tr key={r.id} style={{ background:rowBg }}>
+                        <td style={{ padding:"7px 10px", color:"#888", whiteSpace:"nowrap" }}>{r.snapshot_date}</td>
+                        <td style={{ padding:"7px 10px", fontWeight:700, color:"#c8f000" }}>{r.ticker}</td>
+                        <td style={{ padding:"7px 10px", color:"#f0ede6" }}>${r.close_price?.toFixed(2)}</td>
+                        <td style={{ padding:"7px 10px" }}>{StatusBadge(r.trend_status, r.trend_score>=55?"#7abd00":r.trend_score>=40?"#EF9F27":"#e05050")}</td>
+                        <td style={{ padding:"7px 10px", color:scoreColor(r.trend_score), fontWeight:600 }}>{r.trend_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"7px 10px" }}>{StatusBadge(r.momentum_status, r.momentum_score>=65?"#7abd00":r.momentum_score>=35?"#EF9F27":"#e05050")}</td>
+                        <td style={{ padding:"7px 10px", color:scoreColor(r.momentum_score), fontWeight:600 }}>{r.momentum_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"7px 10px", color:r.rsi_value>70?"#EF9F27":r.rsi_value>=50?"#7abd00":r.rsi_value>=30?"#888":"#e05050" }}>{r.rsi_value?.toFixed(1)||"—"}</td>
+                        <td style={{ padding:"7px 10px", fontSize:10, color:"#888" }}>{r.reversal_status||"—"}</td>
+                        <td style={{ padding:"7px 10px", color:scoreColor(r.bullish_reversal_score) }}>{r.bullish_reversal_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"7px 10px", color:scoreColor(r.bearish_reversal_score) }}>{r.bearish_reversal_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"7px 10px", fontSize:10, color:"#888" }}>{r.smart_money_status||"—"}</td>
+                        <td style={{ padding:"7px 10px", color:scoreColor(r.smart_money_score), fontWeight:600 }}>{r.smart_money_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_5d)}</td>
+                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_10d)}</td>
+                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_20d)}</td>
+                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_30d)}</td>
+                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_60d)}</td>
+                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.max_gain_30d)}</td>
+                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.max_drawdown_30d)}</td>
+                        <td style={{ padding:"7px 10px" }}>{OutcomeBadge(r.bullish_outcome_label)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div style={{ fontSize:10, color:"#333", marginTop:16, lineHeight:1.6 }}>
+            The Technical Signal Journal records historical technical signals and outcomes for research purposes only. It does not provide financial advice or guarantee future performance.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [input,   setInput]   = useState("");
   const [focused, setFocused] = useState(false);
@@ -8592,6 +9000,15 @@ export default function App() {
   const [landingNews,   setLandingNews]   = useState([]);
   const [newsFilter,    setNewsFilter]    = useState("ALL");
   const [tickerEnrich,  setTickerEnrich]  = useState({});
+
+  // Journal route
+  const [journalMode, setJournalMode] = useState(window.location.hash === "#journal");
+  useEffect(function() {
+    function onHash() { setJournalMode(window.location.hash === "#journal"); }
+    window.addEventListener("hashchange", onHash);
+    return function() { window.removeEventListener("hashchange", onHash); };
+  }, []);
+  if (journalMode) return <JournalPage />;
 
   // Mount UserButton on landing page when signed in
   // Uses MutationObserver to detect when the div appears in DOM after navigation
@@ -9097,7 +9514,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.13</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.14</span>
           </div>
         </div>
 
