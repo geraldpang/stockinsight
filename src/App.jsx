@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.09</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.13</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.09</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.13</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3468,7 +3468,34 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     }
                     return (
                       <div>
-                        {SigRow2("reversal","Reversal",_netRev3,_revDir,_revBarPct,_revStrength)}
+                        {(function(){
+                          var _rw = window.__revWatchStatus && window.__revWatchStatus[sym];
+                          if (_rw) {
+                            var _compactStatus = _rw.status==="No Clear Reversal"?"No Clear Reversal":_rw.status==="Mixed Reversal Signals"?"Mixed Signals":_rw.status==="Not Enough Data"?"No Data":_rw.status;
+                            var _rwCol = _rw.status.startsWith("Bullish")?"#7abd00":_rw.status.startsWith("Bearish")?"#e05050":_rw.status==="Mixed Reversal Signals"?"#EF9F27":"#666";
+                            function _rlCol(lbl){ return lbl==="Confirmed"||lbl==="Triggered"?"#7abd00":lbl==="Forming"||lbl==="Watch"?"#EF9F27":lbl==="No Signal"?"#666":"#aaa"; }
+                            return (
+                              <div onClick={function(){ window.__goToTab&&window.__goToTab("reversal"); }}
+                                style={{padding:"10px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer"}}
+                                onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
+                                onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
+                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                                  <span style={{fontSize:11,color:"#666"}}>Reversal Watch</span>
+                                  <span style={{display:"flex",alignItems:"center",gap:6}}>
+                                    <span style={{fontSize:12,fontWeight:600,color:_rwCol}}>{_compactStatus}</span>
+                                    <span style={{fontSize:11,color:"#444"}}>{"›"}</span>
+                                  </span>
+                                </div>
+                                <div style={{fontSize:9,color:"#555",lineHeight:1.4}}>
+                                  <span>{"Bullish "}</span><span style={{color:_rlCol(_rw.bLbl),fontWeight:600}}>{_rw.bLbl}</span>
+                                  <span style={{margin:"0 4px",color:"#333"}}>{"·"}</span>
+                                  <span>{"Bearish "}</span><span style={{color:_rlCol(_rw.beLbl),fontWeight:600}}>{_rw.beLbl}</span>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return SigRow2("reversal","Reversal Watch",_netRev3,_revDir,_revBarPct,_revStrength);
+                        })()}
                         {(function(){
                           var _smf = window.__smfScore && window.__smfScore[sym] ? window.__smfScore[sym] : null;
                           // Compact status labels
@@ -3484,8 +3511,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var _tLbl    = _smf ? _smf.todayLabel   : "N/A";
                           var _fLbl    = _smf ? _smf.fiveDayLabel : "N/A";
                           var _dLbl    = _smf ? _smf.thirtyDayLabel : "N/A";
-                          var _sCol    = _smf ? (_smf.primaryScore>=71?"#7abd00":_smf.primaryScore>=31?"#EF9F27":"#e05050") : "#666";
-                          function _lCol(lbl){ return lbl==="High"||lbl==="Very High"?"#7abd00":lbl==="Moderate"||lbl==="Mild"?"#EF9F27":lbl==="Low"?"#e05050":"#888"; }
+                          var _sCol    = _smf ? (_smf.primaryScore>=71?"#1a6a1a":_smf.primaryScore>=51?"#b88000":"#c03030") : "#666";
+                          function _lCol(lbl){ return lbl==="High"||lbl==="Very High"?"#1a6a1a":lbl==="Moderate"?"#b88000":"#c03030"; }
                           return (
                             <div onClick={function(){ window.__goToTab&&window.__goToTab("whale"); }}
                               style={{padding:"10px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer"}}
@@ -3600,7 +3627,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
               { id:"trend",     label:"Trend" },
               { id:"momentum",  label:"Momentum" },
-              { id:"reversal",  label:"Reversal Signals" },
+              { id:"reversal",  label:"Reversal Watch" },
               { id:"whale",     label:"Smart Money Flow" },
               { id:"addlinfo",  label:"Additional Information" },
               { id:"debug",     label:"Debug" },
@@ -6642,127 +6669,580 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                   {/* REVERSAL TAB */}
                   {insightTab === "reversal" && (function() {
-                    var ind=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
-                    var aggs=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
-                    var price=q?q.price:0;
-                    var hi52=ov?ov.hi52:0; var lo52=ov?ov.lo52:0;
-                    var pos52=(hi52>lo52&&hi52>0)?(price-lo52)/(hi52-lo52):0.5;
-                    if (!ind||!price) return <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>Reversal data requires Massive.com feed.</div>;
-                    var rsiHist=ind.rsiHistory||[]; var macdHist=ind.macdHistory||[];
-                    var rsi14=ind.rsi14!=null?parseFloat(ind.rsi14):null;
+                    var ind  = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
+                    var rawAggs = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
+                    var price = q ? q.price : 0;
+                    var hi52 = ov ? ov.hi52 : 0, lo52 = ov ? ov.lo52 : 0;
 
-                    // Bullish signals
-                    // Use window values computed by pill for consistency
-                    var _wRevArr=window.__revArr3&&window.__revSym3===sym?window.__revArr3:[false,false,false,false,false];
-                    var bullSignals=[
-                      { label:"RSI Price Divergence",
-                        active:_wRevArr[0]||(function(){ if(rsiHist.length<10||aggs.length<10) return false; var rPL=Math.min.apply(null,aggs.slice(0,5).map(function(a){return a.l||0;})); var pPL=Math.min.apply(null,aggs.slice(5,10).map(function(a){return a.l||0;})); var rRL=Math.min.apply(null,rsiHist.slice(0,5)); var pRL=Math.min.apply(null,rsiHist.slice(5,10)); return rPL<pPL&&rRL>pRL; })(),
-                        what:"Price is making new lows but RSI is not -- sellers are losing steam.",
-                        why:"When sellers push price lower but momentum stops following, the downtrend is weakening. A bounce or reversal may be forming." },
-                      { label:"MACD Histogram Turning Up",
-                        active:(function(){ if(macdHist.length<3) return false; var h0=macdHist[0]&&macdHist[0].histogram!=null?parseFloat(macdHist[0].histogram):null,h1=macdHist[1]&&macdHist[1].histogram!=null?parseFloat(macdHist[1].histogram):null,h2=macdHist[2]&&macdHist[2].histogram!=null?parseFloat(macdHist[2].histogram):null; return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2; })(),
-                        what:"MACD is still negative but has been getting less negative for 3+ days.",
-                        why:"Selling pressure is easing. This often precedes a full bullish reversal." },
-                      { label:"Weekly SMA Cross Approaching (Bullish)",
-                        active:(!!(ind.wsma10&&ind.wsma40&&ind.wsma10<ind.wsma40&&Math.abs(ind.wsma10-ind.wsma40)/ind.wsma40<0.05)),
-                        what:"The 10-week MA is below the 40-week but within 5% of crossing above it.",
-                        why:"A Golden Cross on the weekly chart is a major long-term bullish signal." },
-                      { label:"RSI Base Forming",
-                        active:(rsiHist.length>=5&&rsiHist.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;})),
-                        what:"RSI has been stabilising in the 28-52 range for several days.",
-                        why:"RSI stabilising after a sell-off signals selling may have exhausted itself." },
-                      { label:"52-Week Low Base with RSI Recovery",
-                        active:(pos52<0.20&&rsi14!=null&&rsi14>20&&rsi14<45),
-                        what:"Price is near its 52-week low while RSI is beginning to recover.",
-                        why:"Stocks near yearly lows with improving momentum signal the worst selling may be over." },
-                    ];
+                    // bars = oldest-first
+                    var bars = rawAggs.filter(function(b){ return b&&b.c>0&&b.h>0&&b.l>0&&b.v>=0; }).slice().reverse();
+                    var n = bars.length;
 
-                    // Bearish signals
-                    var bearSignals=[
-                      { label:"RSI Bearish Divergence",
-                        active:(function(){ if(rsiHist.length<10||aggs.length<10) return false; var rPH=Math.max.apply(null,aggs.slice(0,5).map(function(a){return a.h||0;})); var pPH=Math.max.apply(null,aggs.slice(5,10).map(function(a){return a.h||0;})); var rRH=Math.max.apply(null,rsiHist.slice(0,5)); var pRH=Math.max.apply(null,rsiHist.slice(5,10)); return rPH>pPH&&rRH<pRH; })(),
-                        what:"Price is making new highs but RSI is making lower highs -- buyers losing steam.",
-                        why:"When buyers push price higher but momentum stops confirming, the rally may be running out of fuel." },
-                      { label:"MACD Histogram Turning Down",
-                        active:(function(){ if(macdHist.length<3) return false; var h0=macdHist[0]&&macdHist[0].histogram!=null?parseFloat(macdHist[0].histogram):null,h1=macdHist[1]&&macdHist[1].histogram!=null?parseFloat(macdHist[1].histogram):null,h2=macdHist[2]&&macdHist[2].histogram!=null?parseFloat(macdHist[2].histogram):null; return h0!=null&&h1!=null&&h2!=null&&h0>0&&h0<h1&&h1<h2; })(),
-                        what:"MACD is still positive but has been declining for 3+ days.",
-                        why:"Buying momentum is fading. This often precedes a pullback." },
-                      { label:"Weekly SMA Cross Approaching (Bearish)",
-                        active:(!!(ind.wsma10&&ind.wsma40&&ind.wsma10>ind.wsma40&&Math.abs(ind.wsma10-ind.wsma40)/ind.wsma40<0.05)),
-                        what:"The 10-week MA is above the 40-week but within 5% of crossing below it.",
-                        why:"A Death Cross on the weekly chart is a major long-term bearish signal." },
-                      { label:"RSI Overbought Stalling",
-                        active:(rsiHist.length>=5&&rsiHist.slice(0,5).every(function(v){return v!=null&&v>=72&&v<=85;})),
-                        what:"RSI has been stuck in overbought territory (72-85) for 5+ days without pushing higher.",
-                        why:"Overbought RSI stalling often signals buyers are exhausted and distribution may be beginning." },
-                      { label:"52-Week High Base (Topping)",
-                        active:(pos52>0.95&&rsi14!=null&&rsi14>70&&rsi14<80),
-                        what:"Price is near its 52-week high while RSI is elevated but fading.",
-                        why:"Stocks near yearly highs with fading momentum are vulnerable to profit-taking." },
-                    ];
+                    // --- Helper functions ---
+                    function getReversalLabel(score) {
+                      if (score === null || score === undefined) return "Not enough data";
+                      if (score <= 20) return "No Signal";
+                      if (score <= 40) return "Watch";
+                      if (score <= 60) return "Forming";
+                      if (score <= 80) return "Triggered";
+                      return "Confirmed";
+                    }
 
-                    var bullCount=bullSignals.filter(function(r){return r.active;}).length;
-                    var bearCount=bearSignals.filter(function(r){return r.active;}).length;
+                    function revLabelColor(lbl) {
+                      if (lbl==="Confirmed")   return "#1a6a1a";
+                      if (lbl==="Triggered")   return "#2a8a2a";
+                      if (lbl==="Forming")     return "#5a8a00";
+                      if (lbl==="Watch")       return "#b88000";
+                      return "#888";
+                    }
+                    function revBearLabelColor(lbl) {
+                      if (lbl==="Confirmed")   return "#a02020";
+                      if (lbl==="Triggered")   return "#c03030";
+                      if (lbl==="Forming")     return "#c05030";
+                      if (lbl==="Watch")       return "#b88000";
+                      return "#888";
+                    }
+                    function stageSummaryLabel(score) {
+                      if (score===null||score===undefined) return "No Data";
+                      if (score>=70) return "Strong";
+                      if (score>=40) return "Moderate";
+                      if (score>=10) return "Weak";
+                      return "Missing";
+                    }
+                    function stageSummaryColor(score, bull) {
+                      if (score===null) return "#aaa";
+                      if (score>=70) return bull?"#2a8a00":"#c03030";
+                      if (score>=40) return "#b88000";
+                      return "#aaa";
+                    }
+                    // Direction-aware bg/border based on label strength
+                    function dirColors(label, bull) {
+                      if (label==="Confirmed")   return { bg: bull?"#e6f4e6":"#fde8e8", bd: bull?"#7abd00":"#e08080" };
+                      if (label==="Triggered")   return { bg: bull?"#eef9ee":"#fff0f0", bd: bull?"#9acd50":"#f0a0a0" };
+                      if (label==="Forming")     return { bg: bull?"#f5faf0":"#fff4f4", bd: bull?"#c8e0a0":"#f8c8c8" };
+                      if (label==="Watch")       return { bg:"#fdf8e6",               bd:"#d4c870"                  };
+                      return                            { bg:"#f5f5f5",               bd:"#e0e0e0"                  };
+                    }
 
-                    // Summary banner
-                    var _bBg=bullCount>=3?"#e6f4e6":bullCount>=1?"#f0f7e6":"#f5f5f5";
-                    var _bBd=bullCount>=3?"#7abd00":bullCount>=1?"#b0d080":"#ddd";
-                    var _bFg=bullCount>=3?"#1a6a1a":bullCount>=1?"#2a7a2a":"#888";
-                    var _rBg=bearCount>=3?"#fff0f0":bearCount>=1?"#fff4f4":"#f5f5f5";
-                    var _rBd=bearCount>=3?"#e05050":bearCount>=1?"#f0a0a0":"#ddd";
-                    var _rFg=bearCount>=3?"#c03030":bearCount>=1?"#c05050":"#888";
+                    function calcStageScore(inds) {
+                      var avail = inds.filter(function(i){ return i.score !== null; });
+                      if (avail.length === 0) return null;
+                      return Math.round(avail.reduce(function(s,i){ return s+i.score; }, 0) / avail.length);
+                    }
 
-                    function SigRow(r, isBull) {
-                      var dot = isBull?(r.active?"#7abd00":"#ccc"):(r.active?"#e05050":"#ccc");
-                      var labelCol = isBull?(r.active?"#1a6a1a":"#888"):(r.active?"#c03030":"#888");
-                      var statusCol = isBull?(r.active?"#1a6a1a":"#aaa"):(r.active?"#c03030":"#aaa");
-                      var bg = r.active?(isBull?"#f0f7e6":"#fff4f4"):"#faf8f4";
-                      var bd = r.active?(isBull?"#b0d080":"#f0a0a0"):"#e0dbd0";
+                    function calcWeightedScore(stages) {
+                      var avail = stages.filter(function(s){ return s.score !== null; });
+                      if (avail.length === 0) return null;
+                      var totalW = avail.reduce(function(s,st){ return s+st.weight; }, 0);
+                      return Math.round(avail.reduce(function(s,st){ return s + st.score*(st.weight/totalW); }, 0));
+                    }
+
+                    // --- Shared computed values ---
+                    var avg30v = n>=30 ? bars.slice(n-30).reduce(function(s,b){ return s+b.v; },0)/30 : null;
+                    var sma50  = n>=50 ? bars.slice(n-50).reduce(function(s,b){ return s+b.c; },0)/50 : null;
+                    var recentHigh20 = n>=21 ? (function(){ var h=-Infinity; for(var i=n-21;i<n-1;i++) if(bars[i].h>h) h=bars[i].h; return h; })() : null;
+                    var recentLow20  = n>=21 ? (function(){ var l=Infinity; for(var i=n-21;i<n-1;i++) if(bars[i].l<l) l=bars[i].l; return l; })() : null;
+                    var cur5Hi  = n>=5  ? (function(){ var h=-Infinity; for(var i=n-5;i<n;i++)   if(bars[i].h>h)h=bars[i].h; return h; })() : null;
+                    var prev5Hi = n>=10 ? (function(){ var h=-Infinity; for(var i=n-10;i<n-5;i++) if(bars[i].h>h)h=bars[i].h; return h; })() : null;
+                    var cur5Lo  = n>=5  ? (function(){ var l=Infinity; for(var i=n-5;i<n;i++)    if(bars[i].l<l)l=bars[i].l; return l; })() : null;
+                    var prev5Lo = n>=10 ? (function(){ var l=Infinity; for(var i=n-10;i<n-5;i++) if(bars[i].l<l)l=bars[i].l; return l; })() : null;
+
+                    var todayBar  = n > 0 ? bars[n-1] : null;
+                    var rsi       = ind && ind.rsi14 != null ? parseFloat(ind.rsi14) : null;
+                    var rsiH      = ind && ind.rsiHistory ? ind.rsiHistory.map(function(v){ return parseFloat(v); }) : [];
+                    var macdHist  = ind && ind.macd && ind.macd.histogram != null ? parseFloat(ind.macd.histogram) : null;
+                    var macdHArr  = ind && ind.macdHistory ? ind.macdHistory : [];
+                    var ema20     = ind && ind.ema20 != null ? parseFloat(ind.ema20) : null;
+                    var sma50m    = ind && ind.sma50 != null ? parseFloat(ind.sma50) : null;
+                    var volumeRatio = avg30v && todayBar ? todayBar.v / avg30v : null;
+
+                    // RSI direction (recent avg vs older avg)
+                    var rsiDir = rsiH.length >= 7 ?
+                      ((rsiH[0]+rsiH[1])/2) - ((rsiH[2]+rsiH[3]+rsiH[4]+rsiH[5]+rsiH[6])/5) : null;
+
+                    // --- Bullish indicators ---
+                    function bullSetupInds() {
+                      var inds = [];
+                      // 1. RSI base forming (RSI 30-50, stabilising)
+                      if (rsi !== null && rsiDir !== null) {
+                        var det = rsi >= 30 && rsi <= 50 && rsiDir > -3;
+                        inds.push({ name:"RSI base forming", score:det?100:0,
+                          status: det?"detected":"not_detected",
+                          explanation: det ? "RSI is in the 30–50 base zone and stabilising — early bottoming behaviour." : "RSI is not in the base zone or is still declining." });
+                      } else {
+                        inds.push({ name:"RSI base forming", score:null, status:"unavailable", explanation:"RSI data unavailable." });
+                      }
+                      // 2. RSI bullish divergence (price lower, RSI higher)
+                      if (rsi !== null && rsiH.length >= 5 && n >= 5) {
+                        var priceLow = Math.min(bars[n-1].l, bars[n-2].l, bars[n-3].l);
+                        var prevLow  = Math.min(bars[n-4].l, bars[n-5].l);
+                        var rsiNow   = (rsiH[0]+rsiH[1])/2;
+                        var rsiPrev  = (rsiH[3]+rsiH[4])/2;
+                        var det2 = priceLow < prevLow && rsiNow > rsiPrev + 2;
+                        inds.push({ name:"RSI bullish divergence", score:det2?100:0,
+                          status: det2?"detected":"not_detected",
+                          explanation: det2 ? "Price made a lower low while RSI made a higher low — possible bullish divergence." : "No clear RSI bullish divergence detected." });
+                      } else {
+                        inds.push({ name:"RSI bullish divergence", score:null, status:"unavailable", explanation:"Insufficient RSI history for divergence calculation." });
+                      }
+                      // 3. Near 52-week low with RSI recovery
+                      if (rsi !== null && hi52 > 0 && lo52 > 0 && price > 0) {
+                        var pos = (price - lo52) / (hi52 - lo52);
+                        var det3 = pos < 0.2 && rsiDir !== null && rsiDir > 0;
+                        inds.push({ name:"Near 52-week low with RSI recovery", score:det3?100:0,
+                          status: det3?"detected":"not_detected",
+                          explanation: det3 ? "Price is near its 52-week low and RSI is beginning to recover — possible bottoming." : "Not near 52-week low or RSI not recovering." });
+                      } else {
+                        inds.push({ name:"Near 52-week low with RSI recovery", score:null, status:"unavailable", explanation:"52-week range or RSI data unavailable." });
+                      }
+                      // 4. Price forming higher low (5-day windows)
+                      if (cur5Lo !== null && prev5Lo !== null) {
+                        var det4 = cur5Lo > prev5Lo;
+                        inds.push({ name:"Price forming higher low", score:det4?100:0,
+                          status: det4?"detected":"not_detected",
+                          explanation: det4 ? "The latest 5-day low ($"+cur5Lo.toFixed(2)+") is above the prior 5-day low ($"+prev5Lo.toFixed(2)+") — higher low forming." : "No higher low detected in the latest 5-day windows." });
+                      } else {
+                        inds.push({ name:"Price forming higher low", score:null, status:"unavailable", explanation:"Insufficient data for 5-day window comparison." });
+                      }
+                      // 5. Selling volume weakening (volume on down days decreasing)
+                      if (n >= 10) {
+                        var dnVol5   = bars.slice(n-5).filter(function(b,i){ return i>0&&b.c<bars[n-5+i-1].c; }).reduce(function(s,b){return s+b.v;},0);
+                        var dnVol10  = bars.slice(n-10,n-5).filter(function(b,i){ return i>0&&b.c<bars[n-10+i-1].c; }).reduce(function(s,b){return s+b.v;},0);
+                        var det5 = dnVol5 < dnVol10 * 0.8;
+                        inds.push({ name:"Selling volume pressure weakening", score:det5?100:0,
+                          status: det5?"detected":"not_detected",
+                          explanation: det5 ? "Volume on down days this week is lower than last week — selling pressure may be easing." : "Selling volume pressure not clearly weakening." });
+                      } else {
+                        inds.push({ name:"Selling volume pressure weakening", score:null, status:"unavailable", explanation:"Insufficient data (need 10+ days)." });
+                      }
+                      return inds;
+                    }
+
+                    function bullTriggerInds() {
+                      var inds = [];
+                      // 1. MACD histogram turning up
+                      if (macdHist !== null && macdHArr.length >= 2) {
+                        var prev = macdHArr[1] && macdHArr[1].histogram != null ? parseFloat(macdHArr[1].histogram) : null;
+                        var det = prev !== null && macdHist > prev;
+                        inds.push({ name:"MACD histogram turning up", score:det?100:0,
+                          status: det?"detected":"not_detected",
+                          explanation: det ? "MACD histogram rose from "+prev.toFixed(3)+" to "+macdHist.toFixed(3)+" — upward momentum may be building." : "MACD histogram is not turning up." });
+                      } else {
+                        inds.push({ name:"MACD histogram turning up", score:null, status:"unavailable", explanation:"MACD history unavailable." });
+                      }
+                      // 2. RSI crosses above 40 or 50
+                      if (rsi !== null && rsiH.length >= 2) {
+                        var prevRsi = rsiH[1];
+                        var det2 = (rsi >= 40 && prevRsi < 40) || (rsi >= 50 && prevRsi < 50);
+                        var nearCross = !det2 && rsi >= 38 && rsi < 52;
+                        inds.push({ name:"RSI crosses above 40 or 50", score:det2?100:nearCross?50:0,
+                          status: det2?"detected":"not_detected",
+                          explanation: det2 ? "RSI crossed above a key level (40 or 50) — momentum turning up." : nearCross ? "RSI is approaching a key level — watch for crossover." : "No RSI crossover above 40 or 50 detected." });
+                      } else {
+                        inds.push({ name:"RSI crosses above 40 or 50", score:null, status:"unavailable", explanation:"RSI data unavailable." });
+                      }
+                      // 3. Close above 20-day MA (EMA20)
+                      if (ema20 !== null && todayBar) {
+                        var det3 = todayBar.c > ema20;
+                        inds.push({ name:"Close above 20-day average", score:det3?100:0,
+                          status: det3?"detected":"not_detected",
+                          explanation: det3 ? "Price closed above the 20-day EMA ($"+ema20.toFixed(2)+") — short-term trend may be turning." : "Price remains below the 20-day EMA ($"+ema20.toFixed(2)+")." });
+                      } else {
+                        inds.push({ name:"Close above 20-day average", score:null, status:"unavailable", explanation:"EMA20 data unavailable." });
+                      }
+                      // 4. Short-term MA turning up
+                      if (ema20 !== null && ind.rsiHistory && n >= 2) {
+                        var det4 = todayBar && bars[n-2] && todayBar.c > bars[n-2].c && ema20 > (bars.slice(Math.max(0,n-3),n-1).reduce(function(s,b){return s+b.c;},0)/2);
+                        inds.push({ name:"Short-term average turning up", score:det4?100:0,
+                          status: det4?"detected":"not_detected",
+                          explanation: det4 ? "Price and short-term average are moving higher — momentum improving." : "Short-term average not yet clearly turning up." });
+                      } else {
+                        inds.push({ name:"Short-term average turning up", score:null, status:"unavailable", explanation:"Insufficient data." });
+                      }
+                      return inds;
+                    }
+
+                    function bullConfirmInds() {
+                      var inds = [];
+                      // 1. Break above recent 20-day resistance
+                      if (recentHigh20 !== null && todayBar) {
+                        var det = todayBar.c > recentHigh20;
+                        inds.push({ name:"Price breaks above recent resistance", score:det?100:0,
+                          status: det?"detected":"not_detected",
+                          explanation: det ? "Price closed above the 20-day resistance level ($"+recentHigh20.toFixed(2)+") — bullish breakout." : "Price has not closed above the recent 20-day resistance ($"+recentHigh20.toFixed(2)+")." });
+                      } else {
+                        inds.push({ name:"Price breaks above recent resistance", score:null, status:"unavailable", explanation:"Not enough data (need 21+ trading days)." });
+                      }
+                      // 2. Close above SMA50
+                      if (sma50 !== null && todayBar) {
+                        var det2 = todayBar.c > sma50;
+                        inds.push({ name:"Close above 50-day moving average", score:det2?100:0,
+                          status: det2?"detected":"not_detected",
+                          explanation: det2 ? "Price closed above the 50-day average ($"+sma50.toFixed(2)+") — long-term bullish signal." : "Price has not closed above the 50-day average ($"+sma50.toFixed(2)+")." });
+                      } else {
+                        inds.push({ name:"Close above 50-day moving average", score:null, status:"unavailable", explanation:"Not enough data (need 50+ trading days)." });
+                      }
+                      // 3. Breakout with volume ≥ 1.5x
+                      if (recentHigh20 !== null && avg30v !== null && todayBar) {
+                        var det3 = todayBar.c > recentHigh20 && volumeRatio >= 1.5;
+                        inds.push({ name:"Breakout with above-average volume", score:det3?100:0,
+                          status: det3?"detected":"not_detected",
+                          explanation: det3 ? "Breakout above resistance confirmed with volume at "+volumeRatio.toFixed(1)+"x the 30-day average." : "No confirmed breakout with high volume (volume at "+(volumeRatio?volumeRatio.toFixed(1)+"x":"N/A")+" vs 1.5x required)." });
+                      } else {
+                        inds.push({ name:"Breakout with above-average volume", score:null, status:"unavailable", explanation:"Need 21+ trading days and 30-day avg volume." });
+                      }
+                      // 4. Higher high and higher low
+                      if (cur5Hi !== null && prev5Hi !== null && cur5Lo !== null && prev5Lo !== null) {
+                        var det4 = cur5Hi > prev5Hi && cur5Lo > prev5Lo;
+                        inds.push({ name:"Higher high and higher low structure", score:det4?100:0,
+                          status: det4?"detected":"not_detected",
+                          explanation: det4 ? "Latest 5-day range (H:$"+cur5Hi.toFixed(2)+" L:$"+cur5Lo.toFixed(2)+") is above prior 5-day range (H:$"+prev5Hi.toFixed(2)+" L:$"+prev5Lo.toFixed(2)+")." : "The latest 5-day range is not yet forming both a higher high and higher low." });
+                      } else {
+                        inds.push({ name:"Higher high and higher low structure", score:null, status:"unavailable", explanation:"Need 10+ trading days." });
+                      }
+                      return inds;
+                    }
+
+                    function bearSetupInds() {
+                      var inds = [];
+                      // 1. RSI overbought stalling
+                      if (rsi !== null && rsiDir !== null) {
+                        var det = rsi >= 65 && rsiDir < 0;
+                        inds.push({ name:"RSI overbought and stalling", score:det?100:0,
+                          status: det?"detected":"not_detected",
+                          explanation: det ? "RSI is in overbought territory and declining — momentum may be stalling." : "RSI is not overbought or is still rising." });
+                      } else {
+                        inds.push({ name:"RSI overbought and stalling", score:null, status:"unavailable", explanation:"RSI data unavailable." });
+                      }
+                      // 2. RSI bearish divergence (price higher, RSI lower)
+                      if (rsi !== null && rsiH.length >= 5 && n >= 5) {
+                        var priceHigh = Math.max(bars[n-1].h, bars[n-2].h, bars[n-3].h);
+                        var prevHigh  = Math.max(bars[n-4].h, bars[n-5].h);
+                        var rsiNow    = (rsiH[0]+rsiH[1])/2;
+                        var rsiPrev   = (rsiH[3]+rsiH[4])/2;
+                        var det2 = priceHigh > prevHigh && rsiNow < rsiPrev - 2;
+                        inds.push({ name:"RSI bearish divergence", score:det2?100:0,
+                          status: det2?"detected":"not_detected",
+                          explanation: det2 ? "Price made a higher high while RSI made a lower high — possible bearish divergence." : "No clear RSI bearish divergence detected." });
+                      } else {
+                        inds.push({ name:"RSI bearish divergence", score:null, status:"unavailable", explanation:"Insufficient RSI history." });
+                      }
+                      // 3. Near 52-week high with RSI declining
+                      if (rsi !== null && hi52 > 0 && lo52 > 0 && price > 0) {
+                        var pos3 = (price - lo52) / (hi52 - lo52);
+                        var det3 = pos3 > 0.85 && rsiDir !== null && rsiDir < 0;
+                        inds.push({ name:"Near 52-week high with RSI declining", score:det3?100:0,
+                          status: det3?"detected":"not_detected",
+                          explanation: det3 ? "Price is near its 52-week high and RSI is declining — possible topping." : "Not near 52-week high or RSI not declining." });
+                      } else {
+                        inds.push({ name:"Near 52-week high with RSI declining", score:null, status:"unavailable", explanation:"52-week range or RSI data unavailable." });
+                      }
+                      // 4. Price forming lower high
+                      if (cur5Hi !== null && prev5Hi !== null) {
+                        var det4 = cur5Hi < prev5Hi;
+                        inds.push({ name:"Price forming lower high", score:det4?100:0,
+                          status: det4?"detected":"not_detected",
+                          explanation: det4 ? "The latest 5-day high ($"+cur5Hi.toFixed(2)+") is below the prior 5-day high ($"+prev5Hi.toFixed(2)+") — lower high forming." : "No lower high detected." });
+                      } else {
+                        inds.push({ name:"Price forming lower high", score:null, status:"unavailable", explanation:"Insufficient data for 5-day window comparison." });
+                      }
+                      // 5. Buying volume weakening
+                      if (n >= 10) {
+                        var upVol5  = bars.slice(n-5).filter(function(b,i){ return i>0&&b.c>bars[n-5+i-1].c; }).reduce(function(s,b){return s+b.v;},0);
+                        var upVol10 = bars.slice(n-10,n-5).filter(function(b,i){ return i>0&&b.c>bars[n-10+i-1].c; }).reduce(function(s,b){return s+b.v;},0);
+                        var det5 = upVol5 < upVol10 * 0.8;
+                        inds.push({ name:"Buying volume pressure weakening", score:det5?100:0,
+                          status: det5?"detected":"not_detected",
+                          explanation: det5 ? "Volume on up days this week is lower than last week — buying pressure may be easing." : "Buying volume pressure not clearly weakening." });
+                      } else {
+                        inds.push({ name:"Buying volume pressure weakening", score:null, status:"unavailable", explanation:"Insufficient data (need 10+ days)." });
+                      }
+                      return inds;
+                    }
+
+                    function bearTriggerInds() {
+                      var inds = [];
+                      // 1. MACD histogram turning down
+                      if (macdHist !== null && macdHArr.length >= 2) {
+                        var prev = macdHArr[1] && macdHArr[1].histogram != null ? parseFloat(macdHArr[1].histogram) : null;
+                        var det = prev !== null && macdHist < prev;
+                        inds.push({ name:"MACD histogram turning down", score:det?100:0,
+                          status: det?"detected":"not_detected",
+                          explanation: det ? "MACD histogram fell from "+prev.toFixed(3)+" to "+macdHist.toFixed(3)+" — downward momentum may be building." : "MACD histogram is not turning down." });
+                      } else {
+                        inds.push({ name:"MACD histogram turning down", score:null, status:"unavailable", explanation:"MACD history unavailable." });
+                      }
+                      // 2. RSI drops below 60 or 50
+                      if (rsi !== null && rsiH.length >= 2) {
+                        var prevRsi2 = rsiH[1];
+                        var det2 = (rsi < 60 && prevRsi2 >= 60) || (rsi < 50 && prevRsi2 >= 50);
+                        var nearCross = !det2 && rsi >= 48 && rsi < 62;
+                        inds.push({ name:"RSI drops below 60 or 50", score:det2?100:nearCross?50:0,
+                          status: det2?"detected":"not_detected",
+                          explanation: det2 ? "RSI crossed below a key level (60 or 50) — momentum turning down." : nearCross ? "RSI is approaching a key level from above — watch for crossover." : "No RSI crossover below 60 or 50 detected." });
+                      } else {
+                        inds.push({ name:"RSI drops below 60 or 50", score:null, status:"unavailable", explanation:"RSI data unavailable." });
+                      }
+                      // 3. Close below 20-day MA
+                      if (ema20 !== null && todayBar) {
+                        var det3 = todayBar.c < ema20;
+                        inds.push({ name:"Close below 20-day average", score:det3?100:0,
+                          status: det3?"detected":"not_detected",
+                          explanation: det3 ? "Price closed below the 20-day EMA ($"+ema20.toFixed(2)+") — short-term trend may be turning down." : "Price remains above the 20-day EMA ($"+ema20.toFixed(2)+")." });
+                      } else {
+                        inds.push({ name:"Close below 20-day average", score:null, status:"unavailable", explanation:"EMA20 data unavailable." });
+                      }
+                      // 4. Short-term MA turning down
+                      if (ema20 !== null && n >= 2) {
+                        var det4 = todayBar && bars[n-2] && todayBar.c < bars[n-2].c;
+                        inds.push({ name:"Short-term average turning down", score:det4?100:0,
+                          status: det4?"detected":"not_detected",
+                          explanation: det4 ? "Price is moving lower — short-term average may be turning down." : "Short-term average not clearly turning down." });
+                      } else {
+                        inds.push({ name:"Short-term average turning down", score:null, status:"unavailable", explanation:"Insufficient data." });
+                      }
+                      return inds;
+                    }
+
+                    function bearConfirmInds() {
+                      var inds = [];
+                      // 1. Break below recent 20-day support
+                      if (recentLow20 !== null && todayBar) {
+                        var det = todayBar.c < recentLow20;
+                        inds.push({ name:"Price breaks below recent support", score:det?100:0,
+                          status: det?"detected":"not_detected",
+                          explanation: det ? "Price closed below the 20-day support level ($"+recentLow20.toFixed(2)+") — bearish breakdown." : "Price has not closed below the recent 20-day support ($"+recentLow20.toFixed(2)+")." });
+                      } else {
+                        inds.push({ name:"Price breaks below recent support", score:null, status:"unavailable", explanation:"Not enough data (need 21+ trading days)." });
+                      }
+                      // 2. Close below SMA50
+                      if (sma50 !== null && todayBar) {
+                        var det2 = todayBar.c < sma50;
+                        inds.push({ name:"Close below 50-day moving average", score:det2?100:0,
+                          status: det2?"detected":"not_detected",
+                          explanation: det2 ? "Price closed below the 50-day average ($"+sma50.toFixed(2)+") — long-term bearish signal." : "Price has not closed below the 50-day average ($"+sma50.toFixed(2)+")." });
+                      } else {
+                        inds.push({ name:"Close below 50-day moving average", score:null, status:"unavailable", explanation:"Not enough data (need 50+ trading days)." });
+                      }
+                      // 3. Breakdown with volume ≥ 1.5x
+                      if (recentLow20 !== null && avg30v !== null && todayBar) {
+                        var det3 = todayBar.c < recentLow20 && volumeRatio >= 1.5;
+                        inds.push({ name:"Breakdown with above-average volume", score:det3?100:0,
+                          status: det3?"detected":"not_detected",
+                          explanation: det3 ? "Breakdown below support confirmed with volume at "+volumeRatio.toFixed(1)+"x the 30-day average." : "No confirmed breakdown with high volume (volume at "+(volumeRatio?volumeRatio.toFixed(1)+"x":"N/A")+" vs 1.5x required)." });
+                      } else {
+                        inds.push({ name:"Breakdown with above-average volume", score:null, status:"unavailable", explanation:"Need 21+ trading days and 30-day avg volume." });
+                      }
+                      // 4. Lower high and lower low
+                      if (cur5Hi !== null && prev5Hi !== null && cur5Lo !== null && prev5Lo !== null) {
+                        var det4 = cur5Hi < prev5Hi && cur5Lo < prev5Lo;
+                        inds.push({ name:"Lower high and lower low structure", score:det4?100:0,
+                          status: det4?"detected":"not_detected",
+                          explanation: det4 ? "Latest 5-day range (H:$"+cur5Hi.toFixed(2)+" L:$"+cur5Lo.toFixed(2)+") is below prior 5-day range (H:$"+prev5Hi.toFixed(2)+" L:$"+prev5Lo.toFixed(2)+")." : "The latest 5-day range is not yet forming both a lower high and lower low." });
+                      } else {
+                        inds.push({ name:"Lower high and lower low structure", score:null, status:"unavailable", explanation:"Need 10+ trading days." });
+                      }
+                      return inds;
+                    }
+
+                    // --- Calculate scores ---
+                    var bsInds = bullSetupInds(),   btInds = bullTriggerInds(),   bcInds = bullConfirmInds();
+                    var dsInds = bearSetupInds(),   dtInds = bearTriggerInds(),   dcInds = bearConfirmInds();
+                    var bsScore = calcStageScore(bsInds), btScore = calcStageScore(btInds), bcScore = calcStageScore(bcInds);
+                    var dsScore = calcStageScore(dsInds), dtScore = calcStageScore(dtInds), dcScore = calcStageScore(dcInds);
+                    var bullScore = calcWeightedScore([{score:bsScore,weight:40},{score:btScore,weight:30},{score:bcScore,weight:30}]);
+                    var bearScore = calcWeightedScore([{score:dsScore,weight:40},{score:dtScore,weight:30},{score:dcScore,weight:30}]);
+
+                    // --- Overall status ---
+                    function getDirectionStatus(setupS, trigS, confS, dir) {
+                      var s = setupS||0, t = trigS||0, c = confS||0;
+                      var hasSetup = setupS!==null, hasTrig = trigS!==null, hasConf = confS!==null;
+                      // Confirmed: all three strong
+                      if (s>=60 && t>=60 && hasConf && c>=70) return { label:"Reversal Confirmed",   expl:dir+" setup, momentum trigger, and price confirmation are aligned." };
+                      // Triggered: setup+trigger strong, confirmation partial
+                      if (s>=60 && t>=60 && hasConf && c>=40) return { label:"Reversal Triggered",   expl:dir+" momentum appears to be turning with some supporting confirmation." };
+                      // Forming: setup+trigger strong but confirmation weak/missing
+                      if (s>=60 && t>=60)                     return { label:"Reversal Forming",     expl:dir+" setup and momentum trigger are positive, but price confirmation is still missing." };
+                      // Watch: setup forming, trigger not yet there
+                      if (s>=40)                              return { label:"Reversal Watch",        expl:"Early "+dir.toLowerCase()+" reversal conditions may be appearing, but trigger and confirmation are still limited." };
+                      return { label:"No Signal", expl:"" };
+                    }
+
+                    function getOverallRevStatus(bS, beS, bsScore, btScore, bcScore, dsScore, dtScore, dcScore) {
+                      if (bS===null&&beS===null) return {status:"Not Enough Data",explanation:"Not enough price and volume data is available to calculate a reliable reversal watch signal.",primaryScore:null};
+                      var bs=bS||0, bes=beS||0;
+                      if (bs<21&&bes<21) return {status:"No Clear Reversal",explanation:"No meaningful bullish or bearish reversal setup is currently detected.",primaryScore:Math.max(bs,bes)};
+
+                      var bullDir = getDirectionStatus(bsScore, btScore, bcScore, "Bullish");
+                      var bearDir = getDirectionStatus(dsScore, dtScore, dcScore, "Bearish");
+                      var diff = bs - bes;
+
+                      // Mixed: both sides meaningful and close
+                      if (bs>=40&&bes>=40&&Math.abs(diff)<=15) return {status:"Mixed Reversal Signals",explanation:"Both bullish and bearish reversal signals are present. Price action is unclear and confirmation is needed.",primaryScore:Math.max(bs,bes)};
+
+                      // Bullish leads
+                      if (diff>15 && bullDir.label!=="No Signal") return {status:"Bullish "+bullDir.label, explanation:bullDir.expl, primaryScore:bs};
+
+                      // Bearish leads
+                      if (diff<-15 && bearDir.label!=="No Signal") return {status:"Bearish "+bearDir.label, explanation:bearDir.expl, primaryScore:bes};
+
+                      // Neither side meaningfully stronger but at least one has signal
+                      return {status:"Mixed Reversal Signals",explanation:"Both bullish and bearish reversal signals are present. Price action is unclear and confirmation is needed.",primaryScore:Math.max(bs,bes)};
+                    }
+                    var revStatus = getOverallRevStatus(bullScore, bearScore, bsScore, btScore, bcScore, dsScore, dtScore, dcScore);
+                    var bLbl  = getDirectionStatus(bsScore, btScore, bcScore, "Bullish").label.replace("Reversal ","") || getReversalLabel(bullScore);
+                    var beLbl = getDirectionStatus(dsScore, dtScore, dcScore, "Bearish").label.replace("Reversal ","") || getReversalLabel(bearScore);
+                    var statusCol = revStatus.status.startsWith("Bullish")?"#1a6a1a":revStatus.status.startsWith("Bearish")?"#c03030":revStatus.status==="Mixed Reversal Signals"?"#b88000":"#888";
+                    var statusBg  = revStatus.status.startsWith("Bullish")?"#e6f4e6":revStatus.status.startsWith("Bearish")?"#fff0f0":revStatus.status==="Mixed Reversal Signals"?"#fdf8e6":"#f5f5f5";
+                    var statusBd  = revStatus.status.startsWith("Bullish")?"#7abd00":revStatus.status.startsWith("Bearish")?"#e08080":revStatus.status==="Mixed Reversal Signals"?"#d4a800":"#e0dbd0";
+
+                    // --- UI Components ---
+                    function IndicatorRow(ind) {
+                      var icon = ind.status==="detected"?"✓":ind.status==="not_detected"?"✗":"—";
+                      var col  = ind.status==="detected"?"#1a6a1a":ind.status==="not_detected"?"#c03030":"#aaa";
                       return (
-                        <div style={{marginBottom:8,padding:"10px 14px",background:bg,borderRadius:8,border:"0.5px solid "+bd}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:r.active?6:0}}>
-                            <div style={{width:10,height:10,borderRadius:"50%",background:dot,flexShrink:0}}></div>
-                            <span style={{fontSize:12,fontWeight:700,color:labelCol}}>{r.label}</span>
-                            <span style={{fontSize:10,color:statusCol,marginLeft:"auto"}}>{r.active?"ACTIVE":"Not detected"}</span>
+                        <div style={{padding:"8px 14px",borderBottom:"0.5px solid #f5f2ec",display:"flex",gap:10,alignItems:"flex-start"}}>
+                          <span style={{fontSize:13,color:col,fontWeight:700,flexShrink:0,marginTop:1}}>{icon}</span>
+                          <div>
+                            <div style={{fontSize:11,fontWeight:600,color:"#333"}}>{ind.name}
+                              <span style={{fontSize:9,color:col,marginLeft:6,fontWeight:700}}>{ind.status==="detected"?"Detected":ind.status==="not_detected"?"Not detected":"Not enough data"}</span>
+                            </div>
+                            <div style={{fontSize:10,color:"#888",marginTop:2,lineHeight:1.5}}>{ind.explanation}</div>
                           </div>
-                          {r.active && <div>
-                            <div style={{fontSize:11,color:"#555",lineHeight:1.5,marginBottom:3}}><span style={{fontWeight:600}}>What: </span>{r.what}</div>
-                            <div style={{fontSize:11,color:"#777",lineHeight:1.5}}><span style={{fontWeight:600}}>Why it matters: </span>{r.why}</div>
-                          </div>}
                         </div>
                       );
                     }
 
+                    function StageCard(props) {
+                      var score=props.score, label=getReversalLabel(score), inds=props.inds;
+                      var col = score===null?"#aaa":revLabelColor(label);
+                      var det = inds.filter(function(i){return i.status==="detected";}).length;
+                      var avail = inds.filter(function(i){return i.score!==null;}).length;
+                      return (
+                        <div style={{border:"0.5px solid #e8e4dc",borderRadius:8,marginBottom:8,overflow:"hidden"}}>
+                          <div style={{padding:"10px 14px",background:"#faf8f4",borderBottom:"0.5px solid #e8e4dc",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                            <div>
+                              <span style={{fontSize:12,fontWeight:700,color:"#333"}}>{props.title}</span>
+                              <span style={{fontSize:10,color:"#aaa",marginLeft:8}}>{props.subtitle}</span>
+                            </div>
+                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                              {score!==null&&<span style={{fontSize:13,fontWeight:700,color:col}}>{score}</span>}
+                              <span style={{fontSize:11,fontWeight:600,color:col}}>{label}</span>
+                            </div>
+                          </div>
+                          <div style={{fontSize:10,color:"#888",padding:"6px 14px",background:"#faf8f4",borderBottom:"0.5px solid #f0ede6"}}>{det+" of "+avail+" available indicators detected."}</div>
+                          {inds.map(function(ind,i){ return <div key={i}>{IndicatorRow(ind)}</div>; })}
+                          <div style={{padding:"6px 14px"}}>
+                            <details>
+                              <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4}}>
+                                <span style={{fontSize:9,color:"#ccc"}}>▶</span><span>How is this scored?</span>
+                              </summary>
+                              <div style={{fontSize:10,color:"#666",lineHeight:1.8,padding:"4px 0",whiteSpace:"pre-line"}}>{"Detected = 100 | Not detected = 0 | Unavailable = excluded\n\nStage score = average of available indicators only.\nIf all indicators unavailable, stage shows Not enough data."}</div>
+                            </details>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    function DirectionCard(props) {
+                      // Use stage-aware label (not raw score label)
+                      var dirResult = getDirectionStatus(props.setupScore, props.trigScore, props.confScore, props.bull?"Bullish":"Bearish");
+                      var label = dirResult.label.replace("Reversal ","") || "No Signal";
+                      var score = props.score;
+                      var col   = props.bull ? revLabelColor(label) : revBearLabelColor(label);
+                      var dc    = dirColors(label, props.bull);
+                      // Header label color - weaken bearish when low
+                      var hdrCol = props.bull ? (props.bull?"#2a6a2a":"#666") : (score&&score>=40?"#aa2020":"#888");
+                      // Stage summary labels
+                      var ssLbl = stageSummaryLabel(props.setupScore);
+                      var stLbl = stageSummaryLabel(props.trigScore);
+                      var scLbl = stageSummaryLabel(props.confScore);
+                      return (
+                        <div style={{border:"0.5px solid "+dc.bd,borderRadius:10,marginBottom:16,overflow:"hidden"}}>
+                          <div style={{background:dc.bg,padding:"12px 16px",borderBottom:"0.5px solid "+dc.bd}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                              <div>
+                                <div style={{fontSize:10,fontWeight:700,color:props.bull?"#2a6a2a":"#888",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:2}}>{props.title}</div>
+                                <div style={{fontSize:11,color:"#888",marginBottom:6}}>{props.subtitle}</div>
+                                {/* Compact stage summary */}
+                                <div style={{fontSize:10,color:"#999"}}>
+                                  {"Setup "}<span style={{fontWeight:700,color:stageSummaryColor(props.setupScore,props.bull)}}>{ssLbl}</span>
+                                  <span style={{margin:"0 5px",color:"#ccc"}}>{"·"}</span>
+                                  {"Trigger "}<span style={{fontWeight:700,color:stageSummaryColor(props.trigScore,props.bull)}}>{stLbl}</span>
+                                  <span style={{margin:"0 5px",color:"#ccc"}}>{"·"}</span>
+                                  {"Confirmation "}<span style={{fontWeight:700,color:stageSummaryColor(props.confScore,props.bull)}}>{scLbl}</span>
+                                </div>
+                              </div>
+                              <div style={{textAlign:"right",flexShrink:0,paddingLeft:12}}>
+                                {score!==null&&<div style={{fontSize:20,fontWeight:800,color:col,lineHeight:1}}>{score}</div>}
+                                <div style={{fontSize:11,color:"#aaa",marginBottom:2}}>{"/ 100"}</div>
+                                <div style={{fontSize:12,fontWeight:700,color:col}}>{label}</div>
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{padding:"0 14px 4px 14px",background:dc.bg,borderBottom:"0.5px solid "+dc.bd}}>
+                            <details>
+                              <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4,padding:"6px 0"}}>
+                                <span style={{fontSize:9,color:"#ccc"}}>▶</span><span>How is this scored?</span>
+                              </summary>
+                              <div style={{fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line",paddingBottom:4}}>{"Overall Score = Setup × 40% + Trigger × 30% + Confirmation × 30%\n\nLabel is stage-aware — not just the weighted score:\n  Confirmed: Setup ≥ 60, Trigger ≥ 60, Confirmation ≥ 70\n  Triggered: Setup ≥ 60, Trigger ≥ 60, Confirmation ≥ 40\n  Forming:   Setup ≥ 60, Trigger ≥ 60, Confirmation < 40\n  Watch:     Setup ≥ 40, Trigger < 60\n\nIf a stage is unavailable, remaining stages are reweighted."}</div>
+                            </details>
+                          </div>
+                          <div style={{padding:"10px 14px 0 14px"}}>
+                            {StageCard({title:"Setup", subtitle:"Early conditions forming?", score:props.setupScore, inds:props.setupInds})}
+                            {StageCard({title:"Trigger", subtitle:"Momentum starting to turn?", score:props.trigScore, inds:props.trigInds})}
+                            {StageCard({title:"Confirmation", subtitle:"Price action confirmed?", score:props.confScore, inds:props.confInds})}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Store for left panel
+                    if (!window.__revWatchStatus) window.__revWatchStatus = {};
+                    window.__revWatchStatus[sym] = { status:revStatus.status, bLbl:bLbl, beLbl:beLbl, bullScore:bullScore, bearScore:bearScore };
+
                     return (
                       <div>
-                        {/* Summary banner */}
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
-                          <div style={{padding:"10px 14px",background:_bBg,borderRadius:8,border:"0.5px solid "+_bBd}}>
-                            <div style={{fontSize:9,color:_bFg,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>Reversal Signals</div>
-                            <div style={{fontSize:15,fontWeight:700,color:_bFg}}>{bullCount + " / 5"}</div>
-                            <div style={{display:"flex",gap:3,marginTop:5}}>{bullSignals.map(function(r,i){return <span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:r.active?"#7abd00":"#ccc"}}/>;})}</div>
+                        {/* Summary Card */}
+                        <div style={{border:"0.5px solid "+statusBd,borderRadius:10,background:statusBg,padding:"14px 16px",marginBottom:16}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                            <div style={{flex:1}}>
+                              <div style={{fontSize:10,fontWeight:700,color:"#999",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>Reversal Watch</div>
+                              <div style={{fontSize:14,fontWeight:700,color:statusCol,marginBottom:4}}>{revStatus.status}</div>
+                              <div style={{fontSize:11,color:"#666",lineHeight:1.5,marginBottom:8}}>{revStatus.explanation}</div>
+                              <div style={{fontSize:11,color:"#888"}}>
+                                <span>{"Bullish: "}</span><span style={{fontWeight:700,color:revLabelColor(bLbl)}}>{bLbl}</span>
+                                <span style={{margin:"0 8px",color:"#ccc"}}>{"·"}</span>
+                                <span>{"Bearish: "}</span><span style={{fontWeight:700,color:revLabelColor(beLbl)}}>{beLbl}</span>
+                              </div>
+                            </div>
+                            {revStatus.primaryScore!==null&&(
+                              <div style={{textAlign:"right",flexShrink:0,paddingLeft:16}}>
+                                <div style={{fontSize:32,fontWeight:800,color:statusCol,lineHeight:1}}>{revStatus.primaryScore}</div>
+                                <div style={{fontSize:11,color:"#aaa",marginTop:2}}>{"/ 100"}</div>
+                              </div>
+                            )}
                           </div>
-                          <div style={{padding:"10px 14px",background:_rBg,borderRadius:8,border:"0.5px solid "+_rBd}}>
-                            <div style={{fontSize:9,color:_rFg,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>Bearish Signals</div>
-                            <div style={{fontSize:15,fontWeight:700,color:_rFg}}>{bearCount + " / 5"}</div>
-                            <div style={{display:"flex",gap:3,marginTop:5}}>{bearSignals.map(function(r,i){return <span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:r.active?"#e05050":"#ccc"}}/>;})}</div>
+                          <div style={{marginTop:8}}>
+                            <details>
+                              <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4}}>
+                                <span style={{fontSize:9,color:"#ccc"}}>▶</span><span>How is this scored?</span>
+                              </summary>
+                              <div style={{fontSize:10,color:"#666",lineHeight:1.8,padding:"4px 0",whiteSpace:"pre-line"}}>{"The overall status compares Bullish and Bearish Reversal scores.\n\nNo Clear Reversal: both scores < 21\nMixed Reversal Signals: both ≥ 40 and within 15 points of each other\nBullish/Bearish Reversal: one side leads by more than 15 points\n\nPrimary score = higher of Bullish or Bearish score.\nLabels: No Signal (0–20) | Watch (21–40) | Forming (41–60) | Triggered (61–80) | Confirmed (81–100)"}</div>
+                            </details>
                           </div>
                         </div>
 
-                        {/* Bullish signals - all 5 always shown */}
-                        <div style={{fontSize:10,fontWeight:700,color:"#1a6a1a",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8,marginTop:4}}>
-                          {"Bullish Signals (Bottoming)"}
-                        </div>
-                        {bullSignals.map(function(r,i){ return <div key={i}>{SigRow(r,true)}</div>; })}
+                        {DirectionCard({bull:true, title:"Bullish Reversal Watch", subtitle:"Could a bullish reversal be forming?",
+                          score:bullScore, setupScore:bsScore, trigScore:btScore, confScore:bcScore,
+                          setupInds:bsInds, trigInds:btInds, confInds:bcInds})}
 
-                        {/* Bearish signals - all 5 always shown */}
-                        <div style={{fontSize:10,fontWeight:700,color:"#c03030",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8,marginTop:16}}>
-                          {"Bearish Signals (Topping)"}
-                        </div>
-                        {bearSignals.map(function(r,i){ return <div key={i}>{SigRow(r,false)}</div>; })}
+                        {DirectionCard({bull:false, title:"Bearish Reversal Watch", subtitle:"Could a bearish reversal be forming?",
+                          score:bearScore, setupScore:dsScore, trigScore:dtScore, confScore:dcScore,
+                          setupInds:dsInds, trigInds:dtInds, confInds:dcInds})}
 
-                        <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de",marginTop:8}}>
-                          {"Reversal signals are early warning indicators only. They do not guarantee a price reversal. Not financial advice."}
+                        <div style={{fontSize:10,color:"#aaa",lineHeight:1.6,padding:"10px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4dc"}}>
+                          {"Reversal Watch is based on price and volume analysis only. It does not guarantee a reversal will occur. Not financial advice."}
                         </div>
                       </div>
                     );
@@ -7122,6 +7602,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       );
                     }
 
+                    // Consistent SMF label color used in both card and left panel
+                    function smfLabelColor(lbl) {
+                      if (lbl==="Very High"||lbl==="High") return "#1a6a1a";
+                      if (lbl==="Moderate")                return "#b88000";
+                      if (lbl==="Mild"||lbl==="Low")       return "#c03030";
+                      return "#888";
+                    }
+
                     // Summary card color mapping
                     var smStatusCol = {"Strong Multi-Timeframe Flow":"#1a6a1a","Accumulation Trend Positive":"#1a6a1a","Constructive but Cooling":"#b88000","Early Accumulation":"#b88000","Short-Term Spike":"#b88000","No Clear Signal":"#888"};
                     var smStatusBg  = {"Strong Multi-Timeframe Flow":"#e6f4e6","Accumulation Trend Positive":"#e6f4e6","Constructive but Cooling":"#fdf8e6","Early Accumulation":"#fdf8e6","Short-Term Spike":"#fff4ee","No Clear Signal":"#f5f5f5"};
@@ -7132,26 +7620,24 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                     return (
                       <div>
-                        {/* Summary Card */}
+                        {/* Summary Card — matches screenshot layout */}
                         {smCard.primaryScore !== null && (
-                          <div style={{ border:"0.5px solid "+_sBd, borderRadius:10, marginBottom:16, overflow:"hidden" }}>
-                            <div style={{ background:_sBg, padding:"14px 16px 12px 16px", display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                          <div style={{ border:"0.5px solid "+_sBd, borderRadius:10, marginBottom:16, background:_sBg, padding:"14px 16px" }}>
+                            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                               <div style={{ flex:1 }}>
                                 <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>Smart Money Flow</div>
-                                <div style={{ fontSize:15, fontWeight:700, color:_sCol, marginBottom:4 }}>{smCard.status}</div>
-                                <div style={{ fontSize:11, color:"#555", marginBottom:8, lineHeight:1.5 }}>{smCard.explanation}</div>
-                                <div style={{ fontSize:11, color:"#888" }}>
-                                  <span>{"Today: "}</span><span style={{ fontWeight:700, color:scoreLabelColor(smCard.todayLabel) }}>{smCard.todayLabel}</span>
-                                  <span style={{ margin:"0 6px", color:"#ccc" }}>{"·"}</span>
-                                  <span>{"5D: "}</span><span style={{ fontWeight:700, color:scoreLabelColor(smCard.fiveDayLabel) }}>{smCard.fiveDayLabel}</span>
-                                  <span style={{ margin:"0 6px", color:"#ccc" }}>{"·"}</span>
-                                  <span>{"30D: "}</span><span style={{ fontWeight:700, color:scoreLabelColor(smCard.thirtyDayLabel) }}>{smCard.thirtyDayLabel}</span>
-                                </div>
+                                <div style={{ fontSize:14, fontWeight:700, color:_sCol, marginBottom:4 }}>{smCard.status}</div>
+                                <div style={{ fontSize:11, color:"#666", lineHeight:1.5 }}>{smCard.explanation}</div>
                               </div>
-                              <div style={{ textAlign:"right", flexShrink:0, paddingLeft:16 }}>
-                                <div style={{ fontSize:32, fontWeight:800, color:_sCol, lineHeight:1 }}>{smCard.primaryScore}</div>
-                                <div style={{ fontSize:11, color:"#aaa", marginTop:2 }}>{"/ 100"}</div>
-                                {!thirtyDaySig && <div style={{ fontSize:9, color:"#bbb", marginTop:4, maxWidth:80, textAlign:"right", lineHeight:1.3 }}>{"30-day data unavailable"}</div>}
+                              <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0, paddingLeft:24, paddingTop:2 }}>
+                                <span style={{ fontSize:12, color:"#888" }}>{"Today:"}</span>
+                                <span style={{ fontSize:12, fontWeight:700, color:smfLabelColor(smCard.todayLabel) }}>{smCard.todayLabel}</span>
+                                <span style={{ color:"#ccc", fontSize:10 }}>{"·"}</span>
+                                <span style={{ fontSize:12, color:"#888" }}>{"5D:"}</span>
+                                <span style={{ fontSize:12, fontWeight:700, color:smfLabelColor(smCard.fiveDayLabel) }}>{smCard.fiveDayLabel}</span>
+                                <span style={{ color:"#ccc", fontSize:10 }}>{"·"}</span>
+                                <span style={{ fontSize:12, color:"#888" }}>{"30D:"}</span>
+                                <span style={{ fontSize:12, fontWeight:700, color:smfLabelColor(smCard.thirtyDayLabel) }}>{smCard.thirtyDayLabel}</span>
                               </div>
                             </div>
                           </div>
@@ -8611,7 +9097,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.09</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.13</span>
           </div>
         </div>
 
