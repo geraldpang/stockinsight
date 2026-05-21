@@ -902,7 +902,7 @@ export async function onRequest(context) {
               }
             }
             // Max gain/drawdown 30/60/90d
-            for (var ww of [30, 60, 90]) {
+            var _windows2 = [30, 60, 90]; for (var wi2 = 0; wi2 < _windows2.length; wi2++) { var ww = _windows2[wi2];
               var futSlice = rows3.slice(si + 1, si + ww + 1).map(function(r){ return r.close_price; });
               if (futSlice.length > 0) {
                 var maxG = Math.max.apply(null, futSlice);
@@ -921,7 +921,8 @@ export async function onRequest(context) {
               var setClauses = Object.keys(updates).map(function(k){ return k + "=?"; }).join(", ");
               var vals = Object.values(updates);
               vals.push(row.id);
-              await DB.prepare("UPDATE technical_signal_journal SET " + setClauses + ", updated_at=datetime('now') WHERE id=?").bind(...vals).run();
+              var _stmt = DB.prepare("UPDATE technical_signal_journal SET " + setClauses + ", updated_at=datetime('now') WHERE id=?");
+              await _stmt.bind.apply(_stmt, vals).run();
               updated++;
             }
           }
