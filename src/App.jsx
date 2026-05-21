@@ -2665,7 +2665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.12</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.13</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2719,7 +2719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.12</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.13</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6689,10 +6689,39 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     }
 
                     function revLabelColor(lbl) {
-                      if (lbl==="Confirmed"||lbl==="Triggered") return "#1a6a1a";
-                      if (lbl==="Forming"||lbl==="Watch")       return "#b88000";
-                      if (lbl==="No Signal")                    return "#888";
+                      if (lbl==="Confirmed")   return "#1a6a1a";
+                      if (lbl==="Triggered")   return "#2a8a2a";
+                      if (lbl==="Forming")     return "#5a8a00";
+                      if (lbl==="Watch")       return "#b88000";
+                      return "#888";
+                    }
+                    function revBearLabelColor(lbl) {
+                      if (lbl==="Confirmed")   return "#a02020";
+                      if (lbl==="Triggered")   return "#c03030";
+                      if (lbl==="Forming")     return "#c05030";
+                      if (lbl==="Watch")       return "#b88000";
+                      return "#888";
+                    }
+                    function stageSummaryLabel(score) {
+                      if (score===null||score===undefined) return "No Data";
+                      if (score>=70) return "Strong";
+                      if (score>=40) return "Moderate";
+                      if (score>=10) return "Weak";
+                      return "Missing";
+                    }
+                    function stageSummaryColor(score, bull) {
+                      if (score===null) return "#aaa";
+                      if (score>=70) return bull?"#2a8a00":"#c03030";
+                      if (score>=40) return "#b88000";
                       return "#aaa";
+                    }
+                    // Direction-aware bg/border based on label strength
+                    function dirColors(label, bull) {
+                      if (label==="Confirmed")   return { bg: bull?"#e6f4e6":"#fde8e8", bd: bull?"#7abd00":"#e08080" };
+                      if (label==="Triggered")   return { bg: bull?"#eef9ee":"#fff0f0", bd: bull?"#9acd50":"#f0a0a0" };
+                      if (label==="Forming")     return { bg: bull?"#f5faf0":"#fff4f4", bd: bull?"#c8e0a0":"#f8c8c8" };
+                      if (label==="Watch")       return { bg:"#fdf8e6",               bd:"#d4c870"                  };
+                      return                            { bg:"#f5f5f5",               bd:"#e0e0e0"                  };
                     }
 
                     function calcStageScore(inds) {
@@ -7116,28 +7145,47 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     }
 
                     function DirectionCard(props) {
-                      var score=props.score, label=getReversalLabel(score);
-                      var col=score===null?"#aaa":revLabelColor(label);
-                      var bg=props.bull?"#f0f9f0":"#fff5f5";
-                      var bd=props.bull?"#b8d8b8":"#f0b8b8";
+                      // Use stage-aware label (not raw score label)
+                      var dirResult = getDirectionStatus(props.setupScore, props.trigScore, props.confScore, props.bull?"Bullish":"Bearish");
+                      var label = dirResult.label.replace("Reversal ","") || "No Signal";
+                      var score = props.score;
+                      var col   = props.bull ? revLabelColor(label) : revBearLabelColor(label);
+                      var dc    = dirColors(label, props.bull);
+                      // Header label color - weaken bearish when low
+                      var hdrCol = props.bull ? (props.bull?"#2a6a2a":"#666") : (score&&score>=40?"#aa2020":"#888");
+                      // Stage summary labels
+                      var ssLbl = stageSummaryLabel(props.setupScore);
+                      var stLbl = stageSummaryLabel(props.trigScore);
+                      var scLbl = stageSummaryLabel(props.confScore);
                       return (
-                        <div style={{border:"0.5px solid "+bd,borderRadius:10,marginBottom:16,overflow:"hidden"}}>
-                          <div style={{background:bg,padding:"12px 16px",borderBottom:"0.5px solid "+bd,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                            <div>
-                              <div style={{fontSize:10,fontWeight:700,color:props.bull?"#2a6a2a":"#aa3030",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:2}}>{props.title}</div>
-                              <div style={{fontSize:11,color:"#888"}}>{props.subtitle}</div>
-                            </div>
-                            <div style={{textAlign:"right"}}>
-                              {score!==null&&<div style={{fontSize:22,fontWeight:800,color:col,lineHeight:1}}>{score}</div>}
-                              <div style={{fontSize:12,fontWeight:700,color:col}}>{label}</div>
+                        <div style={{border:"0.5px solid "+dc.bd,borderRadius:10,marginBottom:16,overflow:"hidden"}}>
+                          <div style={{background:dc.bg,padding:"12px 16px",borderBottom:"0.5px solid "+dc.bd}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                              <div>
+                                <div style={{fontSize:10,fontWeight:700,color:props.bull?"#2a6a2a":"#888",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:2}}>{props.title}</div>
+                                <div style={{fontSize:11,color:"#888",marginBottom:6}}>{props.subtitle}</div>
+                                {/* Compact stage summary */}
+                                <div style={{fontSize:10,color:"#999"}}>
+                                  {"Setup "}<span style={{fontWeight:700,color:stageSummaryColor(props.setupScore,props.bull)}}>{ssLbl}</span>
+                                  <span style={{margin:"0 5px",color:"#ccc"}}>{"·"}</span>
+                                  {"Trigger "}<span style={{fontWeight:700,color:stageSummaryColor(props.trigScore,props.bull)}}>{stLbl}</span>
+                                  <span style={{margin:"0 5px",color:"#ccc"}}>{"·"}</span>
+                                  {"Confirmation "}<span style={{fontWeight:700,color:stageSummaryColor(props.confScore,props.bull)}}>{scLbl}</span>
+                                </div>
+                              </div>
+                              <div style={{textAlign:"right",flexShrink:0,paddingLeft:12}}>
+                                {score!==null&&<div style={{fontSize:20,fontWeight:800,color:col,lineHeight:1}}>{score}</div>}
+                                <div style={{fontSize:11,color:"#aaa",marginBottom:2}}>{"/ 100"}</div>
+                                <div style={{fontSize:12,fontWeight:700,color:col}}>{label}</div>
+                              </div>
                             </div>
                           </div>
-                          <div style={{padding:"0 14px 6px 14px",background:bg,borderBottom:"0.5px solid "+bd}}>
+                          <div style={{padding:"0 14px 4px 14px",background:dc.bg,borderBottom:"0.5px solid "+dc.bd}}>
                             <details>
                               <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4,padding:"6px 0"}}>
                                 <span style={{fontSize:9,color:"#ccc"}}>▶</span><span>How is this scored?</span>
                               </summary>
-                              <div style={{fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line"}}>{"Overall Score = Setup × 40% + Trigger × 30% + Confirmation × 30%\n\nIf a stage is unavailable, remaining stages are reweighted proportionally.\nSetup shows whether early conditions are forming.\nTrigger shows whether momentum is starting to turn.\nConfirmation shows whether price action has confirmed the move."}</div>
+                              <div style={{fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line",paddingBottom:4}}>{"Overall Score = Setup × 40% + Trigger × 30% + Confirmation × 30%\n\nLabel is stage-aware — not just the weighted score:\n  Confirmed: Setup ≥ 60, Trigger ≥ 60, Confirmation ≥ 70\n  Triggered: Setup ≥ 60, Trigger ≥ 60, Confirmation ≥ 40\n  Forming:   Setup ≥ 60, Trigger ≥ 60, Confirmation < 40\n  Watch:     Setup ≥ 40, Trigger < 60\n\nIf a stage is unavailable, remaining stages are reweighted."}</div>
                             </details>
                           </div>
                           <div style={{padding:"10px 14px 0 14px"}}>
@@ -9049,7 +9097,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.12</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.13</span>
           </div>
         </div>
 
