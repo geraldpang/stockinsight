@@ -2666,7 +2666,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.23</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.24</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2720,7 +2720,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.23</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.24</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3470,69 +3470,90 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     return (
                       <div>
                         {(function(){
+                          // ── Reversal row ───────────────────────────────────────────────────────
                           var _rw = window.__revWatchStatus && window.__revWatchStatus[sym];
-                          if (_rw) {
-                            var _compactStatus = _rw.status==="No Clear Reversal"?"No Clear Reversal":_rw.status==="Mixed Reversal Signals"?"Mixed Signals":_rw.status==="Not Enough Data"?"No Data":_rw.status;
-                            var _rwCol = _rw.status.startsWith("Bullish")?"#7abd00":_rw.status.startsWith("Bearish")?"#e05050":_rw.status==="Mixed Reversal Signals"?"#EF9F27":"#666";
-                            function _rlCol(lbl){ return lbl==="Confirmed"||lbl==="Triggered"?"#7abd00":lbl==="Forming"||lbl==="Watch"?"#EF9F27":lbl==="No Signal"?"#666":"#aaa"; }
-                            return (
-                              <div onClick={function(){ window.__goToTab&&window.__goToTab("reversal"); }}
-                                style={{padding:"10px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer"}}
-                                onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
-                                onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
-                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                                  <span style={{fontSize:11,color:"#666"}}>Reversal Watch</span>
-                                  <span style={{display:"flex",alignItems:"center",gap:6}}>
-                                    <span style={{fontSize:12,fontWeight:600,color:_rwCol}}>{_compactStatus}</span>
-                                    <span style={{fontSize:11,color:"#444"}}>{"›"}</span>
-                                  </span>
-                                </div>
-                                <div style={{fontSize:9,color:"#555",lineHeight:1.4}}>
-                                  <span>{"Bullish "}</span><span style={{color:_rlCol(_rw.bLbl),fontWeight:600}}>{_rw.bLbl}</span>
-                                  <span style={{margin:"0 4px",color:"#333"}}>{"·"}</span>
-                                  <span>{"Bearish "}</span><span style={{color:_rlCol(_rw.beLbl),fontWeight:600}}>{_rw.beLbl}</span>
-                                </div>
-                              </div>
-                            );
-                          }
-                          return SigRow2("reversal","Reversal Watch",_netRev3,_revDir,_revBarPct,_revStrength);
-                        })()}
-                        {(function(){
-                          var _smf = window.__smfScore && window.__smfScore[sym] ? window.__smfScore[sym] : null;
-                          // Compact status labels
-                          var _compactMap = {
-                            "Strong Multi-Timeframe Flow":"Strong Flow",
-                            "Constructive but Cooling":"Constructive",
-                            "Accumulation Trend Positive":"Trend Positive",
-                            "Early Accumulation":"Early Flow",
-                            "Short-Term Spike":"Spike",
-                            "No Clear Signal":"No Signal"
+                          var _rwCompact = {
+                            "Bullish Reversal Watch":"Bullish Watch","Bullish Reversal Forming":"Bullish Forming",
+                            "Bullish Reversal Triggered":"Bullish Triggered","Bullish Reversal Confirmed":"Bullish Confirmed",
+                            "Bearish Reversal Watch":"Bearish Watch","Bearish Reversal Forming":"Bearish Forming",
+                            "Bearish Reversal Triggered":"Bearish Triggered","Bearish Reversal Confirmed":"Bearish Confirmed",
+                            "Mixed Reversal Signals":"Mixed Signals","No Clear Reversal":"No Signal","Not Enough Data":"No Data"
                           };
-                          var _status  = _smf ? (_compactMap[_smf.status]||_smf.status) : "No Data";
-                          var _tLbl    = _smf ? _smf.todayLabel   : "N/A";
-                          var _fLbl    = _smf ? _smf.fiveDayLabel : "N/A";
-                          var _dLbl    = _smf ? _smf.thirtyDayLabel : "N/A";
-                          var _sCol    = _smf ? (_smf.primaryScore>=71?"#1a6a1a":_smf.primaryScore>=51?"#b88000":"#c03030") : "#666";
-                          function _lCol(lbl){ return lbl==="High"||lbl==="Very High"?"#1a6a1a":lbl==="Moderate"?"#b88000":"#c03030"; }
+                          var _rwStatus  = _rw ? (_rwCompact[_rw.status]||_rw.status) : "No Data";
+                          var _rwMainCol = _rw ? (function(s){
+                            if (s.startsWith("Bullish")&&(s.includes("Forming")||s.includes("Triggered")||s.includes("Confirmed"))) return "#7abd00";
+                            if (s.startsWith("Bullish")&&s.includes("Watch")) return "#6090d0";
+                            if (s.startsWith("Bearish")&&(s.includes("Forming")||s.includes("Triggered")||s.includes("Confirmed"))) return "#e05050";
+                            if (s.startsWith("Bearish")&&s.includes("Watch")) return "#EF9F27";
+                            if (s==="Mixed Signals") return "#EF9F27";
+                            return "#666";
+                          })(_rwStatus) : "#666";
+                          var _bLbl  = _rw ? (_rw.bLbl  || "N/A") : "N/A";
+                          var _beLbl = _rw ? (_rw.beLbl || "N/A") : "N/A";
+                          function _bullCol(lbl){ return lbl==="Watch"?"#4870a8":lbl==="Forming"||lbl==="Triggered"||lbl==="Confirmed"?"#5a8a00":"#555"; }
+                          function _bearCol(lbl){ return lbl==="Watch"?"#b88000":lbl==="Forming"||lbl==="Triggered"||lbl==="Confirmed"?"#c03030":"#555"; }
                           return (
-                            <div onClick={function(){ window.__goToTab&&window.__goToTab("whale"); }}
-                              style={{padding:"10px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer"}}
+                            <div onClick={function(){ window.__goToTab&&window.__goToTab("reversal"); }}
+                              style={{padding:"10px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",display:"flex",alignItems:"center",gap:8}}
                               onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                               onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
-                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                                <span style={{fontSize:11,color:"#666"}}>Smart Money Flow</span>
-                                <span style={{display:"flex",alignItems:"center",gap:6}}>
-                                  <span style={{fontSize:12,fontWeight:600,color:_sCol}}>{_status}</span>
-                                  <span style={{fontSize:11,color:"#444"}}>{"›"}</span>
-                                </span>
+                              <div style={{fontSize:10,color:"#555",width:64,flexShrink:0}}>Reversal</div>
+                              <div style={{flex:1,fontSize:12,fontWeight:700,color:_rwMainCol,lineHeight:1.2}}>{_rwStatus}</div>
+                              <div style={{textAlign:"right",flexShrink:0,lineHeight:1.6}}>
+                                <div style={{fontSize:9}}>
+                                  <span style={{color:"#444"}}>{"Bullish "}</span>
+                                  <span style={{color:_bullCol(_bLbl),fontWeight:600}}>{_bLbl}</span>
+                                </div>
+                                <div style={{fontSize:9}}>
+                                  <span style={{color:"#444"}}>{"Bearish "}</span>
+                                  <span style={{color:_bearCol(_beLbl),fontWeight:600}}>{_beLbl}</span>
+                                </div>
                               </div>
-                              <div style={{fontSize:9,color:"#555",lineHeight:1.4}}>
-                                <span>{"30D "}</span><span style={{color:_lCol(_dLbl),fontWeight:600}}>{_dLbl}</span>
-                                <span style={{margin:"0 4px",color:"#333"}}>{"·"}</span>
-                                <span>{"5D "}</span><span style={{color:_lCol(_fLbl),fontWeight:600}}>{_fLbl}</span>
-                                <span style={{margin:"0 4px",color:"#333"}}>{"·"}</span>
-                                <span>{"Today "}</span><span style={{color:_lCol(_tLbl),fontWeight:600}}>{_tLbl}</span>
+                              <span style={{fontSize:10,color:"#333",flexShrink:0}}>{"›"}</span>
+                            </div>
+                          );
+                        })()}
+                        {(function(){
+                          // ── Money Flow row ─────────────────────────────────────────────────────
+                          var _smf = window.__smfScore && window.__smfScore[sym] ? window.__smfScore[sym] : null;
+                          var _smfMap = {
+                            "Strong Multi-Timeframe Flow":"Strong Flow","Accumulation Trend Positive":"Trend Positive",
+                            "Constructive but Cooling":"Constructive","Early Accumulation":"Early Flow",
+                            "Short-Term Spike":"Spike","No Clear Signal":"No Signal"
+                          };
+                          var _smfStatus = _smf ? (_smfMap[_smf.status]||_smf.status) : "No Data";
+                          var _smfMainCol = (function(s){
+                            if (s==="Strong Flow"||s==="Trend Positive") return "#7abd00";
+                            if (s==="Constructive"||s==="Early Flow")    return "#6090d0";
+                            if (s==="Spike")                             return "#EF9F27";
+                            return "#666";
+                          })(_smfStatus);
+                          var _tLbl = _smf ? (_smf.todayLabel   ||"N/A") : "N/A";
+                          var _fLbl = _smf ? (_smf.fiveDayLabel ||"N/A") : "N/A";
+                          var _dLbl = _smf ? (_smf.thirtyDayLabel||"N/A"): "N/A";
+                          function _slCol(lbl){ return lbl==="Very High"||lbl==="High"?"#5a8a00":lbl==="Moderate"?"#4870a8":lbl==="Mild"?"#b88000":"#555"; }
+                          return (
+                            <div onClick={function(){ window.__goToTab&&window.__goToTab("whale"); }}
+                              style={{padding:"10px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",display:"flex",alignItems:"center",gap:8}}
+                              onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
+                              onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
+                              <div style={{fontSize:10,color:"#555",width:64,flexShrink:0}}>Money Flow</div>
+                              <div style={{flex:1,fontSize:12,fontWeight:700,color:_smfMainCol,lineHeight:1.2}}>{_smfStatus}</div>
+                              <div style={{textAlign:"right",flexShrink:0,lineHeight:1.6}}>
+                                <div style={{fontSize:9}}>
+                                  <span style={{color:"#444"}}>{"1 Month "}</span>
+                                  <span style={{color:_slCol(_dLbl),fontWeight:600}}>{_dLbl}</span>
+                                </div>
+                                <div style={{fontSize:9}}>
+                                  <span style={{color:"#444"}}>{"1 Week "}</span>
+                                  <span style={{color:_slCol(_fLbl),fontWeight:600}}>{_fLbl}</span>
+                                </div>
+                                <div style={{fontSize:9}}>
+                                  <span style={{color:"#444"}}>{"Today "}</span>
+                                  <span style={{color:_slCol(_tLbl),fontWeight:600}}>{_tLbl}</span>
+                                </div>
                               </div>
+                              <span style={{fontSize:10,color:"#333",flexShrink:0}}>{"›"}</span>
                             </div>
                           );
                         })()}
@@ -7093,9 +7114,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var revStatus = getOverallRevStatus(bullScore, bearScore, bsScore, btScore, bcScore, dsScore, dtScore, dcScore);
                     var bLbl  = getDirectionStatus(bsScore, btScore, bcScore, "Bullish").label.replace("Reversal ","") || getReversalLabel(bullScore);
                     var beLbl = getDirectionStatus(dsScore, dtScore, dcScore, "Bearish").label.replace("Reversal ","") || getReversalLabel(bearScore);
-                    var statusCol = revStatus.status.startsWith("Bullish")?"#1a6a1a":revStatus.status.startsWith("Bearish")?"#c03030":revStatus.status==="Mixed Reversal Signals"?"#b88000":"#888";
-                    var statusBg  = revStatus.status.startsWith("Bullish")?"#e6f4e6":revStatus.status.startsWith("Bearish")?"#fff0f0":revStatus.status==="Mixed Reversal Signals"?"#fdf8e6":"#f5f5f5";
-                    var statusBd  = revStatus.status.startsWith("Bullish")?"#7abd00":revStatus.status.startsWith("Bearish")?"#e08080":revStatus.status==="Mixed Reversal Signals"?"#d4a800":"#e0dbd0";
+                    var statusCol = revStatusColor(revStatus.status, "main");
+                    var statusBg  = revStatusColor(revStatus.status, "bg");
+                    var statusBd  = revStatusColor(revStatus.status, "bd");
 
                     // --- UI Components ---
                     function IndicatorRow(ind) {
@@ -7604,20 +7625,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     }
 
                     // Consistent SMF label color used in both card and left panel
-                    function smfLabelColor(lbl) {
-                      if (lbl==="Very High"||lbl==="High") return "#1a6a1a";
-                      if (lbl==="Moderate")                return "#b88000";
-                      if (lbl==="Mild"||lbl==="Low")       return "#c03030";
-                      return "#888";
-                    }
-
                     // Summary card color mapping
-                    var smStatusCol = {"Strong Multi-Timeframe Flow":"#1a6a1a","Accumulation Trend Positive":"#1a6a1a","Constructive but Cooling":"#b88000","Early Accumulation":"#b88000","Short-Term Spike":"#b88000","No Clear Signal":"#888"};
-                    var smStatusBg  = {"Strong Multi-Timeframe Flow":"#e6f4e6","Accumulation Trend Positive":"#e6f4e6","Constructive but Cooling":"#fdf8e6","Early Accumulation":"#fdf8e6","Short-Term Spike":"#fff4ee","No Clear Signal":"#f5f5f5"};
-                    var smStatusBd  = {"Strong Multi-Timeframe Flow":"#7abd00","Accumulation Trend Positive":"#7abd00","Constructive but Cooling":"#d4a800","Early Accumulation":"#d4a800","Short-Term Spike":"#e08050","No Clear Signal":"#e0dbd0"};
-                    var _sCol = smStatusCol[smCard.status]||"#888";
-                    var _sBg  = smStatusBg[smCard.status]||"#f5f5f5";
-                    var _sBd  = smStatusBd[smCard.status]||"#e0dbd0";
+                    var _sCol = smfStatusColor(smCard.status, "main");
+                    var _sBg  = smfStatusColor(smCard.status, "bg");
+                    var _sBd  = smfStatusColor(smCard.status, "bd");
 
                     return (
                       <div>
@@ -8754,22 +8765,20 @@ export function JournalPage() {
   }
 
   function reversalColor(status) {
-    if (!status) return "#444";
-    if (status.startsWith("Bullish") && (status.includes("Confirmed") || status.includes("Triggered"))) return "#1a6a1a";
-    if (status.startsWith("Bullish") && status.includes("Forming"))  return "#5a8a00";
-    if (status.startsWith("Bullish") && status.includes("Watch"))    return "#b88000";
-    if (status.startsWith("Bearish") && (status.includes("Confirmed") || status.includes("Triggered"))) return "#a02020";
-    if (status.startsWith("Bearish") && status.includes("Forming"))  return "#c05030";
-    if (status.startsWith("Bearish") && status.includes("Watch"))    return "#b88000";
-    if (status === "Mixed Reversal Signals") return "#b88000";
+    if (!status) return "#555";
+    if (status.startsWith("Bullish") && (status.includes("Forming")||status.includes("Triggered")||status.includes("Confirmed"))) return "#7abd00";
+    if (status.startsWith("Bullish") && status.includes("Watch")) return "#6090d0";
+    if (status.startsWith("Bearish") && (status.includes("Forming")||status.includes("Triggered")||status.includes("Confirmed"))) return "#e05050";
+    if (status.startsWith("Bearish") && status.includes("Watch")) return "#EF9F27";
+    if (status === "Mixed Reversal Signals") return "#EF9F27";
     return "#555";
   }
 
   function smfColor(status) {
-    if (!status) return "#444";
-    if (status === "Strong Multi-Timeframe Flow" || status === "Accumulation Trend Positive") return "#1a6a1a";
-    if (status === "Constructive but Cooling" || status === "Early Accumulation") return "#b88000";
-    if (status === "Short-Term Spike") return "#b88000";
+    if (!status) return "#555";
+    if (status === "Strong Multi-Timeframe Flow" || status === "Accumulation Trend Positive") return "#7abd00";
+    if (status === "Constructive but Cooling" || status === "Early Accumulation") return "#6090d0";
+    if (status === "Short-Term Spike") return "#EF9F27";
     return "#555";
   }
   function filteredJournal() {
@@ -9558,7 +9567,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.23</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.24</span>
           </div>
         </div>
 
