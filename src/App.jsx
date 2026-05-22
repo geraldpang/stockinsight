@@ -1,6 +1,53 @@
 import { useState, useEffect } from "react";
 import { calculateTechnicalSignalSnapshot } from "./technicalSignals.js";
 
+// ─── Central signal colour system ─────────────────────────────────────────────
+var _CLR = {
+  green: { main:"#7abd00", subtle:"#5a8a00", bg:"#e6f4e6", bd:"#7abd00" },
+  red:   { main:"#e05050", subtle:"#c03030", bg:"#fff0f0", bd:"#e08080" },
+  amber: { main:"#EF9F27", subtle:"#b88000", bg:"#fdf8e6", bd:"#d4a800" },
+  blue:  { main:"#6090d0", subtle:"#4870a8", bg:"#eaf0fa", bd:"#90b8e8" },
+  grey:  { main:"#777",   subtle:"#555",    bg:"#f5f5f5", bd:"#e0dbd0" },
+};
+function revStatusColor(status, variant) {
+  var v = variant||"main";
+  if (!status) return _CLR.grey[v];
+  if (status.startsWith("Bullish")&&(status.includes("Confirmed")||status.includes("Triggered")||status.includes("Forming"))) return _CLR.green[v];
+  if (status.startsWith("Bullish")&&status.includes("Watch")) return _CLR.blue[v];
+  if (status.startsWith("Bearish")&&(status.includes("Confirmed")||status.includes("Triggered")||status.includes("Forming"))) return _CLR.red[v];
+  if (status.startsWith("Bearish")&&status.includes("Watch")) return _CLR.amber[v];
+  if (status==="Mixed Reversal Signals") return _CLR.amber[v];
+  return _CLR.grey[v];
+}
+function revDirLabelColor(lbl, isBullish, variant) {
+  var v = variant||"main";
+  if (!lbl||lbl==="N/A"||lbl==="Not enough data"||lbl==="No Signal") return _CLR.grey[v];
+  if (isBullish) {
+    if (lbl==="Watch") return _CLR.blue[v];
+    if (lbl==="Forming"||lbl==="Triggered"||lbl==="Confirmed") return _CLR.green[v];
+  } else {
+    if (lbl==="Watch") return _CLR.amber[v];
+    if (lbl==="Forming"||lbl==="Triggered"||lbl==="Confirmed") return _CLR.red[v];
+  }
+  return _CLR.grey[v];
+}
+function smfStatusColor(status, variant) {
+  var v = variant||"main";
+  if (!status) return _CLR.grey[v];
+  if (status==="Strong Multi-Timeframe Flow"||status==="Accumulation Trend Positive") return _CLR.green[v];
+  if (status==="Constructive but Cooling"||status==="Early Accumulation") return _CLR.blue[v];
+  if (status==="Short-Term Spike") return _CLR.amber[v];
+  return _CLR.grey[v];
+}
+function smfLabelColor(lbl, variant) {
+  var v = variant||"main";
+  if (!lbl||lbl==="N/A"||lbl==="Not enough data") return _CLR.grey[v];
+  if (lbl==="Very High"||lbl==="High") return _CLR.green[v];
+  if (lbl==="Moderate") return _CLR.blue[v];
+  if (lbl==="Mild") return _CLR.amber[v];
+  return _CLR.grey[v];
+}
+
 const FONT = "'Inter', system-ui, sans-serif";
 const LIME = "#c8f000";
 const BG   = "#0e0e0c";
@@ -2666,7 +2713,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.24</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.25</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2720,7 +2767,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.24</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.25</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6701,6 +6748,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var n = bars.length;
 
                     // --- Helper functions ---
+                    function revLabelColor(lbl) { return revDirLabelColor(lbl, true, "main"); }
+                    function revBearLabelColor(lbl) { return revDirLabelColor(lbl, false, "main"); }
                     function getReversalLabel(score) {
                       if (score === null || score === undefined) return "Not enough data";
                       if (score <= 20) return "No Signal";
@@ -9567,7 +9616,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.24</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.25</span>
           </div>
         </div>
 
