@@ -1882,8 +1882,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
     if (!ov || !sym) return;
     var _isFTF=FREE_TICKERS.indexOf(sym)!==-1;
     if (!window.__isPaid && !_isFTF) return;
-    // Pre-load moat and financial so AI Analysis has them ready
-    if (!insightCache["moat"] && !insightLoading) fetchInsight("moat");
+    // Pre-load moat — only if not already cached in state OR window cache
+    var _alreadyCached = insightCache["moat"] || (window.__insightCache && window.__insightCache["moat"] && window.__insightCache["moat"].length > 10);
+    if (!_alreadyCached && !insightLoading) fetchInsight("moat");
   }, [ov, sym]);
 
   // -- AI Analysis trigger: poll every 2s until all data ready --
@@ -2097,7 +2098,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
   // -- Insight tab fetch -------------------------------------------------------
   function fetchInsight(tabId) {
+    // Guard: don't fetch if already in React state OR window cache
     if (insightCache[tabId] || insightLoading) return;
+    if (window.__insightCache && window.__insightCache[tabId] && window.__insightCache[tabId].length > 10) return;
     setInsightLoading(true);
 
     var prompts = {
@@ -2137,23 +2140,23 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
     }).then(function(r) { return r.json(); })
       .then(function(data) {
         var text = data && data.content && data.content[0] && data.content[0].text;
+        // Don't overwrite existing good content with a failed/empty response
+        if (!text || text.length < 20) {
+          setInsightLoading(false);
+          return;
+        }
         setInsightCache(function(prev) {
+          // Don't overwrite if already has good content
+          if (prev[tabId] && prev[tabId].length > 20 && !prev[tabId].includes("unavailable")) return prev;
           var next = {};
           Object.keys(prev).forEach(function(k) { next[k] = prev[k]; });
-          next[tabId] = text || "Analysis unavailable.";
+          next[tabId] = text;
           window.__insightCache = next;
           return next;
         });
         setInsightLoading(false);
       }).catch(function() {
-        setInsightCache(function(prev) {
-          var next = {};
-          Object.keys(prev).forEach(function(k) { next[k] = prev[k]; });
-          next[tabId] = "Analysis unavailable. Please try again.";
-          window.__insightCache = next;
-          return next;
-        });
-        setInsightLoading(false);
+        setInsightLoading(false); // Don't write "unavailable" — silently fail
       });
   }
 
@@ -2713,7 +2716,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.27</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.28</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2767,7 +2770,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.27</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.28</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -9601,7 +9604,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.27</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.28</span>
           </div>
         </div>
 
