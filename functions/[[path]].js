@@ -936,6 +936,16 @@ export async function onRequest(context) {
           return new Response(JSON.stringify({ ok: true, updated: updated }), { headers: jHeaders });
         }
 
+        // POST delete snapshot
+        if (context.request.method === "POST" && jAction === "deleteSnapshot") {
+          var bodyDel = await context.request.json();
+          var tickerDel = (bodyDel.ticker || "").toUpperCase().trim();
+          var dateDel   = bodyDel.date || "";
+          if (!tickerDel || !dateDel) return new Response(JSON.stringify({ error: "ticker and date required" }), { status: 400, headers: jHeaders });
+          await DB.prepare("DELETE FROM technical_signal_journal WHERE ticker = ? AND snapshot_date = ?").bind(tickerDel, dateDel).run();
+          return new Response(JSON.stringify({ ok: true }), { headers: jHeaders });
+        }
+
         // GET journal entries
         if (context.request.method === "GET" && jAction === "journal") {
           var ticker4 = url.searchParams.get("ticker") || "";
