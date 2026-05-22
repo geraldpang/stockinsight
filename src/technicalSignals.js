@@ -243,7 +243,7 @@ export function calcSmartMoneyFlow(bars, price) {
     var rng = today.h - today.l;
     var closePos = rng > 0 ? (today.c - today.l) / rng : 0.5;
     var closeScore = closePos > 0.85 ? 100 : closePos > 0.7 ? 80 : closePos > 0.5 ? 60 : closePos > 0.3 ? 30 : 0;
-    todayScore = Math.round(obvDir * 0.40 + volScore * 0.25 + vpdScore * 0.20 + closeScore * 0.15);
+    todayScore = Math.round(obvDir * 0.20 + volScore * 0.30 + vpdScore * 0.35 + closeScore * 0.15);
   }
 
   // ── 5-Day Flow ─────────────────────────────────────────────────────────────
@@ -397,14 +397,30 @@ export function calcReversalWatch(bars, ind, meta) {
     })()) : null,
   ]);
 
+  // Bullish trigger #2 near-cross: matches App.jsx partial score of 50
+  var bRsiCross = null;
+  if (rsi !== null && rsiH.length >= 2) {
+    var bDet2 = (rsi >= 40 && rsiH[1] < 40) || (rsi >= 50 && rsiH[1] < 50);
+    var bNear = !bDet2 && rsi >= 38 && rsi < 52;
+    bRsiCross = bDet2 ? 100 : bNear ? 50 : 0;
+  }
+  // Bullish trigger #4 short-term MA: matches App.jsx (price up AND ema20 above recent avg)
+  var bMaUp = null;
+  if (ema20 !== null && n >= 3) {
+    var bPrev2Avg = (bars[n-3].c + bars[n-2].c) / 2;
+    bMaUp = (todayBar.c > bars[n-2].c && ema20 > bPrev2Avg) ? 100 : 0;
+  } else if (n >= 2) {
+    bMaUp = todayBar.c > bars[n-2].c ? 100 : 0;
+  }
+
   var bTrigger = stageScore([
     macdH !== null && macdHArr.length >= 2 ? ind_score((function() {
       var prev = macdHArr[1] && macdHArr[1].histogram != null ? parseFloat(macdHArr[1].histogram) : null;
       return prev !== null && macdH > prev;
     })()) : null,
-    rsi !== null && rsiH.length >= 2 ? ind_score((rsi >= 40 && rsiH[1] < 40) || (rsi >= 50 && rsiH[1] < 50)) : null,
+    bRsiCross,
     ema20 !== null ? ind_score(todayBar.c > ema20) : null,
-    n >= 2 ? ind_score(todayBar.c > bars[n-2].c) : null,
+    bMaUp,
   ]);
 
   var bConfirm = stageScore([
@@ -433,14 +449,30 @@ export function calcReversalWatch(bars, ind, meta) {
     })()) : null,
   ]);
 
+  // Bearish trigger #2 near-cross: matches App.jsx partial score
+  var dRsiCross = null;
+  if (rsi !== null && rsiH.length >= 2) {
+    var dDet2 = (rsi < 60 && rsiH[1] >= 60) || (rsi < 50 && rsiH[1] >= 50);
+    var dNear = !dDet2 && rsi >= 48 && rsi < 62;
+    dRsiCross = dDet2 ? 100 : dNear ? 50 : 0;
+  }
+  // Bearish trigger #4 short-term MA turning down
+  var dMaDn = null;
+  if (ema20 !== null && n >= 3) {
+    var dPrev2Avg = (bars[n-3].c + bars[n-2].c) / 2;
+    dMaDn = (todayBar.c < bars[n-2].c && ema20 < dPrev2Avg) ? 100 : 0;
+  } else if (n >= 2) {
+    dMaDn = todayBar.c < bars[n-2].c ? 100 : 0;
+  }
+
   var dTrigger = stageScore([
     macdH !== null && macdHArr.length >= 2 ? ind_score((function() {
       var prev = macdHArr[1] && macdHArr[1].histogram != null ? parseFloat(macdHArr[1].histogram) : null;
       return prev !== null && macdH < prev;
     })()) : null,
-    rsi !== null && rsiH.length >= 2 ? ind_score((rsi < 60 && rsiH[1] >= 60) || (rsi < 50 && rsiH[1] >= 50)) : null,
+    dRsiCross,
     ema20 !== null ? ind_score(todayBar.c < ema20) : null,
-    n >= 2 ? ind_score(todayBar.c < bars[n-2].c) : null,
+    dMaDn,
   ]);
 
   var dConfirm = stageScore([
