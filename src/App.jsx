@@ -2666,7 +2666,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.18</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.19</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2720,7 +2720,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.18</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.19</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -8745,7 +8745,33 @@ export function JournalPage() {
     showToast("Exported " + rows.length + " rows.", "ok");
   }
 
-  function filteredJournal() {
+  function handleDeleteSnapshot(ticker, date) {
+    if (!window.confirm("Delete " + ticker + " snapshot for " + date + "?")) return;
+    jFetch("deleteSnapshot", "POST", { ticker: ticker, date: date }).then(function(d) {
+      if (d.ok) { showToast(ticker + " " + date + " deleted.", "ok"); loadJournal(); }
+      else showToast("Delete failed: " + (d.error || "unknown"), "err");
+    }).catch(function(e) { showToast("Delete error: " + e.message, "err"); });
+  }
+
+  function reversalColor(status) {
+    if (!status) return "#444";
+    if (status.startsWith("Bullish") && (status.includes("Confirmed") || status.includes("Triggered"))) return "#1a6a1a";
+    if (status.startsWith("Bullish") && status.includes("Forming"))  return "#5a8a00";
+    if (status.startsWith("Bullish") && status.includes("Watch"))    return "#b88000";
+    if (status.startsWith("Bearish") && (status.includes("Confirmed") || status.includes("Triggered"))) return "#a02020";
+    if (status.startsWith("Bearish") && status.includes("Forming"))  return "#c05030";
+    if (status.startsWith("Bearish") && status.includes("Watch"))    return "#b88000";
+    if (status === "Mixed Reversal Signals") return "#b88000";
+    return "#555";
+  }
+
+  function smfColor(status) {
+    if (!status) return "#444";
+    if (status === "Strong Multi-Timeframe Flow" || status === "Accumulation Trend Positive") return "#1a6a1a";
+    if (status === "Constructive but Cooling" || status === "Early Accumulation") return "#b88000";
+    if (status === "Short-Term Spike") return "#b88000";
+    return "#555";
+  }
     return journal.filter(function(r) {
       if (filter.ticker   && r.ticker !== filter.ticker.toUpperCase()) return false;
       if (filter.trend    && r.trend_status    !== filter.trend)       return false;
@@ -8936,7 +8962,6 @@ export function JournalPage() {
             </div>
           ) : (
             <div style={{ overflowX:"auto", borderRadius:10, border:"0.5px solid #2a2a28" }}>
-              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
                 <thead>
                   <tr>
                     <Th col="snapshot_date">Date</Th>
@@ -8960,11 +8985,14 @@ export function JournalPage() {
                     <Th col="max_gain_30d">MaxGain30</Th>
                     <Th col="max_drawdown_30d">MaxDD30</Th>
                     <Th col="bullish_outcome_label">Outcome</Th>
+                    <th style={{ padding:"8px 6px", fontSize:10, color:"#444", background:"#1a1a18", borderBottom:"1px solid #2a2a28" }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {fj.map(function(r, i) {
                     var rowBg = i % 2 === 0 ? "#181816" : "#141412";
+                    var revCol = reversalColor(r.reversal_status);
+                    var smfCol = smfColor(r.smart_money_status);
                     return (
                       <tr key={r.id} style={{ background:rowBg }}>
                         <td style={{ padding:"7px 10px", color:"#888", whiteSpace:"nowrap" }}>{r.snapshot_date}</td>
@@ -8972,13 +9000,13 @@ export function JournalPage() {
                         <td style={{ padding:"7px 10px", color:"#f0ede6" }}>${r.close_price?.toFixed(2)}</td>
                         <td style={{ padding:"7px 10px" }}>{StatusBadge(r.trend_status, r.trend_score>=55?"#7abd00":r.trend_score>=40?"#EF9F27":"#e05050")}</td>
                         <td style={{ padding:"7px 10px", color:scoreColor(r.trend_score), fontWeight:600 }}>{r.trend_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"7px 10px" }}>{StatusBadge(r.momentum_status, r.momentum_score>=65?"#7abd00":r.momentum_score>=35?"#EF9F27":"#e05050")}</td>
+                        <td style={{ padding:"7px 10px" }}>{StatusBadge(r.momentum_status, r.momentum_score>=65?"#7abd00":r.momentum_score>=50?"#EF9F27":"#e05050")}</td>
                         <td style={{ padding:"7px 10px", color:scoreColor(r.momentum_score), fontWeight:600 }}>{r.momentum_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"7px 10px", color:r.rsi_value>70?"#EF9F27":r.rsi_value>=50?"#7abd00":r.rsi_value>=30?"#888":"#e05050" }}>{r.rsi_value?.toFixed(1)||"—"}</td>
-                        <td style={{ padding:"7px 10px", fontSize:10, color:"#888" }}>{r.reversal_status||"—"}</td>
+                        <td style={{ padding:"7px 10px", fontSize:10, color:revCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.reversal_status||"—"}</td>
                         <td style={{ padding:"7px 10px", color:scoreColor(r.bullish_reversal_score) }}>{r.bullish_reversal_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"7px 10px", color:scoreColor(r.bearish_reversal_score) }}>{r.bearish_reversal_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"7px 10px", fontSize:10, color:"#888" }}>{r.smart_money_status||"—"}</td>
+                        <td style={{ padding:"7px 10px", fontSize:10, color:smfCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.smart_money_status||"—"}</td>
                         <td style={{ padding:"7px 10px", color:scoreColor(r.smart_money_score), fontWeight:600 }}>{r.smart_money_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_5d)}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_10d)}</td>
@@ -8988,6 +9016,11 @@ export function JournalPage() {
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.max_gain_30d)}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.max_drawdown_30d)}</td>
                         <td style={{ padding:"7px 10px" }}>{OutcomeBadge(r.bullish_outcome_label)}</td>
+                        <td style={{ padding:"7px 6px" }}>
+                          <button onClick={function(){ handleDeleteSnapshot(r.ticker, r.snapshot_date); }}
+                            title={"Delete " + r.ticker + " " + r.snapshot_date}
+                            style={{ background:"none", border:"0.5px solid #3a1a1a", borderRadius:4, color:"#663333", fontSize:11, cursor:"pointer", padding:"2px 7px", lineHeight:1 }}>✕</button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -9523,7 +9556,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.18</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.19</span>
           </div>
         </div>
 
