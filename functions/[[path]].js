@@ -39,10 +39,10 @@ export async function onRequest(context) {
   try {
 
     // Only handle specific API routes -- pass everything else to the React app
-    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache", "/simfin", "/stripe", "/options"];
+    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache", "/simfin", "/stripe", "/options", "/journal"];
     var isApiRoute  = false;
     for (var ri = 0; ri < knownRoutes.length; ri++) {
-      if (url.pathname === knownRoutes[ri] || url.pathname.startsWith(knownRoutes[ri] + "?")) {
+      if (url.pathname === knownRoutes[ri] || url.pathname.startsWith(knownRoutes[ri])) {
         isApiRoute = true;
         break;
       }
@@ -97,13 +97,20 @@ export async function onRequest(context) {
     }
 
     if (isPremiumRoute && !isFreeTickerReq) {
-      var clerkSecretKey = context.env.CLERK_SECRET_KEY;
-      var isAuthed = await verifyClerkToken(context.request, clerkSecretKey);
-      if (!isAuthed) {
-        return new Response(JSON.stringify({ error: "Unauthorised. Please sign in to access this ticker." }), {
-          status: 401,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
+      // Admin key bypass — journal snapshot generation
+      var adminKeyCheck = context.env.ADMIN_KEY || "stockinsight-admin";
+      var reqAdminKey   = context.request.headers.get("X-Admin-Key") || "";
+      var isAdminBypass = reqAdminKey === adminKeyCheck;
+
+      if (!isAdminBypass) {
+        var clerkSecretKey = context.env.CLERK_SECRET_KEY;
+        var isAuthed = await verifyClerkToken(context.request, clerkSecretKey);
+        if (!isAuthed) {
+          return new Response(JSON.stringify({ error: "Unauthorised. Please sign in to access this ticker." }), {
+            status: 401,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
       }
     }
 
@@ -902,7 +909,7 @@ export async function onRequest(context) {
               }
             }
             // Max gain/drawdown 30/60/90d
-            for (var ww of [30, 60, 90]) {
+            var _windows2 = [30, 60, 90]; for (var wi2 = 0; wi2 < _windows2.length; wi2++) { var ww = _windows2[wi2];
               var futSlice = rows3.slice(si + 1, si + ww + 1).map(function(r){ return r.close_price; });
               if (futSlice.length > 0) {
                 var maxG = Math.max.apply(null, futSlice);
@@ -921,11 +928,22 @@ export async function onRequest(context) {
               var setClauses = Object.keys(updates).map(function(k){ return k + "=?"; }).join(", ");
               var vals = Object.values(updates);
               vals.push(row.id);
-              await DB.prepare("UPDATE technical_signal_journal SET " + setClauses + ", updated_at=datetime('now') WHERE id=?").bind(...vals).run();
+              var _stmt = DB.prepare("UPDATE technical_signal_journal SET " + setClauses + ", updated_at=datetime('now') WHERE id=?");
+              await _stmt.bind.apply(_stmt, vals).run();
               updated++;
             }
           }
           return new Response(JSON.stringify({ ok: true, updated: updated }), { headers: jHeaders });
+        }
+
+        // POST delete snapshot
+        if (context.request.method === "POST" && jAction === "deleteSnapshot") {
+          var bodyDel = await context.request.json();
+          var tickerDel = (bodyDel.ticker || "").toUpperCase().trim();
+          var dateDel   = bodyDel.date || "";
+          if (!tickerDel || !dateDel) return new Response(JSON.stringify({ error: "ticker and date required" }), { status: 400, headers: jHeaders });
+          await DB.prepare("DELETE FROM technical_signal_journal WHERE ticker = ? AND snapshot_date = ?").bind(tickerDel, dateDel).run();
+          return new Response(JSON.stringify({ ok: true }), { headers: jHeaders });
         }
 
         // GET journal entries
