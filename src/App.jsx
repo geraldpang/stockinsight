@@ -2713,7 +2713,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.25</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.26</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2767,7 +2767,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.25</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.26</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3517,7 +3517,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     return (
                       <div>
                         {(function(){
-                          // ── Reversal row ───────────────────────────────────────────────────────
+                          // ── Reversal row — matches TechRow layout ──────────────────────────────
                           var _rw = window.__revWatchStatus && window.__revWatchStatus[sym];
                           var _rwCompact = {
                             "Bullish Reversal Watch":"Bullish Watch","Bullish Reversal Forming":"Bullish Forming",
@@ -3527,80 +3527,65 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             "Mixed Reversal Signals":"Mixed Signals","No Clear Reversal":"No Signal","Not Enough Data":"No Data"
                           };
                           var _rwStatus  = _rw ? (_rwCompact[_rw.status]||_rw.status) : "No Data";
-                          var _rwMainCol = _rw ? (function(s){
-                            if (s.startsWith("Bullish")&&(s.includes("Forming")||s.includes("Triggered")||s.includes("Confirmed"))) return "#7abd00";
-                            if (s.startsWith("Bullish")&&s.includes("Watch")) return "#6090d0";
-                            if (s.startsWith("Bearish")&&(s.includes("Forming")||s.includes("Triggered")||s.includes("Confirmed"))) return "#e05050";
-                            if (s.startsWith("Bearish")&&s.includes("Watch")) return "#EF9F27";
-                            if (s==="Mixed Signals") return "#EF9F27";
-                            return "#666";
-                          })(_rwStatus) : "#666";
-                          var _bLbl  = _rw ? (_rw.bLbl  || "N/A") : "N/A";
-                          var _beLbl = _rw ? (_rw.beLbl || "N/A") : "N/A";
-                          function _bullCol(lbl){ return lbl==="Watch"?"#4870a8":lbl==="Forming"||lbl==="Triggered"||lbl==="Confirmed"?"#5a8a00":"#555"; }
-                          function _bearCol(lbl){ return lbl==="Watch"?"#b88000":lbl==="Forming"||lbl==="Triggered"||lbl==="Confirmed"?"#c03030":"#555"; }
+                          var _rwMainCol = revStatusColor(_rw ? _rw.status : null, "main");
+                          var _bLbl  = _rw ? (_rw.bLbl  ||"N/A") : "N/A";
+                          var _beLbl = _rw ? (_rw.beLbl ||"N/A") : "N/A";
                           return (
                             <div onClick={function(){ window.__goToTab&&window.__goToTab("reversal"); }}
-                              style={{padding:"10px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",display:"flex",alignItems:"center",gap:8}}
+                              style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                               onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                               onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
-                              <div style={{fontSize:10,color:"#555",width:64,flexShrink:0}}>Reversal</div>
-                              <div style={{flex:1,fontSize:12,fontWeight:700,color:_rwMainCol,lineHeight:1.2}}>{_rwStatus}</div>
-                              <div style={{textAlign:"right",flexShrink:0,lineHeight:1.6}}>
-                                <div style={{fontSize:9}}>
-                                  <span style={{color:"#444"}}>{"Bullish "}</span>
-                                  <span style={{color:_bullCol(_bLbl),fontWeight:600}}>{_bLbl}</span>
+                              <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>Reversal</span>
+                              <span style={{fontSize:12,fontWeight:600,color:_rwMainCol,flex:1,lineHeight:1.2}}>{_rwStatus}</span>
+                              <div style={{textAlign:"right",flexShrink:0,marginRight:8}}>
+                                <div style={{fontSize:9,lineHeight:1.6}}>
+                                  <span style={{color:"#555"}}>{"Bullish "}</span>
+                                  <span style={{color:revDirLabelColor(_bLbl,true,"subtle"),fontWeight:600}}>{_bLbl}</span>
                                 </div>
-                                <div style={{fontSize:9}}>
-                                  <span style={{color:"#444"}}>{"Bearish "}</span>
-                                  <span style={{color:_bearCol(_beLbl),fontWeight:600}}>{_beLbl}</span>
+                                <div style={{fontSize:9,lineHeight:1.6}}>
+                                  <span style={{color:"#555"}}>{"Bearish "}</span>
+                                  <span style={{color:revDirLabelColor(_beLbl,false,"subtle"),fontWeight:600}}>{_beLbl}</span>
                                 </div>
                               </div>
-                              <span style={{fontSize:10,color:"#333",flexShrink:0}}>{"›"}</span>
+                              <span style={{fontSize:11,color:"#444",flexShrink:0}}>{"›"}</span>
                             </div>
                           );
                         })()}
                         {(function(){
-                          // ── Money Flow row ─────────────────────────────────────────────────────
+                          // ── Money Flow row — matches TechRow layout ────────────────────────────
                           var _smf = window.__smfScore && window.__smfScore[sym] ? window.__smfScore[sym] : null;
                           var _smfMap = {
                             "Strong Multi-Timeframe Flow":"Strong Flow","Accumulation Trend Positive":"Trend Positive",
                             "Constructive but Cooling":"Constructive","Early Accumulation":"Early Flow",
                             "Short-Term Spike":"Spike","No Clear Signal":"No Signal"
                           };
-                          var _smfStatus = _smf ? (_smfMap[_smf.status]||_smf.status) : "No Data";
-                          var _smfMainCol = (function(s){
-                            if (s==="Strong Flow"||s==="Trend Positive") return "#7abd00";
-                            if (s==="Constructive"||s==="Early Flow")    return "#6090d0";
-                            if (s==="Spike")                             return "#EF9F27";
-                            return "#666";
-                          })(_smfStatus);
+                          var _smfStatus  = _smf ? (_smfMap[_smf.status]||_smf.status) : "No Data";
+                          var _smfMainCol = smfStatusColor(_smf ? _smf.status : null, "main");
                           var _tLbl = _smf ? (_smf.todayLabel   ||"N/A") : "N/A";
                           var _fLbl = _smf ? (_smf.fiveDayLabel ||"N/A") : "N/A";
                           var _dLbl = _smf ? (_smf.thirtyDayLabel||"N/A"): "N/A";
-                          function _slCol(lbl){ return lbl==="Very High"||lbl==="High"?"#5a8a00":lbl==="Moderate"?"#4870a8":lbl==="Mild"?"#b88000":"#555"; }
                           return (
                             <div onClick={function(){ window.__goToTab&&window.__goToTab("whale"); }}
-                              style={{padding:"10px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",display:"flex",alignItems:"center",gap:8}}
+                              style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                               onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                               onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
-                              <div style={{fontSize:10,color:"#555",width:64,flexShrink:0}}>Money Flow</div>
-                              <div style={{flex:1,fontSize:12,fontWeight:700,color:_smfMainCol,lineHeight:1.2}}>{_smfStatus}</div>
-                              <div style={{textAlign:"right",flexShrink:0,lineHeight:1.6}}>
-                                <div style={{fontSize:9}}>
-                                  <span style={{color:"#444"}}>{"1 Month "}</span>
-                                  <span style={{color:_slCol(_dLbl),fontWeight:600}}>{_dLbl}</span>
+                              <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>Money Flow</span>
+                              <span style={{fontSize:12,fontWeight:600,color:_smfMainCol,flex:1,lineHeight:1.2}}>{_smfStatus}</span>
+                              <div style={{textAlign:"right",flexShrink:0,marginRight:8}}>
+                                <div style={{fontSize:9,lineHeight:1.6}}>
+                                  <span style={{color:"#555"}}>{"1 Month "}</span>
+                                  <span style={{color:smfLabelColor(_dLbl,"subtle"),fontWeight:600}}>{_dLbl}</span>
                                 </div>
-                                <div style={{fontSize:9}}>
-                                  <span style={{color:"#444"}}>{"1 Week "}</span>
-                                  <span style={{color:_slCol(_fLbl),fontWeight:600}}>{_fLbl}</span>
+                                <div style={{fontSize:9,lineHeight:1.6}}>
+                                  <span style={{color:"#555"}}>{"1 Week "}</span>
+                                  <span style={{color:smfLabelColor(_fLbl,"subtle"),fontWeight:600}}>{_fLbl}</span>
                                 </div>
-                                <div style={{fontSize:9}}>
-                                  <span style={{color:"#444"}}>{"Today "}</span>
-                                  <span style={{color:_slCol(_tLbl),fontWeight:600}}>{_tLbl}</span>
+                                <div style={{fontSize:9,lineHeight:1.6}}>
+                                  <span style={{color:"#555"}}>{"Today "}</span>
+                                  <span style={{color:smfLabelColor(_tLbl,"subtle"),fontWeight:600}}>{_tLbl}</span>
                                 </div>
                               </div>
-                              <span style={{fontSize:10,color:"#333",flexShrink:0}}>{"›"}</span>
+                              <span style={{fontSize:11,color:"#444",flexShrink:0}}>{"›"}</span>
                             </div>
                           );
                         })()}
@@ -9616,7 +9601,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.25</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.26</span>
           </div>
         </div>
 
