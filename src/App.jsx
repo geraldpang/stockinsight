@@ -2713,7 +2713,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.26</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.27</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2767,7 +2767,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.26</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.27</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7171,7 +7171,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                     function StageCard(props) {
                       var score=props.score, label=getReversalLabel(score), inds=props.inds;
-                      var col = score===null?"#aaa":revLabelColor(label);
+                      var col = score===null?"#aaa":label==="Confirmed"||label==="Triggered"?"#2a8a2a":label==="Forming"||label==="Watch"?"#b88000":"#888";
                       var det = inds.filter(function(i){return i.status==="detected";}).length;
                       var avail = inds.filter(function(i){return i.score!==null;}).length;
                       return (
@@ -7208,7 +7208,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       var col   = props.bull ? revLabelColor(label) : revBearLabelColor(label);
                       var dc    = dirColors(label, props.bull);
                       // Header label color - weaken bearish when low
-                      var hdrCol = props.bull ? (props.bull?"#2a6a2a":"#666") : (score&&score>=40?"#aa2020":"#888");
+                      var hdrCol = props.bull ? revStatusColor("Bullish "+label, "subtle") : revStatusColor("Bearish "+label, "subtle");
                       // Stage summary labels
                       var ssLbl = stageSummaryLabel(props.setupScore);
                       var stLbl = stageSummaryLabel(props.trigScore);
@@ -7269,7 +7269,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               <div style={{fontSize:11,color:"#888"}}>
                                 <span>{"Bullish: "}</span><span style={{fontWeight:700,color:revLabelColor(bLbl)}}>{bLbl}</span>
                                 <span style={{margin:"0 8px",color:"#ccc"}}>{"·"}</span>
-                                <span>{"Bearish: "}</span><span style={{fontWeight:700,color:revLabelColor(beLbl)}}>{beLbl}</span>
+                                <span>{"Bearish: "}</span><span style={{fontWeight:700,color:revBearLabelColor(beLbl)}}>{beLbl}</span>
                               </div>
                             </div>
                             {revStatus.primaryScore!==null&&(
@@ -7677,13 +7677,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               </div>
                               <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0, paddingLeft:24, paddingTop:2 }}>
                                 <span style={{ fontSize:12, color:"#888" }}>{"Today:"}</span>
-                                <span style={{ fontSize:12, fontWeight:700, color:smfLabelColor(smCard.todayLabel) }}>{smCard.todayLabel}</span>
+                                <span style={{ fontSize:12, fontWeight:700, color:smfLabelColor(smCard.todayLabel,"main") }}>{smCard.todayLabel}</span>
                                 <span style={{ color:"#ccc", fontSize:10 }}>{"·"}</span>
                                 <span style={{ fontSize:12, color:"#888" }}>{"5D:"}</span>
-                                <span style={{ fontSize:12, fontWeight:700, color:smfLabelColor(smCard.fiveDayLabel) }}>{smCard.fiveDayLabel}</span>
+                                <span style={{ fontSize:12, fontWeight:700, color:smfLabelColor(smCard.fiveDayLabel,"main") }}>{smCard.fiveDayLabel}</span>
                                 <span style={{ color:"#ccc", fontSize:10 }}>{"·"}</span>
                                 <span style={{ fontSize:12, color:"#888" }}>{"30D:"}</span>
-                                <span style={{ fontSize:12, fontWeight:700, color:smfLabelColor(smCard.thirtyDayLabel) }}>{smCard.thirtyDayLabel}</span>
+                                <span style={{ fontSize:12, fontWeight:700, color:smfLabelColor(smCard.thirtyDayLabel,"main") }}>{smCard.thirtyDayLabel}</span>
                               </div>
                             </div>
                           </div>
@@ -9601,7 +9601,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.26</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.27</span>
           </div>
         </div>
 
