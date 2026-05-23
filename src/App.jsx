@@ -2029,6 +2029,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   // -- Pre-compute all 4 sidebar signals on Massive load (single source of truth) --
   useEffect(function() {
     if (!massiveInfo || !sym) return;
+    try {
     var rawAggs = massiveInfo.aggs || [];
     var ind     = massiveInfo.indicators || {};
     // bars: oldest-first (technicalSignals.js convention)
@@ -2133,6 +2134,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       if (!window.__smfScore) window.__smfScore = {};
       window.__smfScore[sym] = smCard;
     }
+    } catch(e) { /* pre-compute signal error — non-fatal, sidebar shows gracefully */ }
   }, [massiveInfo, crossData, ov, sym]);
 
   // -- Write trend-signal cache (1-day TTL) using exact detail page formula ----
@@ -7340,9 +7342,18 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var calcFiveDaySignal  = calcSmfFiveDaySignal;
                     var calcThirtyDaySignal= calcSmfThirtyDaySignal;
 
-                                        function isHigh(score) { return score >= 71; }
+                    function isHigh(score) { return score >= 71; }
                     function isMild(score) { return score >= 31 && score < 71; }
                     function isLow(score)  { return score < 31; }
+
+                    function getStatusExplanation(status) {
+                      if (status==="Strong Multi-Timeframe Flow")  return "Today, short-term, and 30-day signals are all positive, suggesting broad price-volume support.";
+                      if (status==="Accumulation Trend Positive")  return "The 5-day and 30-day signals remain positive, although today's activity is quieter.";
+                      if (status==="Constructive but Cooling")     return "30-day accumulation trend is strong, but today and short-term flow are mild.";
+                      if (status==="Early Accumulation")           return "Today and short-term flow are positive, but the 30-day trend has not yet confirmed sustained accumulation.";
+                      if (status==="Short-Term Spike")             return "Today's activity is unusual, but there is limited evidence of sustained accumulation.";
+                      return "No clear smart money flow signal is detected from recent price and volume behaviour.";
+                    }
 
                     function getOverallSmartMoneyInterpretation(ticker, tScore, fScore, dScore) {
                       var tH=isHigh(tScore), fH=isHigh(fScore), dH=isHigh(dScore);
