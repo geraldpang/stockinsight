@@ -1922,8 +1922,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       var _pi = window.__parsedInsights || {};
       var moatReady  = _pi["moat"] && _pi["moat"].classification;
       var moatCached = _ic["moat"] && _ic["moat"].length > 10;
-      var allReady   = moatReady && moatCached;
-      if (!allReady && fundAttempts < 20) return;
+      // allReady: moat classification is sufficient — raw cache used only to enrich driver
+      // sections if not already parsed, so don't block on it
+      var allReady   = moatReady;
+      if (!allReady && fundAttempts < 8) return; // max ~16s fallback instead of 40s
       fundDone = true;
       clearInterval(fundInterval);
       var curVals   = window.__curOracleSym === symSnap ? (window.__curVals||[]) : [];
