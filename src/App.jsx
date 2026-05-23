@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
-import { calculateTechnicalSignalSnapshot } from "./technicalSignals.js";
+import { calculateTechnicalSignalSnapshot, calcTrendScore, calcMomentumScore,
+         calcRStageScore, calcRWeightedScore, getReversalDirectionStatus, getOverallReversalStatus,
+         validateSmfOHLCV, calcSmfTodaySignal, calcSmfFiveDaySignal, calcSmfThirtyDaySignal,
+         getSmfOverallStatus, calcSmfSummaryCard } from "./technicalSignals.js";
 
 // ─── Central signal colour system ─────────────────────────────────────────────
 var _CLR = {
@@ -2022,6 +2025,115 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       .catch(function(){ setCrossData({ sym:sym, type:"unknown", ageDays:null, gapDir:"unknown" }); });
   }, [massiveInfo, sym]);
 
+  // -- Pre-compute all 4 sidebar signals on Massive load (single source of truth) --
+  useEffect(function() {
+    if (!massiveInfo || !sym) return;
+    var rawAggs = massiveInfo.aggs || [];
+    var ind     = massiveInfo.indicators || {};
+    // bars: oldest-first (technicalSignals.js convention)
+    var bars = rawAggs.filter(function(b){ return b&&b.c>0&&b.h>0&&b.l>0&&b.v>=0; }).slice().reverse();
+    if (bars.length === 0) return;
+
+    // 1. Trend — uses crossData if available, gracefully degrades without it
+    var cd = crossData && crossData.sym === sym ? crossData : null;
+    var trend  = calcTrendScore(bars, ind, cd);
+    var tScore = trend.score || 0;
+    var tLabel = trend.status || 'Sideways';
+    var tDots  = tScore>=70?5:tScore>=55?4:tScore>=40?3:tScore>=25?2:1;
+    window.__trendScore    = tScore;
+    window.__trendLabel    = tLabel;
+    window.__trendDots     = tDots;
+    window.__trendScoreSym = sym;
+
+    // 2. Momentum
+    var mom    = calcMomentumScore(bars, ind);
+    var mScore = mom.score || 0;
+    var mLabel = mom.status || 'Neutral';
+    window.__momScore    = mScore;
+    window.__momLabel    = mLabel;
+    window.__momScoreSym = sym;
+
+    // 3. Reversal — needs ov for hi52/lo52; gracefully degrades without it
+    var price = window.__curPrice || (bars.length > 0 ? bars[bars.length-1].c : 0);
+    var meta  = { hi52: ov ? (ov.hi52||0) : 0, lo52: ov ? (ov.lo52||0) : 0, price: price };
+    var bsInds = [], btInds = [], bcInds = [], dsInds = [], dtInds = [], dcInds = [];
+    // Reuse the same indicator detection as the Reversal tab via the shared helpers
+    var n = bars.length;
+    var avg30v = n>=30 ? bars.slice(n-30).reduce(function(s,b){return s+b.v;},0)/30 : null;
+    var sma50r = n>=50 ? bars.slice(n-50).reduce(function(s,b){return s+b.c;},0)/50 : null;
+    var rh20   = n>=21 ? (function(){ var h=-Infinity; for(var i=n-21;i<n-1;i++) if(bars[i].h>h)h=bars[i].h; return h; })() : null;
+    var rl20   = n>=21 ? (function(){ var l=Infinity;  for(var i=n-21;i<n-1;i++) if(bars[i].l<l)l=bars[i].l; return l; })() : null;
+    var c5h    = n>=5  ? (function(){ var h=-Infinity; for(var i=n-5;i<n;i++)   if(bars[i].h>h)h=bars[i].h; return h; })() : null;
+    var p5h    = n>=10 ? (function(){ var h=-Infinity; for(var i=n-10;i<n-5;i++) if(bars[i].h>h)h=bars[i].h; return h; })() : null;
+    var c5l    = n>=5  ? (function(){ var l=Infinity;  for(var i=n-5;i<n;i++)    if(bars[i].l<l)l=bars[i].l; return l; })() : null;
+    var p5l    = n>=10 ? (function(){ var l=Infinity;  for(var i=n-10;i<n-5;i++) if(bars[i].l<l)l=bars[i].l; return l; })() : null;
+    var todayB = n>0 ? bars[n-1] : null;
+    var rsiR   = ind.rsi14!=null ? parseFloat(ind.rsi14) : null;
+    var rsiH   = ind.rsiHistory ? ind.rsiHistory.map(function(v){ return parseFloat(v); }) : [];
+    var macdH  = ind.macd&&ind.macd.histogram!=null ? parseFloat(ind.macd.histogram) : null;
+    var macdArr= ind.macdHistory || [];
+    var ema20R = ind.ema20!=null ? parseFloat(ind.ema20) : null;
+    var volRat = avg30v&&todayB ? todayB.v/avg30v : null;
+    var rsiDir = rsiH.length>=7 ? ((rsiH[0]+rsiH[1])/2)-((rsiH[2]+rsiH[3]+rsiH[4]+rsiH[5]+rsiH[6])/5) : null;
+    // Bull setup
+    bsInds.push({ score: rsiR!==null&&rsiDir!==null&&rsiR>=30&&rsiR<=50&&rsiDir>-3?100:rsiR===null||rsiDir===null?null:0 });
+    bsInds.push({ score: rsiR!==null&&rsiH.length>=5&&n>=5?(function(){ var pL=Math.min(bars[n-1].l,bars[n-2].l,bars[n-3].l); var pvL=Math.min(bars[n-4].l,bars[n-5].l); var rN=(rsiH[0]+rsiH[1])/2; var rP=(rsiH[3]+rsiH[4])/2; return pL<pvL&&rN>rP+2?100:0; })():null });
+    bsInds.push({ score: rsiR!==null&&meta.hi52>0&&meta.lo52>0&&price>0?(function(){ var pos=(price-meta.lo52)/(meta.hi52-meta.lo52); return pos<0.2&&rsiDir!==null&&rsiDir>0?100:0; })():null });
+    bsInds.push({ score: c5l!==null&&p5l!==null?c5l>p5l?100:0:null });
+    bsInds.push({ score: n>=10?(function(){ var dv5=bars.slice(n-5).filter(function(b,i){return i>0&&b.c<bars[n-5+i-1].c;}).reduce(function(s,b){return s+b.v;},0); var dv10=bars.slice(n-10,n-5).filter(function(b,i){return i>0&&b.c<bars[n-10+i-1].c;}).reduce(function(s,b){return s+b.v;},0); return dv5<dv10*0.8?100:0; })():null });
+    // Bull trigger
+    btInds.push({ score: rsiR!==null&&rsiH.length>=2?(function(){ var p=rsiH[1]; return (rsiR>=50&&p<50)||(rsiR>=60&&p<60)?100:(!((rsiR>=50&&p<50)||(rsiR>=60&&p<60))&&rsiR>=48&&rsiR<62)?50:0; })():null });
+    btInds.push({ score: macdH!==null&&macdArr.length>=2?(function(){ var p=macdArr[1]&&macdArr[1].histogram!=null?parseFloat(macdArr[1].histogram):null; return p!==null&&macdH>p&&macdH<0?100:p!==null&&macdH>0&&macdH>p?100:0; })():null });
+    btInds.push({ score: ema20R!==null&&todayB?todayB.c>ema20R?100:0:null });
+    btInds.push({ score: n>=2&&todayB?todayB.c>bars[n-2].c?100:0:null });
+    // Bull confirm
+    bcInds.push({ score: rh20!==null&&todayB?todayB.c>rh20?100:0:null });
+    bcInds.push({ score: sma50r!==null&&todayB?todayB.c>sma50r?100:0:null });
+    bcInds.push({ score: rh20!==null&&avg30v!==null&&todayB?todayB.c>rh20&&volRat>=1.5?100:0:null });
+    bcInds.push({ score: c5h!==null&&p5h!==null&&c5l!==null&&p5l!==null?c5h>p5h&&c5l>p5l?100:0:null });
+    // Bear setup
+    dsInds.push({ score: rsiR!==null&&rsiH.length>=10&&n>=10?(function(){ var rPH=Math.max.apply(null,bars.slice(n-5).map(function(b){return b.h;})); var pPH=Math.max.apply(null,bars.slice(n-10,n-5).map(function(b){return b.h;})); var rRH=Math.max.apply(null,rsiH.slice(0,5)); var pRH=Math.max.apply(null,rsiH.slice(5,10)); return rPH>pPH&&rRH<pRH?100:0; })():null });
+    dsInds.push({ score: macdH!==null&&macdArr.length>=3?(function(){ var h0=macdH; var h1=macdArr[1]&&macdArr[1].histogram!=null?parseFloat(macdArr[1].histogram):null; var h2=macdArr[2]&&macdArr[2].histogram!=null?parseFloat(macdArr[2].histogram):null; return h1!==null&&h2!==null&&h0>0&&h0<h1&&h1<h2?100:0; })():null });
+    dsInds.push({ score: ind.wsma10&&ind.wsma40&&ind.wsma10>ind.wsma40&&Math.abs(ind.wsma10-ind.wsma40)/ind.wsma40<0.05?100:0 });
+    dsInds.push({ score: rsiH.length>=5&&rsiH.slice(0,5).every(function(v){return v!=null&&v>=72&&v<=85;})?100:0 });
+    dsInds.push({ score: rsiR!==null&&meta.hi52>0&&meta.lo52>0&&price>0?(function(){ var pos=(price-meta.lo52)/(meta.hi52-meta.lo52); return pos>0.95&&rsiR>70&&rsiR<80?100:0; })():null });
+    // Bear trigger
+    dtInds.push({ score: macdH!==null&&macdArr.length>=2?(function(){ var p=macdArr[1]&&macdArr[1].histogram!=null?parseFloat(macdArr[1].histogram):null; return p!==null&&macdH<p?100:0; })():null });
+    dtInds.push({ score: rsiR!==null&&rsiH.length>=2?(function(){ var p=rsiH[1]; var det=(rsiR<60&&p>=60)||(rsiR<50&&p>=50); var near=!det&&rsiR>=48&&rsiR<62; return det?100:near?50:0; })():null });
+    dtInds.push({ score: ema20R!==null&&todayB?todayB.c<ema20R?100:0:null });
+    dtInds.push({ score: n>=2&&todayB?todayB.c<bars[n-2].c?100:0:null });
+    // Bear confirm
+    dcInds.push({ score: rl20!==null&&todayB?todayB.c<rl20?100:0:null });
+    dcInds.push({ score: sma50r!==null&&todayB?todayB.c<sma50r?100:0:null });
+    dcInds.push({ score: rl20!==null&&avg30v!==null&&todayB?todayB.c<rl20&&volRat>=1.5?100:0:null });
+    dcInds.push({ score: c5h!==null&&p5h!==null&&c5l!==null&&p5l!==null?c5h<p5h&&c5l<p5l?100:0:null });
+
+    var bsScore = calcRStageScore(bsInds), btScore = calcRStageScore(btInds), bcScore = calcRStageScore(bcInds);
+    var dsScore = calcRStageScore(dsInds), dtScore = calcRStageScore(dtInds), dcScore = calcRStageScore(dcInds);
+    var bullScore = calcRWeightedScore([{score:bsScore,weight:40},{score:btScore,weight:30},{score:bcScore,weight:30}]);
+    var bearScore = calcRWeightedScore([{score:dsScore,weight:40},{score:dtScore,weight:30},{score:dcScore,weight:30}]);
+    var revStatus = getOverallReversalStatus(bullScore, bearScore, bsScore, btScore, bcScore, dsScore, dtScore, dcScore);
+    var bLbl  = getReversalDirectionStatus(bsScore, btScore, bcScore, 'Bullish').label.replace('Reversal ','');
+    var beLbl = getReversalDirectionStatus(dsScore, dtScore, dcScore, 'Bearish').label.replace('Reversal ','');
+    if (!window.__revWatchStatus) window.__revWatchStatus = {};
+    window.__revWatchStatus[sym] = { status: revStatus.status, bLbl: bLbl||'No Signal', beLbl: beLbl||'No Signal', bullScore: bullScore, bearScore: bearScore };
+
+    // 4. SMF
+    var smfVal = validateSmfOHLCV(rawAggs);
+    var smfBars = smfVal.validBars ? smfVal.validBars.slice().reverse() : [];
+    var tSig = smfVal.canCalculateTodaySignal ? calcSmfTodaySignal(smfBars) : null;
+    var fSig = smfBars.length >= 6  ? calcSmfFiveDaySignal(smfBars)   : null;
+    var dSig = smfVal.hasThirtyDays ? calcSmfThirtyDaySignal(smfBars) : null;
+    var tSc  = tSig ? tSig.score : 0;
+    var fSc  = fSig ? fSig.score : 0;
+    var dSc  = dSig ? dSig.score : 0;
+    var smCard = calcSmfSummaryCard(tSc, fSc, dSc, tSig, fSig, dSig);
+    if (smCard.primaryScore !== null) {
+      if (!window.__smfScore) window.__smfScore = {};
+      window.__smfScore[sym] = smCard;
+    }
+  }, [massiveInfo, crossData, ov, sym]);
+
   // -- Write trend-signal cache (1-day TTL) using exact detail page formula ----
   useEffect(function() {
     if (!massiveInfo || !sym || !q) return;
@@ -2716,7 +2828,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.28</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.29</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2770,7 +2882,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.28</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.29</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3265,98 +3377,28 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   <div style={{ padding:"0" }}>
                 <div style={{ display:"none" }}>Technical Analysis</div>
                 {(function() {
-                  // Compute trend, momentum, reversal scores from existing data
+                  // Scores computed by pre-compute useEffect via technicalSignals.js
                   var _hasTech = !!(ind2 && p2);
-                  // Trend score (wsma:30, sma200:30, cross:20, ema20:10, vwap:10) -- 52W position removed
-                  var _trendScore = _hasTech ? (function(){
-                    var W={wsma:30,sma200:30,cross:20,ema20:10,sma50:10};
-                    var wsmaG=ind2.wsma10&&ind2.wsma40?(ind2.wsma10-ind2.wsma40)/ind2.wsma40*100:0;
-                    var s200g_=ind2.sma200?(p2-ind2.sma200)/ind2.sma200*100:0;
-                    var s50g_=ind2.sma50?(p2-ind2.sma50)/ind2.sma50*100:0;
-                    var crsG=ind2.sma50&&ind2.sma200?(ind2.sma50-ind2.sma200)/ind2.sma200*100:0;
-                    var _ema20g_pill=ind2.ema20&&p2>0?(p2-ind2.ema20)/ind2.ema20*100:null;
-                    var _snap2=massiveInfo&&massiveInfo.snapshot?massiveInfo.snapshot:{};
-                    var _vwap2=_snap2.vwap||0;
-                    var _vwapDiff2=_vwap2>0&&p2>0?(p2-_vwap2)/_vwap2*100:null;
-                    function sc(key){
-                      if(key==="wsma")   return !ind2.wsma10||!ind2.wsma40?3:wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
-                      if(key==="sma200") {
-                        var _cd2 = crossData && crossData.sym === sym ? crossData : null;
-                        var _g2dir = _cd2 ? _cd2.sma200GapDir : null;
-                        if (s200g_ > 10)  return 5;
-                        if (s200g_ > 2)   return 4;
-                        if (s200g_ > -10) return 3;
-                        if (s200g_ > -20) return _g2dir === "improving" ? 3 : 2;
-                        return _g2dir === "improving" ? 2 : 1;
-                      }
-                      if(key==="sma50")  return !ind2.sma50?3:s50g_>5?5:s50g_>1?4:s50g_>-5?3:s50g_>-10?2:1;
-                      if(key==="cross") {
-                        var cd = crossData && crossData.sym === sym ? crossData : null;
-                        if (!cd || cd.type === "unknown") return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
-                        if (cd.type === "golden") return cd.gapDir==="worsening"?5:4;
-                        if (cd.type === "death")  return cd.gapDir==="improving"?3:cd.gapDir==="stable"?2:1;
-                        return 3;
-                      }
-                      if(key==="ema20")  return _ema20g_pill===null?3:_ema20g_pill>5?5:_ema20g_pill>1?4:_ema20g_pill>-5?3:_ema20g_pill>-10?2:1;
-                      return 3;
-                    }
-                    var tot=0; Object.keys(W).forEach(function(k){tot+=(sc(k)/5)*W[k];}); return Math.round(tot);
-                  })() : 0;
+                  // Read trend from shared window globals (set by pre-compute useEffect)
+                  var _trendScore = (window.__trendScore!=null && window.__trendScoreSym===sym) ? window.__trendScore : (_hasTech ? (function(){
+                    var cd = crossData && crossData.sym===sym ? crossData : null;
+                    var _bars2 = agg2.filter(function(b){return b&&b.c>0&&b.h>0&&b.l>0&&b.v>=0;}).slice().reverse();
+                    var r = calcTrendScore(_bars2, ind2, cd); return r.score||0;
+                  })() : 0);
                   var _trendLabel = _trendScore>=70?"Strong Uptrend":_trendScore>=55?"Uptrend":_trendScore>=40?"Sideways":_trendScore>=25?"Downtrend":"Strong Downtrend";
                   var _trendDots  = _trendScore>=70?5:_trendScore>=55?4:_trendScore>=40?3:_trendScore>=25?2:1;
                   var _trendCol   = pillColor(_trendScore>=55?"buy":_trendScore>=40?"hold":"avoid");
-                  // Store for tab banner to reuse -- single calculation
-                  if(_hasTech){ window.__trendScore=_trendScore; window.__trendLabel=_trendLabel; window.__trendDots=_trendDots; window.__trendScoreSym=sym; }
+                  if (_hasTech) { window.__trendScore=_trendScore; window.__trendLabel=_trendLabel; window.__trendDots=_trendDots; window.__trendScoreSym=sym; }
 
-                  // Momentum score (rsi, macd, ema20, vol) -- weighted avg -> 0-100
-                  // Compute momentum score once, store on window for tab banner to reuse
-                  var _momScore = 0;
-                  if (_hasTech) {
-                    if (window.__momScore!=null && window.__momScoreSym===sym) {
-                      _momScore = window.__momScore;
-                    } else {
-                      var _mW2={rsi:40,macd:40,roc:20};
-                      var _r2m   = ind2.rsi14!=null ? parseFloat(ind2.rsi14) : null;
-                      var _rsiH2 = ind2.rsiHistory || [];
-                      // Direction: avg(T-0, T-1) vs avg(T-2, T-3, T-4, T-5, T-6)
-                      var _rsiDir = (_rsiH2.length>=7 && _rsiH2[0]!=null && _rsiH2[1]!=null)
-                        ? ((parseFloat(_rsiH2[0])+parseFloat(_rsiH2[1]))/2) -
-                          ((parseFloat(_rsiH2[2])+parseFloat(_rsiH2[3])+parseFloat(_rsiH2[4])+parseFloat(_rsiH2[5])+parseFloat(_rsiH2[6]))/5)
-                        : 0;
-                      var _h2m   = ind2.macd&&ind2.macd.histogram!=null?parseFloat(ind2.macd.histogram):null;
-                      var _mH2m=ind2.macdHistory||[];
-                      var _mDirm=_mH2m.length>=2&&_mH2m[0]&&_mH2m[1]&&_mH2m[0].histogram!=null&&_mH2m[1].histogram!=null?(parseFloat(_mH2m[0].histogram)>parseFloat(_mH2m[1].histogram)?"Rising":"Falling"):"Flat";
-                      var _aggs_m=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
-                      var _sma5m=_aggs_m.length>=5?(_aggs_m[0].c+_aggs_m[1].c+_aggs_m[2].c+_aggs_m[3].c+_aggs_m[4].c)/5:null;
-                      var _rocm=_sma5m&&_sma5m>0?((p2>0?p2:_aggs_m[0].c)-_sma5m)/_sma5m*100:null;
-                      function _scm(key){
-                        if(key==="rsi") {
-                          if(_r2m==null) return 3;
-                          // RSI > 70 overbought cap
-                          if(_r2m>70 && _rsiDir<-3) return 4;  // overbought but declining
-                          if(_r2m>70) return 4;                  // overbought, capped
-                          if(_r2m>=65 && _rsiDir>=-3) return 5; // strong, not declining
-                          if(_r2m>=65 && _rsiDir<-3)  return 4; // strong but declining
-                          if(_r2m>=55 && _rsiDir>=-3) return 4; // good momentum
-                          if(_r2m>=55 && _rsiDir<-3)  return 3; // good but declining
-                          if(_r2m>=45 && _rsiDir>3)   return 4; // neutral improving strongly
-                          if(_r2m>=45 && _rsiDir>=-3) return 3; // neutral stable
-                          if(_r2m>=45 && _rsiDir<-3)  return 2; // neutral declining
-                          if(_r2m>=35 && _rsiDir>0)   return 3; // weak improving
-                          if(_r2m>=35)                return 2; // weak declining
-                          return 1;                               // below 35
-                        }
-                        if(key==="macd") return _h2m==null?3:(_h2m>0&&_mDirm==="Rising")?5:(_h2m>0&&_mDirm!=="Falling")?4:(_h2m>0)?3:(_h2m<=0&&_mDirm==="Rising")?3:_h2m>-0.5?2:1;
-                        if(key==="roc")  return _rocm==null?3:_rocm>5?5:_rocm>2?4:_rocm>-2?3:_rocm>-5?2:1;
-                        return 3;
-                      }
-                      var _mTot=0; Object.keys(_mW2).forEach(function(k){_mTot+=(_scm(k)/5)*_mW2[k];}); _momScore=Math.round(_mTot);
-                      window.__momScore=_momScore; window.__momScoreSym=sym;
-                    }
-                  }
+                  // Read momentum from shared window globals
+                  var _momScore = (window.__momScore!=null && window.__momScoreSym===sym) ? window.__momScore : (_hasTech ? (function(){
+                    var _bars2m = agg2.filter(function(b){return b&&b.c>0&&b.h>0&&b.l>0&&b.v>=0;}).slice().reverse();
+                    var r = calcMomentumScore(_bars2m, ind2); return r.score||0;
+                  })() : 0);
                   var _momLabel = _momScore>=80?"Strong":_momScore>=65?"Building":_momScore>=50?"Neutral":_momScore>=35?"Fading":"--";
                   var _momDots  = _momScore>=80?5:_momScore>=65?4:_momScore>=50?3:_momScore>=35?2:1;
                   var _momCol   = pillColor(_momScore>=65?"buy":_momScore>=50?"hold":"avoid");
+                  if (_hasTech) { window.__momScore=_momScore; window.__momScoreSym=sym; window.__momLabel=_momLabel; }
 
                   // Reversal -- existing revCount3 and revLabel3
                   var _revCol = pillColor(revCount3>=3?"buy":revCount3>=1?"hold":"avoid");
@@ -6783,18 +6825,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       return                            { bg:"#f5f5f5",               bd:"#e0e0e0"                  };
                     }
 
-                    function calcStageScore(inds) {
-                      var avail = inds.filter(function(i){ return i.score !== null; });
-                      if (avail.length === 0) return null;
-                      return Math.round(avail.reduce(function(s,i){ return s+i.score; }, 0) / avail.length);
-                    }
-
-                    function calcWeightedScore(stages) {
-                      var avail = stages.filter(function(s){ return s.score !== null; });
-                      if (avail.length === 0) return null;
-                      var totalW = avail.reduce(function(s,st){ return s+st.weight; }, 0);
-                      return Math.round(avail.reduce(function(s,st){ return s + st.score*(st.weight/totalW); }, 0));
-                    }
+                    // Stage/weighted score helpers from technicalSignals.js (single source of truth)
+                    var calcStageScore    = calcRStageScore;
+                    var calcWeightedScore = calcRWeightedScore;
 
                     // --- Shared computed values ---
                     var avg30v = n>=30 ? bars.slice(n-30).reduce(function(s,b){ return s+b.v; },0)/30 : null;
@@ -7113,41 +7146,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var bearScore = calcWeightedScore([{score:dsScore,weight:40},{score:dtScore,weight:30},{score:dcScore,weight:30}]);
 
                     // --- Overall status ---
-                    function getDirectionStatus(setupS, trigS, confS, dir) {
-                      var s = setupS||0, t = trigS||0, c = confS||0;
-                      var hasSetup = setupS!==null, hasTrig = trigS!==null, hasConf = confS!==null;
-                      // Confirmed: all three strong
-                      if (s>=60 && t>=60 && hasConf && c>=70) return { label:"Reversal Confirmed",   expl:dir+" setup, momentum trigger, and price confirmation are aligned." };
-                      // Triggered: setup+trigger strong, confirmation partial
-                      if (s>=60 && t>=60 && hasConf && c>=40) return { label:"Reversal Triggered",   expl:dir+" momentum appears to be turning with some supporting confirmation." };
-                      // Forming: setup+trigger strong but confirmation weak/missing
-                      if (s>=60 && t>=60)                     return { label:"Reversal Forming",     expl:dir+" setup and momentum trigger are positive, but price confirmation is still missing." };
-                      // Watch: setup forming, trigger not yet there
-                      if (s>=40)                              return { label:"Reversal Watch",        expl:"Early "+dir.toLowerCase()+" reversal conditions may be appearing, but trigger and confirmation are still limited." };
-                      return { label:"No Signal", expl:"" };
-                    }
-
-                    function getOverallRevStatus(bS, beS, bsScore, btScore, bcScore, dsScore, dtScore, dcScore) {
-                      if (bS===null&&beS===null) return {status:"Not Enough Data",explanation:"Not enough price and volume data is available to calculate a reliable reversal watch signal.",primaryScore:null};
-                      var bs=bS||0, bes=beS||0;
-                      if (bs<21&&bes<21) return {status:"No Clear Reversal",explanation:"No meaningful bullish or bearish reversal setup is currently detected.",primaryScore:Math.max(bs,bes)};
-
-                      var bullDir = getDirectionStatus(bsScore, btScore, bcScore, "Bullish");
-                      var bearDir = getDirectionStatus(dsScore, dtScore, dcScore, "Bearish");
-                      var diff = bs - bes;
-
-                      // Mixed: both sides meaningful and close
-                      if (bs>=40&&bes>=40&&Math.abs(diff)<=15) return {status:"Mixed Reversal Signals",explanation:"Both bullish and bearish reversal signals are present. Price action is unclear and confirmation is needed.",primaryScore:Math.max(bs,bes)};
-
-                      // Bullish leads
-                      if (diff>15 && bullDir.label!=="No Signal") return {status:"Bullish "+bullDir.label, explanation:bullDir.expl, primaryScore:bs};
-
-                      // Bearish leads
-                      if (diff<-15 && bearDir.label!=="No Signal") return {status:"Bearish "+bearDir.label, explanation:bearDir.expl, primaryScore:bes};
-
-                      // Neither side meaningfully stronger but at least one has signal
-                      return {status:"Mixed Reversal Signals",explanation:"Both bullish and bearish reversal signals are present. Price action is unclear and confirmation is needed.",primaryScore:Math.max(bs,bes)};
-                    }
+                    // Direction-status and overall-status helpers from technicalSignals.js
+                    var getDirectionStatus  = getReversalDirectionStatus;
+                    var getOverallRevStatus = getOverallReversalStatus;
                     var revStatus = getOverallRevStatus(bullScore, bearScore, bsScore, btScore, bcScore, dsScore, dtScore, dcScore);
                     var bLbl  = getDirectionStatus(bsScore, btScore, bcScore, "Bullish").label.replace("Reversal ","") || getReversalLabel(bullScore);
                     var beLbl = getDirectionStatus(dsScore, dtScore, dcScore, "Bearish").label.replace("Reversal ","") || getReversalLabel(bearScore);
@@ -7323,234 +7324,24 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                     // --- OHLCV Validation ---
                     // rawAggs is newest-first from Massive; each bar: { c, o, h, l, v, date }
-                    function validateOHLCV(ag) {
-                      var errors = [];
-                      if (!ag || ag.length === 0) { errors.push("No OHLCV data available."); return { isValid:false, hasThirtyDays:false, canCalculateTodaySignal:false, errors:errors }; }
-                      var valid = ag.filter(function(b){ return b&&b.c>0&&b.h>0&&b.l>0&&b.v>=0; });
-                      if (valid.length < 2) errors.push("Fewer than 2 valid trading days.");
-                      var hasThirty = valid.length >= 30;
-                      var canToday  = valid.length >= 2 && valid.length >= 20;
-                      if (!hasThirty) errors.push("Fewer than 30 trading days -- 30-Day Signal unavailable.");
-                      return { isValid: valid.length >= 2, hasThirtyDays: hasThirty, canCalculateTodaySignal: canToday, validBars: valid, errors: errors };
-                    }
-
-                    function getScoreLabel(s) {
-                      return s >= 86 ? "Very High" : s >= 71 ? "High" : s >= 51 ? "Moderate" : s >= 31 ? "Mild" : "Low";
-                    }
+                    // SMF functions from technicalSignals.js (single source of truth)
+                    var validateOHLCV  = validateSmfOHLCV;
+                    var getScoreLabel  = getSmfScoreLabel;
 
                     function scoreLabelColor(lbl) {
                       return lbl==="Very High"||lbl==="High" ? "#1a6a1a" : lbl==="Moderate" ? "#b88000" : "#c03030";
                     }
 
-                    function calcOBV(bars) {
-                      // bars = oldest-first
-                      var obv = [0];
-                      for (var i = 1; i < bars.length; i++) {
-                        if (bars[i].c > bars[i-1].c)      obv.push(obv[i-1] + bars[i].v);
-                        else if (bars[i].c < bars[i-1].c) obv.push(obv[i-1] - bars[i].v);
-                        else                               obv.push(obv[i-1]);
-                      }
-                      return obv;
-                    }
+                    var calcVolPriceDivergence = calcSmfVolPriceDivergence;
 
-                    function calcVolPriceDivergence(today, yesterday, avg30v) {
-                      var vRatio = avg30v > 0 ? today.v / avg30v : 0;
-                      var pct    = yesterday.c > 0 ? (today.c - yesterday.c) / yesterday.c * 100 : 0;
-                      var vTier  = vRatio>=2.0?"high":vRatio>=1.5?"elevated":vRatio>=1.0?"normal":"low";
-                      var pTier  = pct>3?"strongUp":pct>1?"mildUp":pct>-1?"flat":pct>-3?"mildDown":"strongDown";
-                      var matrix = {
-                        high:     { strongUp:65, mildUp:80, flat:100, mildDown:90, strongDown:10 },
-                        elevated: { strongUp:55, mildUp:65, flat:80,  mildDown:70, strongDown:15 },
-                        normal:   { strongUp:50, mildUp:50, flat:50,  mildDown:45, strongDown:30 },
-                        low:      { strongUp:45, mildUp:45, flat:40,  mildDown:40, strongDown:25 }
-                      };
-                      var textMap = {
-                        "high-flat":         "High volume with flat price — possible stealth accumulation. Buyers may be absorbing sellers.",
-                        "high-mildDown":     "High volume on a slight down day — possible absorption of selling pressure.",
-                        "high-mildUp":       "High volume with steady price rise — controlled institutional buying.",
-                        "high-strongUp":     "High volume on a strong up day — could be breakout or retail momentum. Ambiguous signal.",
-                        "high-strongDown":   "High volume on a down day — possible distribution. Sellers may be in control.",
-                        "elevated-flat":     "Elevated volume with flat price — mild accumulation signal worth watching.",
-                        "elevated-mildDown": "Elevated volume on a slight pullback — possible quiet buying into weakness.",
-                        "elevated-mildUp":   "Elevated volume with mild price gain — modest buying activity.",
-                        "elevated-strongUp": "Elevated volume on a strong up day — momentum with some conviction.",
-                        "elevated-strongDown":"Elevated volume selling — caution.",
-                      };
-                      var key = vTier+"-"+pTier;
-                      var explanation = textMap[key] || (vTier==="normal"||vTier==="low" ? "Volume is not elevated. No unusual activity detected from price-volume behaviour." : "No clear signal from this combination.");
-                      return { score: matrix[vTier][pTier], vTier:vTier, pTier:pTier, vRatio:vRatio, pct:pct, explanation:explanation };
-                    }
+                    // calcTodaySignal, calcFiveDaySignal, calcThirtyDaySignal from technicalSignals.js
+                    var calcTodaySignal    = calcSmfTodaySignal;
+                    var calcFiveDaySignal  = calcSmfFiveDaySignal;
+                    var calcThirtyDaySignal= calcSmfThirtyDaySignal;
 
-                    function calcTodaySignal(bars) {
-                      var n = bars.length;
-                      var today = bars[n-1], yesterday = bars[n-2];
-                      var avg30v = bars.slice(Math.max(0,n-30)).reduce(function(s,b){return s+b.v;},0)/Math.min(n,30);
-                      var obv = calcOBV(bars);
-
-                      // 1. OBV Direction (20%) — magnitude-aware, 5 levels
-                      var obvDayChange = obv[n-1] - obv[n-2]; // signed volume today
-                      var obvDayRatio = avg30v > 0 ? obvDayChange / avg30v : 0;
-                      var obvDir = obvDayRatio > 1.0 ? 100 : obvDayRatio > 0.3 ? 75 : obvDayRatio > -0.3 ? 50 : obvDayRatio > -1.0 ? 25 : 0;
-                      var obvDirExpl = obvDayRatio > 1.0 ? "Strong buying day — OBV rose by more than one average day of volume." : obvDayRatio > 0.3 ? "Mild buying day — OBV rose on moderate volume." : obvDayRatio > -0.3 ? "Balanced — buying and selling roughly equal today." : obvDayRatio > -1.0 ? "Mild selling day — OBV fell on moderate volume." : "Strong selling day — OBV fell by more than one average day of volume.";
-
-                      // 2. Volume Surge (30%)
-                      var vRatio = avg30v > 0 ? today.v / avg30v : 0;
-                      var volScore = vRatio >= 3.0 ? 100 : vRatio >= 2.0 ? 75 : vRatio >= 1.5 ? 50 : vRatio >= 1.2 ? 25 : 0;
-
-                      // 3. Vol/Price Divergence (35%)
-                      var vpd = calcVolPriceDivergence(today, yesterday, avg30v);
-
-                      // 4. Strong Close (15%)
-                      var rng = today.h - today.l;
-                      var closePos = rng > 0 ? (today.c - today.l) / rng : 0.5;
-                      var closeScore = closePos > 0.85 ? 100 : closePos > 0.7 ? 80 : closePos > 0.5 ? 60 : closePos > 0.3 ? 30 : 0;
-
-                      var total = Math.round(obvDir*0.20 + volScore*0.30 + vpd.score*0.35 + closeScore*0.15);
-                      return {
-                        score: total, label: getScoreLabel(total),
-                        breakdown: [
-                          { name:"OBV Direction", score:Math.round(obvDir), weight:20, explanation: obvDirExpl,
-                            scoring:"●●●●●  100: OBV rose > 1.0x avg daily volume (strong buying)\n●●●●○   75: OBV rose 0.3x to 1.0x avg volume (mild buying)\n●●●○○   50: OBV flat ±0.3x avg volume (balanced)\n●●○○○   25: OBV fell 0.3x to 1.0x avg volume (mild selling)\n●○○○○    0: OBV fell > 1.0x avg daily volume (strong selling)\n\nNOTE: Single-day OBV has low weight (20%) — one day is noisy.\nMore reliable over 5 and 30 days." },
-                          { name:"Volume Surge", score:Math.round(volScore), weight:30,
-                            explanation: avg30v>0?"Volume is "+vRatio.toFixed(1)+"x the 30-day average ("+(today.v>=1e6?(today.v/1e6).toFixed(1)+"M":(today.v/1e3).toFixed(0)+"K")+" vs avg "+(avg30v>=1e6?(avg30v/1e6).toFixed(1)+"M":(avg30v/1e3).toFixed(0)+"K")+").":"Volume data unavailable.",
-                            scoring:"●●●●●  100: Volume ≥ 3.0x 30-day average\n●●●●○   75: Volume 2.0x to 3.0x\n●●●○○   50: Volume 1.5x to 2.0x\n●●○○○   25: Volume 1.2x to 1.5x\n●○○○○    0: Volume < 1.2x (no surge)" },
-                          { name:"Vol / Price Divergence", score:Math.round(vpd.score), weight:35, explanation: vpd.explanation,
-                            scoring:"High vol + flat price    → 100 (stealth accumulation)\nHigh vol + mild down     →  90 (absorption)\nHigh vol + mild up       →  80 (controlled buying)\nHigh vol + strong up     →  65 (ambiguous)\nHigh vol + strong down   →  10 (distribution)\nElevated vol + flat/down → 70–80\nNormal/low vol + any     → 40–50\n\nVolume: High ≥2x | Elevated ≥1.5x | Normal ≥1x | Low <1x\nPrice: Strong Up >+3% | Mild Up +1–3% | Flat ±1% | Mild Down -3–-1% | Strong Down <-3%" },
-                          { name:"Strong Close", score:Math.round(closeScore), weight:15,
-                            explanation: rng>0?"Closed at "+(closePos*100).toFixed(0)+"% of today's range (low $"+today.l.toFixed(2)+" — high $"+today.h.toFixed(2)+").":"No price range today.",
-                            scoring:"●●●●●  100: Closed in top 15% of day range (>85%)\n●●●●○   80: Closed in top 30% (>70%)\n●●●○○   60: Closed in upper half (>50%)\n●●○○○   30: Closed in lower half (30–50%)\n●○○○○    0: Closed near low (<30%)" }
-                        ]
-                      };
-                    }
-
-                    function calcFiveDaySignal(bars) {
-                      var n = bars.length;
-                      var avg30v = bars.slice(Math.max(0,n-30)).reduce(function(s,b){return s+b.v;},0)/Math.min(n,30);
-                      var obv = calcOBV(bars);
-                      // 1. OBV Net 5-Day (40%)
-                      var obvNet5 = obv[n-1] - obv[n-6];
-                      var obvNet5Days = avg30v>0?obvNet5/avg30v:0;
-                      var obv5Score = obvNet5Days>2?100:obvNet5Days>0?75:obvNet5Days>-2?50:obvNet5Days>-4?25:0;
-                      // 2. Volume Surge 5d avg vs 30d avg (25%)
-                      var avg5v = bars.slice(n-5).reduce(function(s,b){return s+b.v;},0)/5;
-                      var vRatio5 = avg30v>0?avg5v/avg30v:0;
-                      var volScore5 = vRatio5>=2.0?100:vRatio5>=1.5?75:vRatio5>=1.2?50:vRatio5>=1.0?25:0;
-                      // 3. Vol/Price Divergence 5d (20%) — 5d price change vs 5d avg volume
-                      var pct5 = bars[n-6].c>0?(bars[n-1].c-bars[n-6].c)/bars[n-6].c*100:0;
-                      var vTier5 = vRatio5>=2.0?"high":vRatio5>=1.5?"elevated":vRatio5>=1.0?"normal":"low";
-                      var pTier5 = pct5>3?"strongUp":pct5>1?"mildUp":pct5>-1?"flat":pct5>-3?"mildDown":"strongDown";
-                      var matrix5 = {high:{strongUp:65,mildUp:80,flat:100,mildDown:90,strongDown:10},elevated:{strongUp:55,mildUp:65,flat:80,mildDown:70,strongDown:15},normal:{strongUp:50,mildUp:50,flat:50,mildDown:45,strongDown:30},low:{strongUp:45,mildUp:45,flat:40,mildDown:40,strongDown:25}};
-                      var vpd5Score = matrix5[vTier5][pTier5];
-                      var vpd5Expl = vTier5==="high"&&pTier5==="flat"?"High avg volume with flat 5-day price — possible short-term accumulation.":vTier5==="high"&&pTier5==="mildDown"?"High avg volume on slight 5-day decline — possible absorption.":vTier5==="high"&&pTier5==="strongDown"?"High volume with falling price over 5 days — possible distribution.":"5-day price "+(pct5>0?"+":"")+pct5.toFixed(1)+"% on "+(vRatio5.toFixed(1))+"x average volume.";
-                      // 4. Strong Close Frequency 5d (15%)
-                      var sc5 = 0;
-                      for(var i=n-5;i<n;i++){var r=bars[i].h-bars[i].l;if(r>0&&(bars[i].c-bars[i].l)/r>0.6)sc5++;}
-                      var sc5Score = sc5>=4?100:sc5===3?75:sc5===2?50:sc5===1?25:0;
-
-                      var total = Math.round(obv5Score*0.35 + volScore5*0.25 + vpd5Score*0.25 + sc5Score*0.15);
-                      return {
-                        score: total, label: getScoreLabel(total),
-                        breakdown: [
-                          { name:"OBV Net (5-day)", score:Math.round(obv5Score), weight:35,
-                            explanation: "Net OBV over 5 days = "+(obvNet5Days>0?"+":"")+obvNet5Days.toFixed(1)+" days of avg volume ("+(obvNet5>0?"+":"")+Math.round(obvNet5/1e6*10)/10+"M net). "+(obvNet5Days>2?"Strong net buying.":obvNet5Days>0?"Mild net buying.":obvNet5Days>-2?"Roughly balanced.":"Net selling pressure."),
-                            scoring:"●●●●●  100: Net OBV > +2 days of avg volume\n●●●●○   75: Net OBV 0 to +2 days (net buying)\n●●●○○   50: Net OBV -2 to 0 days (balanced)\n●●○○○   25: Net OBV -4 to -2 days (net selling)\n●○○○○    0: Net OBV < -4 days (strong selling)\n\nFormula: (OBV today − OBV 5 days ago) ÷ avg 30-day volume" },
-                          { name:"Volume (5-day avg)", score:Math.round(volScore5), weight:25,
-                            explanation: "5-day avg volume is "+vRatio5.toFixed(1)+"x the 30-day average ("+(avg5v>=1e6?(avg5v/1e6).toFixed(1)+"M":(avg5v/1e3).toFixed(0)+"K")+" vs avg "+(avg30v>=1e6?(avg30v/1e6).toFixed(1)+"M":(avg30v/1e3).toFixed(0)+"K")+").",
-                            scoring:"●●●●●  100: 5d avg ≥ 2.0x 30-day average\n●●●●○   75: 5d avg 1.5x to 2.0x\n●●●○○   50: 5d avg 1.2x to 1.5x (slightly elevated)\n●●○○○   25: 5d avg 1.0x to 1.2x (normal)\n●○○○○    0: 5d avg < 1.0x (below average)" },
-                          { name:"Vol / Price (5-day)", score:Math.round(vpd5Score), weight:25, explanation: vpd5Expl,
-                            scoring:"Same matrix as Today Signal — applied to 5-day price change and 5-day avg volume ratio.\n\nHigh vol + flat 5d price    → 100\nHigh vol + mild 5d down     →  90\nHigh vol + mild 5d up       →  80\nHigh vol + strong 5d up     →  65\nHigh vol + strong 5d down   →  10\nNormal/low vol              → 40–50" },
-                          { name:"Strong Close (5-day)", score:Math.round(sc5Score), weight:15,
-                            explanation: sc5+" of last 5 days closed in the upper 40% of daily range.",
-                            scoring:"●●●●●  100: 4–5 of 5 days with strong close\n●●●●○   75: 3 of 5 days\n●●●○○   50: 2 of 5 days\n●●○○○   25: 1 of 5 days\n●○○○○    0: 0 of 5 days\n\nStrong close = closed above 60% of day's high-low range" }
-                        ]
-                      };
-                    }
-
-                    function calcThirtyDaySignal(bars) {
-                      var n = bars.length;
-                      var avg30v = bars.slice(n-30).reduce(function(s,b){return s+b.v;},0)/30;
-                      var obv = calcOBV(bars);
-                      // 1. OBV Trend 30-Day (40%)
-                      var obvChange = obv[n-1]-obv[1];
-                      var obvInDays = avg30v>0?obvChange/avg30v:0;
-                      var obvScore = obvInDays>5?100:obvInDays>0?75:obvInDays>-5?50:obvInDays>-10?25:0;
-                      // 2. High-Volume Green Days (25%)
-                      var hvGreen=0,hvRed=0;
-                      for(var i=n-29;i<n;i++){if(bars[i].v>1.5*avg30v){if(bars[i].c>bars[i-1].c)hvGreen++;else if(bars[i].c<bars[i-1].c)hvRed++;}}
-                      var hvScore = hvGreen>=hvRed*2?100:hvGreen>hvRed?75:hvGreen===hvRed?50:hvRed>hvGreen?25:0;
-                      // 3. Price Stability / Strength (20%)
-                      var p30=bars[n-30].c,pNow=bars[n-1].c;
-                      var pct30=p30>0?(pNow-p30)/p30*100:0;
-                      var priceScore = pct30>10?100:pct30>0?75:pct30>-5?50:pct30>-10?25:0;
-                      // 4. Strong Close Frequency 30d (15%)
-                      var scDays=0;
-                      for(var j=n-30;j<n;j++){var rng=bars[j].h-bars[j].l;if(rng>0&&(bars[j].c-bars[j].l)/rng>0.6)scDays++;}
-                      var scFreq=scDays/30;
-                      var scScore=scFreq>0.65?100:scFreq>0.5?75:scFreq>0.4?50:scFreq>0.3?25:0;
-
-                      var total = Math.round(obvScore*0.40 + hvScore*0.25 + priceScore*0.20 + scScore*0.15);
-                      return {
-                        score: total, label: getScoreLabel(total),
-                        breakdown: [
-                          { name:"OBV Trend (30-day)", score:Math.round(obvScore), weight:40,
-                            explanation: "Net OBV change equals "+(obvInDays>0?"+":"")+obvInDays.toFixed(1)+" days of avg volume ("+(obvChange>0?"+":"")+Math.round(obvChange/1e6*10)/10+"M net). "+(obvInDays>5?"Strong buying pressure accumulated.":obvInDays>0?"Net buying over the period.":obvInDays>-5?"Roughly balanced.":obvInDays>-10?"Net selling pressure.":"Strong selling pressure accumulated."),
-                            scoring:"●●●●●  100: Net OBV > +5 days of avg volume (strongly rising)\n●●●●○   75: Net OBV 0 to +5 days (rising)\n●●●○○   50: Net OBV -5 to 0 days (flat)\n●●○○○   25: Net OBV -10 to -5 days (falling)\n●○○○○    0: Net OBV < -10 days (strongly falling)\n\nFormula: (OBV today − OBV day 1) ÷ avg 30-day volume\nMost reliable OBV signal — 30 days removes daily noise." },
-                          { name:"High-Volume Green Days", score:Math.round(hvScore), weight:25,
-                            explanation: hvGreen+" high-volume up days vs "+hvRed+" high-volume down days in 30 sessions.",
-                            scoring:"●●●●●  100: Green days ≥ 2× red days\n●●●●○   75: More green than red\n●●●○○   50: Equal green and red\n●●○○○   25: More red than green\n●○○○○    0: Red days ≥ 2× green days\n\nHigh-volume day = volume > 1.5× 30-day average" },
-                          { name:"Price Stability / Strength", score:Math.round(priceScore), weight:20,
-                            explanation: "Price is "+(pct30>0?"+":"")+pct30.toFixed(1)+"% vs 30 trading days ago.",
-                            scoring:"●●●●●  100: Price > +10% vs 30 days ago\n●●●●○   75: Price 0% to +10%\n●●●○○   50: Price -5% to 0%\n●●○○○   25: Price -10% to -5%\n●○○○○    0: Price < -10%" },
-                          { name:"Strong Close Frequency", score:Math.round(scScore), weight:15,
-                            explanation: scDays+" of 30 days closed in upper 40% of daily range ("+(scFreq*100).toFixed(0)+"%).",
-                            scoring:"●●●●●  100: > 65% of days with strong close\n●●●●○   75: 50% to 65%\n●●●○○   50: 40% to 50%\n●●○○○   25: 30% to 40%\n●○○○○    0: < 30%\n\nStrong close = closed above 60% of day's high-low range" }
-                        ]
-                      };
-                    }
-
-                    function isHigh(score) { return score >= 71; }
+                                        function isHigh(score) { return score >= 71; }
                     function isMild(score) { return score >= 31 && score < 71; }
                     function isLow(score)  { return score < 31; }
-
-                    function getOverallStatus(tScore, fScore, dScore) {
-                      var tH=isHigh(tScore), fH=isHigh(fScore), dH=isHigh(dScore);
-                      var tL=isLow(tScore)||isMild(tScore), fL=isLow(fScore)||isMild(fScore), dL=isLow(dScore)||isMild(dScore);
-                      if (tH && fH && dH)   return "Strong Multi-Timeframe Flow";
-                      if (fH && dH && !tH)  return "Accumulation Trend Positive";
-                      if (dH && !tH && !fH) return "Constructive but Cooling";
-                      if (tH && fH && !dH)  return "Early Accumulation";
-                      if (tH && !fH && !dH) return "Short-Term Spike";
-                      return "No Clear Signal";
-                    }
-
-                    function getStatusExplanation(status) {
-                      if (status === "Strong Multi-Timeframe Flow")   return "Today, short-term, and 30-day signals are all positive, suggesting broad price-volume support.";
-                      if (status === "Accumulation Trend Positive")   return "The 5-day and 30-day signals remain positive, although today's activity is quieter.";
-                      if (status === "Constructive but Cooling")      return "30-day accumulation trend is strong, but today and short-term flow are mild.";
-                      if (status === "Early Accumulation")            return "Today and short-term flow are positive, but the 30-day trend has not yet confirmed sustained accumulation.";
-                      if (status === "Short-Term Spike")              return "Today's activity is unusual, but there is limited evidence of sustained accumulation.";
-                      return "No clear smart money flow signal is detected from recent price and volume behaviour.";
-                    }
-
-                    // --- Smart Money Flow Helper Functions ---
-                    function getOverallSmartMoneyStatus(tScore, fScore, dScore) {
-                      var tH=isHigh(tScore), fH=isHigh(fScore), dH=isHigh(dScore);
-                      if (tH && fH && dH)   return "Strong Multi-Timeframe Flow";
-                      if (!tH && fH && dH)  return "Accumulation Trend Positive";
-                      if (dH && !tH && !fH) return "Constructive but Cooling";
-                      if (tH && fH && !dH)  return "Early Accumulation";
-                      if (tH && !fH && !dH) return "Short-Term Spike";
-                      return "No Clear Signal";
-                    }
-
-                    function getStatusExplanation(status) {
-                      if (status==="Strong Multi-Timeframe Flow")  return "Today, short-term, and 30-day signals are all positive, suggesting broad price-volume support.";
-                      if (status==="Accumulation Trend Positive")  return "The 5-day and 30-day signals remain positive, although today's activity is quieter.";
-                      if (status==="Constructive but Cooling")     return "30-day accumulation trend is strong, but today and short-term flow are mild.";
-                      if (status==="Early Accumulation")           return "Today and short-term flow are positive, but the 30-day trend has not yet confirmed sustained accumulation.";
-                      if (status==="Short-Term Spike")             return "Today's activity is unusual, but there is limited evidence of sustained accumulation.";
-                      return "No clear smart money flow signal is detected from recent price and volume behaviour.";
-                    }
 
                     function getOverallSmartMoneyInterpretation(ticker, tScore, fScore, dScore) {
                       var tH=isHigh(tScore), fH=isHigh(fScore), dH=isHigh(dScore);
@@ -7562,14 +7353,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       return ticker+" shows no clear smart money accumulation signal from recent price and volume behaviour.";
                     }
 
+                    // getSmartMoneySummaryCard from technicalSignals.js (single source of truth)
+                    // Note: adds explanation field via local getStatusExplanation for UI display
                     function getSmartMoneySummaryCard(tScore, fScore, dScore, tSig, fSig, dSig) {
-                      var status  = getOverallSmartMoneyStatus(tScore||0, fScore||0, dScore||0);
-                      var expl    = getStatusExplanation(status);
-                      var primary = dSig ? dScore : fSig ? fScore : tSig ? tScore : null;
-                      return { status:status, explanation:expl, primaryScore:primary,
-                        todayLabel:   tSig ? getScoreLabel(tScore) : "N/A",
-                        fiveDayLabel: fSig ? getScoreLabel(fScore) : "N/A",
-                        thirtyDayLabel: dSig ? getScoreLabel(dScore) : "N/A" };
+                      var card = calcSmfSummaryCard(tScore||0, fScore||0, dScore||0, tSig, fSig, dSig);
+                      card.explanation = getStatusExplanation(card.status);
+                      return card;
                     }
 
                     // --- Data prep ---
@@ -9609,7 +9398,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.28</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.29</span>
           </div>
         </div>
 
