@@ -9484,6 +9484,10 @@ export default function App() {
     return <UpgradePage onBack={function(){ setShowUpgrade(false); }} clerkUser={clerkUser} />;
   }
 
+  if (hashSym === "JOURNAL") {
+  return <JournalPage />;
+}
+
   if (hashSym) {
     var _onBack = function() { window.location.hash = ""; };
     var _isFree     = FREE_TICKERS.indexOf(hashSym) !== -1;
