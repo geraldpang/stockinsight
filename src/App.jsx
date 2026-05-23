@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { calculateTechnicalSignalSnapshot, calcTrendScore, calcMomentumScore,
          calcRStageScore, calcRWeightedScore, getReversalDirectionStatus, getOverallReversalStatus,
-         validateSmfOHLCV, calcSmfTodaySignal, calcSmfFiveDaySignal, calcSmfThirtyDaySignal,
+         validateSmfOHLCV, getSmfScoreLabel, calcSmfVolPriceDivergence,
+         calcSmfTodaySignal, calcSmfFiveDaySignal, calcSmfThirtyDaySignal,
          getSmfOverallStatus, calcSmfSummaryCard } from "./technicalSignals.js";
 
 // ─── Central signal colour system ─────────────────────────────────────────────
