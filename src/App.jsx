@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { calculateTechnicalSignalSnapshot, calcTrendScore, calcMomentumScore,
-         calcRStageScore, calcRWeightedScore, getReversalDirectionStatus, getOverallReversalStatus,
+         calcReversalWatch,
+         getReversalDirectionStatus, getOverallReversalStatus,
          validateSmfOHLCV, getSmfScoreLabel, calcSmfVolPriceDivergence,
          calcSmfTodaySignal, calcSmfFiveDaySignal, calcSmfThirtyDaySignal,
          getSmfOverallStatus, calcSmfSummaryCard } from "./technicalSignals.js";
@@ -17,7 +18,7 @@ function revStatusColor(status, variant) {
   var v = variant||"main";
   if (!status) return _CLR.grey[v];
   if (status.startsWith("Bullish")&&(status.includes("Confirmed")||status.includes("Triggered")||status.includes("Forming")||status.includes("Confirming"))) return _CLR.green[v];
-  if (status.startsWith("Bullish")&&(status.includes("Watch")||status.includes("Early"))) return _CLR.blue[v];
+  if (status.startsWith("Bullish")&&(status.includes("Watch")||status.includes("Spark"))) return _CLR.blue[v];
   if (status.startsWith("Bearish")&&(status.includes("Confirmed")||status.includes("Triggered")||status.includes("Forming"))) return _CLR.red[v];
   if (status.startsWith("Bearish")&&status.includes("Watch")) return _CLR.amber[v];
   if (status==="Mixed Reversal Signals") return _CLR.amber[v];
@@ -29,7 +30,7 @@ function revDirLabelColor(lbl, isBullish, variant) {
   if (isBullish) {
     if (lbl==="Watch") return _CLR.blue[v];
     if (lbl==="Forming"||lbl==="Triggered"||lbl==="Confirmed"||lbl==="Confirming") return _CLR.green[v];
-    if (lbl==="Early Spark") return _CLR.blue[v];
+    if (lbl==="Spark") return _CLR.blue[v];
   } else {
     if (lbl==="Watch") return _CLR.amber[v];
     if (lbl==="Forming"||lbl==="Triggered"||lbl==="Confirmed") return _CLR.red[v];
@@ -2058,71 +2059,18 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
     window.__momLabel    = mLabel;
     window.__momScoreSym = sym;
 
-    // 3. Reversal — needs ov for hi52/lo52; gracefully degrades without it
+    // 3. Reversal — uses calcReversalWatch() from technicalSignals.js (single source of truth)
+    // The Reversal tab overwrites window.__revWatchStatus[sym] with its own detailed result
+    // when visited, so the tab is always authoritative. This provides an instant estimate.
     var price = window.__curPrice || (bars.length > 0 ? bars[bars.length-1].c : 0);
     var meta  = { hi52: ov ? (ov.hi52||0) : 0, lo52: ov ? (ov.lo52||0) : 0, price: price };
-    var bsInds = [], btInds = [], bcInds = [], dsInds = [], dtInds = [], dcInds = [];
-    // Reuse the same indicator detection as the Reversal tab via the shared helpers
-    var n = bars.length;
-    var avg30v = n>=30 ? bars.slice(n-30).reduce(function(s,b){return s+b.v;},0)/30 : null;
-    var sma50r = n>=50 ? bars.slice(n-50).reduce(function(s,b){return s+b.c;},0)/50 : null;
-    var rh20   = n>=21 ? (function(){ var h=-Infinity; for(var i=n-21;i<n-1;i++) if(bars[i].h>h)h=bars[i].h; return h; })() : null;
-    var rl20   = n>=21 ? (function(){ var l=Infinity;  for(var i=n-21;i<n-1;i++) if(bars[i].l<l)l=bars[i].l; return l; })() : null;
-    var c5h    = n>=5  ? (function(){ var h=-Infinity; for(var i=n-5;i<n;i++)   if(bars[i].h>h)h=bars[i].h; return h; })() : null;
-    var p5h    = n>=10 ? (function(){ var h=-Infinity; for(var i=n-10;i<n-5;i++) if(bars[i].h>h)h=bars[i].h; return h; })() : null;
-    var c5l    = n>=5  ? (function(){ var l=Infinity;  for(var i=n-5;i<n;i++)    if(bars[i].l<l)l=bars[i].l; return l; })() : null;
-    var p5l    = n>=10 ? (function(){ var l=Infinity;  for(var i=n-10;i<n-5;i++) if(bars[i].l<l)l=bars[i].l; return l; })() : null;
-    var todayB = n>0 ? bars[n-1] : null;
-    var rsiR   = ind.rsi14!=null ? parseFloat(ind.rsi14) : null;
-    var rsiH   = ind.rsiHistory ? ind.rsiHistory.map(function(v){ return parseFloat(v); }) : [];
-    var macdH  = ind.macd&&ind.macd.histogram!=null ? parseFloat(ind.macd.histogram) : null;
-    var macdArr= ind.macdHistory || [];
-    var ema20R = ind.ema20!=null ? parseFloat(ind.ema20) : null;
-    var volRat = avg30v&&todayB ? todayB.v/avg30v : null;
-    var rsiDir = rsiH.length>=7 ? ((rsiH[0]+rsiH[1])/2)-((rsiH[2]+rsiH[3]+rsiH[4]+rsiH[5]+rsiH[6])/5) : null;
-    // Bull setup
-    bsInds.push({ score: rsiR!==null&&rsiDir!==null&&rsiR>=30&&rsiR<=50&&rsiDir>-3?100:rsiR===null||rsiDir===null?null:0 });
-    bsInds.push({ score: rsiR!==null&&rsiH.length>=5&&n>=5?(function(){ var pL=Math.min(bars[n-1].l,bars[n-2].l,bars[n-3].l); var pvL=Math.min(bars[n-4].l,bars[n-5].l); var rN=(rsiH[0]+rsiH[1])/2; var rP=(rsiH[3]+rsiH[4])/2; return pL<pvL&&rN>rP+2?100:0; })():null });
-    bsInds.push({ score: rsiR!==null&&meta.hi52>0&&meta.lo52>0&&price>0?(function(){ var pos=(price-meta.lo52)/(meta.hi52-meta.lo52); return pos<0.2&&rsiDir!==null&&rsiDir>0?100:0; })():null });
-    bsInds.push({ score: c5l!==null&&p5l!==null?c5l>p5l?100:0:null });
-    bsInds.push({ score: n>=10?(function(){ var dv5=bars.slice(n-5).filter(function(b,i){return i>0&&b.c<bars[n-5+i-1].c;}).reduce(function(s,b){return s+b.v;},0); var dv10=bars.slice(n-10,n-5).filter(function(b,i){return i>0&&b.c<bars[n-10+i-1].c;}).reduce(function(s,b){return s+b.v;},0); return dv5<dv10*0.8?100:0; })():null });
-    // Bull trigger
-    btInds.push({ score: rsiR!==null&&rsiH.length>=2?(function(){ var p=rsiH[1]; return (rsiR>=50&&p<50)||(rsiR>=60&&p<60)?100:(!((rsiR>=50&&p<50)||(rsiR>=60&&p<60))&&rsiR>=48&&rsiR<62)?50:0; })():null });
-    btInds.push({ score: macdH!==null&&macdArr.length>=2?(function(){ var p=macdArr[1]&&macdArr[1].histogram!=null?parseFloat(macdArr[1].histogram):null; return p!==null&&macdH>p&&macdH<0?100:p!==null&&macdH>0&&macdH>p?100:0; })():null });
-    btInds.push({ score: ema20R!==null&&todayB?todayB.c>ema20R?100:0:null });
-    btInds.push({ score: n>=2&&todayB?todayB.c>bars[n-2].c?100:0:null });
-    // Bull confirm
-    bcInds.push({ score: rh20!==null&&todayB?todayB.c>rh20?100:0:null });
-    bcInds.push({ score: sma50r!==null&&todayB?todayB.c>sma50r?100:0:null });
-    bcInds.push({ score: rh20!==null&&avg30v!==null&&todayB?todayB.c>rh20&&volRat>=1.5?100:0:null });
-    bcInds.push({ score: c5h!==null&&p5h!==null&&c5l!==null&&p5l!==null?c5h>p5h&&c5l>p5l?100:0:null });
-    // Bear setup
-    dsInds.push({ score: rsiR!==null&&rsiH.length>=10&&n>=10?(function(){ var rPH=Math.max.apply(null,bars.slice(n-5).map(function(b){return b.h;})); var pPH=Math.max.apply(null,bars.slice(n-10,n-5).map(function(b){return b.h;})); var rRH=Math.max.apply(null,rsiH.slice(0,5)); var pRH=Math.max.apply(null,rsiH.slice(5,10)); return rPH>pPH&&rRH<pRH?100:0; })():null });
-    dsInds.push({ score: macdH!==null&&macdArr.length>=3?(function(){ var h0=macdH; var h1=macdArr[1]&&macdArr[1].histogram!=null?parseFloat(macdArr[1].histogram):null; var h2=macdArr[2]&&macdArr[2].histogram!=null?parseFloat(macdArr[2].histogram):null; return h1!==null&&h2!==null&&h0>0&&h0<h1&&h1<h2?100:0; })():null });
-    dsInds.push({ score: ind.wsma10&&ind.wsma40&&ind.wsma10>ind.wsma40&&Math.abs(ind.wsma10-ind.wsma40)/ind.wsma40<0.05?100:0 });
-    dsInds.push({ score: rsiH.length>=5&&rsiH.slice(0,5).every(function(v){return v!=null&&v>=72&&v<=85;})?100:0 });
-    dsInds.push({ score: rsiR!==null&&meta.hi52>0&&meta.lo52>0&&price>0?(function(){ var pos=(price-meta.lo52)/(meta.hi52-meta.lo52); return pos>0.95&&rsiR>70&&rsiR<80?100:0; })():null });
-    // Bear trigger
-    dtInds.push({ score: macdH!==null&&macdArr.length>=2?(function(){ var p=macdArr[1]&&macdArr[1].histogram!=null?parseFloat(macdArr[1].histogram):null; return p!==null&&macdH<p?100:0; })():null });
-    dtInds.push({ score: rsiR!==null&&rsiH.length>=2?(function(){ var p=rsiH[1]; var det=(rsiR<60&&p>=60)||(rsiR<50&&p>=50); var near=!det&&rsiR>=48&&rsiR<62; return det?100:near?50:0; })():null });
-    dtInds.push({ score: ema20R!==null&&todayB?todayB.c<ema20R?100:0:null });
-    dtInds.push({ score: n>=2&&todayB?todayB.c<bars[n-2].c?100:0:null });
-    // Bear confirm
-    dcInds.push({ score: rl20!==null&&todayB?todayB.c<rl20?100:0:null });
-    dcInds.push({ score: sma50r!==null&&todayB?todayB.c<sma50r?100:0:null });
-    dcInds.push({ score: rl20!==null&&avg30v!==null&&todayB?todayB.c<rl20&&volRat>=1.5?100:0:null });
-    dcInds.push({ score: c5h!==null&&p5h!==null&&c5l!==null&&p5l!==null?c5h<p5h&&c5l<p5l?100:0:null });
-
-    var bsScore = calcRStageScore(bsInds), btScore = calcRStageScore(btInds), bcScore = calcRStageScore(bcInds);
-    var dsScore = calcRStageScore(dsInds), dtScore = calcRStageScore(dtInds), dcScore = calcRStageScore(dcInds);
-    var bullScore = calcRWeightedScore([{score:bsScore,weight:40},{score:btScore,weight:30},{score:bcScore,weight:30}]);
-    var bearScore = calcRWeightedScore([{score:dsScore,weight:40},{score:dtScore,weight:30},{score:dcScore,weight:30}]);
-    var revStatus = getOverallReversalStatus(bullScore, bearScore, bsScore, btScore, bcScore, dsScore, dtScore, dcScore);
-    var bLbl  = getReversalDirectionStatus(bsScore, btScore, bcScore, 'Bullish').label.replace('Reversal ','');
-    var beLbl = getReversalDirectionStatus(dsScore, dtScore, dcScore, 'Bearish').label.replace('Reversal ','');
-    if (!window.__revWatchStatus) window.__revWatchStatus = {};
-    window.__revWatchStatus[sym] = { status: revStatus.status, bLbl: bLbl||'No Signal', beLbl: beLbl||'No Signal', bullScore: bullScore, bearScore: bearScore };
-
+    var revResult = calcReversalWatch(bars, ind, meta);
+    if (revResult && revResult.status) {
+      var bLbl  = getReversalDirectionStatus(revResult.bullishSetupScore, revResult.bullishTriggerScore, revResult.bullishConfirmationScore, 'Bullish').label.replace('Reversal ','');
+      var beLbl = getReversalDirectionStatus(revResult.bearishSetupScore, revResult.bearishTriggerScore, revResult.bearishConfirmationScore, 'Bearish').label.replace('Reversal ','');
+      if (!window.__revWatchStatus) window.__revWatchStatus = {};
+      window.__revWatchStatus[sym] = { status: revResult.status, bLbl: bLbl||'No Signal', beLbl: beLbl||'No Signal', bullScore: revResult.bullishScore, bearScore: revResult.bearishScore };
+    }
     // 4. SMF
     var smfVal = validateSmfOHLCV(rawAggs);
     var smfBars = smfVal.validBars ? smfVal.validBars.slice().reverse() : [];
@@ -3573,7 +3521,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var _rwCompact = {
                             "Bullish Reversal Watch":"Bullish Watch","Bullish Reversal Forming":"Bullish Forming",
                             "Bullish Reversal Triggered":"Bullish Triggered","Bullish Reversal Confirmed":"Bullish Confirmed",
-                            "Bullish Reversal Confirming":"Bull Confirming","Early Bullish Reversal Spark":"Early Spark",
+                            "Bullish Reversal Confirming":"Bull Confirming","Bullish Reversal Spark":"Spark",
                             "Bearish Reversal Watch":"Bearish Watch","Bearish Reversal Forming":"Bearish Forming",
                             "Bearish Reversal Triggered":"Bearish Triggered","Bearish Reversal Confirmed":"Bearish Confirmed",
                             "Mixed Reversal Signals":"Mixed Signals","No Clear Reversal":"No Signal","Not Enough Data":"No Data"
@@ -6802,7 +6750,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       if (lbl==="Confirming")  return "#2a8a2a";
                       if (lbl==="Forming")     return "#5a8a00";
                       if (lbl==="Watch")       return "#b88000";
-                      if (lbl==="Early Spark") return "#1a6080";
+                      if (lbl==="Spark") return "#1a6080";
                       return "#888";
                     }
                     function revBearLabelColor(lbl) {
@@ -6833,13 +6781,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       if (label==="Confirming")  return { bg: bull?"#eef9ee":"#fff0f0", bd: bull?"#9acd50":"#f0a0a0" };
                       if (label==="Forming")     return { bg: bull?"#f5faf0":"#fff4f4", bd: bull?"#c8e0a0":"#f8c8c8" };
                       if (label==="Watch")       return { bg:"#fdf8e6",               bd:"#d4c870"                  };
-                      if (label==="Early Spark") return { bg:"#eaf2ff",               bd:"#90b8e0"                  };
+                      if (label==="Spark") return { bg:"#eaf2ff",               bd:"#90b8e0"                  };
                       return                            { bg:"#f5f5f5",               bd:"#e0e0e0"                  };
                     }
-
-                    // Stage/weighted score helpers from technicalSignals.js (single source of truth)
-                    var calcStageScore    = calcRStageScore;
-                    var calcWeightedScore = calcRWeightedScore;
 
                     // --- Shared computed values ---
                     var avg30v = n>=30 ? bars.slice(n-30).reduce(function(s,b){ return s+b.v; },0)/30 : null;
@@ -7149,22 +7093,21 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       return inds;
                     }
 
-                    // --- Calculate scores ---
+                    // --- Calculate scores from calcReversalWatch (single source of truth) ---
+                    // Indicator arrays kept for UI detail rows; all scores come from technicalSignals.js
                     var bsInds = bullSetupInds(),   btInds = bullTriggerInds(),   bcInds = bullConfirmInds();
                     var dsInds = bearSetupInds(),   dtInds = bearTriggerInds(),   dcInds = bearConfirmInds();
-                    var bsScore = calcStageScore(bsInds), btScore = calcStageScore(btInds), bcScore = calcStageScore(bcInds);
-                    var dsScore = calcStageScore(dsInds), dtScore = calcStageScore(dtInds), dcScore = calcStageScore(dcInds);
-                    var bullScore = calcWeightedScore([{score:bsScore,weight:40},{score:btScore,weight:30},{score:bcScore,weight:30}]);
-                    var bearScore = calcWeightedScore([{score:dsScore,weight:40},{score:dtScore,weight:30},{score:dcScore,weight:30}]);
+                    var _revW = calcReversalWatch(bars, ind, { hi52: ov?ov.hi52:0, lo52: ov?ov.lo52:0, price: (q&&q.price)||0 });
+                    var bsScore = _revW.bullishSetupScore,    btScore = _revW.bullishTriggerScore,    bcScore = _revW.bullishConfirmationScore;
+                    var dsScore = _revW.bearishSetupScore,    dtScore = _revW.bearishTriggerScore,    dcScore = _revW.bearishConfirmationScore;
+                    var bullScore = _revW.bullishScore, bearScore = _revW.bearishScore;
 
-                    // --- Overall status ---
-                    // Direction-status and overall-status helpers from technicalSignals.js
-                    var getDirectionStatus  = getReversalDirectionStatus;
-                    var getOverallRevStatus = getOverallReversalStatus;
-                    var revStatus = getOverallRevStatus(bullScore, bearScore, bsScore, btScore, bcScore, dsScore, dtScore, dcScore);
+                    // --- Overall status (consistent with sidebar pre-compute) ---
+                    var getDirectionStatus = getReversalDirectionStatus;
+                    var revStatus = { status: _revW.status, primaryScore: _revW.score };
                     // Restore explanation (getOverallReversalStatus returns {status,primaryScore} only)
                     var _revExplMap = {
-                      "Early Bullish Reversal Spark":  "Bullish momentum has started turning before full setup or confirmation is available. Watch for confirmation to strengthen.",
+                      "Bullish Reversal Spark":  "Bullish momentum has started turning before full setup or confirmation is available. Watch for confirmation to strengthen.",
                       "Bullish Reversal Confirming":   "Price action is beginning to validate the bullish reversal. Trigger is strong and confirmation is improving.",
                       "Bullish Reversal Forming":      "Bullish setup and momentum trigger are positive, but price confirmation is still missing.",
                       "Bullish Reversal Triggered":    "Bullish momentum appears to be turning with some supporting price confirmation.",
@@ -7274,7 +7217,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4,padding:"6px 0"}}>
                                 <span style={{fontSize:9,color:"#ccc"}}>▶</span><span>How is this scored?</span>
                               </summary>
-                              <div style={{fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line",paddingBottom:4}}>{"Overall Score = Setup × 40% + Trigger × 30% + Confirmation × 30%\n\nLabel is stage-aware — not just the weighted score:\n  Confirmed:   Setup ≥ 60, Trigger ≥ 60, Confirmation ≥ 70\n  Triggered:   Setup ≥ 60, Trigger ≥ 60, Confirmation ≥ 40\n  Confirming:  Trigger ≥ 60, Confirmation ≥ 40 (setup may have faded)\n  Forming:     Setup ≥ 60, Trigger ≥ 60, Confirmation < 40\n  Early Spark: Trigger ≥ 60, Confirmation < 40 (momentum turning early)\n  Watch:       Setup ≥ 40, Trigger < 60\n\nIf a stage is unavailable, remaining stages are reweighted."}</div>
+                              <div style={{fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line",paddingBottom:4}}>{"Overall Score = Setup × 40% + Trigger × 30% + Confirmation × 30%\n\nLabel is stage-aware — not just the weighted score:\n  Confirmed:   Setup ≥ 60, Trigger ≥ 60, Confirmation ≥ 70\n  Triggered:   Setup ≥ 60, Trigger ≥ 60, Confirmation ≥ 40\n  Confirming:  Trigger ≥ 60, Confirmation ≥ 40 (setup may have faded)\n  Forming:     Setup ≥ 60, Trigger ≥ 60, Confirmation < 40\n  Spark:       Trigger ≥ 60, Confirmation < 40 (momentum turning early)\n  Watch:       Setup ≥ 40, Trigger < 60\n\nIf a stage is unavailable, remaining stages are reweighted."}</div>
                             </details>
                           </div>
                           <div style={{padding:"10px 14px 0 14px"}}>
@@ -8631,7 +8574,7 @@ export function JournalPage() {
   function reversalColor(status) {
     if (!status) return "#555";
     if (status.startsWith("Bullish") && (status.includes("Forming")||status.includes("Triggered")||status.includes("Confirmed"))) return "#7abd00";
-    if (status.startsWith("Bullish") && status.includes("Watch")) return "#6090d0";
+    if (status.startsWith("Bullish") && (status.includes("Watch")||status.includes("Spark"))) return "#6090d0";
     if (status.startsWith("Bearish") && (status.includes("Forming")||status.includes("Triggered")||status.includes("Confirmed"))) return "#e05050";
     if (status.startsWith("Bearish") && status.includes("Watch")) return "#EF9F27";
     if (status === "Mixed Reversal Signals") return "#EF9F27";
