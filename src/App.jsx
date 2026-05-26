@@ -8589,21 +8589,30 @@ export function JournalPage() {
 
   async function generateAll() {
     setLoading("generating");
-    for (var i = 0; i < watchlist.length; i++) {
-      await generateSnapshot(watchlist[i].ticker);
+    // Use unique tickers from journal entries (watchlist may be empty)
+    var jTickers = [...new Set(journal.map(function(e){ return e.ticker; }))];
+    var wTickers = watchlist.map(function(w){ return w.ticker; });
+    var allTickers = [...new Set([...wTickers, ...jTickers])];
+    if (allTickers.length === 0) { showToast("No tickers to generate. Add tickers to watchlist first.", "err"); setLoading(""); return; }
+    for (var i = 0; i < allTickers.length; i++) {
+      await generateSnapshot(allTickers[i]);
     }
     setLoading("");
-    showToast("All snapshots generated.", "ok");
+    showToast("All snapshots generated (" + allTickers.length + " tickers).", "ok");
   }
 
   async function updateFutureReturns() {
     setLoading("future");
-    var tickers = [...new Set(watchlist.map(function(w){ return w.ticker; }))];
-    for (var tk of tickers) {
+    // Use unique tickers from journal + watchlist (watchlist may be empty)
+    var jTickers = [...new Set(journal.map(function(e){ return e.ticker; }))];
+    var wTickers = watchlist.map(function(w){ return w.ticker; });
+    var allTickers = [...new Set([...wTickers, ...jTickers])];
+    if (allTickers.length === 0) { showToast("No tickers found in journal.", "err"); setLoading(""); return; }
+    for (var tk of allTickers) {
       await jFetch("updateFutureReturns", "POST", { ticker:tk });
     }
     setLoading("");
-    showToast("Future returns updated.", "ok");
+    showToast("Future returns updated (" + allTickers.length + " tickers).", "ok");
     loadJournal();
   }
 
@@ -8858,6 +8867,7 @@ export function JournalPage() {
                     <Th col="future_return_20d">20D</Th>
                     <Th col="future_return_30d">30D</Th>
                     <Th col="future_return_60d">60D</Th>
+                    <Th col="future_return_90d">90D</Th>
                     <Th col="max_gain_30d">MaxGain30</Th>
                     <Th col="max_drawdown_30d">MaxDD30</Th>
                     <Th col="bullish_outcome_label">Outcome</Th>
@@ -8875,20 +8885,21 @@ export function JournalPage() {
                         <td style={{ padding:"7px 10px", fontWeight:700, color:"#c8f000" }}>{r.ticker}</td>
                         <td style={{ padding:"7px 10px", color:"#f0ede6" }}>${r.close_price?.toFixed(2)}</td>
                         <td style={{ padding:"7px 10px" }}>{StatusBadge(r.trend_status, r.trend_score>=55?"#7abd00":r.trend_score>=40?"#EF9F27":"#e05050")}</td>
-                        <td style={{ padding:"7px 10px", color:scoreColor(r.trend_score), fontWeight:600 }}>{r.trend_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"7px 10px", color:"#aaa", fontWeight:500 }}>{r.trend_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"7px 10px" }}>{StatusBadge(r.momentum_status, r.momentum_score>=65?"#7abd00":r.momentum_score>=50?"#EF9F27":"#e05050")}</td>
-                        <td style={{ padding:"7px 10px", color:scoreColor(r.momentum_score), fontWeight:600 }}>{r.momentum_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"7px 10px", color:"#aaa", fontWeight:500 }}>{r.momentum_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"7px 10px", color:r.rsi_value>70?"#EF9F27":r.rsi_value>=50?"#7abd00":r.rsi_value>=30?"#888":"#e05050" }}>{r.rsi_value?.toFixed(1)||"—"}</td>
                         <td style={{ padding:"7px 10px", fontSize:10, color:revCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.reversal_status||"—"}</td>
-                        <td style={{ padding:"7px 10px", color:scoreColor(r.bullish_reversal_score) }}>{r.bullish_reversal_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"7px 10px", color:scoreColor(r.bearish_reversal_score) }}>{r.bearish_reversal_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"7px 10px", color:"#aaa" }}>{r.bullish_reversal_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"7px 10px", color:"#aaa" }}>{r.bearish_reversal_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"7px 10px", fontSize:10, color:smfCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.smart_money_status||"—"}</td>
-                        <td style={{ padding:"7px 10px", color:scoreColor(r.smart_money_score), fontWeight:600 }}>{r.smart_money_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"7px 10px", color:"#aaa", fontWeight:500 }}>{r.smart_money_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_5d)}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_10d)}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_20d)}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_30d)}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_60d)}</td>
+                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_90d)}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.max_gain_30d)}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.max_drawdown_30d)}</td>
                         <td style={{ padding:"7px 10px" }}>{OutcomeBadge(r.bullish_outcome_label)}</td>
