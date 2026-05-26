@@ -7374,6 +7374,27 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>Smart Money Flow</div>
                                 <div style={{ fontSize:14, fontWeight:700, color:_sCol, marginBottom:4 }}>{smCard.status}</div>
                                 <div style={{ fontSize:11, color:"#666", lineHeight:1.5 }}>{smCard.explanation}</div>
+                                <div style={{ marginTop:8 }}>
+                                  <details>
+                                    <summary style={{ fontSize:10, color:"#bbb", cursor:"pointer", outline:"none", listStyle:"none", display:"flex", alignItems:"center", gap:4 }}>
+                                      <span style={{ fontSize:9, color:"#ccc" }}>{"▶"}</span><span>{"How is this scored?"}</span>
+                                    </summary>
+                                    <div style={{ fontSize:10, color:"#666", lineHeight:1.8, padding:"6px 0", whiteSpace:"pre-line" }}>{
+                                      "Three timeframes are scored 0–100 and combined into an overall status.\n\n" +
+                                      "Today Activity (OBV direction 20% + Volume Surge 30% + Vol/Price Divergence 35% + Strong Close 15%)\n" +
+                                      "Short-Term Flow / 5-Day (OBV net 35% + Volume avg 25% + Vol/Price 25% + Strong Close 15%)\n" +
+                                      "30-Day Accumulation (OBV trend 40% + High-vol green days 25% + Price stability 20% + Strong close freq 15%)\n\n" +
+                                      "Score labels: Low (0\u201330) | Mild (31\u201350) | Moderate (51\u201370) | High (71\u201385) | Very High (86\u2013100)\n\n" +
+                                      "Overall status:\n" +
+                                      "  Strong Multi-Timeframe Flow \u2014 Today, 5D, and 30D all High+\n" +
+                                      "  Accumulation Trend Positive \u2014 5D and 30D High+, Today quieter\n" +
+                                      "  Early Accumulation \u2014 Today and 5D High+, 30D not yet confirmed\n" +
+                                      "  Constructive but Cooling \u2014 30D High+, Today and 5D mild\n" +
+                                      "  Short-Term Spike \u2014 Today High+, limited broader support\n" +
+                                      "  No Clear Signal \u2014 no timeframe shows High+ activity"
+                                    }</div>
+                                  </details>
+                                </div>
                               </div>
                               <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0, paddingLeft:24, paddingTop:2 }}>
                                 <span style={{ fontSize:12, color:"#888" }}>{"Today:"}</span>
