@@ -4295,7 +4295,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                         <DotBar score={pi.score} classification={pi.classification} />
                                       </div>
                                     </div>
-                                    {pi.explanation && <div style={{ fontSize:12, color:"#aaa", lineHeight:1.7, marginBottom:10 }}>{pi.explanation}</div>}
+                                    {(function(){ var _exp = (pi.explanation||"").replace(/^\*+|\*+$/g,"").trim(); return _exp.length > 5 ? <div style={{ fontSize:12, color:"#aaa", lineHeight:1.7, marginBottom:10 }}>{_exp}</div> : null; })()}
                                     <div style={{ borderTop:"0.5px solid "+_mc.bd+"44", paddingTop:8 }}>
                                       <details>
                                         <summary style={{ fontSize:10, color:"#777", cursor:"pointer", outline:"none", listStyle:"none", display:"flex", alignItems:"center", gap:4 }}>
@@ -8494,7 +8494,51 @@ export function JournalPage() {
   function loadJournal(tk) {
     var url = "/journal?action=journal&limit=500" + (tk ? "&ticker=" + tk : "");
     return fetch(url, { headers:{ "X-Admin-Key": adminKey } }).then(function(r){ return r.json(); })
-      .then(function(d){ if (d.entries) setJournal(d.entries); });
+      .then(function(d){
+        if (d.entries) {
+          setJournal(d.entries);
+          // Auto-fill any return windows that now have past prices
+          // Runs silently in background — no loading spinner, no toast
+          autoFillReturns(d.entries);
+        }
+      });
+  }
+
+  // Silently update future returns for any record where a window date has now passed.
+  // Runs automatically after journal loads — no manual click needed.
+  function autoFillReturns(entries) {
+    if (!entries || entries.length === 0) return;
+    var today = new Date().toISOString().split("T")[0];
+    // Find unique tickers that have at least one record with a pending return window
+    // A window is potentially fillable if the snapshot date is old enough
+    var tickers = [...new Set(entries
+      .filter(function(e) {
+        // Only process if at least 1 trading day has passed (snapshot date < today)
+        return e.snapshot_date < today && (
+          e.future_return_5d  === null || e.future_return_5d  === undefined ||
+          e.future_return_10d === null || e.future_return_10d === undefined ||
+          e.future_return_20d === null || e.future_return_20d === undefined ||
+          e.future_return_30d === null || e.future_return_30d === undefined ||
+          e.future_return_60d === null || e.future_return_60d === undefined ||
+          e.future_return_90d === null || e.future_return_90d === undefined
+        );
+      })
+      .map(function(e){ return e.ticker; })
+    )];
+    if (tickers.length === 0) return;
+    // Fire-and-forget — update each ticker silently, then reload journal
+    var chain = Promise.resolve();
+    tickers.forEach(function(tk) {
+      chain = chain.then(function() {
+        return jFetch("updateFutureReturns", "POST", { ticker: tk }).catch(function(){});
+      });
+    });
+    chain.then(function() {
+      // Reload journal silently to show updated figures
+      var url = "/journal?action=journal&limit=500";
+      fetch(url, { headers:{ "X-Admin-Key": adminKey } }).then(function(r){ return r.json(); })
+        .then(function(d){ if (d.entries) setJournal(d.entries); });
+    });
   }
 
   function handleAuth() {
@@ -8603,11 +8647,11 @@ export function JournalPage() {
 
   async function updateFutureReturns() {
     setLoading("future");
-    // Use unique tickers from journal + watchlist (watchlist may be empty)
     var jTickers = [...new Set(journal.map(function(e){ return e.ticker; }))];
     var wTickers = watchlist.map(function(w){ return w.ticker; });
     var allTickers = [...new Set([...wTickers, ...jTickers])];
     if (allTickers.length === 0) { showToast("No tickers found in journal.", "err"); setLoading(""); return; }
+    // Calculate future returns using real Yahoo Finance prices — no snapshot dependency
     for (var tk of allTickers) {
       await jFetch("updateFutureReturns", "POST", { ticker:tk });
     }
@@ -8730,7 +8774,7 @@ export function JournalPage() {
   );
 
   var fj = filteredJournal();
-  var activeTickers = [...new Set(watchlist.map(function(w){ return w.ticker; }))];
+  var activeTickers = [...new Set(journal.map(function(e){ return e.ticker; }))];
 
   // ── Main journal UI ─────────────────────────────────────────────────────────
   return (
@@ -8822,10 +8866,12 @@ export function JournalPage() {
           {/* Filters */}
           <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:12 }}>
             {[
-              ["Ticker", "ticker", activeTickers],
-              ["Trend", "trend", ["Strong Uptrend","Uptrend","Sideways","Downtrend","Strong Downtrend"]],
-              ["Momentum", "momentum", ["Strong","Building","Neutral","Fading","Weak"]],
-              ["Outcome", "outcome", ["Strong Win","Win","Neutral","Failed","Strong Failed","Pending"]],
+              ["Ticker",      "ticker",     activeTickers],
+              ["Trend",       "trend",      ["Strong Uptrend","Uptrend","Sideways","Downtrend","Strong Downtrend"]],
+              ["Momentum",    "momentum",   ["Strong","Building","Neutral","Fading","Weak"]],
+              ["Reversal",    "reversal",   ["Bullish Reversal Spark","Bullish Reversal Watch","Bullish Reversal Forming","Bullish Reversal Triggered","Bullish Reversal Confirming","Bullish Reversal Confirmed","Bearish Reversal Watch","Bearish Reversal Forming","Bearish Reversal Triggered","Bearish Reversal Confirmed","Mixed Reversal Signals","No Clear Reversal"]],
+              ["Smart Money", "smartMoney", ["Strong Multi-Timeframe Flow","Accumulation Trend Positive","Early Accumulation","Constructive but Cooling","Short-Term Spike","No Clear Signal"]],
+              ["Outcome",     "outcome",    ["Strong Win","Win","Neutral","Failed","Strong Failed","Pending"]],
             ].map(function(f) {
               return <select key={f[0]} value={filter[f[1]]} onChange={function(e){ setFilter(function(prev){ return Object.assign({},prev,{ [f[1]]: e.target.value }); }); }}
                 style={{ background:"#181816", border:"0.5px solid #333", borderRadius:6, padding:"6px 10px", color:filter[f[1]]?"#c8f000":"#666", fontSize:11, outline:"none" }}>
