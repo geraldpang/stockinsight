@@ -3636,7 +3636,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               { id:"debug",     label:"Debug" },
               { id:"admin",     label:"Admin" },
             ];
-            var ADMIN_TABS = ["addlinfo", "debug", "admin", "whale"];
+            var ADMIN_TABS = ["addlinfo", "debug", "admin"];
             var TABS = isAdmin ? ALL_TABS : ALL_TABS.filter(function(t) { return ADMIN_TABS.indexOf(t.id) === -1; });
 
             function handleTab(id) {
