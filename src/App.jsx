@@ -9039,22 +9039,34 @@ export default function App() {
               var targetMean = (ksData&&ksData.targetMeanPrice&&ksData.targetMeanPrice.raw) ? ksData.targetMeanPrice.raw
                              : (fdData&&fdData.targetMeanPrice&&fdData.targetMeanPrice.raw) ? fdData.targetMeanPrice.raw : null;
               var analystUp  = (targetMean && price > 0) ? ((targetMean - price) / price * 100) : null;
-              // Use cached trend-signal if available; otherwise build from Yahoo data via technicalSignals.js
-              if (!trendSigData && vc.length >= 15) {
+              // Build Yahoo snapshot if trendSigData is missing or missing rev/smf fields
+              if (vc.length >= 15 && (!trendSigData || !trendSigData.revStatus)) {
                 var yahooSnap = buildTechSnapshotFromYahoo(sym, vc, price, sma50, sma200);
                 if (yahooSnap) {
-                  trendSigData = {
-                    trendLabel: yahooSnap.trend.status,
-                    trendScore: yahooSnap.trend.score,
-                    momLabel:   yahooSnap.momentum.status,
-                    momScore:   yahooSnap.momentum.score,
-                    // Reversal and SMF from snapshot — may be limited without volume/indicator history
-                    revStatus:  yahooSnap.reversalWatch  ? yahooSnap.reversalWatch.status  : null,
-                    revScore:   yahooSnap.reversalWatch  ? yahooSnap.reversalWatch.score   : null,
-                    smfStatus:  yahooSnap.smartMoneyFlow ? yahooSnap.smartMoneyFlow.status : null,
-                    updatedAt:  new Date().toISOString()
-                  };
-                  if (window.__clerkToken) {
+                  var _yrv = yahooSnap.reversalWatch  || {};
+                  var _ysf = yahooSnap.smartMoneyFlow || {};
+                  if (!trendSigData) {
+                    trendSigData = {
+                      trendLabel: yahooSnap.trend.status,
+                      trendScore: yahooSnap.trend.score,
+                      momLabel:   yahooSnap.momentum.status,
+                      momScore:   yahooSnap.momentum.score,
+                      revStatus:  _yrv.status || null,
+                      revScore:   _yrv.score  || null,
+                      smfStatus:  _ysf.status || null,
+                      updatedAt:  new Date().toISOString()
+                    };
+                  } else {
+                    // Supplement existing cached entry with rev/smf fields
+                    trendSigData = Object.assign({}, trendSigData, {
+                      revStatus: _yrv.status || null,
+                      revScore:  _yrv.score  || null,
+                      smfStatus: _ysf.status || null,
+                    });
+                  }
+                  if (window.__clerkToken && !trendSigData.revStatus) {
+                    // Only write cache if we built a full new entry
+                  } else if (window.__clerkToken) {
                     fetch("/cache?sym=" + sym + "&tab=trend-signal", {
                       method:"POST", headers:{"Content-Type":"text/plain","Authorization":"Bearer "+window.__clerkToken},
                       body:JSON.stringify(trendSigData)
@@ -9464,13 +9476,43 @@ export default function App() {
                 <div style={{ fontSize:10, color:LIME, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:3 }}>AI Favourites for the Week</div>
                 <div style={{ fontSize:12, color:"#555" }}>Stocks our AI rated Exceptional or Good in the last 7 days</div>
               </div>
-              <div style={{ border:"1px solid #1e1e18", borderRadius:10, overflow:"hidden", overflowX:"auto" }}>
-                <div style={{ display:"grid", gridTemplateColumns:"68px 140px 80px 70px 70px 80px 140px 90px 120px 130px 160px", columnGap:20, rowGap:0, background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px", minWidth:1100 }}>
-                  {["Ticker","Company","Price","Moat","Fin.","IV Disc.","52W Range","Trend","Momentum","Reversal","Money Flow"].map(function(h) {
-                    return <div key={h} style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em" }}>{h}</div>;
+              <div style={{ border:"1px solid #1e1e18", borderRadius:10, overflow:"hidden" }}>
+                <div style={{ display:"grid", gridTemplateColumns:"62px 65px 65px 68px 118px 85px 82px 95px 118px", columnGap:14, rowGap:0, background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px" }}>
+                  {["Ticker","Moat","Fin.","IV Disc.","52W Range","Trend","Momentum","Reversal","Money Flow"].map(function(h,i) {
+                    return <div key={i} style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em" }}>{h}</div>;
                   })}
                 </div>
-                {tickerSignals.map(function(sig, i) {
+                {(function() {
+                  // Compact display label helpers — UI mapping only, no technical calculation
+                  function cRevLbl(status) {
+                    if (!status) return String.fromCharCode(0x2014);
+                    var sl = status.toLowerCase();
+                    if (sl.indexOf('no clear')!==-1 || sl==='not enough data') return String.fromCharCode(0x2014);
+                    if (sl.indexOf('spark')!==-1)      return 'Spark';
+                    if (sl.indexOf('confirming')!==-1) return 'Confirming';
+                    if (sl.indexOf('confirmed')!==-1&&sl.indexOf('bull')!==-1) return 'Confirmed';
+                    if (sl.indexOf('triggered')!==-1&&sl.indexOf('bull')!==-1) return 'Triggered';
+                    if (sl.indexOf('forming')!==-1&&sl.indexOf('bull')!==-1)   return 'Forming';
+                    if (sl.indexOf('watch')!==-1&&sl.indexOf('bull')!==-1)     return 'Bull Watch';
+                    if (sl.indexOf('confirmed')!==-1&&sl.indexOf('bear')!==-1) return 'Bear Conf.';
+                    if (sl.indexOf('triggered')!==-1&&sl.indexOf('bear')!==-1) return 'Bear Trig.';
+                    if (sl.indexOf('forming')!==-1&&sl.indexOf('bear')!==-1)   return 'Bear Form.';
+                    if (sl.indexOf('watch')!==-1&&sl.indexOf('bear')!==-1)     return 'Bear Watch';
+                    if (sl.indexOf('mixed')!==-1) return 'Mixed';
+                    return status;
+                  }
+                  function cSmfLbl(status) {
+                    if (!status) return String.fromCharCode(0x2014);
+                    var sl = status.toLowerCase();
+                    if (sl.indexOf('no clear')!==-1) return String.fromCharCode(0x2014);
+                    if (sl.indexOf('strong multi')!==-1)       return 'Strong Flow';
+                    if (sl.indexOf('accumulation trend')!==-1) return 'Accumulating';
+                    if (sl.indexOf('early accumulation')!==-1) return 'Early Accum.';
+                    if (sl.indexOf('constructive')!==-1)       return 'Constructive';
+                    if (sl.indexOf('short-term spike')!==-1)   return 'ST Spike';
+                    return status;
+                  }
+                  return tickerSignals.map(function(sig, i) {
                   var price    = sig.price || 0;
                   var hi52     = sig.hi52 || 0;
                   var lo52     = sig.lo52 || 0;
@@ -9512,12 +9554,13 @@ export default function App() {
                   return (
                     <div key={i}
                       onClick={function(){ window.location.hash = sig.sym; }}
-                      style={{ display:"grid", gridTemplateColumns:"68px 140px 80px 70px 70px 80px 140px 90px 120px 130px 160px", columnGap:20, rowGap:0, padding:"11px 14px", borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111", minWidth:1100 }}
+                      style={{ display:"grid", gridTemplateColumns:"62px 65px 65px 68px 118px 85px 82px 95px 118px", columnGap:14, rowGap:0, padding:"10px 14px", borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111" }}
                       onMouseEnter={function(e){ e.currentTarget.style.background="#161614"; }}
                       onMouseLeave={function(e){ e.currentTarget.style.background="#111"; }}>
-                      <div style={{ fontSize:13, fontWeight:900, color:LIME }}>{sig.sym}</div>
-                      <div style={{ fontSize:11, color:"#777", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{NAMES[sig.sym]||String.fromCharCode(0x2014)}</div>
-                      <div style={{ fontSize:12, fontWeight:700, color:"#fff" }}>{price>0?"$"+price.toFixed(2):String.fromCharCode(0x2014)}</div>
+                      <div>
+                        <div style={{ fontSize:12, fontWeight:900, color:LIME }}>{sig.sym}</div>
+                        <div style={{ fontSize:9, color:"#444", marginTop:1, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:58 }}>{price>0?"$"+price.toFixed(2):""}</div>
+                      </div>
                       {/* Moat */}
                       <div style={{ fontSize:11, fontWeight:700, color:sigColor(moatLbl) }}>{moatLbl||String.fromCharCode(0x2014)}</div>
                       {/* Financial Strength */}
@@ -9556,40 +9599,17 @@ export default function App() {
                         <div style={{ fontSize:11, fontWeight:700, color:momColor }}>{momLabel}</div>
                         {rsi!==null && !ts.momLabel && <div style={{ fontSize:9, color:"#444", marginTop:1 }}>{"RSI "+rsi.toFixed(0)}</div>}
                       </div>
-                      {/* Reversal — status string from snapshot.reversalWatch.status via cache */}
-                      <div style={{ fontSize:10, fontWeight:700, color:(function(){
-                        var rv = ts.revStatus;
-                        if (!rv) return "#444";
-                        var rl = rv.toLowerCase();
-                        if (rl.indexOf("confirmed")!==-1) return "#7abd00";
-                        if (rl.indexOf("confirming")!==-1) return "#7abd00";
-                        if (rl.indexOf("triggered")!==-1) return "#9acd50";
-                        if (rl.indexOf("forming")!==-1) return "#b8d870";
-                        if (rl.indexOf("spark")!==-1) return "#60b8f0";
-                        if (rl.indexOf("watch")!==-1&&rl.indexOf("bull")!==-1) return "#60b8f0";
-                        if (rl.indexOf("bearish")!==-1) return "#e05050";
-                        if (rl.indexOf("mixed")!==-1) return "#EF9F27";
-                        return "#555";
-                      })()}}>
-                        {ts.revStatus || String.fromCharCode(0x2014)}
+                      {/* Reversal — compact label; colour from canonical revStatusColor() matching tab + sidebar */}
+                      <div style={{ fontSize:10, fontWeight:700, color:revStatusColor(ts.revStatus, "main") }}>
+                        {cRevLbl(ts.revStatus)}
                       </div>
-                      {/* Money Flow — status string from snapshot.smartMoneyFlow.status via cache */}
-                      <div style={{ fontSize:10, fontWeight:700, color:(function(){
-                        var sf = ts.smfStatus;
-                        if (!sf) return "#444";
-                        var sl = sf.toLowerCase();
-                        if (sl.indexOf("strong multi")!==-1) return "#7abd00";
-                        if (sl.indexOf("accumulation trend")!==-1) return "#9acd50";
-                        if (sl.indexOf("early accumulation")!==-1) return "#60b8f0";
-                        if (sl.indexOf("constructive")!==-1) return "#EF9F27";
-                        if (sl.indexOf("short-term spike")!==-1) return "#EF9F27";
-                        return "#555";
-                      })()}}>
-                        {ts.smfStatus || String.fromCharCode(0x2014)}
+                      {/* Money Flow — compact label; colour from canonical smfStatusColor() matching tab + sidebar */}
+                      <div style={{ fontSize:10, fontWeight:700, color:smfStatusColor(ts.smfStatus, "main") }}>
+                        {cSmfLbl(ts.smfStatus)}
                       </div>
                     </div>
                   );
-                })}
+                  });})()}
               </div>
             </div>
 
