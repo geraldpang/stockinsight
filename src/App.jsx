@@ -17,8 +17,7 @@ function revStatusColor(status, variant) {
   var v = variant||"main";
   if (!status) return _CLR.grey[v];
   if (status.startsWith("Bullish")&&(status.includes("Confirmed")||status.includes("Triggered")||status.includes("Forming")||status.includes("Confirming"))) return _CLR.green[v];
-  if (status.startsWith("Bullish")&&status.includes("Watch")) return _CLR.blue[v];
-  if (status.startsWith("Early Bullish")) return _CLR.blue[v];
+  if (status.startsWith("Bullish")&&(status.includes("Watch")||status.includes("Early"))) return _CLR.blue[v];
   if (status.startsWith("Bearish")&&(status.includes("Confirmed")||status.includes("Triggered")||status.includes("Forming"))) return _CLR.red[v];
   if (status.startsWith("Bearish")&&status.includes("Watch")) return _CLR.amber[v];
   if (status==="Mixed Reversal Signals") return _CLR.amber[v];
@@ -6800,13 +6799,16 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     function revLabelColor(lbl) {
                       if (lbl==="Confirmed")   return "#1a6a1a";
                       if (lbl==="Triggered")   return "#2a8a2a";
+                      if (lbl==="Confirming")  return "#2a8a2a";
                       if (lbl==="Forming")     return "#5a8a00";
                       if (lbl==="Watch")       return "#b88000";
+                      if (lbl==="Early Spark") return "#1a6080";
                       return "#888";
                     }
                     function revBearLabelColor(lbl) {
                       if (lbl==="Confirmed")   return "#a02020";
                       if (lbl==="Triggered")   return "#c03030";
+                      if (lbl==="Confirming")  return "#c03030";
                       if (lbl==="Forming")     return "#c05030";
                       if (lbl==="Watch")       return "#b88000";
                       return "#888";
@@ -6828,8 +6830,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     function dirColors(label, bull) {
                       if (label==="Confirmed")   return { bg: bull?"#e6f4e6":"#fde8e8", bd: bull?"#7abd00":"#e08080" };
                       if (label==="Triggered")   return { bg: bull?"#eef9ee":"#fff0f0", bd: bull?"#9acd50":"#f0a0a0" };
+                      if (label==="Confirming")  return { bg: bull?"#eef9ee":"#fff0f0", bd: bull?"#9acd50":"#f0a0a0" };
                       if (label==="Forming")     return { bg: bull?"#f5faf0":"#fff4f4", bd: bull?"#c8e0a0":"#f8c8c8" };
                       if (label==="Watch")       return { bg:"#fdf8e6",               bd:"#d4c870"                  };
+                      if (label==="Early Spark") return { bg:"#eaf2ff",               bd:"#90b8e0"                  };
                       return                            { bg:"#f5f5f5",               bd:"#e0e0e0"                  };
                     }
 
@@ -7158,6 +7162,23 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var getDirectionStatus  = getReversalDirectionStatus;
                     var getOverallRevStatus = getOverallReversalStatus;
                     var revStatus = getOverallRevStatus(bullScore, bearScore, bsScore, btScore, bcScore, dsScore, dtScore, dcScore);
+                    // Restore explanation (getOverallReversalStatus returns {status,primaryScore} only)
+                    var _revExplMap = {
+                      "Early Bullish Reversal Spark":  "Bullish momentum has started turning before full setup or confirmation is available. Watch for confirmation to strengthen.",
+                      "Bullish Reversal Confirming":   "Price action is beginning to validate the bullish reversal. Trigger is strong and confirmation is improving.",
+                      "Bullish Reversal Forming":      "Bullish setup and momentum trigger are positive, but price confirmation is still missing.",
+                      "Bullish Reversal Triggered":    "Bullish momentum appears to be turning with some supporting price confirmation.",
+                      "Bullish Reversal Confirmed":    "Bullish setup, momentum trigger, and price confirmation are all aligned.",
+                      "Bullish Reversal Watch":        "Early bullish reversal conditions may be appearing, but trigger and confirmation are still limited.",
+                      "Bearish Reversal Forming":      "Bearish setup and momentum trigger are positive, but price confirmation is still missing.",
+                      "Bearish Reversal Triggered":    "Bearish momentum appears to be turning with some supporting price confirmation.",
+                      "Bearish Reversal Confirmed":    "Bearish setup, momentum trigger, and price confirmation are all aligned.",
+                      "Bearish Reversal Watch":        "Early bearish reversal conditions may be appearing, but trigger and confirmation are still limited.",
+                      "Mixed Reversal Signals":        "Both bullish and bearish reversal signals are present. Price action is unclear and confirmation is needed.",
+                      "No Clear Reversal":             "No meaningful bullish or bearish reversal setup is currently detected.",
+                      "Not Enough Data":               "Not enough price and volume data is available to calculate a reliable reversal watch signal."
+                    };
+                    revStatus.explanation = _revExplMap[revStatus.status] || "";
                     var bLbl  = getDirectionStatus(bsScore, btScore, bcScore, "Bullish").label.replace("Reversal ","") || getReversalLabel(bullScore);
                     var beLbl = getDirectionStatus(dsScore, dtScore, dcScore, "Bearish").label.replace("Reversal ","") || getReversalLabel(bearScore);
                     var statusCol = revStatusColor(revStatus.status, "main");
@@ -7253,7 +7274,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4,padding:"6px 0"}}>
                                 <span style={{fontSize:9,color:"#ccc"}}>▶</span><span>How is this scored?</span>
                               </summary>
-                              <div style={{fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line",paddingBottom:4}}>{"Overall Score = Setup × 40% + Trigger × 30% + Confirmation × 30%\n\nLabel is stage-aware — not just the weighted score:\n  Confirmed: Setup ≥ 60, Trigger ≥ 60, Confirmation ≥ 70\n  Triggered: Setup ≥ 60, Trigger ≥ 60, Confirmation ≥ 40\n  Forming:   Setup ≥ 60, Trigger ≥ 60, Confirmation < 40\n  Watch:     Setup ≥ 40, Trigger < 60\n\nIf a stage is unavailable, remaining stages are reweighted."}</div>
+                              <div style={{fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line",paddingBottom:4}}>{"Overall Score = Setup × 40% + Trigger × 30% + Confirmation × 30%\n\nLabel is stage-aware — not just the weighted score:\n  Confirmed:   Setup ≥ 60, Trigger ≥ 60, Confirmation ≥ 70\n  Triggered:   Setup ≥ 60, Trigger ≥ 60, Confirmation ≥ 40\n  Confirming:  Trigger ≥ 60, Confirmation ≥ 40 (setup may have faded)\n  Forming:     Setup ≥ 60, Trigger ≥ 60, Confirmation < 40\n  Early Spark: Trigger ≥ 60, Confirmation < 40 (momentum turning early)\n  Watch:       Setup ≥ 40, Trigger < 60\n\nIf a stage is unavailable, remaining stages are reweighted."}</div>
                             </details>
                           </div>
                           <div style={{padding:"10px 14px 0 14px"}}>
