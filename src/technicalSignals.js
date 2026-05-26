@@ -505,7 +505,7 @@ export function calcReversalWatch(bars, ind, meta) {
     if (s >= 60 && t >= 60) return dir + ' Reversal Forming';
     // Early spark — momentum has started turning before full setup or confirmation is available.
     // Bullish only in this iteration; bearish equivalent to be added later.
-    if (dir === 'Bullish' && t >= 60 && c < 40) return 'Early Bullish Reversal Spark';
+    if (dir === 'Bullish' && t >= 60 && c < 40) return 'Bullish Reversal Spark';
     // Setup-led watch — early conditions appearing but trigger and confirmation still limited.
     if (s >= 40) return dir + ' Reversal Watch';
     return 'No Signal';
@@ -529,7 +529,7 @@ export function calcReversalWatch(bars, ind, meta) {
     // Note: bullConfirming and earlyBullSpark are mutually exclusive (confirm >= 40 vs < 40)
     status = 'Bullish Reversal Confirming';
   } else if (earlyBullSpark) {
-    status = 'Early Bullish Reversal Spark';
+    status = 'Bullish Reversal Spark';
   } else if (bs >= 40 && bes >= 40 && Math.abs(diff) <= 15) {
     status = 'Mixed Reversal Signals';
   } else if (diff > 15) {
@@ -713,7 +713,7 @@ export function getReversalDirectionStatus(setupS, trigS, confS, dir) {
   // Early Spark: momentum has started turning before full setup or confirmation is available.
   // Bullish only in this iteration; bearish equivalent to be added later.
   if (dir === 'Bullish' && t >= 60 && c < 40)
-    return { label: 'Early Reversal Spark', expl: 'Bullish momentum has started turning before full setup or confirmation is available.' };
+    return { label: 'Reversal Spark', expl: 'Bullish momentum has started turning before full setup or confirmation is available.' };
   // Watch: early setup conditions appearing but trigger and confirmation still limited.
   if (s >= 40)
     return { label: 'Reversal Watch',      expl: 'Early ' + dir.toLowerCase() + ' reversal conditions may be appearing, but trigger and confirmation are still limited.' };
@@ -733,7 +733,7 @@ export function getOverallReversalStatus(bS, beS, bsScore, btScore, bcScore, dsS
   var bullConfirming = btScore !== null && btScore >= 60 && bcScore !== null && bcScore >= 40 && bs >= bes - 10;
 
   if (bullConfirming) return { status: 'Bullish Reversal Confirming',  primaryScore: bs };
-  if (earlyBullSpark) return { status: 'Early Bullish Reversal Spark', primaryScore: bs };
+  if (earlyBullSpark) return { status: 'Bullish Reversal Spark', primaryScore: bs };
 
   var diff = bs - bes;
   if (bs >= 40 && bes >= 40 && Math.abs(diff) <= 15) return { status: 'Mixed Reversal Signals', primaryScore: Math.max(bs, bes) };
