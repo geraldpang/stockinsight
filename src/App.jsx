@@ -2158,11 +2158,17 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       var mLabel = window.__momLabel;
       var mScore = window.__momScore;
       if (!tLabel && !mLabel) return;
+      // Also include Reversal and SMF status for AI Favourites table (set by pre-compute useEffect)
+      var revSt  = window.__revWatchStatus && window.__revWatchStatus[sym] ? window.__revWatchStatus[sym].status : null;
+      var revSc  = window.__revWatchStatus && window.__revWatchStatus[sym] ? (window.__revWatchStatus[sym].bullScore || 0) : null;
+      var smfSt  = window.__smfScore && window.__smfScore[sym] ? window.__smfScore[sym].status : null;
       window.__trendSignalWritten[sym] = true;
       fetch("/cache?sym=" + sym + "&tab=trend-signal", {
         method:  "POST",
         headers: { "Content-Type": "text/plain", "Authorization": "Bearer " + window.__clerkToken },
-        body:    JSON.stringify({ trendLabel:tLabel, trendScore:tScore, momLabel:mLabel, momScore:mScore, updatedAt:new Date().toISOString() })
+        body:    JSON.stringify({ trendLabel:tLabel, trendScore:tScore, momLabel:mLabel, momScore:mScore,
+                                  revStatus:revSt, revScore:revSc, smfStatus:smfSt,
+                                  updatedAt:new Date().toISOString() })
       }).catch(function(){});
     }, 3000);
     return function() { clearTimeout(t); };
@@ -2840,7 +2846,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.30</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.31</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2894,7 +2900,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.30</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.31</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -9042,6 +9048,10 @@ export default function App() {
                     trendScore: yahooSnap.trend.score,
                     momLabel:   yahooSnap.momentum.status,
                     momScore:   yahooSnap.momentum.score,
+                    // Reversal and SMF from snapshot — may be limited without volume/indicator history
+                    revStatus:  yahooSnap.reversalWatch  ? yahooSnap.reversalWatch.status  : null,
+                    revScore:   yahooSnap.reversalWatch  ? yahooSnap.reversalWatch.score   : null,
+                    smfStatus:  yahooSnap.smartMoneyFlow ? yahooSnap.smartMoneyFlow.status : null,
                     updatedAt:  new Date().toISOString()
                   };
                   if (window.__clerkToken) {
@@ -9286,7 +9296,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.30</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.31</span>
           </div>
         </div>
 
@@ -9455,8 +9465,8 @@ export default function App() {
                 <div style={{ fontSize:12, color:"#555" }}>Stocks our AI rated Exceptional or Good in the last 7 days</div>
               </div>
               <div style={{ border:"1px solid #1e1e18", borderRadius:10, overflow:"hidden", overflowX:"auto" }}>
-                <div style={{ display:"grid", gridTemplateColumns:"68px 140px 80px 70px 70px 80px 140px 90px 120px", columnGap:20, rowGap:0, background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px", minWidth:850 }}>
-                  {["Ticker","Company","Price","Moat","Fin.","IV Disc.","52W Range","Trend","Momentum"].map(function(h) {
+                <div style={{ display:"grid", gridTemplateColumns:"68px 140px 80px 70px 70px 80px 140px 90px 120px 130px 160px", columnGap:20, rowGap:0, background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px", minWidth:1100 }}>
+                  {["Ticker","Company","Price","Moat","Fin.","IV Disc.","52W Range","Trend","Momentum","Reversal","Money Flow"].map(function(h) {
                     return <div key={h} style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em" }}>{h}</div>;
                   })}
                 </div>
@@ -9502,7 +9512,7 @@ export default function App() {
                   return (
                     <div key={i}
                       onClick={function(){ window.location.hash = sig.sym; }}
-                      style={{ display:"grid", gridTemplateColumns:"68px 140px 80px 70px 70px 80px 140px 90px 120px", columnGap:20, rowGap:0, padding:"11px 14px", borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111", minWidth:850 }}
+                      style={{ display:"grid", gridTemplateColumns:"68px 140px 80px 70px 70px 80px 140px 90px 120px 130px 160px", columnGap:20, rowGap:0, padding:"11px 14px", borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111", minWidth:1100 }}
                       onMouseEnter={function(e){ e.currentTarget.style.background="#161614"; }}
                       onMouseLeave={function(e){ e.currentTarget.style.background="#111"; }}>
                       <div style={{ fontSize:13, fontWeight:900, color:LIME }}>{sig.sym}</div>
@@ -9539,10 +9549,43 @@ export default function App() {
                           </div>
                         ):<span style={{ fontSize:11, color:"#444" }}>{String.fromCharCode(0x2014)}</span>}
                       </div>
+                      {/* Trend */}
                       <div style={{ fontSize:11, fontWeight:700, color:trendColor }}>{trendLabel}</div>
+                      {/* Momentum */}
                       <div>
                         <div style={{ fontSize:11, fontWeight:700, color:momColor }}>{momLabel}</div>
                         {rsi!==null && !ts.momLabel && <div style={{ fontSize:9, color:"#444", marginTop:1 }}>{"RSI "+rsi.toFixed(0)}</div>}
+                      </div>
+                      {/* Reversal — status string from snapshot.reversalWatch.status via cache */}
+                      <div style={{ fontSize:10, fontWeight:700, color:(function(){
+                        var rv = ts.revStatus;
+                        if (!rv) return "#444";
+                        var rl = rv.toLowerCase();
+                        if (rl.indexOf("confirmed")!==-1) return "#7abd00";
+                        if (rl.indexOf("confirming")!==-1) return "#7abd00";
+                        if (rl.indexOf("triggered")!==-1) return "#9acd50";
+                        if (rl.indexOf("forming")!==-1) return "#b8d870";
+                        if (rl.indexOf("spark")!==-1) return "#60b8f0";
+                        if (rl.indexOf("watch")!==-1&&rl.indexOf("bull")!==-1) return "#60b8f0";
+                        if (rl.indexOf("bearish")!==-1) return "#e05050";
+                        if (rl.indexOf("mixed")!==-1) return "#EF9F27";
+                        return "#555";
+                      })()}}>
+                        {ts.revStatus || String.fromCharCode(0x2014)}
+                      </div>
+                      {/* Money Flow — status string from snapshot.smartMoneyFlow.status via cache */}
+                      <div style={{ fontSize:10, fontWeight:700, color:(function(){
+                        var sf = ts.smfStatus;
+                        if (!sf) return "#444";
+                        var sl = sf.toLowerCase();
+                        if (sl.indexOf("strong multi")!==-1) return "#7abd00";
+                        if (sl.indexOf("accumulation trend")!==-1) return "#9acd50";
+                        if (sl.indexOf("early accumulation")!==-1) return "#60b8f0";
+                        if (sl.indexOf("constructive")!==-1) return "#EF9F27";
+                        if (sl.indexOf("short-term spike")!==-1) return "#EF9F27";
+                        return "#555";
+                      })()}}>
+                        {ts.smfStatus || String.fromCharCode(0x2014)}
                       </div>
                     </div>
                   );
