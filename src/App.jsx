@@ -3397,7 +3397,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   // Early exit — use pre-computed globals from technicalSignals.js snapshot
                   var _netRevC = window.__revNetScore3 || 0;
                   var _netVolC = window.__volNetScore   || 0;
-                  if (_netRevC===0 && _netVolC===0) return null;
+                  // Also show card if revWatchStatus or smfScore has meaningful data
+                  var _hasRevWatch = !!(window.__revWatchStatus && window.__revWatchStatus[sym] &&
+                    window.__revWatchStatus[sym].status && window.__revWatchStatus[sym].status !== 'Not Enough Data');
+                  var _hasSmf = !!(window.__smfScore && window.__smfScore[sym] &&
+                    window.__smfScore[sym].primaryScore !== null && window.__smfScore[sym].primaryScore !== undefined);
+                  if (_netRevC===0 && _netVolC===0 && !_hasRevWatch && !_hasSmf) return null;
                   return (
                 <div style={{ background:"#1e1e1e", border:"0.5px solid #2c2c2e", borderRadius:10, overflow:"hidden", marginBottom:8, marginTop:8 }}>
                   <div style={{ background:"#242424", padding:"5px 12px", borderBottom:"0.5px solid #2c2c2e" }}>
@@ -9044,7 +9049,7 @@ export default function App() {
                              : (fdData&&fdData.targetMeanPrice&&fdData.targetMeanPrice.raw) ? fdData.targetMeanPrice.raw : null;
               var analystUp  = (targetMean && price > 0) ? ((targetMean - price) / price * 100) : null;
               // Build Yahoo snapshot if trendSigData is missing or missing rev/smf fields
-              if (vc.length >= 15 && (!trendSigData || !trendSigData.revStatus)) {
+              if (vc.length >= 15 && (!trendSigData || !trendSigData.revStatus || !trendSigData.smfStatus)) {
                 var yahooSnap = buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200);
                 if (yahooSnap) {
                   var _yrv = yahooSnap.reversalWatch  || {};
@@ -9061,11 +9066,11 @@ export default function App() {
                       updatedAt:  new Date().toISOString()
                     };
                   } else {
-                    // Supplement existing cached entry with rev/smf fields
+                    // Supplement existing cached entry — only fill missing fields
                     trendSigData = Object.assign({}, trendSigData, {
-                      revStatus: _yrv.status || null,
-                      revScore:  _yrv.score  || null,
-                      smfStatus: _ysf.status || null,
+                      revStatus: trendSigData.revStatus || _yrv.status || null,
+                      revScore:  trendSigData.revScore  || _yrv.score  || null,
+                      smfStatus: trendSigData.smfStatus || _ysf.status || null,
                     });
                   }
                   if (window.__clerkToken && !trendSigData.revStatus) {
