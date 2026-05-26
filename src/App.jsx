@@ -957,12 +957,12 @@ function CalcPanel({ currentPrice, onClose }) {
           <div>
             <div style={{fontSize:10,color:"#888",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{"Buy Price ($)"}</div>
             <input value={bp} onChange={function(e){setBp(e.target.value);}} placeholder={"e.g. "+_cp}
-              style={{width:"100%",background:"#2a2a2a",border:"0.5px solid #444",borderRadius:6,padding:"7px 10px",fontSize:14,fontWeight:700,color:"#f0f0f0",fontFamily:"monospace",outline:"none",boxSizing:"border-box"}} />
+              style={{width:"100%",background:"#2a2a2a",border:"0.5px solid #444",borderRadius:6,padding:"5px 7px",fontSize:14,fontWeight:700,color:"#f0f0f0",fontFamily:"monospace",outline:"none",boxSizing:"border-box"}} />
           </div>
           <div>
             <div style={{fontSize:10,color:"#888",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{"Size (shares)"}</div>
             <input value={sz} onChange={function(e){setSz(e.target.value);}} placeholder={"e.g. 100"}
-              style={{width:"100%",background:"#2a2a2a",border:"0.5px solid #444",borderRadius:6,padding:"7px 10px",fontSize:14,fontWeight:700,color:"#f0f0f0",fontFamily:"monospace",outline:"none",boxSizing:"border-box"}} />
+              style={{width:"100%",background:"#2a2a2a",border:"0.5px solid #444",borderRadius:6,padding:"5px 7px",fontSize:14,fontWeight:700,color:"#f0f0f0",fontFamily:"monospace",outline:"none",boxSizing:"border-box"}} />
           </div>
         </div>
         <div style={{marginBottom:12}}>
@@ -5632,7 +5632,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 ["Median Target", "$" + ov.targetMedian.toFixed(2), "#b88000"],
                               ].map(function(row, i) {
                                 return (
-                                  <div key={i} style={{ background:"#f9f7f4", borderRadius:8, padding:"8px 10px", textAlign:"center" }}>
+                                  <div key={i} style={{ background:"#f9f7f4", borderRadius:8, padding:"6px 7px", textAlign:"center" }}>
                                     <div style={{ fontSize:10, color:"#999", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
                                     <div style={{ fontSize:15, fontWeight:700, color:row[2] }}>{row[1]}</div>
                                   </div>
@@ -5657,7 +5657,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               ["Book Value / Share", ov.bookValuePS  > 0 ? "$" + ov.bookValuePS.toFixed(2) : "-"],
                             ].map(function(row, i) {
                               return (
-                                <div key={i} style={{ background:"#f9f7f4", borderRadius:8, padding:"8px 10px" }}>
+                                <div key={i} style={{ background:"#f9f7f4", borderRadius:8, padding:"6px 7px" }}>
                                   <div style={{ fontSize:10, color:"#999", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
                                   <div style={{ fontSize:13, fontWeight:700, color:"#111" }}>{row[1]}</div>
                                 </div>
@@ -5846,7 +5846,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               ].map(function(row, i) {
                                 var isChange = row[0] === "Change %";
                                 return (
-                                  <div key={i} style={{ background:"#f0f3ff", borderRadius:8, padding:"8px 10px" }}>
+                                  <div key={i} style={{ background:"#f0f3ff", borderRadius:8, padding:"6px 7px" }}>
                                     <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
                                     <div style={{ fontSize:13, fontWeight:700, color: isChange ? (up ? "#1a6a1a" : "#c03030") : "#111" }}>{row[1]}</div>
                                   </div>
@@ -5881,7 +5881,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                   var isRsi = row[0].includes("RSI");
                                   var rsiColor = isRsi && ind.rsi14 != null ? (ind.rsi14 > 70 ? "#c03030" : ind.rsi14 < 30 ? "#1a6a1a" : "#b88000") : "#111";
                                   return (
-                                    <div key={i} style={{ background:"#f0f3ff", borderRadius:8, padding:"8px 10px" }}>
+                                    <div key={i} style={{ background:"#f0f3ff", borderRadius:8, padding:"6px 7px" }}>
                                       <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
                                       <div style={{ fontSize:12, fontWeight:700, color: isRsi ? rsiColor : "#111" }}>{row[1]}</div>
                                     </div>
@@ -5925,7 +5925,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 ["Time",   tradeTime],
                               ].map(function(row, i) {
                                 return (
-                                  <div key={i} style={{ flex:1, background:"#f0f3ff", borderRadius:8, padding:"8px 10px" }}>
+                                  <div key={i} style={{ flex:1, background:"#f0f3ff", borderRadius:8, padding:"6px 7px" }}>
                                     <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
                                     <div style={{ fontSize:13, fontWeight:700, color:"#111" }}>{row[1]}</div>
                                   </div>
@@ -6304,7 +6304,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                   <div style={{ marginBottom:20 }}>
                                     <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6 }}>{props.title}</div>
                                     <div style={{ overflowX:"auto" }}>
-                                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10, tableLayout:"fixed" }}>
                                         <thead>
                                           <tr style={{ background:"#f0ede8" }}>
                                             <th style={{ padding:"5px 10px", textAlign:"left", color:"#555", fontWeight:600, borderBottom:"1px solid #e0dbd0", minWidth:200, whiteSpace:"nowrap" }}>Field</th>
@@ -7557,12 +7557,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                   <tbody>
                                     {topOIw.map(function(c,i){ var isCall=c.type==="call"; return (
                                       <tr key={i} style={{ borderBottom:"0.5px solid #f5f2ec", background:i%2===0?"#fff":"#faf8f4" }}>
-                                        <td style={{ padding:"7px 10px", fontWeight:700, color:isCall?"#1a6a1a":"#c03030" }}>{(c.type||"").toUpperCase()}</td>
-                                        <td style={{ padding:"7px 10px", fontWeight:600 }}>{"$"+(c.strike||"-")}</td>
-                                        <td style={{ padding:"7px 10px", color:"#888" }}>{c.expiry||"-"}</td>
-                                        <td style={{ padding:"7px 10px", fontWeight:700 }}>{fmtKw(c.oi)}</td>
-                                        <td style={{ padding:"7px 10px", color:"#666" }}>{c.iv||"-"}</td>
-                                        <td style={{ padding:"7px 10px", color:"#666" }}>{c.last!=null?"$"+parseFloat(c.last).toFixed(2):"-"}</td>
+                                        <td style={{ padding:"5px 7px", fontWeight:700, color:isCall?"#1a6a1a":"#c03030" }}>{(c.type||"").toUpperCase()}</td>
+                                        <td style={{ padding:"5px 7px", fontWeight:600 }}>{"$"+(c.strike||"-")}</td>
+                                        <td style={{ padding:"5px 7px", color:"#888" }}>{c.expiry||"-"}</td>
+                                        <td style={{ padding:"5px 7px", fontWeight:700 }}>{fmtKw(c.oi)}</td>
+                                        <td style={{ padding:"5px 7px", color:"#666" }}>{c.iv||"-"}</td>
+                                        <td style={{ padding:"5px 7px", color:"#666" }}>{c.last!=null?"$"+parseFloat(c.last).toFixed(2):"-"}</td>
                                       </tr>
                                     ); })}
                                   </tbody>
@@ -8172,7 +8172,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                     <span style={{ fontSize:11, color: isLive?"#1a1a14":"#1a6a1a", fontWeight: isLive?600:500 }}>{isLive?"Live":"Cached"}</span>
                                   </div>
                                 </td>
-                                <td style={{ padding:"8px 10px", textAlign:"center" }}>
+                                <td style={{ padding:"6px 7px", textAlign:"center" }}>
                                   {!isLive && (
                                     <button onClick={function() {
                                         if (!window.confirm("Clear cache for "+t+"?")) return;
@@ -8559,8 +8559,10 @@ export function JournalPage() {
     if (!t) return;
     jFetch("addTicker", "POST", { ticker: t }).then(function(d) {
       if (d.error) { showToast(d.error, "err"); return; }
-      showToast(d.message || t + " added.", "ok");
       setAddTicker(""); loadWatchlist();
+      // Auto-generate today's snapshot so it appears in the journal immediately
+      showToast(t + " added — generating snapshot...", "ok");
+      generateSnapshot(t).then(function() { loadJournal(); });
     });
   }
 
@@ -8721,7 +8723,7 @@ export function JournalPage() {
     var active = sortCol === props.col;
     return (
       <th onClick={function(){ setSortDir(active&&sortDir==="asc"?"desc":"asc"); setSortCol(props.col); }}
-        style={{ padding:"8px 10px", fontSize:10, fontWeight:700, color: active?"#c8f000":"#666", textTransform:"uppercase", letterSpacing:"0.06em", cursor:"pointer", whiteSpace:"nowrap", background:"#1a1a18", borderBottom:"1px solid #2a2a28", userSelect:"none" }}>
+        style={{ padding:"6px 7px", fontSize:10, fontWeight:700, color: active?"#c8f000":"#666", textTransform:"uppercase", letterSpacing:"0.06em", cursor:"pointer", whiteSpace:"nowrap", background:"#1a1a18", borderBottom:"1px solid #2a2a28", userSelect:"none" }}>
         {props.children}{active?(sortDir==="asc"?" ▲":" ▼"):""}
       </th>
     );
@@ -8806,44 +8808,18 @@ export function JournalPage() {
         </div>
       </div>
 
-      <div style={{ padding:"20px 24px", maxWidth:1600, margin:"0 auto" }}>
+      <div style={{ padding:"20px 24px" }}>
 
-        {/* Tracked Tickers */}
-        <div style={{ marginBottom:24 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>Tracked Tickers</div>
-          <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-            <input value={addTicker} onChange={function(e){ setAddTicker(e.target.value.toUpperCase()); }}
-              onKeyDown={function(e){ if(e.key==="Enter") handleAddTicker(); }}
-              placeholder="Add ticker e.g. AAPL"
-              style={{ background:"#181816", border:"0.5px solid #333", borderRadius:8, padding:"8px 12px", color:"#f0ede6", fontSize:13, outline:"none", width:180 }} />
-            <button onClick={handleAddTicker}
-              style={{ background:"#c8f000", color:"#0e0e0c", fontWeight:700, fontSize:12, border:"none", borderRadius:8, padding:"8px 16px", cursor:"pointer" }}>
-              Add
-            </button>
-          </div>
-
-          {watchlist.length === 0 ? (
-            <div style={{ fontSize:12, color:"#555", padding:"20px 0" }}>No tickers tracked yet. Add one above.</div>
-          ) : (
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(240px, 1fr))", gap:10 }}>
-              {watchlist.map(function(w) {
-                var isGen = generating[w.ticker];
-                return (
-                  <div key={w.ticker} style={{ background:"#181816", border:"0.5px solid #2a2a28", borderRadius:10, padding:"12px 14px" }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
-                      <div>
-                        <div style={{ fontSize:14, fontWeight:800, color:"#c8f000" }}>{w.ticker}</div>
-                        {w.company_name && <div style={{ fontSize:10, color:"#555", marginTop:1 }}>{w.company_name}</div>}
-                      </div>
-                      <button onClick={function(){ handleRemove(w.ticker); }}
-                        style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:14, padding:0 }}>✕</button>
-                    </div>
-                    {w.last_close_price && <div style={{ fontSize:12, color:"#888", marginBottom:4 }}>${parseFloat(w.last_close_price).toFixed(2)} · {w.last_snapshot_date||"No snapshot"}</div>}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+        {/* Add Ticker — inline, no card section */}
+        <div style={{ display:"flex", gap:8, marginBottom:20 }}>
+          <input value={addTicker} onChange={function(e){ setAddTicker(e.target.value.toUpperCase()); }}
+            onKeyDown={function(e){ if(e.key==="Enter") handleAddTicker(); }}
+            placeholder="Add ticker e.g. AAPL"
+            style={{ background:"#181816", border:"0.5px solid #333", borderRadius:8, padding:"8px 12px", color:"#f0ede6", fontSize:13, outline:"none", width:180 }} />
+          <button onClick={handleAddTicker}
+            style={{ background:"#c8f000", color:"#0e0e0c", fontWeight:700, fontSize:12, border:"none", borderRadius:8, padding:"8px 16px", cursor:"pointer" }}>
+            Add
+          </button>
         </div>
 
         {/* Signal Journal */}
@@ -8878,7 +8854,7 @@ export function JournalPage() {
               No records yet. Generate snapshots for your tracked tickers to start collecting data.
             </div>
           ) : (
-            <div style={{ overflowX:"auto", borderRadius:10, border:"0.5px solid #2a2a28" }}>
+            <div style={{ borderRadius:10, border:"0.5px solid #2a2a28", width:"100%" }}>
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
                 <thead>
                   <tr>
@@ -8886,15 +8862,10 @@ export function JournalPage() {
                     <Th col="ticker">Ticker</Th>
                     <Th col="close_price">Close</Th>
                     <Th col="trend_status">Trend</Th>
-                    <Th col="trend_score">T.Score</Th>
                     <Th col="momentum_status">Momentum</Th>
-                    <Th col="momentum_score">M.Score</Th>
                     <Th col="rsi_value">RSI</Th>
                     <Th col="reversal_status">Reversal</Th>
-                    <Th col="bullish_reversal_score">Bull</Th>
-                    <Th col="bearish_reversal_score">Bear</Th>
                     <Th col="smart_money_status">Smart Money</Th>
-                    <Th col="smart_money_score">SM.Score</Th>
                     <Th col="future_return_5d">5D Ret.</Th>
                     <Th col="future_return_10d">10D</Th>
                     <Th col="future_return_20d">20D</Th>
@@ -8914,29 +8885,24 @@ export function JournalPage() {
                     var smfCol = smfColor(r.smart_money_status);
                     return (
                       <tr key={r.id} style={{ background:rowBg }}>
-                        <td style={{ padding:"7px 10px", color:"#888", whiteSpace:"nowrap" }}>{r.snapshot_date}</td>
-                        <td style={{ padding:"7px 10px", fontWeight:700, color:"#c8f000" }}>{r.ticker}</td>
-                        <td style={{ padding:"7px 10px", color:"#f0ede6" }}>${r.close_price?.toFixed(2)}</td>
-                        <td style={{ padding:"7px 10px" }}>{StatusBadge(r.trend_status, r.trend_score>=55?"#7abd00":r.trend_score>=40?"#EF9F27":"#e05050")}</td>
-                        <td style={{ padding:"7px 10px", color:"#aaa", fontWeight:500 }}>{r.trend_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"7px 10px" }}>{StatusBadge(r.momentum_status, r.momentum_score>=65?"#7abd00":r.momentum_score>=50?"#EF9F27":"#e05050")}</td>
-                        <td style={{ padding:"7px 10px", color:"#aaa", fontWeight:500 }}>{r.momentum_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"7px 10px", color:r.rsi_value>70?"#EF9F27":r.rsi_value>=50?"#7abd00":r.rsi_value>=30?"#888":"#e05050" }}>{r.rsi_value?.toFixed(1)||"—"}</td>
-                        <td style={{ padding:"7px 10px", fontSize:10, color:revCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.reversal_status||"—"}</td>
-                        <td style={{ padding:"7px 10px", color:"#aaa" }}>{r.bullish_reversal_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"7px 10px", color:"#aaa" }}>{r.bearish_reversal_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"7px 10px", fontSize:10, color:smfCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.smart_money_status||"—"}</td>
-                        <td style={{ padding:"7px 10px", color:"#aaa", fontWeight:500 }}>{r.smart_money_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_5d)}</td>
-                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_10d)}</td>
-                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_20d)}</td>
-                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_30d)}</td>
-                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_60d)}</td>
-                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_90d)}</td>
-                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.max_gain_30d)}</td>
-                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.max_drawdown_30d)}</td>
-                        <td style={{ padding:"7px 10px" }}>{OutcomeBadge(r.bullish_outcome_label)}</td>
-                        <td style={{ padding:"7px 6px" }}>
+                        <td style={{ padding:"5px 7px", color:"#888" }}>{r.snapshot_date}</td>
+                        <td style={{ padding:"5px 7px", fontWeight:700, color:"#c8f000" }}>{r.ticker}</td>
+                        <td style={{ padding:"5px 7px", color:"#f0ede6" }}>${r.close_price?.toFixed(2)}</td>
+                        <td style={{ padding:"5px 7px" }}>{StatusBadge(r.trend_status, r.trend_score>=55?"#7abd00":r.trend_score>=40?"#EF9F27":"#e05050")}</td>
+                        <td style={{ padding:"5px 7px" }}>{StatusBadge(r.momentum_status, r.momentum_score>=65?"#7abd00":r.momentum_score>=50?"#EF9F27":"#e05050")}</td>
+                        <td style={{ padding:"5px 7px", color:r.rsi_value>70?"#EF9F27":r.rsi_value>=50?"#7abd00":r.rsi_value>=30?"#888":"#e05050" }}>{r.rsi_value?.toFixed(1)||"—"}</td>
+                        <td style={{ padding:"5px 7px", fontSize:10, color:revCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.reversal_status||"—"}</td>
+                        <td style={{ padding:"5px 7px", fontSize:10, color:smfCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.smart_money_status||"—"}</td>
+                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_5d)}</td>
+                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_10d)}</td>
+                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_20d)}</td>
+                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_30d)}</td>
+                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_60d)}</td>
+                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_90d)}</td>
+                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.max_gain_30d)}</td>
+                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.max_drawdown_30d)}</td>
+                        <td style={{ padding:"5px 7px" }}>{OutcomeBadge(r.bullish_outcome_label)}</td>
+                        <td style={{ padding:"5px 5px" }}>
                           <div style={{ display:"flex", gap:4, alignItems:"center" }}>
                             <button onClick={function(){ generateSnapshot(r.ticker); }}
                               disabled={!!generating[r.ticker]}
