@@ -8488,7 +8488,11 @@ export function JournalPage() {
     });
     var today = new Date().toISOString().split("T")[0];
     var price = snap.close || (bars.length > 0 ? bars[bars.length-1].close : 0);
-    return { bars:bars, ind:ind, price:price, date:today };
+    // Extract 52-week range from Yahoo chart meta — needed for reversal indicator consistency
+    var _ymeta = yahooRes && yahooRes.chart && yahooRes.chart.result && yahooRes.chart.result[0] && yahooRes.chart.result[0].meta ? yahooRes.chart.result[0].meta : null;
+    var hi52 = (_ymeta && _ymeta.fiftyTwoWeekHigh) || 0;
+    var lo52 = (_ymeta && _ymeta.fiftyTwoWeekLow)  || 0;
+    return { bars:bars, ind:ind, price:price, date:today, hi52:hi52, lo52:lo52 };
   }
 
   async function generateSnapshot(ticker) {
@@ -8508,7 +8512,7 @@ export function JournalPage() {
         date:       data.date,
         ohlcv:      data.bars,
         indicators: data.ind,
-        meta:       { price: data.price },
+        meta:       { price: data.price, hi52: data.hi52||0, lo52: data.lo52||0 },
       });
       var postSnap = Object.assign({}, snapshot, {
         open:   snapshot.open,   high:  snapshot.high,
