@@ -9486,7 +9486,7 @@ export default function App() {
                 <div style={{ fontSize:12, color:"#555" }}>Stocks our AI rated Exceptional or Good in the last 7 days</div>
               </div>
               <div style={{ border:"1px solid #1e1e18", borderRadius:10, overflow:"hidden" }}>
-                <div style={{ display:"grid", gridTemplateColumns:"62px 65px 65px 68px 118px 85px 82px 95px 118px", columnGap:14, rowGap:0, background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px" }}>
+                <div style={{ display:"grid", gridTemplateColumns:"70px 1fr 1fr 1fr 1.6fr 1fr 1fr 1.2fr 1.4fr", columnGap:20, rowGap:0, background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px" }}>
                   {["Ticker","Moat","Fin.","IV Disc.","52W Range","Trend","Momentum","Reversal","Money Flow"].map(function(h,i) {
                     return <div key={i} style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em" }}>{h}</div>;
                   })}
@@ -9563,7 +9563,7 @@ export default function App() {
                   return (
                     <div key={i}
                       onClick={function(){ window.location.hash = sig.sym; }}
-                      style={{ display:"grid", gridTemplateColumns:"62px 65px 65px 68px 118px 85px 82px 95px 118px", columnGap:14, rowGap:0, padding:"10px 14px", borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111" }}
+                      style={{ display:"grid", gridTemplateColumns:"70px 1fr 1fr 1fr 1.6fr 1fr 1fr 1.2fr 1.4fr", columnGap:20, rowGap:0, padding:"10px 14px", borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111" }}
                       onMouseEnter={function(e){ e.currentTarget.style.background="#161614"; }}
                       onMouseLeave={function(e){ e.currentTarget.style.background="#111"; }}>
                       <div>
