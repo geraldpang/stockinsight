@@ -4286,16 +4286,16 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               var _mc = summaryCardDark(pi.classification);
                               return (
                                   <div style={{ background:_mc.bg, border:"0.5px solid "+_mc.bd, borderRadius:10, padding:"14px 16px", marginBottom:16 }}>
-                                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
-                                      <div style={{ flex:1 }}>
+                                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom: pi.explanation ? 10 : 0 }}>
+                                      <div>
                                         <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>Economic Moat</div>
-                                        <div style={{ fontSize:15, fontWeight:700, color:_mc.text, marginBottom:4 }}>{pi.classification}</div>
-                                        {pi.explanation && <div style={{ fontSize:11, color:"#888", lineHeight:1.4, maxWidth:420 }}>{pi.explanation}</div>}
+                                        <div style={{ fontSize:15, fontWeight:700, color:_mc.text }}>{pi.classification}</div>
                                       </div>
                                       <div style={{ flexShrink:0, paddingLeft:16, textAlign:"right" }}>
                                         <DotBar score={pi.score} classification={pi.classification} />
                                       </div>
                                     </div>
+                                    {pi.explanation && <div style={{ fontSize:12, color:"#aaa", lineHeight:1.7, marginBottom:10 }}>{pi.explanation}</div>}
                                     <div style={{ borderTop:"0.5px solid "+_mc.bd+"44", paddingTop:8 }}>
                                       <details>
                                         <summary style={{ fontSize:10, color:"#777", cursor:"pointer", outline:"none", listStyle:"none", display:"flex", alignItems:"center", gap:4 }}>
