@@ -1041,10 +1041,10 @@ function buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData) {
 // ── Data adapter: converts Yahoo Finance closing price array to snapshot format ──
 // Used by AI Favourites. Partial indicators (SMA50/200 + RSI only).
 // No technical outcomes calculated here — calls calculateTechnicalSignalSnapshot.
-function buildTechSnapshotFromYahoo(sym, vc, price, sma50, sma200) {
+function buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200) {
   if (!vc || vc.length < 15) return null;
-  var bars = vc.map(function(c) {
-    return { date: '', open: c, high: c, low: c, close: c, volume: 0 };
+  var bars = vc.map(function(c, i) {
+    return { date: '', open: c, high: c, low: c, close: c, volume: (vv && vv[i]) || 0 };
   });
   // Compute RSI from closing prices using the shared calcRSI function
   var rsiArr = null;
@@ -2144,7 +2144,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         window.__smfScore[sym] = smCard;
       }
     } catch(e) { /* pre-compute error — non-fatal */ }
-  }, [massiveInfo, crossData, ov, sym]);
+  }, [massiveInfo, crossData, ov, q, sym]);
 
   // -- Write trend-signal cache (1-day TTL) using exact detail page formula ----
   useEffect(function() {
@@ -9019,7 +9019,11 @@ export default function App() {
               var hi52      = meta?(meta.fiftyTwoWeekHigh||0):0;
               var lo52      = meta?(meta.fiftyTwoWeekLow||0):0;
               var closes    = res&&res.indicators&&res.indicators.quote&&res.indicators.quote[0]&&res.indicators.quote[0].close||[];
-              var vc        = closes.filter(function(c){return c!=null;});
+              var rawVols   = res&&res.indicators&&res.indicators.quote&&res.indicators.quote[0]&&res.indicators.quote[0].volume||[];
+              // Keep close/volume pairs aligned after null-filtering
+              var pairs = closes.map(function(c,i){ return { c:c, v:rawVols[i]||0 }; }).filter(function(p){ return p.c!=null; });
+              var vc    = pairs.map(function(p){ return p.c; });
+              var vv    = pairs.map(function(p){ return p.v; });
               var sma50     = vc.length>=50  ? vc.slice(-50).reduce(function(s,v){return s+v;},0)/50   : 0;
               var sma200    = vc.length>=200 ? vc.slice(-200).reduce(function(s,v){return s+v;},0)/200 : 0;
               // RSI-14
@@ -9041,7 +9045,7 @@ export default function App() {
               var analystUp  = (targetMean && price > 0) ? ((targetMean - price) / price * 100) : null;
               // Build Yahoo snapshot if trendSigData is missing or missing rev/smf fields
               if (vc.length >= 15 && (!trendSigData || !trendSigData.revStatus)) {
-                var yahooSnap = buildTechSnapshotFromYahoo(sym, vc, price, sma50, sma200);
+                var yahooSnap = buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200);
                 if (yahooSnap) {
                   var _yrv = yahooSnap.reversalWatch  || {};
                   var _ysf = yahooSnap.smartMoneyFlow || {};
