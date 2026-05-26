@@ -16,8 +16,9 @@ var _CLR = {
 function revStatusColor(status, variant) {
   var v = variant||"main";
   if (!status) return _CLR.grey[v];
-  if (status.startsWith("Bullish")&&(status.includes("Confirmed")||status.includes("Triggered")||status.includes("Forming"))) return _CLR.green[v];
+  if (status.startsWith("Bullish")&&(status.includes("Confirmed")||status.includes("Triggered")||status.includes("Forming")||status.includes("Confirming"))) return _CLR.green[v];
   if (status.startsWith("Bullish")&&status.includes("Watch")) return _CLR.blue[v];
+  if (status.startsWith("Early Bullish")) return _CLR.blue[v];
   if (status.startsWith("Bearish")&&(status.includes("Confirmed")||status.includes("Triggered")||status.includes("Forming"))) return _CLR.red[v];
   if (status.startsWith("Bearish")&&status.includes("Watch")) return _CLR.amber[v];
   if (status==="Mixed Reversal Signals") return _CLR.amber[v];
@@ -28,7 +29,8 @@ function revDirLabelColor(lbl, isBullish, variant) {
   if (!lbl||lbl==="N/A"||lbl==="Not enough data"||lbl==="No Signal") return _CLR.grey[v];
   if (isBullish) {
     if (lbl==="Watch") return _CLR.blue[v];
-    if (lbl==="Forming"||lbl==="Triggered"||lbl==="Confirmed") return _CLR.green[v];
+    if (lbl==="Forming"||lbl==="Triggered"||lbl==="Confirmed"||lbl==="Confirming") return _CLR.green[v];
+    if (lbl==="Early Spark") return _CLR.blue[v];
   } else {
     if (lbl==="Watch") return _CLR.amber[v];
     if (lbl==="Forming"||lbl==="Triggered"||lbl==="Confirmed") return _CLR.red[v];
@@ -3572,6 +3574,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var _rwCompact = {
                             "Bullish Reversal Watch":"Bullish Watch","Bullish Reversal Forming":"Bullish Forming",
                             "Bullish Reversal Triggered":"Bullish Triggered","Bullish Reversal Confirmed":"Bullish Confirmed",
+                            "Bullish Reversal Confirming":"Bull Confirming","Early Bullish Reversal Spark":"Early Spark",
                             "Bearish Reversal Watch":"Bearish Watch","Bearish Reversal Forming":"Bearish Forming",
                             "Bearish Reversal Triggered":"Bearish Triggered","Bearish Reversal Confirmed":"Bearish Confirmed",
                             "Mixed Reversal Signals":"Mixed Signals","No Clear Reversal":"No Signal","Not Enough Data":"No Data"
