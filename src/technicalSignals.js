@@ -494,21 +494,51 @@ export function calcReversalWatch(bars, ind, meta) {
 
   function dirStatus(ss, ts, cs, dir) {
     var s = ss||0, t = ts||0, c = cs||0;
+    // Strict textbook confirmation — all three stages strongly aligned. Unchanged.
     if (s >= 60 && t >= 60 && cs !== null && c >= 70) return dir + ' Reversal Confirmed';
+    // Setup-led triggered reversal — textbook sequence with partial confirmation.
     if (s >= 60 && t >= 60 && cs !== null && c >= 40) return dir + ' Reversal Triggered';
-    if (s >= 60 && t >= 60)                           return dir + ' Reversal Forming';
-    if (s >= 40)                                      return dir + ' Reversal Watch';
+    // Practical confirming — trigger and price action aligning even if setup has faded.
+    // Bullish only in this iteration; bearish equivalent to be added later.
+    if (dir === 'Bullish' && t >= 60 && cs !== null && c >= 40) return 'Bullish Reversal Confirming';
+    // Setup and trigger aligned, confirmation not yet appeared.
+    if (s >= 60 && t >= 60) return dir + ' Reversal Forming';
+    // Early spark — momentum has started turning before full setup or confirmation is available.
+    // Bullish only in this iteration; bearish equivalent to be added later.
+    if (dir === 'Bullish' && t >= 60 && c < 40) return 'Bullish Reversal Spark';
+    // Setup-led watch — early conditions appearing but trigger and confirmation still limited.
+    if (s >= 40) return dir + ' Reversal Watch';
     return 'No Signal';
   }
 
   var bs = bullishScore||0, bes = bearishScore||0;
   var diff = bs - bes;
+
+  // Practical bullish early/confirming stages — bearish equivalents to be added in a future step.
+  // earlyBullSpark: trigger has fired before full setup or confirmation is available,
+  //   and bullish is not clearly dominated by bearish.
+  var earlyBullSpark = bTrigger !== null && bTrigger >= 60 && (bConfirm||0) < 40 && bs >= bes - 15;
+  // bullConfirming: trigger is strong and price action is beginning to validate the reversal,
+  //   even if the classic setup has faded.
+  var bullConfirming = bTrigger !== null && bTrigger >= 60 && bConfirm !== null && bConfirm >= 40 && bs >= bes - 10;
+
   var status;
-  if (bs < 21 && bes < 21) status = 'No Clear Reversal';
-  else if (bs >= 40 && bes >= 40 && Math.abs(diff) <= 15) status = 'Mixed Reversal Signals';
-  else if (diff > 15) status = dirStatus(bSetup, bTrigger, bConfirm, 'Bullish');
-  else if (diff < -15) status = dirStatus(dSetup, dTrigger, dConfirm, 'Bearish');
-  else status = 'Mixed Reversal Signals';
+  if (bs < 21 && bes < 21) {
+    status = 'No Clear Reversal';
+  } else if (bullConfirming && !earlyBullSpark) {
+    // Note: bullConfirming and earlyBullSpark are mutually exclusive (confirm >= 40 vs < 40)
+    status = 'Bullish Reversal Confirming';
+  } else if (earlyBullSpark) {
+    status = 'Bullish Reversal Spark';
+  } else if (bs >= 40 && bes >= 40 && Math.abs(diff) <= 15) {
+    status = 'Mixed Reversal Signals';
+  } else if (diff > 15) {
+    status = dirStatus(bSetup, bTrigger, bConfirm, 'Bullish');
+  } else if (diff < -15) {
+    status = dirStatus(dSetup, dTrigger, dConfirm, 'Bearish');
+  } else {
+    status = 'Mixed Reversal Signals';
+  }
 
   var primaryScore = bs > bes ? bullishScore : bearishScore;
 
@@ -570,6 +600,12 @@ export function calculateTechnicalSignalSnapshot(input) {
   var smf      = calcSmartMoneyFlow(bars, price);
   var reversal = calcReversalWatch(bars, ind, { hi52: meta.hi52 || 0, lo52: meta.lo52 || 0, price: price || 0 });
 
+  // New structured outputs (Run 2A)
+  var caution    = calcCautionFlags(bars, ind, meta);
+  var revSigArr  = calcReversalSignalArray(bars, ind, meta);
+  var volSigs    = calcVolumeSignals(bars);
+  var massSc     = calcMassiveScore(bars, ind, meta);
+
   return {
     ticker:       ticker,
     snapshotDate: date,
@@ -586,6 +622,7 @@ export function calculateTechnicalSignalSnapshot(input) {
       priceVs200dSmaPct:       trend.priceVs200dSmaPct,
       weeklyTrendScore:        trend.weeklyTrendScore,
       goldenDeathCrossStatus:  trend.goldenDeathCrossStatus,
+      caution:                 caution.trendCaution,
     },
     momentum: {
       status:                  momentum.status,
@@ -595,6 +632,7 @@ export function calculateTechnicalSignalSnapshot(input) {
       macdHistogram:           momentum.macdHistogram,
       macdHistogramDirection:  momentum.macdHistogramDirection,
       priceVsSma5Pct:          momentum.priceVsSma5Pct,
+      caution:                 caution.momCaution,
     },
     reversalWatch: {
       status:                    reversal.status,
@@ -607,6 +645,7 @@ export function calculateTechnicalSignalSnapshot(input) {
       bearishSetupScore:         reversal.bearishSetupScore,
       bearishTriggerScore:       reversal.bearishTriggerScore,
       bearishConfirmationScore:  reversal.bearishConfirmationScore,
+      signalArray:               revSigArr,
     },
     smartMoneyFlow: {
       status:                         smf.status,
@@ -620,6 +659,9 @@ export function calculateTechnicalSignalSnapshot(input) {
       volumePriceDivergenceScore:     smf.volumePriceDivergenceScore,
       strongCloseScore:               smf.strongCloseScore,
     },
+    volumeSignals:  volSigs,
+    massiveScore:   massSc,
+    cautionFlags:   caution,
   };
 }
 
@@ -667,10 +709,26 @@ export function calcRWeightedScore(stages) {
 
 export function getReversalDirectionStatus(setupS, trigS, confS, dir) {
   var s = setupS || 0, t = trigS || 0, c = confS || 0;
-  if (s >= 60 && t >= 60 && confS !== null && c >= 70) return { label: 'Reversal Confirmed',  expl: dir + ' setup, momentum trigger, and price confirmation are aligned.' };
-  if (s >= 60 && t >= 60 && confS !== null && c >= 40) return { label: 'Reversal Triggered',  expl: dir + ' momentum appears to be turning with some supporting confirmation.' };
-  if (s >= 60 && t >= 60)                              return { label: 'Reversal Forming',    expl: dir + ' setup and momentum trigger are positive, but price confirmation is still missing.' };
-  if (s >= 40)                                         return { label: 'Reversal Watch',      expl: 'Early ' + dir.toLowerCase() + ' reversal conditions may be appearing, but trigger and confirmation are still limited.' };
+  // Confirmed: strict textbook confirmation — all three stages strongly aligned. Unchanged.
+  if (s >= 60 && t >= 60 && confS !== null && c >= 70)
+    return { label: 'Reversal Confirmed',  expl: dir + ' setup, momentum trigger, and price confirmation are aligned.' };
+  // Triggered: setup-led textbook sequence with partial confirmation.
+  if (s >= 60 && t >= 60 && confS !== null && c >= 40)
+    return { label: 'Reversal Triggered',  expl: dir + ' momentum appears to be turning with some supporting confirmation.' };
+  // Confirming: trigger and price action aligning even if setup has faded.
+  // Bullish only in this iteration; bearish equivalent to be added later.
+  if (dir === 'Bullish' && t >= 60 && confS !== null && c >= 40)
+    return { label: 'Reversal Confirming', expl: 'Price action is beginning to validate the reversal, even though the classic setup may have faded.' };
+  // Forming: setup and trigger aligned, confirmation not yet appeared.
+  if (s >= 60 && t >= 60)
+    return { label: 'Reversal Forming',    expl: dir + ' setup and momentum trigger are positive, but price confirmation is still missing.' };
+  // Early Spark: momentum has started turning before full setup or confirmation is available.
+  // Bullish only in this iteration; bearish equivalent to be added later.
+  if (dir === 'Bullish' && t >= 60 && c < 40)
+    return { label: 'Reversal Spark', expl: 'Bullish momentum has started turning before full setup or confirmation is available.' };
+  // Watch: early setup conditions appearing but trigger and confirmation still limited.
+  if (s >= 40)
+    return { label: 'Reversal Watch',      expl: 'Early ' + dir.toLowerCase() + ' reversal conditions may be appearing, but trigger and confirmation are still limited.' };
   return { label: 'No Signal', expl: '' };
 }
 
@@ -680,6 +738,15 @@ export function getOverallReversalStatus(bS, beS, bsScore, btScore, bcScore, dsS
   if (bs < 21 && bes < 21) return { status: 'No Clear Reversal', primaryScore: Math.max(bs, bes) };
   var bullDir = getReversalDirectionStatus(bsScore, btScore, bcScore, 'Bullish');
   var bearDir = getReversalDirectionStatus(dsScore, dtScore, dcScore, 'Bearish');
+
+  // Practical bullish stages — bearish equivalents to be added in a future step.
+  // bullConfirming and earlyBullSpark are mutually exclusive (bcScore >= 40 vs < 40).
+  var earlyBullSpark = btScore !== null && btScore >= 60 && (bcScore || 0) < 40 && bs >= bes - 15;
+  var bullConfirming = btScore !== null && btScore >= 60 && bcScore !== null && bcScore >= 40 && bs >= bes - 10;
+
+  if (bullConfirming) return { status: 'Bullish Reversal Confirming',  primaryScore: bs };
+  if (earlyBullSpark) return { status: 'Bullish Reversal Spark', primaryScore: bs };
+
   var diff = bs - bes;
   if (bs >= 40 && bes >= 40 && Math.abs(diff) <= 15) return { status: 'Mixed Reversal Signals', primaryScore: Math.max(bs, bes) };
   if (diff > 15  && bullDir.label !== 'No Signal')   return { status: 'Bullish ' + bullDir.label, primaryScore: bs };
@@ -879,4 +946,345 @@ export function calcSmfSummaryCard(tScore, fScore, dScore, tSig, fSig, dSig) {
     fiveDayLabel:    fSig ? getSmfScoreLabel(fScore) : 'N/A',
     thirtyDayLabel:  dSig ? getSmfScoreLabel(dScore) : 'N/A'
   };
+}
+
+// ============================================================
+// Run 2A additions
+// Pure functions extracted from App.jsx so technicalSignals.js
+// becomes the single source of truth for all technical signals.
+// No API calls, no React state, no window, no DOM.
+// ============================================================
+
+// ─── calcCautionFlags ────────────────────────────────────────────────────────
+// Matches App.jsx sidebar caution flag logic exactly.
+// bars: oldest-first. ind: Massive indicators. meta: { price, hi52, lo52 }.
+// Returns: { trendCaution: bool, momCaution: bool }
+export function calcCautionFlags(bars, ind, meta) {
+  var n     = bars.length;
+  var price = (meta && meta.price) || (n > 0 ? bars[n - 1].c : 0);
+  var hi52  = (meta && meta.hi52)  || 0;
+  var lo52  = (meta && meta.lo52)  || 0;
+
+  // SMA200 gap %
+  var s200g = ind.sma200 && price > 0 ? (price - ind.sma200) / ind.sma200 * 100 : 0;
+
+  // 52-week position (0–100)
+  var pos52pct = (hi52 > lo52 && price > 0) ? (price - lo52) / (hi52 - lo52) * 100 : 50;
+
+  // Trend caution: stock has run far above SMA200 or is at 52-week extreme
+  var trendCaution = s200g > 25 || pos52pct > 95;
+
+  // RSI
+  var rsi = ind.rsi14 != null ? parseFloat(ind.rsi14) : 0;
+
+  // ROC10: 10-day rate of change using oldest-first bars
+  // bars[n-10] = 10 trading days ago, bars[n-1] = today
+  var roc10 = (n >= 10 && bars[n - 10] && bars[n - 10].c > 0)
+    ? (price - bars[n - 10].c) / bars[n - 10].c * 100
+    : null;
+
+  // Momentum caution: RSI extreme OR momentum spike over 10 days
+  var momCaution = rsi > 75 || rsi < 35 || (roc10 !== null && roc10 > 15);
+
+  return { trendCaution: trendCaution, momCaution: momCaution };
+}
+
+// ─── calcReversalSignalArray ─────────────────────────────────────────────────
+// Legacy-style 5-boolean reversal signal arrays used by the sidebar pill and
+// the AI Technical prompt. These are SUPPORTING DETAIL only — the authoritative
+// Reversal status must still come from calcReversalWatch().
+// bars: oldest-first. ind: Massive indicators. meta: { price, hi52, lo52 }.
+// Returns: { bullSignals, bearSignals, bullCount, bearCount, bullNames, bearNames }
+export function calcReversalSignalArray(bars, ind, meta) {
+  var n      = bars.length;
+  var price  = (meta && meta.price) || (n > 0 ? bars[n - 1].c : 0);
+  var hi52   = (meta && meta.hi52)  || 0;
+  var lo52   = (meta && meta.lo52)  || 0;
+  var pos52  = (hi52 > lo52 && price > 0) ? (price - lo52) / (hi52 - lo52) : 0.5;
+
+  // ind.rsiHistory[0] = most recent RSI (same direction in both App.jsx and here)
+  var rsiH  = (ind.rsiHistory  || []).map(function(v) { return parseFloat(v); });
+  var macdH = ind.macdHistory  || [];
+  var rsi   = ind.rsi14 != null ? parseFloat(ind.rsi14) : null;
+
+  // Helper: most-recent-first 5 bars from oldest-first array
+  var rec5  = n >= 5  ? bars.slice(n - 5)      : bars;
+  var prev5 = n >= 10 ? bars.slice(n - 10, n - 5) : [];
+
+  // ── Bullish signals ───────────────────────────────────────────────────────
+  // 1. RSI Price Divergence: price lower low but RSI higher low (bullish div)
+  var rsiDiv = (function() {
+    if (rsiH.length < 10 || n < 10) return false;
+    var rPL = Math.min.apply(null, rec5.map(function(b)  { return b.l || 0; }));
+    var pPL = Math.min.apply(null, prev5.map(function(b) { return b.l || 0; }));
+    var rRL = Math.min.apply(null, rsiH.slice(0, 5));
+    var pRL = Math.min.apply(null, rsiH.slice(5, 10));
+    return rPL < pPL && rRL > pRL;
+  })();
+
+  // 2. MACD Turning Up: histogram negative but rising (3-bar sequence)
+  var macdUp = (function() {
+    if (macdH.length < 3) return false;
+    var h0 = macdH[0] && macdH[0].histogram != null ? parseFloat(macdH[0].histogram) : null;
+    var h1 = macdH[1] && macdH[1].histogram != null ? parseFloat(macdH[1].histogram) : null;
+    var h2 = macdH[2] && macdH[2].histogram != null ? parseFloat(macdH[2].histogram) : null;
+    return h0 !== null && h1 !== null && h2 !== null && h0 < 0 && h0 > h1 && h1 > h2;
+  })();
+
+  // 3. Weekly SMA Cross Approaching: wsma10 below wsma40 and within 5%
+  var weeklyCross = !!(ind.wsma10 && ind.wsma40 &&
+    ind.wsma10 < ind.wsma40 &&
+    Math.abs(ind.wsma10 - ind.wsma40) / ind.wsma40 < 0.05);
+
+  // 4. RSI Base Forming: RSI basing in 28–52 zone (last 5 readings)
+  var rsiBase = rsiH.length >= 5 &&
+    rsiH.slice(0, 5).every(function(v) { return !isNaN(v) && v >= 28 && v <= 52; });
+
+  // 5. 52W Low Base: price near 52-week low with recovering RSI
+  var lowBase = pos52 < 0.20 && rsi !== null && rsi > 20 && rsi < 45;
+
+  var bullSignals = [rsiDiv, macdUp, weeklyCross, rsiBase, lowBase];
+  var bullNames   = [
+    'RSI Price Divergence',
+    'MACD Turning Up',
+    'Weekly SMA Cross Approaching',
+    'RSI Base Forming',
+    '52W Low Base',
+  ];
+
+  // ── Bearish signals ───────────────────────────────────────────────────────
+  // 1. RSI Bearish Divergence: price higher high but RSI lower high
+  var rsiBearDiv = (function() {
+    if (rsiH.length < 10 || n < 10) return false;
+    var rPH = Math.max.apply(null, rec5.map(function(b)  { return b.h || 0; }));
+    var pPH = Math.max.apply(null, prev5.map(function(b) { return b.h || 0; }));
+    var rRH = Math.max.apply(null, rsiH.slice(0, 5));
+    var pRH = Math.max.apply(null, rsiH.slice(5, 10));
+    return rPH > pPH && rRH < pRH;
+  })();
+
+  // 2. MACD Turning Down: histogram positive but falling (3-bar sequence)
+  var macdDown = (function() {
+    if (macdH.length < 3) return false;
+    var h0 = macdH[0] && macdH[0].histogram != null ? parseFloat(macdH[0].histogram) : null;
+    var h1 = macdH[1] && macdH[1].histogram != null ? parseFloat(macdH[1].histogram) : null;
+    var h2 = macdH[2] && macdH[2].histogram != null ? parseFloat(macdH[2].histogram) : null;
+    return h0 !== null && h1 !== null && h2 !== null && h0 > 0 && h0 < h1 && h1 < h2;
+  })();
+
+  // 3. Weekly SMA Cross (Bear): wsma10 above wsma40 and within 5%
+  var weeklyBearCross = !!(ind.wsma10 && ind.wsma40 &&
+    ind.wsma10 > ind.wsma40 &&
+    Math.abs(ind.wsma10 - ind.wsma40) / ind.wsma40 < 0.05);
+
+  // 4. RSI Overbought Stalling: RSI in 72–85 zone (last 5 readings)
+  var rsiOverStall = !!(rsiH.length >= 5 &&
+    rsiH.slice(0, 5).every(function(v) { return !isNaN(v) && v >= 72 && v <= 85; }));
+
+  // 5. 52W High Topping: near 52-week high with RSI in topping zone
+  var highTop = !!(pos52 > 0.95 && rsi !== null && rsi > 70 && rsi < 80);
+
+  var bearSignals = [rsiBearDiv, macdDown, weeklyBearCross, rsiOverStall, highTop];
+  var bearNames   = [
+    'RSI Bearish Divergence',
+    'MACD Turning Down',
+    'Weekly SMA Cross (Bear)',
+    'RSI Overbought Stalling',
+    '52W High Topping',
+  ];
+
+  return {
+    bullSignals: bullSignals,
+    bearSignals: bearSignals,
+    bullCount:   bullSignals.filter(Boolean).length,
+    bearCount:   bearSignals.filter(Boolean).length,
+    bullNames:   bullNames,
+    bearNames:   bearNames,
+  };
+}
+
+// ─── calcVolumeSignals ───────────────────────────────────────────────────────
+// Volume-flow / volume spike boolean signal arrays used by the sidebar combined
+// signal block and AI Technical prompt.
+// bars: oldest-first. Each bar: { c, o, h, l, v }.
+// Returns: { bullSignals, bearSignals, bullScore, bearScore, netScore,
+//            bullNames, bearNames }
+export function calcVolumeSignals(bars) {
+  var n = bars.length;
+  if (n === 0) {
+    return {
+      bullSignals: [false, false, false, false, false],
+      bearSignals: [false, false, false, false, false],
+      bullScore: 0, bearScore: 0, netScore: 0,
+      bullNames: ['Volume Spike','Bullish Surge','Accumulation','Volume Rising','Consistent Up Days'],
+      bearNames: ['Dry-Up on Rally','Distribution','Bearish Surge','Volume Falling','Consistent Down Days'],
+    };
+  }
+
+  // Oldest-first slices — mirrors newest-first App.jsx logic:
+  // _aggs4.slice(0,5)   → bars.slice(n-5)       (last 5 bars)
+  // _aggs4.slice(5,20)  → bars.slice(n-20, n-5) (bars 5–20 ago, for vol baseline)
+  // _aggs4.slice(0,20)  → bars.slice(n-20)       (last 20 bars)
+  // _aggs4[0]           → bars[n-1]              (most recent bar)
+  var last5  = n >= 5  ? bars.slice(n - 5)         : bars.slice(0);
+  var prev15 = n >= 20 ? bars.slice(n - 20, n - 5) : [];
+  var last20 = n >= 20 ? bars.slice(n - 20)         : bars.slice(0);
+
+  var vol1  = bars[n - 1] ? bars[n - 1].v : 0;
+  var vol5  = last5.reduce(function(s, b)  { return s + (b && b.v || 0); }, 0) /
+              Math.max(last5.length, 1);
+  // vol5_20: average of bars 5–20 ago (comparison baseline for Rising/Falling signals)
+  var vol5_20 = prev15.length > 0
+    ? prev15.reduce(function(s, b) { return s + (b && b.v || 0); }, 0) / prev15.length
+    : 0;
+  var vol20 = last20.reduce(function(s, b) { return s + (b && b.v || 0); }, 0) /
+              Math.max(last20.length, 1);
+
+  // Accumulation / Distribution day count over last 20 bars
+  var acc = 0, dist = 0;
+  last20.forEach(function(b) {
+    if (!b || !b.v || !b.c || !b.o) return;
+    if (b.c >= b.o && b.v > vol20) acc++;
+    else if (b.c < b.o && b.v > vol20) dist++;
+  });
+
+  // Consecutive close direction over last 5 bars
+  var closeUpDays = last5.filter(function(b) { return b && b.c && b.o && b.c > b.o; }).length;
+  var closeDnDays = last5.filter(function(b) { return b && b.c && b.o && b.c < b.o; }).length;
+
+  var today = bars[n - 1];
+
+  // ── Bullish volume signals ─────────────────────────────────────────────
+  var bSigs = [
+    // Volume Spike: today's volume > 2.5x 20-day average
+    vol1 > 0 && vol20 > 0 && vol1 > vol20 * 2.5,
+    // Bullish Surge: a bullish candle in last 5 days with volume > 2x average
+    last5.some(function(b) { return b && b.c && b.o && b.c > b.o && b.v > vol20 * 2; }),
+    // Accumulation: more high-volume up days than down days
+    acc > dist + 1,
+    // Volume Rising: recent 5-day avg > prior 15-day avg by 20%
+    vol5_20 > 0 && vol5 > vol5_20 * 1.2,
+    // Consistent Up Days: 3+ bullish closes in last 5 bars
+    closeUpDays >= 3,
+  ];
+
+  // ── Bearish volume signals ─────────────────────────────────────────────
+  var rSigs = [
+    // Dry-Up on Rally: price up today but volume well below average
+    !!(today && today.c && today.o && today.c > today.o && vol1 < vol20 * 0.5),
+    // Distribution: more high-volume down days than up days
+    dist > acc + 1,
+    // Bearish Surge: a bearish candle in last 5 days with volume > 2x average
+    last5.some(function(b) { return b && b.c && b.o && b.c < b.o && b.v > vol20 * 2; }),
+    // Volume Falling: recent 5-day avg < prior 15-day avg by 20%
+    vol5_20 > 0 && vol5 < vol5_20 * 0.8,
+    // Consistent Down Days: 4+ bearish closes in last 5 bars
+    closeDnDays >= 4,
+  ];
+
+  // Weights preserved from App.jsx: [2,3,3,2,1] for both bull and bear
+  var wB = [2, 3, 3, 2, 1];
+  var wR = [2, 3, 3, 2, 1];
+
+  var bullScore = bSigs.reduce(function(s, v, i) { return s + (v ? wB[i] : 0); }, 0);
+  var bearScore = rSigs.reduce(function(s, v, i) { return s + (v ? wR[i] : 0); }, 0);
+  var netScore  = bullScore - bearScore;
+
+  return {
+    bullSignals: bSigs,
+    bearSignals: rSigs,
+    bullScore:   bullScore,
+    bearScore:   bearScore,
+    netScore:    netScore,
+    bullNames:   ['Volume Spike', 'Bullish Surge', 'Accumulation', 'Volume Rising', 'Consistent Up Days'],
+    bearNames:   ['Dry-Up on Rally', 'Distribution', 'Bearish Surge', 'Volume Falling', 'Consistent Down Days'],
+  };
+}
+
+// ─── calcMassiveScore ────────────────────────────────────────────────────────
+// Composite "Massive" score used for window.__msDots2, __msLabel2, __msDots,
+// __msScore. This is NOT the same as calcTrendScore — different weights,
+// includes volume, pos52, and a reversal-condition bonus.
+// Preserve this separately; do not merge with calcTrendScore.
+// bars: oldest-first. ind: Massive indicators. meta: { price, hi52, lo52 }.
+// Returns: { score, dots, label }
+export function calcMassiveScore(bars, ind, meta) {
+  var n     = bars.length;
+  var price = (meta && meta.price) || (n > 0 ? bars[n - 1].c : 0);
+  var hi52  = (meta && meta.hi52)  || 0;
+  var lo52  = (meta && meta.lo52)  || 0;
+  var pos52 = (hi52 > lo52 && price > 0) ? (price - lo52) / (hi52 - lo52) : 0.5;
+
+  // Volume ratio: 5-day avg / 20-day avg (from most recent end of bars)
+  var last5  = n >= 5  ? bars.slice(n - 5)  : bars.slice(0);
+  var last20 = n >= 20 ? bars.slice(n - 20) : bars.slice(0);
+  var vol5   = last5.reduce(function(s, b)  { return s + (b && b.v || 0); }, 0) /
+               Math.max(last5.length, 1);
+  var vol20  = last20.reduce(function(s, b) { return s + (b && b.v || 0); }, 0) /
+               Math.max(last20.length, 1);
+  var vr     = vol20 > 0 ? vol5 / vol20 : 1;
+
+  // Derived indicator gaps
+  var wsmaG = ind.wsma10 && ind.wsma40
+    ? (ind.wsma10 - ind.wsma40) / ind.wsma40 * 100 : 0;
+  var s200g = ind.sma200 && price > 0
+    ? (price - ind.sma200) / ind.sma200 * 100 : 0;
+  var crsG  = ind.sma50 && ind.sma200
+    ? (ind.sma50 - ind.sma200) / ind.sma200 * 100 : 0;
+  var ema2g = ind.ema20 && price > 0
+    ? (price - ind.ema20) / ind.ema20 * 100 : 0;
+
+  var rsi      = ind.rsi14 != null ? parseFloat(ind.rsi14) : null;
+  var macdH    = ind.macd && ind.macd.histogram != null ? parseFloat(ind.macd.histogram) : null;
+  var macdArr  = ind.macdHistory || [];
+  var macdDir  = (macdArr.length >= 2 &&
+    macdArr[0] && macdArr[1] &&
+    macdArr[0].histogram != null && macdArr[1].histogram != null)
+    ? (parseFloat(macdArr[0].histogram) > parseFloat(macdArr[1].histogram) ? 'Rising' : 'Falling')
+    : 'Flat';
+
+  // Per-indicator scoring (same ladder as App.jsx sc2())
+  function sc(key) {
+    if (key === 'wsma')   return !ind.wsma10||!ind.wsma40 ? 3 : wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
+    if (key === 'sma200') return !ind.sma200              ? 3 : s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
+    if (key === 'cross')  return !ind.sma50||!ind.sma200  ? 3 : crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
+    if (key === 'pos52')  return pos52>0.80?5:pos52>0.55?4:pos52>0.35?3:pos52>0.15?2:1;
+    if (key === 'rsi')    return !rsi  ? 3 : rsi>=65?5:rsi>=55?4:rsi>=45?3:rsi>=35?2:1;
+    if (key === 'macd')   return !macdH? 3 : (macdH>0&&macdDir==='Rising')?5:(macdH>0&&macdDir!=='Falling')?4:(macdH>0)?3:(macdH<=0&&macdDir==='Rising')?3:macdH>-0.5?2:1;
+    if (key === 'ema20')  return !ind.ema20 ? 3 : ema2g>5?5:ema2g>1?4:ema2g>-5?3:ema2g>-15?2:1;
+    if (key === 'vol')    return vr>1.4?5:vr>1.1?4:vr>0.9?3:vr>0.7?2:1;
+    return 3;
+  }
+
+  // Weights: different from calcTrendScore — do not merge
+  var W = { wsma: 25, sma200: 15, cross: 10, pos52: 5, rsi: 20, macd: 15, ema20: 5, vol: 5 };
+  var base = 0;
+  ['wsma', 'sma200', 'cross', 'pos52', 'rsi', 'macd', 'ema20', 'vol'].forEach(function(k) {
+    base += (sc(k) / 5) * W[k];
+  });
+  base = Math.round(base);
+
+  // Reversal condition bonus (applied only when base < 50 i.e. bearish territory)
+  var rsiH  = ind.rsiHistory || [];
+  var mT    = macdArr.length >= 3 &&
+    macdArr[0] && macdArr[1] && macdArr[2] &&
+    macdArr[0].histogram != null && macdArr[1].histogram != null && macdArr[2].histogram != null &&
+    parseFloat(macdArr[0].histogram) < 0 &&
+    parseFloat(macdArr[0].histogram) > parseFloat(macdArr[1].histogram) &&
+    parseFloat(macdArr[1].histogram) > parseFloat(macdArr[2].histogram);
+  var rsiB  = rsiH.length >= 5 &&
+    rsiH.slice(0, 5).every(function(v) { return v != null && !isNaN(parseFloat(v)) && parseFloat(v) >= 28 && parseFloat(v) <= 52; });
+  var lb    = pos52 < 0.20 && rsi !== null && rsi > 20 && rsi < 45;
+  var rev   = [mT, rsiB, lb].filter(Boolean).length;
+  var bonus = base < 50 ? Math.min(rev * 4, 12) : 0;
+  var final = Math.min(base + bonus, base < 50 ? 49 : 100);
+
+  var label = final >= 70 ? 'Strong Bullish'
+            : final >= 55 ? 'Bullish'
+            : final >= 40 ? 'Neutral'
+            : final >= 25 ? 'Bearish'
+            : 'Strong Bearish';
+  var dots  = final >= 70 ? 5 : final >= 55 ? 4 : final >= 40 ? 3 : final >= 25 ? 2 : 1;
+
+  return { score: final, dots: dots, label: label };
 }
