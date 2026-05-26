@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { calculateTechnicalSignalSnapshot, calcTrendScore, calcMomentumScore,
+import { calculateTechnicalSignalSnapshot, calcRSI,
          calcReversalWatch,
          getReversalDirectionStatus, getOverallReversalStatus,
          validateSmfOHLCV, getSmfScoreLabel, calcSmfVolPriceDivergence,
@@ -1010,6 +1010,56 @@ function CalcPanel({ currentPrice, onClose }) {
   );
 }
 
+// ── Data adapter: converts Massive data to technicalSignals.js snapshot format ──
+// This is a data adapter only — no technical calculations performed here.
+function buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData) {
+  if (!massiveInfo || !q) return null;
+  var rawAggs = massiveInfo.aggs || [];
+  var ind     = massiveInfo.indicators || {};
+  var price   = q.price || 0;
+  var hi52    = ov ? (ov.hi52 || 0) : 0;
+  var lo52    = ov ? (ov.lo52 || 0) : 0;
+  // Convert newest-first Massive aggs to oldest-first OHLCV bars
+  var ohlcv = rawAggs
+    .filter(function(b) { return b && b.c > 0 && b.h > 0 && b.l > 0 && b.v >= 0; })
+    .slice()
+    .reverse()
+    .map(function(b) {
+      return { date: b.t ? new Date(b.t).toISOString().split('T')[0] : '',
+               open: b.o||0, high: b.h||0, low: b.l||0, close: b.c||0, volume: b.v||0 };
+    });
+  return calculateTechnicalSignalSnapshot({
+    ticker:     sym,
+    date:       new Date().toISOString().split('T')[0],
+    ohlcv:      ohlcv,
+    indicators: ind,
+    crossData:  crossData && crossData.sym === sym ? crossData : null,
+    meta:       { price: price, hi52: hi52, lo52: lo52 },
+  });
+}
+
+// ── Data adapter: converts Yahoo Finance closing price array to snapshot format ──
+// Used by AI Favourites. Partial indicators (SMA50/200 + RSI only).
+// No technical outcomes calculated here — calls calculateTechnicalSignalSnapshot.
+function buildTechSnapshotFromYahoo(sym, vc, price, sma50, sma200) {
+  if (!vc || vc.length < 15) return null;
+  var bars = vc.map(function(c) {
+    return { date: '', open: c, high: c, low: c, close: c, volume: 0 };
+  });
+  // Compute RSI from closing prices using the shared calcRSI function
+  var rsiArr = null;
+  try { rsiArr = calcRSI(vc, 14); } catch(e) {}
+  var rsi14 = (rsiArr && rsiArr.length > 0) ? rsiArr[rsiArr.length - 1] : null;
+  var ind = { sma50: sma50||0, sma200: sma200||0, rsi14: rsi14 };
+  return calculateTechnicalSignalSnapshot({
+    ticker:     sym,
+    date:       new Date().toISOString().split('T')[0],
+    ohlcv:      bars,
+    indicators: ind,
+    meta:       { price: price||0, hi52: 0, lo52: 0 },
+  });
+}
+
 function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling, periodEnd }) {
   var isAdmin = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === "admin");
   var showCancelBanner = isCancelling || window.__isCancelling;
@@ -1289,15 +1339,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         var _momLabel3=window.__momLabel||"N/A";
         var _trendScore3=window.__trendScore||0;
         var _trendLabel3=window.__trendLabel||"N/A";
-        var _rsiH3=_ind2.rsiHistory||[];
-        var _bullRevArr3=window.__revArr3||[false,false,false,false,false];
-        var _bearRevArr3=[
-          (_rsiH3.length>=10&&_agg2.length>=10)?(Math.max.apply(null,_agg2.slice(0,5).map(function(a){return a.h||0;}))>Math.max.apply(null,_agg2.slice(5,10).map(function(a){return a.h||0;}))&&Math.max.apply(null,_rsiH3.slice(0,5))<Math.max.apply(null,_rsiH3.slice(5,10))):false,
-          _mH3.length>=3&&_mH3[0]&&_mH3[1]&&_mH3[2]&&parseFloat(_mH3[0].histogram)>0&&parseFloat(_mH3[0].histogram)<parseFloat(_mH3[1].histogram)&&parseFloat(_mH3[1].histogram)<parseFloat(_mH3[2].histogram),
-          !!(_ind2.wsma10&&_ind2.wsma40&&_ind2.wsma10>_ind2.wsma40&&Math.abs(_ind2.wsma10-_ind2.wsma40)/_ind2.wsma40<0.05),
-          _rsiH3.length>=5&&_rsiH3.slice(0,5).every(function(v){return v!=null&&v>=72&&v<=85;}),
-          !!(_rsi3!=null&&_rsi3>70&&_rsi3<80),
-        ];
+        // Reversal arrays from pre-compute useEffect via technicalSignals.js calcReversalSignalArray
+        var _bullRevArr3 = window.__revArr3     || [false,false,false,false,false];
+        var _bearRevArr3 = window.__revBearArr3 || [false,false,false,false,false];
         var _bullRevNames=["RSI Price Divergence","MACD Turning Up","Weekly SMA Cross Approaching","RSI Base Forming","52W Low Base"];
         var _bearRevNames=["RSI Bearish Divergence","MACD Turning Down","Weekly SMA Cross (Bear)","RSI Overbought Stalling","52W High Topping"];
         var _bullRevActive=_bullRevNames.filter(function(_,i){return _bullRevArr3[i];});
@@ -1308,8 +1352,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         var _vBearNames=["Dry-Up on Rally","Distribution","Bearish Surge","Volume Falling","Consistent Down Days"];
         var _vBullActive=_vBullNames.filter(function(_,i){return _vBull[i];});
         var _vBearActive=_vBearNames.filter(function(_,i){return _vBear[i];});
-        var _tCaution=(_s200g3&&parseFloat(_s200g3)>25)||false;
-        var _mCaution=(_rsi3&&(_rsi3>75||_rsi3<35))||(_roc103&&parseFloat(_roc103)>15);
+        // Caution flags from pre-compute useEffect via technicalSignals.js calcCautionFlags
+        var _tCaution = window.__trendCaution || false;
+        var _mCaution = window.__momCaution   || false;
         var _rsiDesc=_rsi3==null?"N/A":_rsi3>=65?"strong healthy":_rsi3>=55?"good":_rsi3>=45?"neutral":_rsi3>=35?"weak":"very weak/oversold";
         var _rsiWarn=_rsi3!=null&&_rsi3>75?" -- OVERBOUGHT CAUTION":_rsi3!=null&&_rsi3<35?" -- OVERSOLD CAUTION":"";
         var _tLines=[
@@ -1332,6 +1377,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
           _roc103!=null?"  ROC 10-day: "+(_roc103>0?"+":"")+_roc103+"% (momentum "+(parseFloat(_roc103)>3?"positive":parseFloat(_roc103)>-3?"neutral":"negative")+")":"  ROC: N/A",
           "",
           "--- REVERSAL DETECTION TAB ---",
+          "  Reversal Status: "+(window.__revWatchStatus&&window.__revWatchStatus[symA]?window.__revWatchStatus[symA].status:"Not computed"),
           "  Bullish signals ("+_bullRevActive.length+"/5): "+(_bullRevActive.length>0?_bullRevActive.join(", "):"none active"),
           "  Bearish signals ("+_bearRevActive.length+"/5): "+(_bearRevActive.length>0?_bearRevActive.join(", "):"none active"),
           "",
@@ -2030,62 +2076,74 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       .catch(function(){ setCrossData({ sym:sym, type:"unknown", ageDays:null, gapDir:"unknown" }); });
   }, [massiveInfo, sym]);
 
-  // -- Pre-compute all 4 sidebar signals on Massive load (single source of truth) --
+  // -- Pre-compute all 4 sidebar signals via technicalSignals.js snapshot (single source of truth) --
   useEffect(function() {
-    if (!massiveInfo || !sym) return;
+    if (!massiveInfo || !sym || !q) return;
     try {
-    var rawAggs = massiveInfo.aggs || [];
-    var ind     = massiveInfo.indicators || {};
-    // bars: oldest-first (technicalSignals.js convention)
-    var bars = rawAggs.filter(function(b){ return b&&b.c>0&&b.h>0&&b.l>0&&b.v>=0; }).slice().reverse();
-    if (bars.length === 0) return;
+      // Build snapshot from Massive data — all technical calculations in technicalSignals.js
+      var snap = buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData);
+      if (!snap) return;
 
-    // 1. Trend — uses crossData if available, gracefully degrades without it
-    var cd = crossData && crossData.sym === sym ? crossData : null;
-    var trend  = calcTrendScore(bars, ind, cd);
-    var tScore = trend.score || 0;
-    var tLabel = trend.status || 'Sideways';
-    var tDots  = tScore>=70?5:tScore>=55?4:tScore>=40?3:tScore>=25?2:1;
-    window.__trendScore    = tScore;
-    window.__trendLabel    = tLabel;
-    window.__trendDots     = tDots;
-    window.__trendScoreSym = sym;
+      // Trend globals
+      window.__trendScore    = snap.trend.score;
+      window.__trendLabel    = snap.trend.status;
+      window.__trendDots     = snap.trend.score>=70?5:snap.trend.score>=55?4:snap.trend.score>=40?3:snap.trend.score>=25?2:1;
+      window.__trendScoreSym = sym;
+      window.__trendCaution  = snap.cautionFlags.trendCaution;
 
-    // 2. Momentum
-    var mom    = calcMomentumScore(bars, ind);
-    var mScore = mom.score || 0;
-    var mLabel = mom.status || 'Neutral';
-    window.__momScore    = mScore;
-    window.__momLabel    = mLabel;
-    window.__momScoreSym = sym;
+      // Momentum globals
+      window.__momScore    = snap.momentum.score;
+      window.__momLabel    = snap.momentum.status;
+      window.__momScoreSym = sym;
+      window.__momCaution  = snap.cautionFlags.momCaution;
 
-    // 3. Reversal — uses calcReversalWatch() from technicalSignals.js (single source of truth)
-    // The Reversal tab overwrites window.__revWatchStatus[sym] with its own detailed result
-    // when visited, so the tab is always authoritative. This provides an instant estimate.
-    var price = window.__curPrice || (bars.length > 0 ? bars[bars.length-1].c : 0);
-    var meta  = { hi52: ov ? (ov.hi52||0) : 0, lo52: ov ? (ov.lo52||0) : 0, price: price };
-    var revResult = calcReversalWatch(bars, ind, meta);
-    if (revResult && revResult.status) {
-      var bLbl  = getReversalDirectionStatus(revResult.bullishSetupScore, revResult.bullishTriggerScore, revResult.bullishConfirmationScore, 'Bullish').label.replace('Reversal ','');
-      var beLbl = getReversalDirectionStatus(revResult.bearishSetupScore, revResult.bearishTriggerScore, revResult.bearishConfirmationScore, 'Bearish').label.replace('Reversal ','');
+      // Reversal globals — sidebar status from calcReversalWatch via snapshot
+      var rw = snap.reversalWatch;
+      var bLbl  = getReversalDirectionStatus(rw.bullishSetupScore, rw.bullishTriggerScore, rw.bullishConfirmationScore, 'Bullish').label.replace('Reversal ','');
+      var beLbl = getReversalDirectionStatus(rw.bearishSetupScore, rw.bearishTriggerScore, rw.bearishConfirmationScore, 'Bearish').label.replace('Reversal ','');
       if (!window.__revWatchStatus) window.__revWatchStatus = {};
-      window.__revWatchStatus[sym] = { status: revResult.status, bLbl: bLbl||'No Signal', beLbl: beLbl||'No Signal', bullScore: revResult.bullishScore, bearScore: revResult.bearishScore };
-    }
-    // 4. SMF
-    var smfVal = validateSmfOHLCV(rawAggs);
-    var smfBars = smfVal.validBars ? smfVal.validBars.slice().reverse() : [];
-    var tSig = smfVal.canCalculateTodaySignal ? calcSmfTodaySignal(smfBars) : null;
-    var fSig = smfBars.length >= 6  ? calcSmfFiveDaySignal(smfBars)   : null;
-    var dSig = smfVal.hasThirtyDays ? calcSmfThirtyDaySignal(smfBars) : null;
-    var tSc  = tSig ? tSig.score : 0;
-    var fSc  = fSig ? fSig.score : 0;
-    var dSc  = dSig ? dSig.score : 0;
-    var smCard = calcSmfSummaryCard(tSc, fSc, dSc, tSig, fSig, dSig);
-    if (smCard.primaryScore !== null) {
-      if (!window.__smfScore) window.__smfScore = {};
-      window.__smfScore[sym] = smCard;
-    }
-    } catch(e) { /* pre-compute signal error — non-fatal, sidebar shows gracefully */ }
+      window.__revWatchStatus[sym] = { status: rw.status, bLbl: bLbl||'No Signal', beLbl: beLbl||'No Signal', bullScore: rw.bullishScore, bearScore: rw.bearishScore };
+
+      // Legacy reversal signal arrays (supporting detail for sidebar + AI prompt)
+      var sa = rw.signalArray || {};
+      var bArr  = sa.bullSignals || [false,false,false,false,false];
+      var beArr = sa.bearSignals || [false,false,false,false,false];
+      window.__revArr3     = bArr;
+      window.__revBearArr3 = beArr;
+      window.__revCount3   = sa.bullCount || 0;
+      window.__revSym3     = sym;
+      var wB = [3,2,2,1,1];
+      var bSc  = bArr.reduce(function(s,v,i){return s+(v?wB[i]:0);},0);
+      var beSc = beArr.reduce(function(s,v,i){return s+(v?wB[i]:0);},0);
+      window.__revNetScore3 = bSc - beSc;
+
+      // Volume signal globals
+      var vs = snap.volumeSignals || {};
+      window.__volBull     = vs.bullSignals || [false,false,false,false,false];
+      window.__volBear     = vs.bearSignals || [false,false,false,false,false];
+      window.__volSym      = sym;
+      window.__volNetScore = vs.netScore || 0;
+
+      // Massive composite score globals
+      var ms = snap.massiveScore || {};
+      window.__msDots2  = ms.dots  || 0;
+      window.__msLabel2 = ms.label || '';
+      window.__msDots   = ms.dots  || 0;
+      window.__msScore  = ms.score || 0;
+
+      // SMF tab-specific globals (calcSmf* functions — different from OBV-based calcSmartMoneyFlow)
+      var rawAggs = massiveInfo.aggs || [];
+      var smfVal  = validateSmfOHLCV(rawAggs);
+      var smfBars = smfVal.validBars ? smfVal.validBars.slice().reverse() : [];
+      var tSig = smfVal.canCalculateTodaySignal ? calcSmfTodaySignal(smfBars) : null;
+      var fSig = smfBars.length >= 6  ? calcSmfFiveDaySignal(smfBars)   : null;
+      var dSig = smfVal.hasThirtyDays ? calcSmfThirtyDaySignal(smfBars) : null;
+      var smCard = calcSmfSummaryCard(tSig?tSig.score:0, fSig?fSig.score:0, dSig?dSig.score:0, tSig, fSig, dSig);
+      if (smCard.primaryScore !== null) {
+        if (!window.__smfScore) window.__smfScore = {};
+        window.__smfScore[sym] = smCard;
+      }
+    } catch(e) { /* pre-compute error — non-fatal */ }
   }, [massiveInfo, crossData, ov, sym]);
 
   // -- Write trend-signal cache (1-day TTL) using exact detail page formula ----
@@ -2782,7 +2840,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.29</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.30</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2836,7 +2894,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.29</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.30</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3046,73 +3104,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             var p2   = q ? q.price : 0;
             var hi2  = ov ? ov.hi52 : 0; var lo2 = ov ? ov.lo52 : 0;
             var pos2 = (hi2-lo2) > 0 ? (p2-lo2)/(hi2-lo2) : 0.5;
-            var vol5b  = agg2.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(agg2.slice(0,5).length,1);
-            var vol20b = agg2.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(agg2.slice(0,20).length,1);
-            var vr2 = vol20b > 0 ? vol5b/vol20b : 1;
-            var msLabel = null; var msDots = 0; var msColors = pillColor(null);
-            if (ind2 && p2) {
-              function sc2(key) {
-                var wsmaG = ind2.wsma10&&ind2.wsma40?(ind2.wsma10-ind2.wsma40)/ind2.wsma40*100:0;
-                var s200g = ind2.sma200?(p2-ind2.sma200)/ind2.sma200*100:0;
-                var crsG  = ind2.sma50&&ind2.sma200?(ind2.sma50-ind2.sma200)/ind2.sma200*100:0;
-                var ema2g = ind2.ema20?(p2-ind2.ema20)/ind2.ema20*100:0;
-                var r2=ind2.rsi14; var h2=ind2.macd?ind2.macd.histogram:null;
-                var _mHx=ind2.macdHistory||[]; var macdDir2=_mHx.length>=2&&_mHx[0]&&_mHx[1]&&_mHx[0].histogram!=null&&_mHx[1].histogram!=null?(parseFloat(_mHx[0].histogram)>parseFloat(_mHx[1].histogram)?"Rising":"Falling"):"Flat";
-                if (key==="wsma")   return !ind2.wsma10||!ind2.wsma40?3:wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
-                if (key==="sma200") return !ind2.sma200?3:s200g>10?5:s200g>2?4:s200g>-10?3:s200g>-20?2:1;
-                if (key==="cross")  return !ind2.sma50||!ind2.sma200?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
-                if (key==="pos52")  return pos2>0.80?5:pos2>0.55?4:pos2>0.35?3:pos2>0.15?2:1;
-                if (key==="rsi")    return !r2?3:r2>=65?5:r2>=55?4:r2>=45?3:r2>=35?2:1;
-                if (key==="macd")   return !h2?3:(h2>0&&macdDir2==="Rising")?5:(h2>0&&macdDir2!=="Falling")?4:(h2>0)?3:(h2<=0&&macdDir2==="Rising")?3:h2>-0.5?2:1;
-                if (key==="ema20")  return !ind2.ema20?3:ema2g>5?5:ema2g>1?4:ema2g>-5?3:ema2g>-15?2:1;
-                if (key==="vol")    return vr2>1.4?5:vr2>1.1?4:vr2>0.9?3:vr2>0.7?2:1;
-                return 3;
-              }
-              var W2={wsma:25,sma200:15,cross:10,pos52:5,rsi:20,macd:15,ema20:5,vol:5};
-              var base2=0; ["wsma","sma200","cross","pos52","rsi","macd","ema20","vol"].forEach(function(k){base2+=(sc2(k)/5)*W2[k];});
-              base2=Math.round(base2);
-              var macdH2=ind2.macdHistory||[]; var mT2=macdH2.length>=3&&macdH2[0]&&macdH2[1]&&macdH2[2]&&macdH2[0].histogram<0&&macdH2[0].histogram>macdH2[1].histogram&&macdH2[1].histogram>macdH2[2].histogram;
-              var rsiH2=ind2.rsiHistory||[]; var rsiB2=rsiH2.length>=3&&rsiH2.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;});
-              var lb2=pos2<0.20&&ind2.rsi14!=null&&ind2.rsi14>20&&ind2.rsi14<45;
-              var rev2=[mT2,rsiB2,lb2].filter(Boolean).length;
-              var bonus2=base2<50?Math.min(rev2*4,12):0;
-              var final2=Math.min(base2+bonus2,base2<50?49:100);
-              var vl2=final2>=70?"Strong Bullish":final2>=55?"Bullish":final2>=40?"Neutral":final2>=25?"Bearish":"Strong Bearish";
-              msDots=final2>=70?5:final2>=55?4:final2>=40?3:final2>=25?2:1;
-              msLabel=vl2+" ("+final2+")";
-              msColors=pillColor(vl2);
-              window.__msDots2 = msDots; window.__msLabel2 = vl2;
-              window.__msDots=msDots; window.__msScore=final2;
-            }
+            // Massive composite score — from pre-compute useEffect via technicalSignals.js calcMassiveScore
+            var msDots   = (ind2 && p2 && window.__msDots2)  ? window.__msDots2  : 0;
+            var msLabel  = (ind2 && p2 && window.__msLabel2) ? window.__msLabel2 : null;
+            var msColors = pillColor(msLabel);
 
-            // -- Reversal --
-            var ind3=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
-            var aggs3=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
-            var price3=q?q.price:0;
-            var ov3=ov||{}; var hi3=ov3.hi52||0; var lo3=ov3.lo52||0;
-            var pos3=(hi3>0&&hi3-lo3)>0?(price3-lo3)/(hi3-lo3):0.5;
-            var rsiH3=ind3?(ind3.rsiHistory||[]):[];
-            var macdH3=ind3?(ind3.macdHistory||[]):[];
-            var rsiDiv3=(function(){
-              if (!ind3||rsiH3.length<10||aggs3.length<10) return false;
-              var rPL=Math.min.apply(null,aggs3.slice(0,5).map(function(a){return a.l||0;}));
-              var pPL=Math.min.apply(null,aggs3.slice(5,10).map(function(a){return a.l||0;}));
-              var rRL=Math.min.apply(null,rsiH3.slice(0,5));
-              var pRL=Math.min.apply(null,rsiH3.slice(5,10));
-              return rPL<pPL&&rRL>pRL;
-            })();
-            var macdTurn3=(function(){
-              if (macdH3.length<3) return false;
-              var h0=macdH3[0]&&macdH3[0].histogram,h1=macdH3[1]&&macdH3[1].histogram,h2=macdH3[2]&&macdH3[2].histogram;
-              return h0!=null&&h1!=null&&h2!=null&&h0<0&&h0>h1&&h1>h2;
-            })();
-            var weeklyCross3=ind3&&ind3.wsma10&&ind3.wsma40?(ind3.wsma10<ind3.wsma40&&Math.abs(ind3.wsma10-ind3.wsma40)/ind3.wsma40<0.05):false;
-            var rsiBase3=rsiH3.length>=3?rsiH3.slice(0,5).every(function(v){return v!=null&&v>=28&&v<=52;}):false;
-            var lowBase3=pos3<0.20&&ind3&&ind3.rsi14!=null&&ind3.rsi14>20&&ind3.rsi14<45;
-            var revArr3=[rsiDiv3,macdTurn3,weeklyCross3,rsiBase3,lowBase3];
-            var revCount3=revArr3.filter(Boolean).length;
-            // Store on window so tab reads same values
-            window.__revArr3=revArr3; window.__revCount3=revCount3; window.__revSym3=sym;
+            // -- Reversal signal array — from pre-compute useEffect via technicalSignals.js --
+            var revArr3   = window.__revArr3   && window.__revSym3===sym ? window.__revArr3   : [false,false,false,false,false];
+            var revCount3 = window.__revCount3 && window.__revSym3===sym ? window.__revCount3 : 0;
             var revBg3=revCount3>=3?"#1e2a1e":revCount3>=1?"#1e2a1e":"#222";
             var revBorder3=revCount3>=1?"#2a5020":"#333";
             var revCol3=revCount3>=1?"#7abd00":"#555";
@@ -3331,65 +3330,20 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   <div style={{ padding:"0" }}>
                 <div style={{ display:"none" }}>Technical Analysis</div>
                 {(function() {
-                  // Scores computed by pre-compute useEffect via technicalSignals.js
+                  // All values from pre-compute useEffect via technicalSignals.js (no inline calc)
                   var _hasTech = !!(ind2 && p2);
-                  // Read trend from shared window globals (set by pre-compute useEffect)
-                  var _trendScore = (window.__trendScore!=null && window.__trendScoreSym===sym) ? window.__trendScore : (_hasTech ? (function(){
-                    var cd = crossData && crossData.sym===sym ? crossData : null;
-                    var _bars2 = agg2.filter(function(b){return b&&b.c>0&&b.h>0&&b.l>0&&b.v>=0;}).slice().reverse();
-                    var r = calcTrendScore(_bars2, ind2, cd); return r.score||0;
-                  })() : 0);
-                  var _trendLabel = _trendScore>=70?"Strong Uptrend":_trendScore>=55?"Uptrend":_trendScore>=40?"Sideways":_trendScore>=25?"Downtrend":"Strong Downtrend";
-                  var _trendDots  = _trendScore>=70?5:_trendScore>=55?4:_trendScore>=40?3:_trendScore>=25?2:1;
-                  var _trendCol   = pillColor(_trendScore>=55?"buy":_trendScore>=40?"hold":"avoid");
-                  if (_hasTech) { window.__trendScore=_trendScore; window.__trendLabel=_trendLabel; window.__trendDots=_trendDots; window.__trendScoreSym=sym; }
+                  var _trendScore  = (_hasTech && window.__trendScoreSym===sym && window.__trendScore!=null) ? window.__trendScore  : 0;
+                  var _trendLabel  = (_hasTech && window.__trendLabel)  ? window.__trendLabel  : '--';
+                  var _trendDots   = _trendScore>=70?5:_trendScore>=55?4:_trendScore>=40?3:_trendScore>=25?2:1;
+                  var _trendCol    = pillColor(_trendScore>=55?"buy":_trendScore>=40?"hold":"avoid");
+                  var _trendCaution= _hasTech ? (window.__trendCaution || false) : false;
 
-                  // Read momentum from shared window globals
-                  var _momScore = (window.__momScore!=null && window.__momScoreSym===sym) ? window.__momScore : (_hasTech ? (function(){
-                    var _bars2m = agg2.filter(function(b){return b&&b.c>0&&b.h>0&&b.l>0&&b.v>=0;}).slice().reverse();
-                    var r = calcMomentumScore(_bars2m, ind2); return r.score||0;
-                  })() : 0);
-                  var _momLabel = _momScore>=80?"Strong":_momScore>=65?"Building":_momScore>=50?"Neutral":_momScore>=35?"Fading":"--";
-                  var _momDots  = _momScore>=80?5:_momScore>=65?4:_momScore>=50?3:_momScore>=35?2:1;
-                  var _momCol   = pillColor(_momScore>=65?"buy":_momScore>=50?"hold":"avoid");
-                  if (_hasTech) { window.__momScore=_momScore; window.__momScoreSym=sym; window.__momLabel=_momLabel; }
+                  var _momScore    = (_hasTech && window.__momScoreSym===sym && window.__momScore!=null) ? window.__momScore  : 0;
+                  var _momLabel    = (_hasTech && window.__momLabel)    ? window.__momLabel    : '--';
+                  var _momDots     = _momScore>=80?5:_momScore>=65?4:_momScore>=50?3:_momScore>=35?2:1;
+                  var _momCol      = pillColor(_momScore>=65?"buy":_momScore>=50?"hold":"avoid");
+                  var _momCaution  = _hasTech ? (window.__momCaution || false) : false;
 
-                  // Reversal -- existing revCount3 and revLabel3
-                  var _revCol = pillColor(revCount3>=3?"buy":revCount3>=1?"hold":"avoid");
-
-                  // Store for AI
-                  window.__trendScore = _trendScore; window.__trendLabel = _trendLabel;
-                  window.__momScore   = _momScore;   window.__momLabel   = _momLabel;
-
-                  // Caution flags
-                  var _ind2b=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
-                  var _p2b=q?q.price:0;
-                  var _s200g2b=_ind2b.sma200&&_p2b>0?(_p2b-_ind2b.sma200)/_ind2b.sma200*100:0;
-                  var _pos52_2b=ind2&&p2&&hi2>lo2?(p2-lo2)/(hi2-lo2)*100:50;
-                  var _trendCaution=_hasTech&&(_s200g2b>25||_pos52_2b>95);
-                  var _rsi2b=_ind2b.rsi14?parseFloat(_ind2b.rsi14):0;
-                  var _aggs_pill=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
-                  var _roc10_2b=_aggs_pill.length>=10&&_aggs_pill[9]&&_aggs_pill[9].c&&_p2b>0?(_p2b-_aggs_pill[9].c)/_aggs_pill[9].c*100:null;
-                  var _momCaution=_hasTech&&(_rsi2b>75||_rsi2b<35||(_roc10_2b!=null&&_roc10_2b>15));
-                  function TechRow(p){
-                    var _barPct=Math.min((p.score||0)/5*100,100);
-                    return (
-                      <div onClick={function(){ window.__goToTab && window.__goToTab(p.tab); }}
-                        style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
-                        onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
-                        onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
-                        <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>{p.label}</span>
-                        <span style={{fontSize:12,fontWeight:600,color:p.loading?"#444":(p.valCol||"#aaa"),flex:1}}>{p.loading?"--":(p.value||"--")}</span>
-                        {!p.loading&&(p.score||0)>0&&<span style={{width:52,height:3,background:"#2a2a2a",borderRadius:2,overflow:"hidden",display:"inline-block",marginRight:p.caution?4:8,flexShrink:0}}>
-                          <span style={{display:"block",height:"100%",width:_barPct.toFixed(0)+"%",background:p.dotCol||"#7abd00",borderRadius:2}}></span>
-                        </span>}
-                        {p.caution&&<span style={{fontSize:9,color:"#b88000",marginRight:6,flexShrink:0}}>{"\u26A0"}</span>}
-                        <span style={{fontSize:11,color:"#444"}}>{"\u203A"}</span>
-                      </div>
-                    );
-                  }
-                  // Store caution flags for Technical AI pill
-                  window.__trendCaution=_trendCaution; window.__momCaution=_momCaution;
                   return (
                     <div style={{display:"flex",flexDirection:"column"}}>
                       <TechRow label="Trend" value={_hasTech?_trendLabel:"--"} score={_trendDots} dotCol={_trendCol.dot} valCol={_trendCol.fg} caution={_trendCaution} loading={!_hasTech} tab="trend" />
@@ -3415,31 +3369,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     </div>
                   );
                   if(!_hasTechCheck) return null;
-                  var _ind3c=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:{};
-                  var _aggs3c=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
-                  var _rsiH3c=_ind3c.rsiHistory||[]; var _mH3c=_ind3c.macdHistory||[];
-                  var _hi52c=ov?ov.hi52:0; var _lo52c=ov?ov.lo52:0; var _prPc=q?q.price:0;
-                  var _pos52c=(_hi52c>_lo52c&&_prPc>0)?(_prPc-_lo52c)/(_hi52c-_lo52c):0.5;
-                  var _bearArrC=[(function(){ if(_rsiH3c.length<10||_aggs3c.length<10) return false; var rPH=Math.max.apply(null,_aggs3c.slice(0,5).map(function(a){return a.h||0;})); var pPH=Math.max.apply(null,_aggs3c.slice(5,10).map(function(a){return a.h||0;})); var rRH=Math.max.apply(null,_rsiH3c.slice(0,5)); var pRH=Math.max.apply(null,_rsiH3c.slice(5,10)); return rPH>pPH&&rRH<pRH; })(),false,!!(_ind3c.wsma10&&_ind3c.wsma40&&_ind3c.wsma10>_ind3c.wsma40&&Math.abs(_ind3c.wsma10-_ind3c.wsma40)/_ind3c.wsma40<0.05),!!(_rsiH3c.length>=5&&_rsiH3c.slice(0,5).every(function(v){return v!=null&&v>=72&&v<=85;})),!!(_pos52c>0.95&&_ind3c.rsi14!=null&&parseFloat(_ind3c.rsi14)>70&&parseFloat(_ind3c.rsi14)<80)];
-                  var _revArrC=window.__revArr3&&window.__revSym3===sym?window.__revArr3:[false,false,false,false,false];
-                  var _wB=[3,2,2,1,1]; var _wBe=[3,2,2,1,1];
-                  var _bullSc=_revArrC.reduce(function(s,v,i){return s+(v?_wB[i]:0);},0);
-                  var _bearSc=_bearArrC.reduce(function(s,v,i){return s+(v?_wBe[i]:0);},0);
-                  var _netRevC=_bullSc-_bearSc;
-                  var _aggs4c=_aggs3c; var _vol20c=_aggs4c.slice(0,20).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4c.slice(0,20).length,1);
-                  var _vol5c=_aggs4c.slice(0,5).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4c.slice(0,5).length,1);
-                  var _vol5_20c=_aggs4c.slice(5,20).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4c.slice(5,20).length,1);
-                  var _acc4c=0; var _dist4c=0;
-                  _aggs4c.slice(0,20).forEach(function(a){ if(!a||!a.v||!a.c||!a.o) return; if(a.c>=a.o&&a.v>_vol20c) _acc4c++; else if(a.c<a.o&&a.v>_vol20c) _dist4c++; });
-                  var _vol1c=_aggs4c[0]?_aggs4c[0].v:0;
-                  var _closeUpC=_aggs4c.slice(0,5).filter(function(a){return a&&a.c&&a.o&&a.c>a.o;}).length;
-                  var _closeDnC=_aggs4c.slice(0,5).filter(function(a){return a&&a.c&&a.o&&a.c<a.o;}).length;
-                  var _bSigsC=[_vol1c>0&&_vol20c>0&&_vol1c>_vol20c*2.5,_aggs4c.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c>a.o&&a.v>_vol20c*2;}),_acc4c>_dist4c+1,_vol5_20c>0&&_vol5c>_vol5_20c*1.2,_closeUpC>=3];
-                  var _rSigsC=[!!(_aggs4c[0]&&_aggs4c[0].c&&_aggs4c[0].o&&_aggs4c[0].c>_aggs4c[0].o&&_vol1c<_vol20c*0.5),_dist4c>_acc4c+1,_aggs4c.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c<a.o&&a.v>_vol20c*2;}),_vol5_20c>0&&_vol5c<_vol5_20c*0.8,_closeDnC>=4];
-                  var _wVB=[2,3,3,2,1]; var _wVR=[2,3,3,2,1];
-                  var _volBSc=_bSigsC.reduce(function(s,v,i){return s+(v?_wVB[i]:0);},0);
-                  var _volRSc=_rSigsC.reduce(function(s,v,i){return s+(v?_wVR[i]:0);},0);
-                  var _netVolC=_volBSc-_volRSc;
+                  // Early exit — use pre-computed globals from technicalSignals.js snapshot
+                  var _netRevC = window.__revNetScore3 || 0;
+                  var _netVolC = window.__volNetScore   || 0;
                   if (_netRevC===0 && _netVolC===0) return null;
                   return (
                 <div style={{ background:"#1e1e1e", border:"0.5px solid #2c2c2e", borderRadius:10, overflow:"hidden", marginBottom:8, marginTop:8 }}>
@@ -3453,35 +3385,21 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var _rsiH3=_ind3.rsiHistory||[]; var _mH3=_ind3.macdHistory||[];
                     var _hi52p=ov?ov.hi52:0; var _lo52p=ov?ov.lo52:0; var _prP=q?q.price:0;
                     var _pos52p=(_hi52p>_lo52p&&_prP>0)?(_prP-_lo52p)/(_hi52p-_lo52p):0.5;
-                    var _bearArr3=[
-                      (function(){ if(_rsiH3.length<10||_aggs3.length<10) return false; var rPH=Math.max.apply(null,_aggs3.slice(0,5).map(function(a){return a.h||0;})); var pPH=Math.max.apply(null,_aggs3.slice(5,10).map(function(a){return a.h||0;})); var rRH=Math.max.apply(null,_rsiH3.slice(0,5)); var pRH=Math.max.apply(null,_rsiH3.slice(5,10)); return rPH>pPH&&rRH<pRH; })(),
-                      (function(){ if(_mH3.length<3) return false; var h0=_mH3[0]&&_mH3[0].histogram!=null?parseFloat(_mH3[0].histogram):null; var h1=_mH3[1]&&_mH3[1].histogram!=null?parseFloat(_mH3[1].histogram):null; var h2=_mH3[2]&&_mH3[2].histogram!=null?parseFloat(_mH3[2].histogram):null; return h0!=null&&h1!=null&&h2!=null&&h0>0&&h0<h1&&h1<h2; })(),
-                      !!(_ind3.wsma10&&_ind3.wsma40&&_ind3.wsma10>_ind3.wsma40&&Math.abs(_ind3.wsma10-_ind3.wsma40)/_ind3.wsma40<0.05),
-                      !!(_rsiH3.length>=5&&_rsiH3.slice(0,5).every(function(v){return v!=null&&v>=72&&v<=85;})),
-                      !!(_pos52p>0.95&&_ind3.rsi14!=null&&parseFloat(_ind3.rsi14)>70&&parseFloat(_ind3.rsi14)<80),
-                    ];
+                    // Bear/bull reversal arrays from pre-compute useEffect via technicalSignals.js
+                    var _bearArr3 = window.__revBearArr3 || [false,false,false,false,false];
                     var _wBull=[3,2,2,1,1]; var _wBear=[3,2,2,1,1]; var _maxRev=9;
                     var _revArr=window.__revArr3&&window.__revSym3===sym?window.__revArr3:[false,false,false,false,false];
                     var _bullScore3=_revArr.reduce(function(s,v,i){return s+(v?_wBull[i]:0);},0);
                     var _bearScore3=_bearArr3.reduce(function(s,v,i){return s+(v?_wBear[i]:0);},0);
                     var _netRev3=_bullScore3-_bearScore3;
-                    window.__revBearArr3=_bearArr3; window.__revNetScore3=_netRev3;
+                    window.__revNetScore3=_netRev3;
                     var _absRev=Math.abs(_netRev3);
                     var _revDir=_netRev3>0?"bull":_netRev3<0?"bear":"none";
                     var _revStrength=_absRev>=5?"Strong":_absRev>=3?"Moderate":_absRev>=1?"Weak":"";
                     var _revBarPct=Math.min(_absRev/_maxRev,1)*100;
-                    var _aggs4=_aggs3; var _snap4=massiveInfo&&massiveInfo.snapshot?massiveInfo.snapshot:{};
-                    var _vol5_4=_aggs4.slice(0,5).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4.slice(0,5).length,1);
-                    var _vol5_20_4=_aggs4.slice(5,20).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4.slice(5,20).length,1);
-                    var _vol20_4=_aggs4.slice(0,20).reduce(function(s,a){return s+(a&&a.v||0);},0)/Math.max(_aggs4.slice(0,20).length,1);
-                    var _vol1_4=_aggs4[0]?_aggs4[0].v:0;
-                    var _acc4=0; var _dist4=0;
-                    _aggs4.slice(0,20).forEach(function(a){ if(!a||!a.v||!a.c||!a.o) return; if(a.c>=a.o&&a.v>_vol20_4) _acc4++; else if(a.c<a.o&&a.v>_vol20_4) _dist4++; });
-                    var _closeUpDays=_aggs4.slice(0,5).filter(function(a){ return a&&a.c&&a.o&&a.c>a.o; }).length;
-                    var _closeDnDays=_aggs4.slice(0,5).filter(function(a){ return a&&a.c&&a.o&&a.c<a.o; }).length;
-                    var _bSigs4=[_vol1_4>0&&_vol20_4>0&&_vol1_4>_vol20_4*2.5,_aggs4.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c>a.o&&a.v>_vol20_4*2;}),_acc4>_dist4+1,_vol5_20_4>0&&_vol5_4>_vol5_20_4*1.2,_closeUpDays>=3];
-                    var _rSigs4=[!!(_aggs4[0]&&_aggs4[0].c&&_aggs4[0].o&&_aggs4[0].c>_aggs4[0].o&&_vol1_4<_vol20_4*0.5),_dist4>_acc4+1,_aggs4.slice(0,5).some(function(a){return a&&a.c&&a.o&&a.c<a.o&&a.v>_vol20_4*2;}),_vol5_20_4>0&&_vol5_4<_vol5_20_4*0.8,_closeDnDays>=4];
-                    window.__volBull=_bSigs4; window.__volBear=_rSigs4; window.__volSym=sym;
+                    // Volume signals from pre-compute useEffect via technicalSignals.js calcVolumeSignals
+                    var _bSigs4 = window.__volBull&&window.__volSym===sym ? window.__volBull : [false,false,false,false,false];
+                    var _rSigs4 = window.__volBear&&window.__volSym===sym ? window.__volBear : [false,false,false,false,false];
                     var _wVolB=[2,3,3,2,1]; var _wVolR=[2,3,3,2,1]; var _maxVol=11;
                     var _volBullScore=_bSigs4.reduce(function(s,v,i){return s+(v?_wVolB[i]:0);},0);
                     var _volBearScore=_rSigs4.reduce(function(s,v,i){return s+(v?_wVolR[i]:0);},0);
@@ -6610,20 +6528,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     return (
                       <div>
                         {(function(){
-                          // Recompute momentum score in tab scope
-                          var _mW={rsi:40,macd:40,roc:20};
-                          var _r2=rsi; var _h2=macdH;
-                          var _eg2=ema20g; var _vr2=volRatio;
-                          function _msc2(key){
-                            if(key==="rsi") return _r2==null?3:_r2>=65?5:_r2>=55?4:_r2>=45?3:_r2>=35?2:1;
-                            if(key==="macd") return _h2==null?3:(_h2>0&&macdDir==="Rising")?5:(_h2>0&&macdDir!=="Falling")?4:(_h2>0)?3:(_h2<=0&&macdDir==="Rising")?3:_h2>-0.5?2:1;
-                                    return 3;
-                          }
-                          var _mtot=0; Object.keys(_mW).forEach(function(k){_mtot+=(_msc2(k)/5)*_mW[k];}); var _ms2=Math.round(_mtot);
-                          var _ml2=_ms2>=80?"Strong":_ms2>=65?"Building":_ms2>=50?"Neutral":_ms2>=35?"Fading":"Weak";
-                          var _md2=_ms2>=80?5:_ms2>=65?4:_ms2>=50?3:_ms2>=35?2:1;
-                          // Store for pill to read
-                          window.__momScore=_ms2; window.__momLabel=_ml2; window.__momDots=_md2;
+                          // Momentum score from pre-compute useEffect via technicalSignals.js
+                          var _ms2 = (window.__momScore!=null && window.__momScoreSym===sym) ? window.__momScore : 0;
+                          var _ml2 = window.__momLabel || 'Neutral';
+                          var _md2 = _ms2>=80?5:_ms2>=65?4:_ms2>=50?3:_ms2>=35?2:1;
                           var _msc=_ms2>=65?"#1a6a1a":_ms2>=50?"#b88000":"#c03030";
                           var _msbg=_ms2>=65?"#e6f4e6":_ms2>=50?"#fdf8e6":"#fff0f0";
                           var _msbd=_ms2>=65?"#7abd00":_ms2>=50?"#d4a800":"#e08080";
@@ -9085,63 +8993,17 @@ export default function App() {
               var targetMean = (ksData&&ksData.targetMeanPrice&&ksData.targetMeanPrice.raw) ? ksData.targetMeanPrice.raw
                              : (fdData&&fdData.targetMeanPrice&&fdData.targetMeanPrice.raw) ? fdData.targetMeanPrice.raw : null;
               var analystUp  = (targetMean && price > 0) ? ((targetMean - price) / price * 100) : null;
-              // Compute trend/momentum using same weights as detail page
-              function computeTrend(vc, pr) {
-                var n = vc.length; if (n<201) return null;
-                var s50  = vc.slice(n-50).reduce(function(a,b){return a+b;},0)/50;
-                var s200 = vc.slice(n-200).reduce(function(a,b){return a+b;},0)/200;
-                // EMA20
-                var k=2/21, e20=vc[n-21]||s50;
-                for(var i=n-20;i<n;i++) e20=vc[i]*k+e20*(1-k);
-                var wsmaG=(s50-s200)/s200*100, s200g=(pr-s200)/s200*100, s50g=(pr-s50)/s50*100, ema20g=(pr-e20)/e20*100;
-                // Gap direction for SMA200 (today vs 10 days ago)
-                var s50_10=vc.slice(n-60,n-10).reduce(function(a,b){return a+b;},0)/50;
-                var s200_10=n>=210?vc.slice(n-210,n-10).reduce(function(a,b){return a+b;},0)/200:s200;
-                var g10=(vc[n-11]-s200_10)/s200_10*100, gNow=s200g;
-                var gdir=gNow>g10+0.5?"improving":gNow<g10-0.5?"worsening":"stable";
-                // Cross type
-                var crossType="none",crossScore=3;
-                for(var j=n-1;j>=201;j--){
-                  var st=vc.slice(j-50,j).reduce(function(a,b){return a+b;},0)/50;
-                  var s2=vc.slice(j-200,j).reduce(function(a,b){return a+b;},0)/200;
-                  var sp=vc.slice(j-51,j-1).reduce(function(a,b){return a+b;},0)/50;
-                  var s2p=j>=201?vc.slice(j-201,j-1).reduce(function(a,b){return a+b;},0)/200:0;
-                  if(s2p>0&&sp>s2p&&st<=s2){crossType="death";break;}
-                  if(s2p>0&&sp<s2p&&st>=s2){crossType="golden";break;}
-                }
-                if(crossType==="golden") crossScore=gdir==="worsening"?5:4;
-                else if(crossType==="death") crossScore=gdir==="improving"?3:gdir==="stable"?2:1;
-                // Scores (same weights as detail page)
-                function sc(key){
-                  if(key==="wsma")   return wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
-                  if(key==="sma200") return s200g>10?5:s200g>2?4:s200g>-10?3:(s200g>-20?(gdir==="improving"?3:2):(gdir==="improving"?2:1));
-                  if(key==="sma50")  return s50g>5?5:s50g>1?4:s50g>-5?3:s50g>-10?2:1;
-                  if(key==="cross")  return crossScore;
-                  if(key==="ema20")  return ema20g>5?5:ema20g>1?4:ema20g>-5?3:ema20g>-10?2:1;
-                  return 3;
-                }
-                var W={wsma:30,sma200:30,cross:20,ema20:10,sma50:10};
-                var tot=0; Object.keys(W).forEach(function(k){tot+=(sc(k)/5)*W[k];});
-                var score=Math.round(tot);
-                var label=score>=70?"Strong Uptrend":score>=55?"Uptrend":score>=40?"Sideways":score>=25?"Downtrend":"Strong Downtrend";
-                return {trendLabel:label,trendScore:score};
-              }
-              function computeMom(vc) {
-                var n=vc.length; if(n<15) return null;
-                var gains=0,losses=0;
-                for(var i=n-14;i<n;i++){var d=vc[i]-vc[i-1];if(d>0)gains+=d;else losses+=Math.abs(d);}
-                var ag=gains/14,al=losses/14,rsi=al===0?100:100-(100/(1+ag/al));
-                var label=rsi>70?"Overbought":rsi>=60?"Strong":rsi>=50?"Building":rsi>=40?"Neutral":rsi>=30?"Fading":"Weak";
-                return {momLabel:label,momScore:Math.round(rsi)};
-              }
-
-              // Use cached trend-signal if available, else compute and cache
-              if (!trendSigData) {
-                var tComp = computeTrend(vc, price);
-                var mComp = computeMom(vc);
-                if (tComp && mComp) {
-                  trendSigData = { trendLabel:tComp.trendLabel, trendScore:tComp.trendScore, momLabel:mComp.momLabel, momScore:mComp.momScore, updatedAt:new Date().toISOString() };
-                  // Write to cache (fire-and-forget)
+              // Use cached trend-signal if available; otherwise build from Yahoo data via technicalSignals.js
+              if (!trendSigData && vc.length >= 15) {
+                var yahooSnap = buildTechSnapshotFromYahoo(sym, vc, price, sma50, sma200);
+                if (yahooSnap) {
+                  trendSigData = {
+                    trendLabel: yahooSnap.trend.status,
+                    trendScore: yahooSnap.trend.score,
+                    momLabel:   yahooSnap.momentum.status,
+                    momScore:   yahooSnap.momentum.score,
+                    updatedAt:  new Date().toISOString()
+                  };
                   if (window.__clerkToken) {
                     fetch("/cache?sym=" + sym + "&tab=trend-signal", {
                       method:"POST", headers:{"Content-Type":"text/plain","Authorization":"Bearer "+window.__clerkToken},
@@ -9150,6 +9012,7 @@ export default function App() {
                   }
                 }
               }
+
 
               return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:price, changePct:changePct, change:change, mc:mc, hi52:hi52, lo52:lo52, sma50:sma50, sma200:sma200, rsi:rsi, targetMean:targetMean, analystUp:analystUp, sig:sigData, trendSig:trendSigData };
             }).catch(function(){ return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:0, changePct:0, change:0, mc:0, hi52:0, lo52:0, sma50:0, sma200:0, rsi:null, targetMean:null, analystUp:null, sig:null, trendSig:null }; });
@@ -9383,7 +9246,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.29</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.30</span>
           </div>
         </div>
 
