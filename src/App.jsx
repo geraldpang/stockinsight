@@ -8950,9 +8950,17 @@ export function JournalPage() {
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.max_drawdown_30d)}</td>
                         <td style={{ padding:"7px 10px" }}>{OutcomeBadge(r.bullish_outcome_label)}</td>
                         <td style={{ padding:"7px 6px" }}>
-                          <button onClick={function(){ handleDeleteSnapshot(r.ticker, r.snapshot_date); }}
-                            title={"Delete " + r.ticker + " " + r.snapshot_date}
-                            style={{ background:"none", border:"0.5px solid #3a1a1a", borderRadius:4, color:"#663333", fontSize:11, cursor:"pointer", padding:"2px 7px", lineHeight:1 }}>✕</button>
+                          <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+                            <button onClick={function(){ generateSnapshot(r.ticker); }}
+                              disabled={!!generating[r.ticker]}
+                              title={"Snapshot " + r.ticker + " today"}
+                              style={{ background:"none", border:"0.5px solid #1a3a1a", borderRadius:4, color:generating[r.ticker]?"#444":"#5a9a40", fontSize:11, cursor:generating[r.ticker]?"not-allowed":"pointer", padding:"2px 7px", lineHeight:1 }}>
+                              {generating[r.ticker] ? "…" : "⚡"}
+                            </button>
+                            <button onClick={function(){ handleDeleteSnapshot(r.ticker, r.snapshot_date); }}
+                              title={"Delete " + r.ticker + " " + r.snapshot_date}
+                              style={{ background:"none", border:"0.5px solid #3a1a1a", borderRadius:4, color:"#663333", fontSize:11, cursor:"pointer", padding:"2px 7px", lineHeight:1 }}>✕</button>
+                          </div>
                         </td>
                       </tr>
                     );
