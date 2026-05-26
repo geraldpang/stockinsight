@@ -16,7 +16,8 @@ var _CLR = {
 };
 function revStatusColor(status, variant) {
   var v = variant||"main";
-  if (!status) return _CLR.grey[v];
+  if (!status) return v==="darkbg"?"#1a1a1a":_CLR.grey[v];
+  if (v==="darkbg") return summaryCardDark(status).bg;
   if (status.startsWith("Bullish")&&(status.includes("Confirmed")||status.includes("Triggered")||status.includes("Forming")||status.includes("Confirming"))) return _CLR.green[v];
   if (status.startsWith("Bullish")&&(status.includes("Watch")||status.includes("Spark"))) return _CLR.blue[v];
   if (status.startsWith("Bearish")&&(status.includes("Confirmed")||status.includes("Triggered")||status.includes("Forming"))) return _CLR.red[v];
@@ -39,7 +40,8 @@ function revDirLabelColor(lbl, isBullish, variant) {
 }
 function smfStatusColor(status, variant) {
   var v = variant||"main";
-  if (!status) return _CLR.grey[v];
+  if (!status) return v==="darkbg"?"#1a1a1a":_CLR.grey[v];
+  if (v==="darkbg") return summaryCardDark(status).bg;
   if (status==="Strong Multi-Timeframe Flow"||status==="Accumulation Trend Positive") return _CLR.green[v];
   if (status==="Constructive but Cooling"||status==="Early Accumulation") return _CLR.blue[v];
   if (status==="Short-Term Spike") return _CLR.amber[v];
@@ -1012,6 +1014,41 @@ function CalcPanel({ currentPrice, onClose }) {
 
 // ── Data adapter: converts Massive data to technicalSignals.js snapshot format ──
 // This is a data adapter only — no technical calculations performed here.
+// ── Unified dark summary card colour helper ──────────────────────────────────
+// Maps any verdict/status string to a consistent dark-bg/border/text triplet.
+// Used by all 7 tab summary cards.
+function summaryCardDark(verdict) {
+  if (!verdict) return { bg:'#1a1a1a', bd:'#333', text:'#666' };
+  var v = verdict.toLowerCase();
+  // Tier 1 — exceptional / wide / strong uptrend / strong (momentum) / confirmed
+  if (v.indexOf('exceptional')!==-1 || v.indexOf('wide')!==-1 ||
+      v.indexOf('strong uptrend')!==-1 || v.indexOf('strong multi')!==-1 ||
+      v.indexOf('accumulation trend')!==-1 ||
+      (v.indexOf('confirmed')!==-1 && v.indexOf('bullish')!==-1))
+    return { bg:'#0d200d', bd:'#7abd00', text:'#7abd00' };
+  // Tier 2 — strong / uptrend / building / undervalued / bullish triggered/forming/confirming
+  if (v.indexOf('strong')!==-1 || v.indexOf('uptrend')!==-1 ||
+      v.indexOf('building')!==-1 || v.indexOf('undervalued')!==-1 ||
+      v.indexOf('triggered')!==-1 || v.indexOf('forming')!==-1 ||
+      v.indexOf('confirming')!==-1)
+    return { bg:'#0f2010', bd:'#9acd50', text:'#9acd50' };
+  // Tier 3 — moderate / neutral / sideways / watch / spark / early / constructive / fair / premium
+  if (v.indexOf('moderate')!==-1 || v.indexOf('neutral')!==-1 ||
+      v.indexOf('sideways')!==-1 || v.indexOf('mixed')!==-1 ||
+      v.indexOf('watch')!==-1 || v.indexOf('spark')!==-1 ||
+      v.indexOf('constructive')!==-1 || v.indexOf('early')!==-1 ||
+      v.indexOf('fair')!==-1 || v.indexOf('premium')!==-1 ||
+      v.indexOf('short-term spike')!==-1)
+    return { bg:'#1e1800', bd:'#EF9F27', text:'#EF9F27' };
+  // Tier 4 — weak / fading / downtrend / narrow / poor
+  if (v.indexOf('weak')!==-1 || v.indexOf('fading')!==-1 ||
+      v.indexOf('downtrend')!==-1 || v.indexOf('narrow')!==-1 ||
+      v.indexOf('poor')!==-1 || v.indexOf('overvalued')!==-1 ||
+      (v.indexOf('bearish')!==-1))
+    return { bg:'#200808', bd:'#e05050', text:'#e05050' };
+  return { bg:'#1a1a1a', bd:'#333', text:'#666' };
+}
+
 function buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData) {
   if (!massiveInfo || !q) return null;
   var rawAggs = massiveInfo.aggs || [];
@@ -2847,7 +2884,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.31</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.32</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2901,7 +2938,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.31</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.32</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3791,14 +3828,28 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         else if (!isUnder && pct <= 10){ bannerLabel="Premium";     bannerBg="#FAEEDA"; bannerBorder="#d4a800"; bannerFg="#b88000"; }
                         else                           { bannerLabel="Overvalued";  bannerBg="#FCEBEB"; bannerBorder="#e08080"; bannerFg="#c03030"; }
                         var bannerSub = pct + "% " + (isUnder ? "discount" : "premium") + " ($" + Math.round(iv) + ")";
+                        var _ivc = summaryCardDark(bannerLabel);
                         return (
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:bannerBg, borderRadius:8, marginBottom:16, border:"0.5px solid " + bannerBorder }}>
-                            <div>
-                              <div style={{ fontSize:10, color:bannerFg, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Intrinsic Value</div>
-                              <div style={{ fontSize:15, fontWeight:500, color:bannerFg }}>{bannerLabel}</div>
-                              <div style={{ fontSize:11, color:bannerFg, marginTop:2, opacity:0.85 }}>{bannerSub}</div>
+                          <div style={{ background:_ivc.bg, border:"0.5px solid "+_ivc.bd, borderRadius:10, padding:"14px 16px", marginBottom:16 }}>
+                            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                              <div style={{ flex:1 }}>
+                                <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>{"Intrinsic Value"}</div>
+                                <div style={{ fontSize:15, fontWeight:700, color:_ivc.text, marginBottom:4 }}>{bannerLabel}</div>
+                                <div style={{ fontSize:11, color:"#888", lineHeight:1.4 }}>{bannerSub}</div>
+                              </div>
+                              <div style={{ flexShrink:0, paddingLeft:16, textAlign:"right" }}>
+                                <div style={{ fontSize:28, fontWeight:800, color:_ivc.text, lineHeight:1 }}>{"$"+oracle}</div>
+                                <div style={{ fontSize:10, color:"#888", marginTop:2 }}>{"avg IV"}</div>
+                              </div>
                             </div>
-                            <div style={{ fontSize:20, fontWeight:500, color:bannerFg }}>${oracle}</div>
+                            <div style={{ borderTop:"0.5px solid "+_ivc.bd+"44", paddingTop:8 }}>
+                              <details>
+                                <summary style={{ fontSize:10, color:"#777", cursor:"pointer", outline:"none", listStyle:"none", display:"flex", alignItems:"center", gap:4 }}>
+                                  <span style={{ fontSize:9 }}>{"▶"}</span><span>{"How is this scored?"}</span>
+                                </summary>
+                                <div style={{ fontSize:10, color:"#666", lineHeight:1.8, padding:"6px 0", whiteSpace:"pre-line" }}>{"Intrinsic value = average of applicable models:\n\n  Cash Flow Model (20Y) — based on Operating Cash Flow\n  Earnings Model (20Y) — based on Net Income\n  Net Income Model (20Y) — per-share NI, no debt bridge\n  Gordon Growth Model — FCF per share + terminal value\n  Revenue Valuation (P/S) — Revenue per share × P/S ratio\n  Price/Book Model — Sector P/B × Book Value per share\n    (Financial, Healthcare, Consumer sectors only)\n\nGrowth rate uses longest positive EPS streak CAGR (capped 25%).\nDiscount rate = WACC adjusted for sector and debt.\n\nDiscount / Premium = (IV − Price) ÷ IV × 100:\n  Exceptional > +20%  ·  Undervalued +5–20%  ·  Fair 0–5%\n  Premium 0–10%  ·  Overvalued > +10%"}</div>
+                              </details>
+                            </div>
                           </div>
                         );
                       })()}
@@ -4232,19 +4283,29 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         return (
                           <div>
                             {pi.classification && (function(){
-                              var _fc = fsCol(pi.classification);
+                              var _mc = summaryCardDark(pi.classification);
                               return (
-                                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:_fc.bg, borderRadius:8, marginBottom:16, border:"0.5px solid "+_fc.border }}>
-                                  <div>
-                                    <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Economic Moat Rating</div>
-                                    <div style={{ fontSize:15, fontWeight:700, color:_fc.text }}>{pi.classification}</div>
-                                    {pi.explanation ? <div style={{ fontSize:11, color:"#555", marginTop:2, maxWidth:400 }}>{pi.explanation}</div> : null}
+                                  <div style={{ background:_mc.bg, border:"0.5px solid "+_mc.bd, borderRadius:10, padding:"14px 16px", marginBottom:16 }}>
+                                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom: pi.explanation ? 10 : 0 }}>
+                                      <div>
+                                        <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>Economic Moat</div>
+                                        <div style={{ fontSize:15, fontWeight:700, color:_mc.text }}>{pi.classification}</div>
+                                      </div>
+                                      <div style={{ flexShrink:0, paddingLeft:16, textAlign:"right" }}>
+                                        <DotBar score={pi.score} classification={pi.classification} />
+                                      </div>
+                                    </div>
+                                    {pi.explanation && <div style={{ fontSize:12, color:"#aaa", lineHeight:1.7, marginBottom:10 }}>{pi.explanation}</div>}
+                                    <div style={{ borderTop:"0.5px solid "+_mc.bd+"44", paddingTop:8 }}>
+                                      <details>
+                                        <summary style={{ fontSize:10, color:"#777", cursor:"pointer", outline:"none", listStyle:"none", display:"flex", alignItems:"center", gap:4 }}>
+                                          <span style={{ fontSize:9 }}>{"▶"}</span><span>{"How is this scored?"}</span>
+                                        </summary>
+                                        <div style={{ fontSize:10, color:"#666", lineHeight:1.8, padding:"6px 0", whiteSpace:"pre-line" }}>{"Each moat driver is scored 0–5 by the AI model and combined into an overall rating.\n\nDrivers assessed:\n  Network Effects · Switching Costs · Cost Advantage\n  Intangible Assets · Efficient Scale · Ecosystem Lock-in\n\nFinal rating = weighted average of all driver scores (equal weight):\n  Wide (4.3–5.0)  ·  Strong (3.5–4.2)  ·  Moderate (2.5–3.4)\n  Narrow (1.5–2.4)  ·  Weak (0–1.4)"}</div>
+                                      </details>
+                                    </div>
                                   </div>
-                                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                                    <DotBar score={pi.score} classification={pi.classification} />
-                                  </div>
-                                </div>
-                              );
+                                  );
                             })()}
                             {parsed.sections.map(function(sec, i) {
                               return (
@@ -4406,20 +4467,31 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                         return (
                           <div>
-                            {_computedClass && (
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:fc.bg, borderRadius:8, marginBottom:14, border:"0.5px solid "+fc.border }}>
-                                <div>
-                                  <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Financial Strength</div>
-                                  <div style={{ fontSize:15, fontWeight:700, color:fc.text }}>{_computedClass}</div>
-                                  <div style={{ fontSize:10, color:fc.text, opacity:0.7, marginTop:2 }}>
-                                    {"avg score " + _gridAvg.toFixed(1) + " / 5  from " + _gridScores.length + " metric" + (_gridScores.length!==1?"s":"") + " with data"}
+                            {_computedClass && (function(){
+                              var _fc2 = summaryCardDark(_computedClass);
+                              return (
+                              <div style={{ background:_fc2.bg, border:"0.5px solid "+_fc2.bd, borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
+                                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                                  <div style={{ flex:1 }}>
+                                    <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>{"Financial Strength"}</div>
+                                    <div style={{ fontSize:15, fontWeight:700, color:_fc2.text, marginBottom:4 }}>{_computedClass}</div>
+                                    <div style={{ fontSize:11, color:"#888", lineHeight:1.4 }}>{"avg score "+_gridAvg.toFixed(1)+" / 5 from "+_gridScores.length+" metrics"}</div>
+                                  </div>
+                                  <div style={{ flexShrink:0, paddingLeft:16, display:"flex", gap:3, alignItems:"center" }}>
+                                    {[1,2,3,4,5].map(function(d){ return <span key={d} style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:d<=_computedScore?_fc2.text:"#333" }} />; })}
                                   </div>
                                 </div>
-                                <div style={{ display:"flex", gap:3 }}>
-                                  {[1,2,3,4,5].map(function(d){ return <span key={d} style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:d<=_computedScore?fc.text:"#ddd" }} />; })}
+                                <div style={{ borderTop:"0.5px solid "+_fc2.bd+"44", paddingTop:8 }}>
+                                  <details>
+                                    <summary style={{ fontSize:10, color:"#777", cursor:"pointer", outline:"none", listStyle:"none", display:"flex", alignItems:"center", gap:4 }}>
+                                      <span style={{ fontSize:9 }}>{"▶"}</span><span>{"How is this scored?"}</span>
+                                    </summary>
+                                    <div style={{ fontSize:10, color:"#666", lineHeight:1.8, padding:"6px 0", whiteSpace:"pre-line" }}>{"11 financial metrics are each scored 1–5 using sector-aware benchmarks, then averaged.\n\nMargins: Gross Margin · Operating Margin · Net Profit Margin\nEfficiency: Return on Equity\nLiquidity: Current Ratio · Quick Ratio\nCash Generation: Free Cash Flow\nLeverage: Debt/Equity · Debt/EBITDA · Debt/Cash Flow\nGrowth: Revenue Growth YoY\n\nFinal classification:\n  Exceptional ≥4.0 · Strong ≥3.0 · Moderate ≥2.0 · Weak ≥1.0 · Poor <1.0\n\nOnly metrics with available data are included."}</div>
+                                  </details>
                                 </div>
                               </div>
-                            )}
+                              );
+                            })()}
                             <div style={{ border:"1px solid #f0ede6", borderRadius:10, overflow:"hidden", marginBottom:14 }}>
                               <div style={{ padding:"8px 14px", background:"#f5f2ec", borderBottom:"1px solid #e8e4de", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                                 <span style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em" }}>Financial Health</span>
@@ -6358,18 +6430,29 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var _tsbd=_ts2>=70?"#7abd00":_ts2>=55?"#9ab800":_ts2>=40?"#d4a800":"#e08080";
                           var _tsLong=_ts2>=70?"The overall price trend is strong and bullish. The stock is well-positioned above its key moving averages.":_ts2>=55?"The trend is positive. Price is holding above key averages with momentum on its side.":_ts2>=40?"The trend is mixed or sideways. No clear directional bias from moving averages.":_ts2>=25?"The trend is weak. Price is struggling below key averages.":"The trend is strongly bearish. Price is well below key averages across multiple timeframes.";
                           return (
-                            <div style={{padding:"12px 14px",background:_tsbg,borderRadius:8,marginBottom:14,border:"0.5px solid "+_tsbd}}>
-                              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-                                <div>
-                                  <div style={{fontSize:10,color:"#888",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Trend / Price Action</div>
-                                  <div style={{fontSize:15,fontWeight:700,color:_tsc}}>{_tl2}</div>
+                            <div style={{ background:summaryCardDark(_tl2).bg, border:"0.5px solid "+summaryCardDark(_tl2).bd, borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                                <div style={{ flex:1 }}>
+                                  <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>{"Trend / Price Action"}</div>
+                                  <div style={{ fontSize:15, fontWeight:700, color:summaryCardDark(_tl2).text, marginBottom:4 }}>{_tl2}</div>
+                                  <div style={{ fontSize:11, color:"#888", lineHeight:1.4 }}>{_tsLong}</div>
                                 </div>
-                                <div style={{textAlign:"right"}}>
-                                  <div style={{fontSize:10,color:"#888",marginBottom:3}}>{_ts2 + " / 100"}</div>
-                                  <div style={{display:"flex",gap:3}}>{[1,2,3,4,5].map(function(i){return (<span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:i<=_td2?_tsc:"#ddd"}}/>);})}</div>
+                                <div style={{ flexShrink:0, paddingLeft:16, textAlign:"right" }}>
+                                  <div style={{ fontSize:28, fontWeight:800, color:summaryCardDark(_tl2).text, lineHeight:1 }}>{_ts2}</div>
+                                  <div style={{ fontSize:10, color:"#888", marginTop:2 }}>{"/ 100"}</div>
+                                  <div style={{ display:"flex", gap:3, justifyContent:"flex-end", marginTop:4 }}>
+                                    {[1,2,3,4,5].map(function(i){ return <span key={i} style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:i<=_td2?summaryCardDark(_tl2).text:"#333" }} />; })}
+                                  </div>
                                 </div>
                               </div>
-                              <div style={{fontSize:11,color:"#555",lineHeight:1.5}}>{_tsLong}</div>
+                              <div style={{ borderTop:"0.5px solid "+summaryCardDark(_tl2).bd+"44", paddingTop:8 }}>
+                                <details>
+                                  <summary style={{ fontSize:10, color:"#777", cursor:"pointer", outline:"none", listStyle:"none", display:"flex", alignItems:"center", gap:4 }}>
+                                    <span style={{ fontSize:9 }}>{"▶"}</span><span>{"How is this scored?"}</span>
+                                  </summary>
+                                  <div style={{ fontSize:10, color:"#666", lineHeight:1.8, padding:"6px 0", whiteSpace:"pre-line" }}>{"Weighted average of 5 price-action indicators (total 100 pts):\n\n  Weekly SMA cross (WSMA10 vs WSMA40)     30 pts\n  Price vs SMA200                          30 pts\n  Golden / Death cross (SMA50 vs SMA200)   20 pts\n  Price vs EMA20                           10 pts\n  Price vs SMA50                           10 pts\n\nEach indicator scores 1–5; score = (raw/5) × weight, summed.\n  Strong Uptrend ≥70 · Uptrend ≥55 · Sideways ≥40\n  Downtrend ≥25 · Strong Downtrend <25"}</div>
+                                </details>
+                              </div>
                             </div>
                           );
                         })()}
@@ -6568,22 +6651,33 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var _msbd=_ms2>=65?"#7abd00":_ms2>=50?"#d4a800":"#e08080";
                           var _msLong=_ms2>=80?"Momentum is strong. Buying pressure is dominant across RSI, MACD and rate of change.":_ms2>=65?"Momentum is building. More signals are bullish than bearish.":_ms2>=50?"Momentum is neutral. Mixed signals -- no clear buying or selling dominance.":_ms2>=35?"Momentum is fading. Selling pressure is outweighing buying across most signals.":"Momentum is weak. Bearish signals dominate -- buyers are not in control.";
                           return (
-                            <div style={{padding:"12px 14px",background:_msbg,borderRadius:8,marginBottom:14,border:"0.5px solid "+_msbd}}>
-                              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-                                <div>
-                                  <div style={{fontSize:10,color:"#888",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Momentum</div>
-                                  <div style={{fontSize:15,fontWeight:700,color:_msc}}>{_ml2}</div>
+                            <div style={{ background:summaryCardDark(_ml2).bg, border:"0.5px solid "+summaryCardDark(_ml2).bd, borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                                <div style={{ flex:1 }}>
+                                  <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>{"Momentum"}</div>
+                                  <div style={{ fontSize:15, fontWeight:700, color:summaryCardDark(_ml2).text, marginBottom:4 }}>{_ml2}</div>
+                                  <div style={{ fontSize:11, color:"#888", lineHeight:1.4 }}>{_msLong}</div>
                                 </div>
-                                <div style={{textAlign:"right"}}>
-                                  <div style={{fontSize:10,color:"#888",marginBottom:3}}>{_ms2 + " / 100"}</div>
-                                  <div style={{display:"flex",gap:3}}>{[1,2,3,4,5].map(function(i){return (<span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:i<=_md2?_msc:"#ddd"}}/>);})}</div>
+                                <div style={{ flexShrink:0, paddingLeft:16, textAlign:"right" }}>
+                                  <div style={{ fontSize:28, fontWeight:800, color:summaryCardDark(_ml2).text, lineHeight:1 }}>{_ms2}</div>
+                                  <div style={{ fontSize:10, color:"#888", marginTop:2 }}>{"/ 100"}</div>
+                                  <div style={{ display:"flex", gap:3, justifyContent:"flex-end", marginTop:4 }}>
+                                    {[1,2,3,4,5].map(function(i){ return <span key={i} style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:i<=_md2?summaryCardDark(_ml2).text:"#333" }} />; })}
+                                  </div>
                                 </div>
                               </div>
-                              <div style={{fontSize:11,color:"#555",lineHeight:1.5}}>{_msLong}</div>
+                              <div style={{ borderTop:"0.5px solid "+summaryCardDark(_ml2).bd+"44", paddingTop:8 }}>
+                                <details>
+                                  <summary style={{ fontSize:10, color:"#777", cursor:"pointer", outline:"none", listStyle:"none", display:"flex", alignItems:"center", gap:4 }}>
+                                    <span style={{ fontSize:9 }}>{"▶"}</span><span>{"How is this scored?"}</span>
+                                  </summary>
+                                  <div style={{ fontSize:10, color:"#666", lineHeight:1.8, padding:"6px 0", whiteSpace:"pre-line" }}>{"Weighted average of 3 momentum indicators (total 100 pts):\n\n  RSI-14 (direction-aware)    40 pts\n  MACD histogram              40 pts\n  Rate of Change vs SMA5      20 pts\n\nEach indicator scores 1–5; score = (raw/5) × weight, summed.\nRSI is direction-penalised: an overbought RSI that is turning down\nscores lower than a rising RSI at the same level.\n\n  Strong ≥80 · Building ≥65 · Neutral ≥50 · Fading ≥35 · Weak <35"}</div>
+                                </details>
+                              </div>
                             </div>
                           );
                         })()}
-                        <div style={{border:"1px solid #e0dbd0",borderRadius:8,marginBottom:10}}>
+                                                <div style={{border:"1px solid #e0dbd0",borderRadius:8,marginBottom:10}}>
                           {(function(){
                             // Direction: avg(T-0,T-1) vs avg(T-2..T-6)
                             var _rsiHist = ind.rsiHistory || [];
@@ -7175,7 +7269,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     return (
                       <div>
                         {/* Summary Card */}
-                        <div style={{border:"0.5px solid "+statusBd,borderRadius:10,background:statusBg,padding:"14px 16px",marginBottom:16}}>
+                        <div style={{border:"0.5px solid "+statusBd,borderRadius:10,background:revStatusColor(revStatus.status,"darkbg"),padding:"14px 16px",marginBottom:16}}>
                           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                             <div style={{flex:1}}>
                               <div style={{fontSize:10,fontWeight:700,color:"#999",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>Reversal Watch</div>
@@ -7380,7 +7474,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       <div>
                         {/* Summary Card — matches screenshot layout */}
                         {smCard.primaryScore !== null && (
-                          <div style={{ border:"0.5px solid "+_sBd, borderRadius:10, marginBottom:16, background:_sBg, padding:"14px 16px" }}>
+                          <div style={{ border:"0.5px solid "+_sBd, borderRadius:10, marginBottom:16, background:smfStatusColor(smCard.status,"darkbg"), padding:"14px 16px" }}>
                             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                               <div style={{ flex:1 }}>
                                 <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>Smart Money Flow</div>
@@ -8495,21 +8589,30 @@ export function JournalPage() {
 
   async function generateAll() {
     setLoading("generating");
-    for (var i = 0; i < watchlist.length; i++) {
-      await generateSnapshot(watchlist[i].ticker);
+    // Use unique tickers from journal entries (watchlist may be empty)
+    var jTickers = [...new Set(journal.map(function(e){ return e.ticker; }))];
+    var wTickers = watchlist.map(function(w){ return w.ticker; });
+    var allTickers = [...new Set([...wTickers, ...jTickers])];
+    if (allTickers.length === 0) { showToast("No tickers to generate. Add tickers to watchlist first.", "err"); setLoading(""); return; }
+    for (var i = 0; i < allTickers.length; i++) {
+      await generateSnapshot(allTickers[i]);
     }
     setLoading("");
-    showToast("All snapshots generated.", "ok");
+    showToast("All snapshots generated (" + allTickers.length + " tickers).", "ok");
   }
 
   async function updateFutureReturns() {
     setLoading("future");
-    var tickers = [...new Set(watchlist.map(function(w){ return w.ticker; }))];
-    for (var tk of tickers) {
+    // Use unique tickers from journal + watchlist (watchlist may be empty)
+    var jTickers = [...new Set(journal.map(function(e){ return e.ticker; }))];
+    var wTickers = watchlist.map(function(w){ return w.ticker; });
+    var allTickers = [...new Set([...wTickers, ...jTickers])];
+    if (allTickers.length === 0) { showToast("No tickers found in journal.", "err"); setLoading(""); return; }
+    for (var tk of allTickers) {
       await jFetch("updateFutureReturns", "POST", { ticker:tk });
     }
     setLoading("");
-    showToast("Future returns updated.", "ok");
+    showToast("Future returns updated (" + allTickers.length + " tickers).", "ok");
     loadJournal();
   }
 
@@ -8764,6 +8867,7 @@ export function JournalPage() {
                     <Th col="future_return_20d">20D</Th>
                     <Th col="future_return_30d">30D</Th>
                     <Th col="future_return_60d">60D</Th>
+                    <Th col="future_return_90d">90D</Th>
                     <Th col="max_gain_30d">MaxGain30</Th>
                     <Th col="max_drawdown_30d">MaxDD30</Th>
                     <Th col="bullish_outcome_label">Outcome</Th>
@@ -8781,20 +8885,21 @@ export function JournalPage() {
                         <td style={{ padding:"7px 10px", fontWeight:700, color:"#c8f000" }}>{r.ticker}</td>
                         <td style={{ padding:"7px 10px", color:"#f0ede6" }}>${r.close_price?.toFixed(2)}</td>
                         <td style={{ padding:"7px 10px" }}>{StatusBadge(r.trend_status, r.trend_score>=55?"#7abd00":r.trend_score>=40?"#EF9F27":"#e05050")}</td>
-                        <td style={{ padding:"7px 10px", color:scoreColor(r.trend_score), fontWeight:600 }}>{r.trend_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"7px 10px", color:"#aaa", fontWeight:500 }}>{r.trend_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"7px 10px" }}>{StatusBadge(r.momentum_status, r.momentum_score>=65?"#7abd00":r.momentum_score>=50?"#EF9F27":"#e05050")}</td>
-                        <td style={{ padding:"7px 10px", color:scoreColor(r.momentum_score), fontWeight:600 }}>{r.momentum_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"7px 10px", color:"#aaa", fontWeight:500 }}>{r.momentum_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"7px 10px", color:r.rsi_value>70?"#EF9F27":r.rsi_value>=50?"#7abd00":r.rsi_value>=30?"#888":"#e05050" }}>{r.rsi_value?.toFixed(1)||"—"}</td>
                         <td style={{ padding:"7px 10px", fontSize:10, color:revCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.reversal_status||"—"}</td>
-                        <td style={{ padding:"7px 10px", color:scoreColor(r.bullish_reversal_score) }}>{r.bullish_reversal_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"7px 10px", color:scoreColor(r.bearish_reversal_score) }}>{r.bearish_reversal_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"7px 10px", color:"#aaa" }}>{r.bullish_reversal_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"7px 10px", color:"#aaa" }}>{r.bearish_reversal_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"7px 10px", fontSize:10, color:smfCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.smart_money_status||"—"}</td>
-                        <td style={{ padding:"7px 10px", color:scoreColor(r.smart_money_score), fontWeight:600 }}>{r.smart_money_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"7px 10px", color:"#aaa", fontWeight:500 }}>{r.smart_money_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_5d)}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_10d)}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_20d)}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_30d)}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_60d)}</td>
+                        <td style={{ padding:"7px 10px" }}>{FmtReturn(r.future_return_90d)}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.max_gain_30d)}</td>
                         <td style={{ padding:"7px 10px" }}>{FmtReturn(r.max_drawdown_30d)}</td>
                         <td style={{ padding:"7px 10px" }}>{OutcomeBadge(r.bullish_outcome_label)}</td>
@@ -9321,7 +9426,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.31</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.32</span>
           </div>
         </div>
 
