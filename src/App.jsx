@@ -8839,19 +8839,6 @@ export function JournalPage() {
                         style={{ background:"none", border:"none", color:"#555", cursor:"pointer", fontSize:14, padding:0 }}>✕</button>
                     </div>
                     {w.last_close_price && <div style={{ fontSize:12, color:"#888", marginBottom:4 }}>${parseFloat(w.last_close_price).toFixed(2)} · {w.last_snapshot_date||"No snapshot"}</div>}
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:4, marginBottom:8 }}>
-                      {[["Trend", w.latest_trend_status, w.latest_trend_score],
-                        ["Mom.", w.latest_momentum_status, w.latest_momentum_score]].map(function(row) {
-                        return <div key={row[0]} style={{ background:"#111", borderRadius:4, padding:"4px 6px" }}>
-                          <div style={{ fontSize:9, color:"#555", textTransform:"uppercase" }}>{row[0]}</div>
-                          <div style={{ fontSize:10, fontWeight:600, color:scoreColor(row[2]) }}>{row[1]||"—"}</div>
-                        </div>;
-                      })}
-                    </div>
-                    <button onClick={function(){ generateSnapshot(w.ticker); }} disabled={isGen}
-                      style={{ width:"100%", background:isGen?"#1a1a18":"#1a2a10", border:"0.5px solid "+(isGen?"#333":"#2a5020"), borderRadius:6, color:isGen?"#555":"#7abd00", fontSize:11, fontWeight:700, padding:"6px", cursor:isGen?"not-allowed":"pointer" }}>
-                      {isGen ? "Generating..." : "⚡ Refresh Snapshot"}
-                    </button>
                   </div>
                 );
               })}
@@ -8953,7 +8940,7 @@ export function JournalPage() {
                           <div style={{ display:"flex", gap:4, alignItems:"center" }}>
                             <button onClick={function(){ generateSnapshot(r.ticker); }}
                               disabled={!!generating[r.ticker]}
-                              title={"Snapshot " + r.ticker + " today"}
+                              title={"Generate today's snapshot for " + r.ticker}
                               style={{ background:"none", border:"0.5px solid #1a3a1a", borderRadius:4, color:generating[r.ticker]?"#444":"#5a9a40", fontSize:11, cursor:generating[r.ticker]?"not-allowed":"pointer", padding:"2px 7px", lineHeight:1 }}>
                               {generating[r.ticker] ? "…" : "⚡"}
                             </button>
