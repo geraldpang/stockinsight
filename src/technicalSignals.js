@@ -494,21 +494,51 @@ export function calcReversalWatch(bars, ind, meta) {
 
   function dirStatus(ss, ts, cs, dir) {
     var s = ss||0, t = ts||0, c = cs||0;
+    // Strict textbook confirmation — all three stages strongly aligned. Unchanged.
     if (s >= 60 && t >= 60 && cs !== null && c >= 70) return dir + ' Reversal Confirmed';
+    // Setup-led triggered reversal — textbook sequence with partial confirmation.
     if (s >= 60 && t >= 60 && cs !== null && c >= 40) return dir + ' Reversal Triggered';
-    if (s >= 60 && t >= 60)                           return dir + ' Reversal Forming';
-    if (s >= 40)                                      return dir + ' Reversal Watch';
+    // Practical confirming — trigger and price action aligning even if setup has faded.
+    // Bullish only in this iteration; bearish equivalent to be added later.
+    if (dir === 'Bullish' && t >= 60 && cs !== null && c >= 40) return 'Bullish Reversal Confirming';
+    // Setup and trigger aligned, confirmation not yet appeared.
+    if (s >= 60 && t >= 60) return dir + ' Reversal Forming';
+    // Early spark — momentum has started turning before full setup or confirmation is available.
+    // Bullish only in this iteration; bearish equivalent to be added later.
+    if (dir === 'Bullish' && t >= 60 && c < 40) return 'Early Bullish Reversal Spark';
+    // Setup-led watch — early conditions appearing but trigger and confirmation still limited.
+    if (s >= 40) return dir + ' Reversal Watch';
     return 'No Signal';
   }
 
   var bs = bullishScore||0, bes = bearishScore||0;
   var diff = bs - bes;
+
+  // Practical bullish early/confirming stages — bearish equivalents to be added in a future step.
+  // earlyBullSpark: trigger has fired before full setup or confirmation is available,
+  //   and bullish is not clearly dominated by bearish.
+  var earlyBullSpark = bTrigger !== null && bTrigger >= 60 && (bConfirm||0) < 40 && bs >= bes - 15;
+  // bullConfirming: trigger is strong and price action is beginning to validate the reversal,
+  //   even if the classic setup has faded.
+  var bullConfirming = bTrigger !== null && bTrigger >= 60 && bConfirm !== null && bConfirm >= 40 && bs >= bes - 10;
+
   var status;
-  if (bs < 21 && bes < 21) status = 'No Clear Reversal';
-  else if (bs >= 40 && bes >= 40 && Math.abs(diff) <= 15) status = 'Mixed Reversal Signals';
-  else if (diff > 15) status = dirStatus(bSetup, bTrigger, bConfirm, 'Bullish');
-  else if (diff < -15) status = dirStatus(dSetup, dTrigger, dConfirm, 'Bearish');
-  else status = 'Mixed Reversal Signals';
+  if (bs < 21 && bes < 21) {
+    status = 'No Clear Reversal';
+  } else if (bullConfirming && !earlyBullSpark) {
+    // Note: bullConfirming and earlyBullSpark are mutually exclusive (confirm >= 40 vs < 40)
+    status = 'Bullish Reversal Confirming';
+  } else if (earlyBullSpark) {
+    status = 'Early Bullish Reversal Spark';
+  } else if (bs >= 40 && bes >= 40 && Math.abs(diff) <= 15) {
+    status = 'Mixed Reversal Signals';
+  } else if (diff > 15) {
+    status = dirStatus(bSetup, bTrigger, bConfirm, 'Bullish');
+  } else if (diff < -15) {
+    status = dirStatus(dSetup, dTrigger, dConfirm, 'Bearish');
+  } else {
+    status = 'Mixed Reversal Signals';
+  }
 
   var primaryScore = bs > bes ? bullishScore : bearishScore;
 
@@ -646,4 +676,262 @@ export function getBearishOutcomeLabel(futureReturn20d) {
 export function getFutureReturn(snapshotClose, futureClose) {
   if (!snapshotClose || !futureClose) return null;
   return parseFloat(((futureClose - snapshotClose) / snapshotClose * 100).toFixed(2));
+}
+
+// ─── Reversal scoring helpers (Detail page tab + sidebar pre-compute) ─────────
+// These mirror the Reversal tab's inline scoring functions exactly so that
+// the sidebar pre-computation and the tab always produce identical values.
+
+export function calcRStageScore(inds) {
+  var avail = inds.filter(function(i) { return i.score !== null; });
+  if (avail.length === 0) return null;
+  return Math.round(avail.reduce(function(s, i) { return s + i.score; }, 0) / avail.length);
+}
+
+export function calcRWeightedScore(stages) {
+  var avail = stages.filter(function(s) { return s.score !== null; });
+  if (avail.length === 0) return null;
+  var totalW = avail.reduce(function(s, st) { return s + st.weight; }, 0);
+  return Math.round(avail.reduce(function(s, st) { return s + st.score * (st.weight / totalW); }, 0));
+}
+
+export function getReversalDirectionStatus(setupS, trigS, confS, dir) {
+  var s = setupS || 0, t = trigS || 0, c = confS || 0;
+  // Confirmed: strict textbook confirmation — all three stages strongly aligned. Unchanged.
+  if (s >= 60 && t >= 60 && confS !== null && c >= 70)
+    return { label: 'Reversal Confirmed',  expl: dir + ' setup, momentum trigger, and price confirmation are aligned.' };
+  // Triggered: setup-led textbook sequence with partial confirmation.
+  if (s >= 60 && t >= 60 && confS !== null && c >= 40)
+    return { label: 'Reversal Triggered',  expl: dir + ' momentum appears to be turning with some supporting confirmation.' };
+  // Confirming: trigger and price action aligning even if setup has faded.
+  // Bullish only in this iteration; bearish equivalent to be added later.
+  if (dir === 'Bullish' && t >= 60 && confS !== null && c >= 40)
+    return { label: 'Reversal Confirming', expl: 'Price action is beginning to validate the reversal, even though the classic setup may have faded.' };
+  // Forming: setup and trigger aligned, confirmation not yet appeared.
+  if (s >= 60 && t >= 60)
+    return { label: 'Reversal Forming',    expl: dir + ' setup and momentum trigger are positive, but price confirmation is still missing.' };
+  // Early Spark: momentum has started turning before full setup or confirmation is available.
+  // Bullish only in this iteration; bearish equivalent to be added later.
+  if (dir === 'Bullish' && t >= 60 && c < 40)
+    return { label: 'Early Reversal Spark', expl: 'Bullish momentum has started turning before full setup or confirmation is available.' };
+  // Watch: early setup conditions appearing but trigger and confirmation still limited.
+  if (s >= 40)
+    return { label: 'Reversal Watch',      expl: 'Early ' + dir.toLowerCase() + ' reversal conditions may be appearing, but trigger and confirmation are still limited.' };
+  return { label: 'No Signal', expl: '' };
+}
+
+export function getOverallReversalStatus(bS, beS, bsScore, btScore, bcScore, dsScore, dtScore, dcScore) {
+  if (bS === null && beS === null) return { status: 'Not Enough Data', primaryScore: null };
+  var bs = bS || 0, bes = beS || 0;
+  if (bs < 21 && bes < 21) return { status: 'No Clear Reversal', primaryScore: Math.max(bs, bes) };
+  var bullDir = getReversalDirectionStatus(bsScore, btScore, bcScore, 'Bullish');
+  var bearDir = getReversalDirectionStatus(dsScore, dtScore, dcScore, 'Bearish');
+
+  // Practical bullish stages — bearish equivalents to be added in a future step.
+  // bullConfirming and earlyBullSpark are mutually exclusive (bcScore >= 40 vs < 40).
+  var earlyBullSpark = btScore !== null && btScore >= 60 && (bcScore || 0) < 40 && bs >= bes - 15;
+  var bullConfirming = btScore !== null && btScore >= 60 && bcScore !== null && bcScore >= 40 && bs >= bes - 10;
+
+  if (bullConfirming) return { status: 'Bullish Reversal Confirming',  primaryScore: bs };
+  if (earlyBullSpark) return { status: 'Early Bullish Reversal Spark', primaryScore: bs };
+
+  var diff = bs - bes;
+  if (bs >= 40 && bes >= 40 && Math.abs(diff) <= 15) return { status: 'Mixed Reversal Signals', primaryScore: Math.max(bs, bes) };
+  if (diff > 15  && bullDir.label !== 'No Signal')   return { status: 'Bullish ' + bullDir.label, primaryScore: bs };
+  if (diff < -15 && bearDir.label !== 'No Signal')   return { status: 'Bearish ' + bearDir.label, primaryScore: bes };
+  return { status: 'Mixed Reversal Signals', primaryScore: Math.max(bs, bes) };
+}
+
+// ─── SMF (Smart Money Flow) tab functions ────────────────────────────────────
+// Extracted from the SMF (Whale) tab inline code so that both the sidebar
+// pre-computation and the tab itself call the same shared functions.
+
+export function validateSmfOHLCV(ag) {
+  var errors = [];
+  if (!ag || ag.length === 0) {
+    errors.push('No OHLCV data available.');
+    return { isValid: false, hasThirtyDays: false, canCalculateTodaySignal: false, errors: errors };
+  }
+  var valid = ag.filter(function(b) { return b && b.c > 0 && b.h > 0 && b.l > 0 && b.v >= 0; });
+  if (valid.length < 2) errors.push('Fewer than 2 valid trading days.');
+  var hasThirty = valid.length >= 30;
+  var canToday  = valid.length >= 2 && valid.length >= 20;
+  if (!hasThirty) errors.push('Fewer than 30 trading days -- 30-Day Signal unavailable.');
+  return { isValid: valid.length >= 2, hasThirtyDays: hasThirty, canCalculateTodaySignal: canToday, validBars: valid, errors: errors };
+}
+
+export function getSmfScoreLabel(s) {
+  return s >= 86 ? 'Very High' : s >= 71 ? 'High' : s >= 51 ? 'Moderate' : s >= 31 ? 'Mild' : 'Low';
+}
+
+export function calcSmfVolPriceDivergence(today, yesterday, avg30v) {
+  var vRatio = avg30v > 0 ? today.v / avg30v : 0;
+  var pct    = yesterday.c > 0 ? (today.c - yesterday.c) / yesterday.c * 100 : 0;
+  var vTier  = vRatio >= 2.0 ? 'high' : vRatio >= 1.5 ? 'elevated' : vRatio >= 1.0 ? 'normal' : 'low';
+  var pTier  = pct > 3 ? 'strongUp' : pct > 1 ? 'mildUp' : pct > -1 ? 'flat' : pct > -3 ? 'mildDown' : 'strongDown';
+  var matrix = {
+    high:     { strongUp: 65, mildUp: 80, flat: 100, mildDown: 90, strongDown: 10 },
+    elevated: { strongUp: 55, mildUp: 65, flat: 80,  mildDown: 70, strongDown: 15 },
+    normal:   { strongUp: 50, mildUp: 50, flat: 50,  mildDown: 45, strongDown: 30 },
+    low:      { strongUp: 45, mildUp: 45, flat: 40,  mildDown: 40, strongDown: 25 }
+  };
+  var textMap = {
+    'high-flat':          'High volume with flat price -- possible stealth accumulation. Buyers may be absorbing sellers.',
+    'high-mildDown':      'High volume on a slight down day -- possible absorption of selling pressure.',
+    'high-mildUp':        'High volume with steady price rise -- controlled institutional buying.',
+    'high-strongUp':      'High volume on a strong up day -- could be breakout or retail momentum. Ambiguous signal.',
+    'high-strongDown':    'High volume on a down day -- possible distribution. Sellers may be in control.',
+    'elevated-flat':      'Elevated volume with flat price -- mild accumulation signal worth watching.',
+    'elevated-mildDown':  'Elevated volume on a slight pullback -- possible quiet buying into weakness.',
+    'elevated-mildUp':    'Elevated volume with mild price gain -- modest buying activity.',
+    'elevated-strongUp':  'Elevated volume on a strong up day -- momentum with some conviction.',
+    'elevated-strongDown':'Elevated volume selling -- caution.'
+  };
+  var key = vTier + '-' + pTier;
+  var explanation = textMap[key] || (vTier === 'normal' || vTier === 'low' ? 'Volume is not elevated. No unusual activity detected from price-volume behaviour.' : 'No clear signal from this combination.');
+  return { score: matrix[vTier][pTier], vTier: vTier, pTier: pTier, vRatio: vRatio, pct: pct, explanation: explanation };
+}
+
+export function calcSmfTodaySignal(bars) {
+  var n = bars.length;
+  var today = bars[n - 1], yesterday = bars[n - 2];
+  var avg30v = bars.slice(Math.max(0, n - 30)).reduce(function(s, b) { return s + b.v; }, 0) / Math.min(n, 30);
+  var obv = calcOBV(bars);
+
+  var obvDayChange = obv[n - 1] - obv[n - 2];
+  var obvDayRatio  = avg30v > 0 ? obvDayChange / avg30v : 0;
+  var obvDir       = obvDayRatio > 1.0 ? 100 : obvDayRatio > 0.3 ? 75 : obvDayRatio > -0.3 ? 50 : obvDayRatio > -1.0 ? 25 : 0;
+  var obvDirExpl   = obvDayRatio > 1.0 ? 'Strong buying day -- OBV rose by more than one average day of volume.' :
+                     obvDayRatio > 0.3 ? 'Mild buying day -- OBV rose on moderate volume.' :
+                     obvDayRatio > -0.3 ? 'Balanced -- buying and selling roughly equal today.' :
+                     obvDayRatio > -1.0 ? 'Mild selling day -- OBV fell on moderate volume.' :
+                                          'Strong selling day -- OBV fell by more than one average day of volume.';
+
+  var vRatio   = avg30v > 0 ? today.v / avg30v : 0;
+  var volScore = vRatio >= 3.0 ? 100 : vRatio >= 2.0 ? 75 : vRatio >= 1.5 ? 50 : vRatio >= 1.2 ? 25 : 0;
+
+  var vpd = calcSmfVolPriceDivergence(today, yesterday, avg30v);
+
+  var rng        = today.h - today.l;
+  var closePos   = rng > 0 ? (today.c - today.l) / rng : 0.5;
+  var closeScore = closePos > 0.85 ? 100 : closePos > 0.7 ? 80 : closePos > 0.5 ? 60 : closePos > 0.3 ? 30 : 0;
+
+  var total = Math.round(obvDir * 0.20 + volScore * 0.30 + vpd.score * 0.35 + closeScore * 0.15);
+  return {
+    score: total, label: getSmfScoreLabel(total),
+    breakdown: [
+      { name: 'OBV Direction',        score: Math.round(obvDir),    weight: 20, explanation: obvDirExpl },
+      { name: 'Volume Surge',         score: Math.round(volScore),  weight: 30,
+        explanation: avg30v > 0 ? 'Volume is ' + vRatio.toFixed(1) + 'x the 30-day average.' : 'Volume data unavailable.' },
+      { name: 'Vol / Price Divergence', score: Math.round(vpd.score), weight: 35, explanation: vpd.explanation },
+      { name: 'Strong Close',         score: Math.round(closeScore), weight: 15,
+        explanation: rng > 0 ? 'Closed at ' + (closePos * 100).toFixed(0) + '% of today\'s range.' : 'No price range today.' }
+    ]
+  };
+}
+
+export function calcSmfFiveDaySignal(bars) {
+  var n = bars.length;
+  var avg30v   = bars.slice(Math.max(0, n - 30)).reduce(function(s, b) { return s + b.v; }, 0) / Math.min(n, 30);
+  var obv      = calcOBV(bars);
+  var obvNet5  = obv[n - 1] - obv[n - 6];
+  var obvNet5Days = avg30v > 0 ? obvNet5 / avg30v : 0;
+  var obv5Score   = obvNet5Days > 2 ? 100 : obvNet5Days > 0 ? 75 : obvNet5Days > -2 ? 50 : obvNet5Days > -4 ? 25 : 0;
+
+  var avg5v    = bars.slice(n - 5).reduce(function(s, b) { return s + b.v; }, 0) / 5;
+  var vRatio5  = avg30v > 0 ? avg5v / avg30v : 0;
+  var volScore5 = vRatio5 >= 2.0 ? 100 : vRatio5 >= 1.5 ? 75 : vRatio5 >= 1.2 ? 50 : vRatio5 >= 1.0 ? 25 : 0;
+
+  var pct5  = bars[n - 6].c > 0 ? (bars[n - 1].c - bars[n - 6].c) / bars[n - 6].c * 100 : 0;
+  var vTier5 = vRatio5 >= 2.0 ? 'high' : vRatio5 >= 1.5 ? 'elevated' : vRatio5 >= 1.0 ? 'normal' : 'low';
+  var pTier5 = pct5 > 3 ? 'strongUp' : pct5 > 1 ? 'mildUp' : pct5 > -1 ? 'flat' : pct5 > -3 ? 'mildDown' : 'strongDown';
+  var matrix5 = { high: { strongUp: 65, mildUp: 80, flat: 100, mildDown: 90, strongDown: 10 }, elevated: { strongUp: 55, mildUp: 65, flat: 80, mildDown: 70, strongDown: 15 }, normal: { strongUp: 50, mildUp: 50, flat: 50, mildDown: 45, strongDown: 30 }, low: { strongUp: 45, mildUp: 45, flat: 40, mildDown: 40, strongDown: 25 } };
+  var vpd5Score = matrix5[vTier5][pTier5];
+  var vpd5Expl  = vTier5 === 'high' && pTier5 === 'flat' ? 'High avg volume with flat 5-day price -- possible short-term accumulation.' :
+                  vTier5 === 'high' && pTier5 === 'mildDown' ? 'High avg volume on slight 5-day decline -- possible absorption.' :
+                  vTier5 === 'high' && pTier5 === 'strongDown' ? 'High volume with falling price over 5 days -- possible distribution.' :
+                  '5-day price ' + (pct5 > 0 ? '+' : '') + pct5.toFixed(1) + '% on ' + vRatio5.toFixed(1) + 'x average volume.';
+
+  var sc5 = 0;
+  for (var i = n - 5; i < n; i++) { var r = bars[i].h - bars[i].l; if (r > 0 && (bars[i].c - bars[i].l) / r > 0.6) sc5++; }
+  var sc5Score = sc5 >= 4 ? 100 : sc5 === 3 ? 75 : sc5 === 2 ? 50 : sc5 === 1 ? 25 : 0;
+
+  var total = Math.round(obv5Score * 0.35 + volScore5 * 0.25 + vpd5Score * 0.25 + sc5Score * 0.15);
+  return {
+    score: total, label: getSmfScoreLabel(total),
+    breakdown: [
+      { name: 'OBV Net (5-day)',      score: Math.round(obv5Score),  weight: 35,
+        explanation: 'Net OBV over 5 days = ' + (obvNet5Days > 0 ? '+' : '') + obvNet5Days.toFixed(1) + ' days of avg volume.' },
+      { name: 'Volume (5-day avg)',   score: Math.round(volScore5),  weight: 25,
+        explanation: '5-day avg volume is ' + vRatio5.toFixed(1) + 'x the 30-day average.' },
+      { name: 'Vol / Price (5-day)',  score: Math.round(vpd5Score),  weight: 25, explanation: vpd5Expl },
+      { name: 'Strong Close (5-day)', score: Math.round(sc5Score),   weight: 15,
+        explanation: sc5 + ' of last 5 days closed in the upper 40% of daily range.' }
+    ]
+  };
+}
+
+export function calcSmfThirtyDaySignal(bars) {
+  var n      = bars.length;
+  var avg30v = bars.slice(n - 30).reduce(function(s, b) { return s + b.v; }, 0) / 30;
+  var obv    = calcOBV(bars);
+
+  var obvChange  = obv[n - 1] - obv[1];
+  var obvInDays  = avg30v > 0 ? obvChange / avg30v : 0;
+  var obvScore   = obvInDays > 5 ? 100 : obvInDays > 0 ? 75 : obvInDays > -5 ? 50 : obvInDays > -10 ? 25 : 0;
+
+  var hvGreen = 0, hvRed = 0;
+  for (var i = n - 29; i < n; i++) {
+    if (bars[i].v > 1.5 * avg30v) {
+      if (bars[i].c > bars[i - 1].c) hvGreen++;
+      else if (bars[i].c < bars[i - 1].c) hvRed++;
+    }
+  }
+  var hvScore = hvGreen >= hvRed * 2 ? 100 : hvGreen > hvRed ? 75 : hvGreen === hvRed ? 50 : hvRed > hvGreen ? 25 : 0;
+
+  var p30 = bars[n - 30].c, pNow = bars[n - 1].c;
+  var pct30 = p30 > 0 ? (pNow - p30) / p30 * 100 : 0;
+  var priceScore = pct30 > 10 ? 100 : pct30 > 0 ? 75 : pct30 > -5 ? 50 : pct30 > -10 ? 25 : 0;
+
+  var scDays = 0;
+  for (var j = n - 30; j < n; j++) { var rng = bars[j].h - bars[j].l; if (rng > 0 && (bars[j].c - bars[j].l) / rng > 0.6) scDays++; }
+  var scFreq  = scDays / 30;
+  var scScore = scFreq > 0.65 ? 100 : scFreq > 0.5 ? 75 : scFreq > 0.4 ? 50 : scFreq > 0.3 ? 25 : 0;
+
+  var total = Math.round(obvScore * 0.40 + hvScore * 0.25 + priceScore * 0.20 + scScore * 0.15);
+  return {
+    score: total, label: getSmfScoreLabel(total),
+    breakdown: [
+      { name: 'OBV Trend (30-day)',        score: Math.round(obvScore),   weight: 40,
+        explanation: 'Net OBV change equals ' + (obvInDays > 0 ? '+' : '') + obvInDays.toFixed(1) + ' days of avg volume.' },
+      { name: 'High-Volume Green Days',    score: Math.round(hvScore),    weight: 25,
+        explanation: hvGreen + ' high-volume up days vs ' + hvRed + ' high-volume down days in 30 sessions.' },
+      { name: 'Price Stability / Strength', score: Math.round(priceScore), weight: 20,
+        explanation: 'Price is ' + (pct30 > 0 ? '+' : '') + pct30.toFixed(1) + '% vs 30 trading days ago.' },
+      { name: 'Strong Close Frequency',   score: Math.round(scScore),    weight: 15,
+        explanation: scDays + ' of 30 days closed in upper 40% of daily range (' + (scFreq * 100).toFixed(0) + '%).' }
+    ]
+  };
+}
+
+export function getSmfOverallStatus(tScore, fScore, dScore) {
+  var tH = tScore >= 71, fH = fScore >= 71, dH = dScore >= 71;
+  if (tH && fH && dH)  return 'Strong Multi-Timeframe Flow';
+  if (!tH && fH && dH) return 'Accumulation Trend Positive';
+  if (dH && !tH && !fH) return 'Constructive but Cooling';
+  if (tH && fH && !dH) return 'Early Accumulation';
+  if (tH && !fH && !dH) return 'Short-Term Spike';
+  return 'No Clear Signal';
+}
+
+export function calcSmfSummaryCard(tScore, fScore, dScore, tSig, fSig, dSig) {
+  var status  = getSmfOverallStatus(tScore || 0, fScore || 0, dScore || 0);
+  var primary = dSig ? dScore : fSig ? fScore : tSig ? tScore : null;
+  return {
+    status: status,
+    primaryScore: primary,
+    todayLabel:      tSig ? getSmfScoreLabel(tScore) : 'N/A',
+    fiveDayLabel:    fSig ? getSmfScoreLabel(fScore) : 'N/A',
+    thirtyDayLabel:  dSig ? getSmfScoreLabel(dScore) : 'N/A'
+  };
 }
