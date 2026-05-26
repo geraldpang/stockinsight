@@ -3344,6 +3344,25 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   var _momCol      = pillColor(_momScore>=65?"buy":_momScore>=50?"hold":"avoid");
                   var _momCaution  = _hasTech ? (window.__momCaution || false) : false;
 
+                  // TechRow — UI display component only (no technical calculations)
+                  function TechRow(p){
+                    var _barPct=Math.min((p.score||0)/5*100,100);
+                    return (
+                      <div onClick={function(){ window.__goToTab && window.__goToTab(p.tab); }}
+                        style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
+                        onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
+                        onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
+                        <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>{p.label}</span>
+                        <span style={{fontSize:12,fontWeight:600,color:p.loading?"#444":(p.valCol||"#aaa"),flex:1}}>{p.loading?"--":(p.value||"--")}</span>
+                        {!p.loading&&(p.score||0)>0&&<span style={{width:52,height:3,background:"#2a2a2a",borderRadius:2,overflow:"hidden",display:"inline-block",marginRight:p.caution?4:8,flexShrink:0}}>
+                          <span style={{display:"block",height:"100%",width:_barPct.toFixed(0)+"%",background:p.dotCol||"#7abd00",borderRadius:2}}></span>
+                        </span>}
+                        {p.caution&&<span style={{fontSize:9,color:"#b88000",marginRight:6,flexShrink:0}}>{"\u26A0"}</span>}
+                        <span style={{fontSize:11,color:"#444"}}>{"\u203A"}</span>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div style={{display:"flex",flexDirection:"column"}}>
                       <TechRow label="Trend" value={_hasTech?_trendLabel:"--"} score={_trendDots} dotCol={_trendCol.dot} valCol={_trendCol.fg} caution={_trendCaution} loading={!_hasTech} tab="trend" />
