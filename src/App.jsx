@@ -2168,6 +2168,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         headers: { "Content-Type": "text/plain", "Authorization": "Bearer " + window.__clerkToken },
         body:    JSON.stringify({ trendLabel:tLabel, trendScore:tScore, momLabel:mLabel, momScore:mScore,
                                   revStatus:revSt, revScore:revSc, smfStatus:smfSt,
+                                  revSource:'massive',
                                   updatedAt:new Date().toISOString() })
       }).catch(function(){});
     }, 3000);
@@ -3635,7 +3636,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               { id:"debug",     label:"Debug" },
               { id:"admin",     label:"Admin" },
             ];
-            var ADMIN_TABS = ["addlinfo", "debug", "admin", "whale"];
+            var ADMIN_TABS = ["addlinfo", "debug", "admin"];
             var TABS = isAdmin ? ALL_TABS : ALL_TABS.filter(function(t) { return ADMIN_TABS.indexOf(t.id) === -1; });
 
             function handleTab(id) {
@@ -9060,8 +9061,11 @@ export default function App() {
                       trendScore: yahooSnap.trend.score,
                       momLabel:   yahooSnap.momentum.status,
                       momScore:   yahooSnap.momentum.score,
+                      // Reversal from Yahoo is unreliable (no RSI/MACD/WSMA history)
+                      // Tagged as 'yahoo' so AI Favourites shows '—' until detail page visit
                       revStatus:  _yrv.status || null,
                       revScore:   _yrv.score  || null,
+                      revSource:  'yahoo',
                       smfStatus:  _ysf.status || null,
                       updatedAt:  new Date().toISOString()
                     };
@@ -9523,14 +9527,18 @@ export default function App() {
                   }
                   return tickerSignals.map(function(sig, i) {
                   var price    = sig.price || 0;
-                  var hi52     = sig.hi52 || 0;
-                  var lo52     = sig.lo52 || 0;
+                  var hi52     = sig.hi52  || 0;
+                  var lo52     = sig.lo52  || 0;
                   var rangePct = (hi52>lo52&&price>0)?Math.min(100,Math.max(0,((price-lo52)/(hi52-lo52))*100)):null;
-                  var sma50    = sig.sma50 || 0;
+                  var sma50    = sig.sma50  || 0;
                   var sma200   = sig.sma200 || 0;
                   // Use cached detail-page trend/momentum if available (1-day TTL, exact formula)
                   var ts = sig.trendSig || {};
                   var sd = sig.sig || {};
+                  // Only show Reversal if sourced from Massive data (detail page visit)
+                  // Yahoo-derived reversal is unreliable — no RSI/MACD/WSMA history
+                  var _revToShow = (ts.revSource !== 'yahoo') ? ts.revStatus : null;
+                  var trendUp  = sma50>0&&sma200>0&&price>sma50&&sma50>sma200;
                   var trendUp  = sma50>0&&sma200>0&&price>sma50&&sma50>sma200;
                   var trendDn  = sma50>0&&sma200>0&&price<sma50&&sma50<sma200;
                   var trendColor = trendUp?"#7abd00":trendDn?"#e05050":"#888";
@@ -9609,8 +9617,8 @@ export default function App() {
                         {rsi!==null && !ts.momLabel && <div style={{ fontSize:9, color:"#444", marginTop:1 }}>{"RSI "+rsi.toFixed(0)}</div>}
                       </div>
                       {/* Reversal — compact label; colour from canonical revStatusColor() matching tab + sidebar */}
-                      <div style={{ fontSize:10, fontWeight:700, color:revStatusColor(ts.revStatus, "main") }}>
-                        {cRevLbl(ts.revStatus)}
+                      <div style={{ fontSize:10, fontWeight:700, color:revStatusColor(_revToShow, "main") }}>
+                        {cRevLbl(_revToShow)}
                       </div>
                       {/* Money Flow — compact label; colour from canonical smfStatusColor() matching tab + sidebar */}
                       <div style={{ fontSize:10, fontWeight:700, color:smfStatusColor(ts.smfStatus, "main") }}>
