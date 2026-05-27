@@ -1241,8 +1241,8 @@ function Screener() {
   var [filterReversal, setFilterReversal] = useState('');
   var [filterSMF,      setFilterSMF]      = useState('');
   // Scan criteria — applied client-side on cached results
-  var [reqReversal,  setReqReversal]  = useState(true);
-  var [reqSMF,       setReqSMF]       = useState(true);
+  var [reqReversal,  setReqReversal]  = useState(false);
+  var [reqSMF,       setReqSMF]       = useState(false);
   var [reqTrend,     setReqTrend]     = useState(false);
   var [reqMomentum,  setReqMomentum]  = useState(false);
   var items = (results&&results.results)||[];
@@ -9027,7 +9027,7 @@ export function JournalPage() {
     var active = sortCol === props.col;
     return (
       <th onClick={function(){ setSortDir(active&&sortDir==="asc"?"desc":"asc"); setSortCol(props.col); }}
-        style={{ padding:"6px 7px", fontSize:10, fontWeight:700, color: active?"#c8f000":"#666", textTransform:"uppercase", letterSpacing:"0.06em", cursor:"pointer", whiteSpace:"nowrap", background:"#1a1a18", borderBottom:"1px solid #2a2a28", userSelect:"none" }}>
+        style={{ padding:"6px 7px", fontSize:10, fontWeight:700, color: active?"#c8f000":"#666", textTransform:"uppercase", letterSpacing:"0.06em", cursor:"pointer", whiteSpace:"nowrap", background:"#1a1a18", borderBottom:"1px solid #2a2a28", userSelect:"none", textAlign:"left" }}>
         {props.children}{active?(sortDir==="asc"?" ▲":" ▼"):""}
       </th>
     );
