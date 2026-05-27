@@ -8957,12 +8957,21 @@ export function JournalPage() {
     var wTickers = watchlist.map(function(w){ return w.ticker; });
     var allTickers = [...new Set([...wTickers, ...jTickers])];
     if (allTickers.length === 0) { showToast("No tickers found in journal.", "err"); setLoading(""); return; }
-    // Calculate future returns using real Yahoo Finance prices — no snapshot dependency
+    var debugOutput = [];
     for (var tk of allTickers) {
-      await jFetch("updateFutureReturns", "POST", { ticker:tk });
+      var res = await jFetch("updateFutureReturns", "POST", { ticker:tk });
+      if (res && res.debug) {
+        debugOutput.push(res.debug);
+        console.log("[updateFutureReturns]", tk, res.debug);
+      }
     }
+    // Show debug summary as toast
+    var summary = debugOutput.map(function(d){
+      return d.ticker + ": Yahoo=" + (d.yahooFetchSuccess ? "OK ("+d.pricesLoaded+" prices, "+d.dateRange.first+" to "+d.dateRange.last+")" : "FAILED") + ", updated=" + (debugOutput.find(function(x){return x.ticker===d.ticker;}) ? "see console" : "?");
+    }).join(" | ");
+    showToast("Debug: " + summary, "ok");
     setLoading("");
-    showToast("Future returns updated (" + allTickers.length + " tickers).", "ok");
+    showToast("Future returns updated (" + allTickers.length + " tickers). Check console for debug.", "ok");
     loadJournal();
   }
 
