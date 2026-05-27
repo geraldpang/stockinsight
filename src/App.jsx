@@ -1207,6 +1207,30 @@ function Screener() {
     } catch(e) { setScanStatus('error'); setScanMsg('Scan failed: '+(e.message||'Unknown error')); }
   }
 
+  // Add ticker snapshot to journal using screener data
+  async function addToJournal(row) {
+    var adminKey = localStorage.getItem('journal_admin_key');
+    if (!adminKey) {
+      setScanMsg('Open the Signal Journal first to set up your account, then try again.');
+      window.location.hash = 'JOURNAL';
+      return;
+    }
+    try {
+      var today = new Date().toISOString().split('T')[0];
+      var body = { ticker:row.ticker, snapshotDate:today, close:row.price,
+                   trendStatus:row.trend, trendScore:row.trendScore,
+                   momentumStatus:row.momentum, momentumScore:row.momentumScore,
+                   reversalStatus:row.reversal, reversalScore:row.reversalScore,
+                   smartMoneyStatus:row.moneyFlow, smartMoneyScore:row.moneyFlowScore };
+      var res = await fetch('/journal?action=upsertSnapshot', {
+        method:'POST', headers:{ 'Content-Type':'application/json', 'X-Admin-Key':adminKey },
+        body:JSON.stringify(body)
+      });
+      if (res.ok) { setScanMsg(row.ticker+' added to Journal for '+today+'.'); }
+      else        { setScanMsg('Failed to add '+row.ticker+'. Please try again.'); }
+    } catch(e) { setScanMsg('Error adding to Journal: '+e.message); }
+  }
+
   var LIME  = '#c8f000';
   var items = (results&&results.results)||[];
 
@@ -1254,8 +1278,8 @@ function Screener() {
             </div>
           ) : (
             <div style={{ border:'0.5px solid #2a2a28', borderRadius:10, overflow:'hidden' }}>
-              <div style={{ display:'grid', gridTemplateColumns:'80px 1fr 75px 65px 70px 1.4fr 1.2fr 90px 90px 60px', columnGap:14, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
-                {['Ticker','Company','Price','Chg%','Volume','Reversal','Money Flow','Trend','Momentum',''].map(function(h,i){
+              <div style={{ display:'grid', gridTemplateColumns:'80px 1fr 75px 65px 70px 1.4fr 1.2fr 90px 90px 60px 90px', columnGap:14, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
+                {['Ticker','Company','Price','Chg%','Volume','Reversal','Money Flow','Trend','Momentum','',''].map(function(h,i){
                   return <div key={i} style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em' }}>{h}</div>;
                 })}
               </div>
@@ -1265,7 +1289,7 @@ function Screener() {
                 var tC   = row.trendScore>=55?'#7abd00':row.trendScore>=40?'#EF9F27':'#e05050';
                 var mC   = row.momentumScore>=65?'#7abd00':row.momentumScore>=50?'#EF9F27':'#e05050';
                 return (
-                  <div key={row.ticker} style={{ display:'grid', gridTemplateColumns:'80px 1fr 75px 65px 70px 1.4fr 1.2fr 90px 90px 60px', columnGap:14, padding:'10px 14px', borderBottom:i<items.length-1?'1px solid #1a1a16':'none', background:i%2===0?'#111':'#131311', alignItems:'center' }}>
+                  <div key={row.ticker} style={{ display:'grid', gridTemplateColumns:'80px 1fr 75px 65px 70px 1.4fr 1.2fr 90px 90px 60px 90px', columnGap:14, padding:'10px 14px', borderBottom:i<items.length-1?'1px solid #1a1a16':'none', background:i%2===0?'#111':'#131311', alignItems:'center' }}>
                     <div style={{ fontSize:13, fontWeight:800, color:LIME }}>{row.ticker}</div>
                     <div style={{ fontSize:11, color:'#666', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.company}</div>
                     <div style={{ fontSize:12, fontWeight:600, color:'#f0ede6' }}>{'$'+row.price.toFixed(2)}</div>
@@ -1276,7 +1300,10 @@ function Screener() {
                     <div style={{ fontSize:11, fontWeight:600, color:tC }}>{row.trend}</div>
                     <div style={{ fontSize:11, fontWeight:600, color:mC }}>{row.momentum}</div>
                     <button onClick={function(){ window.location.hash=row.ticker; }}
-                      style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#888', fontSize:10, cursor:'pointer', padding:'4px 10px' }}>{'View'}</button>
+                      style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#888', fontSize:10, cursor:'pointer', padding:'4px 8px' }}>{'View'}</button>
+                    <button onClick={function(){ addToJournal(row); }}
+                      title={'Add '+row.ticker+' to Signal Journal'}
+                      style={{ background:'none', border:'0.5px solid #1a3a1a', borderRadius:6, color:'#5a9a40', fontSize:10, cursor:'pointer', padding:'4px 8px', whiteSpace:'nowrap' }}>{'+Journal'}</button>
                   </div>
                 );
               })}
@@ -9643,10 +9670,8 @@ export default function App() {
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
             <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.33</span>
           </div>
-        </div>
-        <div style={{ display:"flex", gap:10, alignItems:"center" }}>
           <button onClick={function(){ window.location.hash="SCREENER"; }}
-            style={{ background:"none", border:"0.5px solid rgba(200,240,0,0.3)", borderRadius:6, color:"rgba(200,240,0,0.7)", fontSize:11, fontWeight:600, padding:"5px 12px", cursor:"pointer", letterSpacing:"0.04em" }}>
+            style={{ background:"none", border:"0.5px solid rgba(200,240,0,0.3)", borderRadius:6, color:"rgba(200,240,0,0.7)", fontSize:11, fontWeight:600, padding:"5px 12px", cursor:"pointer", letterSpacing:"0.04em", marginLeft:16, flexShrink:0 }}>
             {String.fromCharCode(0x1f50d)+' Screener'}
           </button>
         </div>
