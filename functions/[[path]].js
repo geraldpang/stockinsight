@@ -904,7 +904,15 @@ export async function onRequest(context) {
           var yahooUrl = "https://query2.finance.yahoo.com/v8/finance/chart/" + ticker3 + "?interval=1d&range=2y";
           var priceByDate = {};
           try {
-            var yRes = await fetch(yahooUrl);
+            var yRes = await fetch(yahooUrl, {
+              headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "application/json, text/plain, */*",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Origin": "https://finance.yahoo.com",
+                "Referer": "https://finance.yahoo.com/",
+              }
+            });
             var yJson = await yRes.json();
             var result = yJson && yJson.chart && yJson.chart.result && yJson.chart.result[0];
             if (result) {
