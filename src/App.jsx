@@ -1207,31 +1207,39 @@ function Screener() {
     } catch(e) { setScanStatus('error'); setScanMsg('Scan failed: '+(e.message||'Unknown error')); }
   }
 
-  // Add ticker snapshot to journal using screener data
+  // Add ticker snapshot to journal — must use nested structure matching worker expectation
   async function addToJournal(row) {
     var adminKey = localStorage.getItem('journal_admin_key');
     if (!adminKey) {
-      setScanMsg('Open the Signal Journal first to set up your account, then try again.');
+      setScanMsg('Open the Signal Journal first, then try again.');
       window.location.hash = 'JOURNAL';
       return;
     }
+    if (!row.price || row.price <= 0) { setScanMsg('Cannot add '+row.ticker+' — price not available.'); return; }
     try {
       var today = new Date().toISOString().split('T')[0];
-      var body = { ticker:row.ticker, snapshotDate:today, close:row.price,
-                   trendStatus:row.trend, trendScore:row.trendScore,
-                   momentumStatus:row.momentum, momentumScore:row.momentumScore,
-                   reversalStatus:row.reversal, reversalScore:row.reversalScore,
-                   smartMoneyStatus:row.moneyFlow, smartMoneyScore:row.moneyFlowScore };
+      // Worker reads snap.trend.status, snap.reversalWatch.status etc. (nested structure)
+      var body = {
+        ticker: row.ticker, snapshotDate: today, close: row.price,
+        trend:         { status: row.trend,     score: row.trendScore },
+        momentum:      { status: row.momentum,  score: row.momentumScore },
+        reversalWatch: { status: row.reversal,  score: row.reversalScore,
+                         bullishScore: row.reversalScore, bearishScore: 0 },
+        smartMoneyFlow:{ status: row.moneyFlow, score: row.moneyFlowScore },
+      };
       var res = await fetch('/journal?action=upsertSnapshot', {
         method:'POST', headers:{ 'Content-Type':'application/json', 'X-Admin-Key':adminKey },
-        body:JSON.stringify(body)
+        body: JSON.stringify(body)
       });
-      if (res.ok) { setScanMsg(row.ticker+' added to Journal for '+today+'.'); }
-      else        { setScanMsg('Failed to add '+row.ticker+'. Please try again.'); }
-    } catch(e) { setScanMsg('Error adding to Journal: '+e.message); }
+      setScanMsg(res.ok ? row.ticker+' added to Journal for '+today+'.' : 'Failed to add '+row.ticker+'. Please try again.');
+    } catch(e) { setScanMsg('Error: '+e.message); }
   }
 
   var LIME  = '#c8f000';
+  var [filterTrend,    setFilterTrend]    = useState('');
+  var [filterMomentum, setFilterMomentum] = useState('');
+  var [filterReversal, setFilterReversal] = useState('');
+  var [filterSMF,      setFilterSMF]      = useState('');
   var items = (results&&results.results)||[];
 
   function fmtVol(v){ if(!v||v===0) return String.fromCharCode(0x2014); if(v>=1e9) return (v/1e9).toFixed(1)+'B'; if(v>=1e6) return (v/1e6).toFixed(1)+'M'; return (v/1e3).toFixed(0)+'K'; }
@@ -1272,45 +1280,84 @@ function Screener() {
 
       {(scanStatus==='done'||scanStatus==='scanning') && results && (
         <div>
-          {items.length===0 ? (
-            <div style={{ background:'#161614', border:'0.5px solid #2a2a28', borderRadius:10, padding:32, textAlign:'center', color:'#555', fontSize:13 }}>
-              {'No active tickers currently meet both positive reversal and positive money flow criteria.'}
-            </div>
-          ) : (
-            <div style={{ border:'0.5px solid #2a2a28', borderRadius:10, overflow:'hidden' }}>
-              <div style={{ display:'grid', gridTemplateColumns:'80px 1fr 75px 65px 70px 1.4fr 1.2fr 90px 90px 60px 90px', columnGap:14, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
-                {['Ticker','Company','Price','Chg%','Volume','Reversal','Money Flow','Trend','Momentum','',''].map(function(h,i){
-                  return <div key={i} style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em' }}>{h}</div>;
-                })}
-              </div>
-              {items.map(function(row,i){
-                var revC = revStatusColor(row.reversal,'main');
-                var smfC = smfStatusColor(row.moneyFlow,'main');
-                var tC   = row.trendScore>=55?'#7abd00':row.trendScore>=40?'#EF9F27':'#e05050';
-                var mC   = row.momentumScore>=65?'#7abd00':row.momentumScore>=50?'#EF9F27':'#e05050';
+          {/* Filter dropdowns — client-side filtering of cached results */}
+          {items.length > 0 && (
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14, alignItems:'center' }}>
+              <span style={{ fontSize:10, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginRight:4 }}>Filter:</span>
+              {[
+                ['Trend',        filterTrend,    setFilterTrend,    ['Strong Uptrend','Uptrend','Sideways','Downtrend','Strong Downtrend']],
+                ['Momentum',     filterMomentum, setFilterMomentum, ['Strong','Building','Neutral','Fading','Weak']],
+                ['Reversal',     filterReversal, setFilterReversal, ['Bullish Reversal Spark','Bullish Reversal Watch','Bullish Reversal Forming','Bullish Reversal Triggered','Bullish Reversal Confirming','Bullish Reversal Confirmed']],
+                ['Money Flow',   filterSMF,      setFilterSMF,      ['Strong Multi-Timeframe Flow','Accumulation Trend Positive','Early Accumulation','Constructive but Cooling']],
+              ].map(function(f){
                 return (
-                  <div key={row.ticker} style={{ display:'grid', gridTemplateColumns:'80px 1fr 75px 65px 70px 1.4fr 1.2fr 90px 90px 60px 90px', columnGap:14, padding:'10px 14px', borderBottom:i<items.length-1?'1px solid #1a1a16':'none', background:i%2===0?'#111':'#131311', alignItems:'center' }}>
-                    <div style={{ fontSize:13, fontWeight:800, color:LIME }}>{row.ticker}</div>
-                    <div style={{ fontSize:11, color:'#666', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.company}</div>
-                    <div style={{ fontSize:12, fontWeight:600, color:'#f0ede6' }}>{'$'+row.price.toFixed(2)}</div>
-                    <div style={{ fontSize:11, fontWeight:600, color:row.changePct>=0?'#7abd00':'#e05050' }}>{(row.changePct>=0?'+':'')+row.changePct.toFixed(2)+'%'}</div>
-                    <div style={{ fontSize:11, color:'#888' }}>{fmtVol(row.volume)}</div>
-                    <div style={{ fontSize:10, fontWeight:700, color:revC, lineHeight:1.3 }}>{row.reversal}</div>
-                    <div style={{ fontSize:10, fontWeight:700, color:smfC, lineHeight:1.3 }}>{row.moneyFlow}</div>
-                    <div style={{ fontSize:11, fontWeight:600, color:tC }}>{row.trend}</div>
-                    <div style={{ fontSize:11, fontWeight:600, color:mC }}>{row.momentum}</div>
-                    <button onClick={function(){ window.location.hash=row.ticker; }}
-                      style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#888', fontSize:10, cursor:'pointer', padding:'4px 8px' }}>{'View'}</button>
-                    <button onClick={function(){ addToJournal(row); }}
-                      title={'Add '+row.ticker+' to Signal Journal'}
-                      style={{ background:'none', border:'0.5px solid #1a3a1a', borderRadius:6, color:'#5a9a40', fontSize:10, cursor:'pointer', padding:'4px 8px', whiteSpace:'nowrap' }}>{'+Journal'}</button>
-                  </div>
+                  <select key={f[0]} value={f[1]} onChange={function(e){ f[2](e.target.value); }}
+                    style={{ background:'#1a1a18', border:'0.5px solid '+(f[1]?'#7abd00':'#333'), borderRadius:6, color:f[1]?'#c8f000':'#666', fontSize:11, padding:'5px 10px', cursor:'pointer', outline:'none' }}>
+                    <option value=''>{'All '+f[0]}</option>
+                    {f[3].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
+                  </select>
                 );
               })}
+              {(filterTrend||filterMomentum||filterReversal||filterSMF) &&
+                <button onClick={function(){ setFilterTrend(''); setFilterMomentum(''); setFilterReversal(''); setFilterSMF(''); }}
+                  style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#555', fontSize:11, padding:'5px 10px', cursor:'pointer' }}>
+                  Clear
+                </button>}
             </div>
           )}
+          {(function(){
+            // Apply client-side filters to cached results
+            var filtered = items.filter(function(row){
+              if (filterTrend    && row.trend    !== filterTrend)    return false;
+              if (filterMomentum && row.momentum !== filterMomentum) return false;
+              if (filterReversal && row.reversal !== filterReversal) return false;
+              if (filterSMF      && row.moneyFlow!== filterSMF)      return false;
+              return true;
+            });
+            if (filtered.length === 0) return (
+              <div style={{ background:'#161614', border:'0.5px solid #2a2a28', borderRadius:10, padding:32, textAlign:'center', color:'#555', fontSize:13 }}>
+                {items.length === 0
+                  ? 'No active tickers currently meet both positive reversal and positive money flow criteria.'
+                  : 'No tickers match the selected filters. Try relaxing your criteria.'}
+              </div>
+            );
+            return (
+              <div style={{ border:'0.5px solid #2a2a28', borderRadius:10, overflow:'hidden' }}>
+                {/* Column order: Ticker | Company | Price | Chg% | Volume | Trend | Momentum | Reversal | Money Flow | View | +Journal */}
+                <div style={{ display:'grid', gridTemplateColumns:'80px 1fr 75px 60px 70px 90px 90px 1.4fr 1.3fr 50px 80px', columnGap:12, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
+                  {['Ticker','Company','Price','Chg%','Volume','Trend','Momentum','Reversal','Money Flow','',''].map(function(h,i){
+                    return <div key={i} style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em' }}>{h}</div>;
+                  })}
+                </div>
+                {filtered.map(function(row,i){
+                  var revC = revStatusColor(row.reversal,'main');
+                  var smfC = smfStatusColor(row.moneyFlow,'main');
+                  var tC   = row.trendScore>=55?'#7abd00':row.trendScore>=40?'#EF9F27':'#e05050';
+                  var mC   = row.momentumScore>=65?'#7abd00':row.momentumScore>=50?'#EF9F27':'#e05050';
+                  return (
+                    <div key={row.ticker} style={{ display:'grid', gridTemplateColumns:'80px 1fr 75px 60px 70px 90px 90px 1.4fr 1.3fr 50px 80px', columnGap:12, padding:'10px 14px', borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none', background:i%2===0?'#111':'#131311', alignItems:'center' }}>
+                      <div style={{ fontSize:13, fontWeight:800, color:LIME }}>{row.ticker}</div>
+                      <div style={{ fontSize:11, color:'#666', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.company}</div>
+                      <div style={{ fontSize:12, fontWeight:600, color:'#f0ede6' }}>{'$'+row.price.toFixed(2)}</div>
+                      <div style={{ fontSize:11, fontWeight:600, color:row.changePct>=0?'#7abd00':'#e05050' }}>{(row.changePct>=0?'+':'')+row.changePct.toFixed(2)+'%'}</div>
+                      <div style={{ fontSize:11, color:'#888' }}>{fmtVol(row.volume)}</div>
+                      <div style={{ fontSize:11, fontWeight:600, color:tC }}>{row.trend}</div>
+                      <div style={{ fontSize:11, fontWeight:600, color:mC }}>{row.momentum}</div>
+                      <div style={{ fontSize:10, fontWeight:700, color:revC, lineHeight:1.3 }}>{row.reversal}</div>
+                      <div style={{ fontSize:10, fontWeight:700, color:smfC, lineHeight:1.3 }}>{row.moneyFlow}</div>
+                      <button onClick={function(){ window.location.hash=row.ticker; }}
+                        style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#888', fontSize:10, cursor:'pointer', padding:'4px 6px' }}>{'View'}</button>
+                      <button onClick={function(){ addToJournal(row); }}
+                        title={'Add '+row.ticker+' to Signal Journal'}
+                        style={{ background:'none', border:'0.5px solid #1a3a1a', borderRadius:6, color:'#5a9a40', fontSize:10, cursor:'pointer', padding:'4px 6px', whiteSpace:'nowrap' }}>{'+Journal'}</button>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
           <div style={{ fontSize:10, color:'#444', marginTop:10 }}>
-            {items.length+' ticker'+(items.length!==1?'s':'')+' matched \u2022 Sorted by combined reversal + money flow score \u2022 Research use only. Not financial advice.'}
+            {items.length+' match'+(items.length!==1?'es':'')+' from scan \u2022 Sorted by combined reversal + money flow score \u2022 Research use only. Not financial advice.'}
           </div>
         </div>
       )}
