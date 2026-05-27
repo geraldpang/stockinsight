@@ -889,41 +889,98 @@ export async function onRequest(context) {
 
         // POST update future returns
         if (context.request.method === "POST" && jAction === "updateFutureReturns") {
-          var body3 = await context.request.json();
+          var body3   = await context.request.json();
           var ticker3 = (body3.ticker || "").toUpperCase();
-          // Fetch all snapshots for ticker ordered by date
-          var snaps = await DB.prepare("SELECT id, snapshot_date, close_price FROM technical_signal_journal WHERE ticker = ? ORDER BY snapshot_date ASC").bind(ticker3).all();
+
+          // Fetch all snapshots for this ticker
+          var snaps = await DB.prepare(
+            "SELECT id, snapshot_date, close_price FROM technical_signal_journal WHERE ticker = ? ORDER BY snapshot_date ASC"
+          ).bind(ticker3).all();
           var rows3 = snaps.results;
+          if (rows3.length === 0) return new Response(JSON.stringify({ ok:true, updated:0 }), { headers: jHeaders });
+
+          // Fetch 2 years of daily closes from Yahoo Finance for this ticker
+          // This gives us real market prices for any calendar date — independent of snapshots
+          var yahooUrl = "https://query2.finance.yahoo.com/v8/finance/chart/" + ticker3 + "?interval=1d&range=2y";
+          var priceByDate = {};
+          try {
+            var yRes = await fetch(yahooUrl);
+            var yJson = await yRes.json();
+            var result = yJson && yJson.chart && yJson.chart.result && yJson.chart.result[0];
+            if (result) {
+              var timestamps = result.timestamp || [];
+              var closes     = (result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].close) || [];
+              for (var ti = 0; ti < timestamps.length; ti++) {
+                if (closes[ti] != null) {
+                  var dateStr = new Date(timestamps[ti] * 1000).toISOString().split("T")[0];
+                  priceByDate[dateStr] = closes[ti];
+                }
+              }
+            }
+          } catch(e) { /* Yahoo fetch failed — fall through, updates will be skipped */ }
+
+          var DAY_MS  = 24 * 60 * 60 * 1000;
           var updated = 0;
+
+          // Helper: find the closing price on or nearest to a target date (within maxDays tolerance)
+          // Searches forward through calendar days — accounts for weekends and holidays
+          function priceNearDate(targetMs, maxDays) {
+            for (var d = 0; d <= maxDays; d++) {
+              // Try same day, then next day, then previous day, alternating
+              var offsets = d === 0 ? [0] : [d, -d];
+              for (var oi = 0; oi < offsets.length; oi++) {
+                var ds = new Date(targetMs + offsets[oi] * DAY_MS).toISOString().split("T")[0];
+                if (priceByDate[ds] != null) return priceByDate[ds];
+              }
+            }
+            return null;
+          }
+
           for (var si = 0; si < rows3.length; si++) {
-            var row = rows3[si];
-            var windows = [1,3,5,10,20,30,45,60,90];
-            var updates = {};
+            var row   = rows3[si];
+            var rowMs = new Date(row.snapshot_date).getTime();
+            var basePrice = row.close_price;
+            var updates   = {};
+
+            // Return windows: use actual market price N trading days after snapshot date
+            var windows = [1, 3, 5, 10, 20, 30, 45, 60, 90];
             for (var wi = 0; wi < windows.length; wi++) {
               var w = windows[wi];
-              var futIdx = si + w;
-              if (futIdx < rows3.length) {
-                var futClose = rows3[futIdx].close_price;
-                var ret = parseFloat(((futClose - row.close_price) / row.close_price * 100).toFixed(2));
-                updates["future_return_" + w + "d"] = ret;
+              // Convert trading days to approximate calendar days (×1.4 accounts for weekends)
+              var calDays   = Math.round(w * 1.4);
+              var targetMs  = rowMs + calDays * DAY_MS;
+              var futPrice  = priceNearDate(targetMs, 5); // ±5 calendar day search
+              if (futPrice != null) {
+                updates["future_return_" + w + "d"] = parseFloat(((futPrice - basePrice) / basePrice * 100).toFixed(2));
               }
             }
-            // Max gain/drawdown 30/60/90d
-            var _windows2 = [30, 60, 90]; for (var wi2 = 0; wi2 < _windows2.length; wi2++) { var ww = _windows2[wi2];
-              var futSlice = rows3.slice(si + 1, si + ww + 1).map(function(r){ return r.close_price; });
-              if (futSlice.length > 0) {
-                var maxG = Math.max.apply(null, futSlice);
-                var minG = Math.min.apply(null, futSlice);
-                updates["max_gain_" + ww + "d"]     = parseFloat(((maxG - row.close_price) / row.close_price * 100).toFixed(2));
-                updates["max_drawdown_" + ww + "d"] = parseFloat(((minG - row.close_price) / row.close_price * 100).toFixed(2));
+
+            // Max gain / max drawdown over calendar windows
+            var _maxWindows = [30, 60, 90];
+            for (var wi2 = 0; wi2 < _maxWindows.length; wi2++) {
+              var ww       = _maxWindows[wi2];
+              var calEnd   = Math.round(ww * 1.4);
+              var prices   = [];
+              for (var cd = 1; cd <= calEnd + 5; cd++) {
+                var ds2 = new Date(rowMs + cd * DAY_MS).toISOString().split("T")[0];
+                if (priceByDate[ds2] != null) prices.push(priceByDate[ds2]);
+                if (prices.length >= ww) break; // collected enough trading days
+              }
+              if (prices.length > 0) {
+                var maxG = Math.max.apply(null, prices);
+                var minG = Math.min.apply(null, prices);
+                updates["max_gain_"     + ww + "d"] = parseFloat(((maxG - basePrice) / basePrice * 100).toFixed(2));
+                updates["max_drawdown_" + ww + "d"] = parseFloat(((minG - basePrice) / basePrice * 100).toFixed(2));
               }
             }
-            // Outcome labels
+
+            // Outcome label based on 20D return
             if (updates.future_return_20d !== undefined) {
               var r20 = updates.future_return_20d;
               updates.bullish_outcome_label = r20 >= 10 ? "Strong Win" : r20 >= 5 ? "Win" : r20 > -5 ? "Neutral" : r20 > -10 ? "Failed" : "Strong Failed";
               updates.bearish_outcome_label = r20 <= -10 ? "Strong Bearish Win" : r20 <= -5 ? "Bearish Win" : r20 < 5 ? "Neutral" : r20 < 10 ? "Bearish Failed" : "Strong Bearish Failed";
             }
+
             if (Object.keys(updates).length > 0) {
               var setClauses = Object.keys(updates).map(function(k){ return k + "=?"; }).join(", ");
               var vals = Object.values(updates);
