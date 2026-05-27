@@ -4,7 +4,8 @@ import { calculateTechnicalSignalSnapshot, calcRSI,
          getReversalDirectionStatus, getOverallReversalStatus,
          validateSmfOHLCV, getSmfScoreLabel, calcSmfVolPriceDivergence,
          calcSmfTodaySignal, calcSmfFiveDaySignal, calcSmfThirtyDaySignal,
-         getSmfOverallStatus, calcSmfSummaryCard } from "./technicalSignals.js";
+         getSmfOverallStatus, calcSmfSummaryCard,
+         isPositiveReversal, isPositiveMoneyFlow } from "./technicalSignals.js";
 
 // ─── Central signal colour system ─────────────────────────────────────────────
 var _CLR = {
@@ -1095,6 +1096,309 @@ function buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200) {
     indicators: ind,
     meta:       { price: price||0, hi52: 0, lo52: 0 },
   });
+}
+
+// ── Screener: data adapter — converts Massive data to snapshot (no tech calc) ──
+function buildScreenerSnapshot(sym, massiveInfo) {
+  if (!massiveInfo || !massiveInfo.aggs || massiveInfo.aggs.length < 10) return null;
+  var rawAggs = massiveInfo.aggs;
+  var ind     = massiveInfo.indicators || {};
+  var mSnap   = massiveInfo.snapshot   || {};
+  var price   = mSnap.close || (rawAggs[0] && rawAggs[0].c) || 0;
+  var hi52 = 0, lo52 = Infinity;
+  rawAggs.forEach(function(b){ if (b.h>hi52) hi52=b.h; if (b.l>0&&b.l<lo52) lo52=b.l; });
+  if (lo52===Infinity) lo52=0;
+  var ohlcv = rawAggs.filter(function(b){ return b&&b.c>0; }).slice().reverse()
+    .map(function(b){ return { date:'',open:b.o||0,high:b.h||0,low:b.l||0,close:b.c||0,volume:b.v||0 }; });
+  try {
+    return calculateTechnicalSignalSnapshot({ ticker:sym, date:new Date().toISOString().split('T')[0],
+      ohlcv:ohlcv, indicators:ind, meta:{ price:price, hi52:hi52, lo52:lo52 } });
+  } catch(e) { return null; }
+}
+
+// ── Screener component ────────────────────────────────────────────────────────
+function Screener() {
+  var [scanStatus, setScanStatus] = useState('loading');
+  var [results,    setResults]    = useState(null);
+  var [scanMsg,    setScanMsg]    = useState('');
+
+  useEffect(function() {
+    // Read 12-hour KV cache on mount
+    fetch('/cache?sym=__SCREENER&tab=results')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d && d.hit && d.value) {
+          var parsed = JSON.parse(d.value);
+          var ageHrs = (Date.now() - new Date(parsed.cachedAt).getTime()) / 3600000;
+          if (ageHrs < 12 && parsed.results) { setResults(parsed); setScanStatus('done'); return; }
+        }
+        setScanStatus('idle');
+      })
+      .catch(function(){ setScanStatus('idle'); });
+  }, []);
+
+  async function runScan() {
+    if (scanStatus==='scanning') return;
+    setScanStatus('scanning'); setScanMsg('Fetching most active tickers...');
+    try {
+      // Step 1: Yahoo Finance most-active screener (via existing /proxy route)
+      var candidates = [];
+      try {
+        var sUrl = 'https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&start=0&count=50&lang=en-US&region=US';
+        var sRes = await fetch('/proxy?url='+encodeURIComponent(sUrl));
+        var sData = await sRes.json();
+        var quotes = (sData.finance&&sData.finance.result&&sData.finance.result[0]&&sData.finance.result[0].quotes)||[];
+        candidates = quotes.filter(function(q){
+          return q.regularMarketPrice>5 && q.regularMarketChangePercent>0 &&
+                 q.regularMarketVolume>1000000 && q.quoteType==='EQUITY';
+        }).slice(0,20).map(function(q){
+          return { sym:q.symbol, name:q.longName||q.shortName||q.symbol,
+                   price:q.regularMarketPrice, changePct:q.regularMarketChangePercent, volume:q.regularMarketVolume };
+        });
+      } catch(e) {
+        // Fallback: curated top-US ticker universe
+        ['NVDA','AAPL','MSFT','AMZN','GOOGL','META','TSLA','AMD','AVGO','PLTR',
+         'COIN','MARA','RIOT','HOOD','SOFI','NFLX','DIS','INTL','NOW','SNOW']
+          .forEach(function(s){ candidates.push({ sym:s, name:s, price:0, changePct:0, volume:0 }); });
+      }
+
+      if (!candidates.length){ setScanMsg('No candidates after pre-filter.'); setScanStatus('done'); setResults({ cachedAt:new Date().toISOString(), results:[] }); return; }
+      setScanMsg('Scanning '+candidates.length+' candidates...');
+
+      // Step 2: Batch technical scans, 5 at a time — max 20 tickers
+      var hdrs = window.__clerkToken ? { Authorization:'Bearer '+window.__clerkToken } : {};
+      var matched = [];
+      var BATCH = 5;
+      for (var i=0; i<candidates.length; i+=BATCH) {
+        var batch = candidates.slice(i, i+BATCH);
+        setScanMsg('Scanning '+(Math.min(i+BATCH,candidates.length))+' / '+candidates.length+'...');
+        var bRes = await Promise.all(batch.map(async function(c) {
+          try {
+            var mRes = await fetch('/massive?sym='+c.sym, { headers:hdrs });
+            if (!mRes.ok) return null;
+            var mData = await mRes.json();
+            if (!mData||!mData.aggs||mData.aggs.length<10) return null;
+            var snap = buildScreenerSnapshot(c.sym, mData);
+            if (!snap) return null;
+            // Screen using technicalSignals.js pure helper functions
+            // Store all results — criteria applied client-side for flexible filtering
+            var ms = mData.snapshot||{};
+            return { ticker:c.sym, company:(mData.ticker&&mData.ticker.name)||c.name||c.sym,
+                     price:c.price||ms.close||0, changePct:c.changePct||ms.change||0, volume:c.volume||ms.volume||0,
+                     reversal:snap.reversalWatch.status, reversalScore:snap.reversalWatch.score||0,
+                     moneyFlow:snap.smartMoneyFlow.status, moneyFlowScore:snap.smartMoneyFlow.score||0,
+                     trend:snap.trend.status, trendScore:snap.trend.score||0,
+                     momentum:snap.momentum.status, momentumScore:snap.momentum.score||0 };
+          } catch(e){ return null; }
+        }));
+        matched = matched.concat(bRes.filter(Boolean));
+      }
+
+      // Sort by combined reversal + money flow score
+      matched.sort(function(a,b){ return (b.reversalScore+b.moneyFlowScore)-(a.reversalScore+a.moneyFlowScore); });
+
+      var cacheObj = { cachedAt:new Date().toISOString(), results:matched };
+      // Write to KV cache (12h enforced on read via cachedAt check above)
+      var postHdrs = { 'Content-Type':'text/plain' };
+      if (window.__clerkToken) postHdrs['Authorization']='Bearer '+window.__clerkToken;
+      fetch('/cache?sym=__SCREENER&tab=results', { method:'POST', headers:postHdrs, body:JSON.stringify(cacheObj) }).catch(function(){});
+
+      setResults(cacheObj); setScanStatus('done'); setScanMsg('');
+    } catch(e) { setScanStatus('error'); setScanMsg('Scan failed: '+(e.message||'Unknown error')); }
+  }
+
+  // Add ticker snapshot to journal — must use nested structure matching worker expectation
+  async function addToJournal(row) {
+    var adminKey = localStorage.getItem('journal_admin_key');
+    if (!adminKey) {
+      setScanMsg('Open the Signal Journal first, then try again.');
+      window.location.hash = 'JOURNAL';
+      return;
+    }
+    if (!row.price || row.price <= 0) { setScanMsg('Cannot add '+row.ticker+' — price not available.'); return; }
+    try {
+      var today = new Date().toISOString().split('T')[0];
+      // Worker reads snap.trend.status, snap.reversalWatch.status etc. (nested structure)
+      var body = {
+        ticker: row.ticker, snapshotDate: today, close: row.price,
+        trend:         { status: row.trend,     score: row.trendScore },
+        momentum:      { status: row.momentum,  score: row.momentumScore },
+        reversalWatch: { status: row.reversal,  score: row.reversalScore,
+                         bullishScore: row.reversalScore, bearishScore: 0 },
+        smartMoneyFlow:{ status: row.moneyFlow, score: row.moneyFlowScore },
+      };
+      var res = await fetch('/journal?action=upsertSnapshot', {
+        method:'POST', headers:{ 'Content-Type':'application/json', 'X-Admin-Key':adminKey },
+        body: JSON.stringify(body)
+      });
+      setScanMsg(res.ok ? row.ticker+' added to Journal for '+today+'.' : 'Failed to add '+row.ticker+'. Please try again.');
+    } catch(e) { setScanMsg('Error: '+e.message); }
+  }
+
+  var LIME  = '#c8f000';
+  var [filterTrend,    setFilterTrend]    = useState('');
+  var [filterMomentum, setFilterMomentum] = useState('');
+  var [filterReversal, setFilterReversal] = useState('');
+  var [filterSMF,      setFilterSMF]      = useState('');
+  // Scan criteria — applied client-side on cached results
+  var [reqReversal,  setReqReversal]  = useState(false);
+  var [reqSMF,       setReqSMF]       = useState(false);
+  var [reqTrend,     setReqTrend]     = useState(false);
+  var [reqMomentum,  setReqMomentum]  = useState(false);
+  var items = (results&&results.results)||[];
+
+  function fmtVol(v){ if(!v||v===0) return String.fromCharCode(0x2014); if(v>=1e9) return (v/1e9).toFixed(1)+'B'; if(v>=1e6) return (v/1e6).toFixed(1)+'M'; return (v/1e3).toFixed(0)+'K'; }
+  function fmtDate(iso){ if(!iso) return ''; var d=new Date(iso); return d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+', '+d.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'}); }
+
+  return (
+    <div style={{ minHeight:'100vh', background:'#0e0e0c', color:'#f0ede6', padding:'32px 24px', fontFamily:"'Inter','SF Pro',sans-serif" }}>
+      <button onClick={function(){ window.location.hash=''; }} style={{ background:'none', border:'none', color:'#666', fontSize:12, cursor:'pointer', marginBottom:20, padding:0 }}>
+        {'← Back'}
+      </button>
+      <div style={{ marginBottom:24 }}>
+        <div style={{ fontSize:11, color:'#555', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:6 }}>Screener</div>
+        <div style={{ fontSize:22, fontWeight:800, color:LIME, marginBottom:8 }}>Bullish Reversal + Money Flow</div>
+        <div style={{ fontSize:13, color:'#666', lineHeight:1.7, maxWidth:620 }}>
+          {'Screens top active US stocks for early or positive bullish reversal signals appearing together with useful money flow.'}
+        </div>
+        <div style={{ fontSize:11, color:'#444', marginTop:6, lineHeight:1.6 }}>
+          {'Bullish Reversal Spark is an early-interest signal — not confirmation. Results cached for 12 hours. Research use only, not financial advice.'}
+        </div>
+      </div>
+
+      <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:24, flexWrap:'wrap' }}>
+        <button onClick={runScan} disabled={scanStatus==='scanning'}
+          style={{ background:scanStatus==='scanning'?'#1a1a18':LIME, color:scanStatus==='scanning'?'#555':'#0e0e0c', fontWeight:700, fontSize:12, border:'none', borderRadius:8, padding:'9px 18px', cursor:scanStatus==='scanning'?'not-allowed':'pointer' }}>
+          {scanStatus==='scanning' ? String.fromCharCode(0x23f3)+' Scanning...' : String.fromCharCode(0x1f50d)+' Refresh Scan'}
+        </button>
+        {scanMsg && <span style={{ fontSize:11, color:'#666' }}>{scanMsg}</span>}
+        {results&&results.cachedAt && <span style={{ fontSize:11, color:'#444' }}>{'Showing cached scan. Last scanned: '+fmtDate(results.cachedAt)}</span>}
+      </div>
+
+      {scanStatus==='loading' && <div style={{ color:'#444', fontSize:12 }}>{'Loading cached results...'}</div>}
+
+      {scanStatus==='idle' && (
+        <div style={{ background:'#161614', border:'0.5px solid #2a2a28', borderRadius:10, padding:32, textAlign:'center', color:'#555', fontSize:13 }}>
+          {'No cached scan available. Click '}<strong style={{ color:LIME }}>{'Refresh Scan'}</strong>{' to screen top active US tickers.'}
+        </div>
+      )}
+
+      {(scanStatus==='done'||scanStatus==='scanning') && results && (
+        <div>
+          {/* Scan criteria checkboxes */}
+          <div style={{ background:'#161614', border:'0.5px solid #2a2a28', borderRadius:8, padding:'12px 14px', marginBottom:12 }}>
+            <div style={{ fontSize:10, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:10 }}>Screening Criteria</div>
+            <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
+              {[
+                ['Positive Reversal',  reqReversal,  setReqReversal],
+                ['Positive Money Flow',reqSMF,        setReqSMF],
+                ['Uptrend+',           reqTrend,      setReqTrend],
+                ['Building+ Momentum', reqMomentum,   setReqMomentum],
+              ].map(function(c){
+                return (
+                  <label key={c[0]} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:12, color:c[1]?'#c8f000':'#666' }}>
+                    <input type='checkbox' checked={c[1]} onChange={function(e){ c[2](e.target.checked); }}
+                      style={{ accentColor:'#c8f000', width:13, height:13, cursor:'pointer' }} />
+                    {c[0]}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+          {/* Specific value filters */}
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14, alignItems:'center' }}>
+            <span style={{ fontSize:10, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginRight:2 }}>Filter:</span>
+            {[
+              ['Trend',      filterTrend,    setFilterTrend,    ['Strong Uptrend','Uptrend','Sideways','Downtrend','Strong Downtrend']],
+              ['Momentum',   filterMomentum, setFilterMomentum, ['Strong','Building','Neutral','Fading','Weak']],
+              ['Reversal',   filterReversal, setFilterReversal, ['Bullish Reversal Spark','Bullish Reversal Watch','Bullish Reversal Forming','Bullish Reversal Triggered','Bullish Reversal Confirming','Bullish Reversal Confirmed']],
+              ['Money Flow', filterSMF,      setFilterSMF,      ['Strong Multi-Timeframe Flow','Accumulation Trend Positive','Early Accumulation','Constructive but Cooling']],
+            ].map(function(f){
+              return (
+                <select key={f[0]} value={f[1]} onChange={function(e){ f[2](e.target.value); }}
+                  style={{ background:'#1a1a18', border:'0.5px solid '+(f[1]?'#7abd00':'#333'), borderRadius:6, color:f[1]?'#c8f000':'#666', fontSize:11, padding:'5px 8px', cursor:'pointer', outline:'none' }}>
+                  <option value=''>{'All '+f[0]}</option>
+                  {f[3].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
+                </select>
+              );
+            })}
+            {(filterTrend||filterMomentum||filterReversal||filterSMF) &&
+              <button onClick={function(){ setFilterTrend(''); setFilterMomentum(''); setFilterReversal(''); setFilterSMF(''); }}
+                style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#555', fontSize:11, padding:'5px 8px', cursor:'pointer' }}>Clear</button>}
+          </div>
+          {(function(){
+            // Compact display labels for long status strings
+            function cRev(s){ if(!s) return String.fromCharCode(0x2014); var l=s.toLowerCase(); if(l.indexOf('no clear')!==-1) return String.fromCharCode(0x2014); if(l.indexOf('spark')!==-1) return 'Spark'; if(l.indexOf('confirming')!==-1) return 'Confirming'; if(l.indexOf('confirmed')!==-1) return 'Confirmed'; if(l.indexOf('triggered')!==-1) return 'Triggered'; if(l.indexOf('forming')!==-1) return 'Forming'; if(l.indexOf('watch')!==-1&&l.indexOf('bull')!==-1) return 'Bull Watch'; if(l.indexOf('watch')!==-1&&l.indexOf('bear')!==-1) return 'Bear Watch'; if(l.indexOf('confirmed')!==-1&&l.indexOf('bear')!==-1) return 'Bear Conf.'; if(l.indexOf('forming')!==-1&&l.indexOf('bear')!==-1) return 'Bear Form.'; if(l.indexOf('mixed')!==-1) return 'Mixed'; return s; }
+            function cSmf(s){ if(!s) return String.fromCharCode(0x2014); var l=s.toLowerCase(); if(l.indexOf('no clear')!==-1) return String.fromCharCode(0x2014); if(l.indexOf('strong multi')!==-1) return 'Strong Flow'; if(l.indexOf('accumulation trend')!==-1) return 'Accumulating'; if(l.indexOf('early')!==-1) return 'Early Accum.'; if(l.indexOf('constructive')!==-1) return 'Constructive'; if(l.indexOf('short-term')!==-1) return 'ST Spike'; return s; }
+            function isPosRev(s){ return s && s.indexOf('Bullish')===0; }
+            function isPosSMF(s){ return ['Strong Multi-Timeframe Flow','Accumulation Trend Positive','Early Accumulation','Constructive but Cooling'].indexOf(s)!==-1; }
+            function isPosT(s)  { return s==='Uptrend'||s==='Strong Uptrend'; }
+            function isPosMom(s){ return s==='Building'||s==='Strong'; }
+
+            // Apply criteria + specific value filters
+            var filtered = items.filter(function(row){
+              if (reqReversal  && !isPosRev(row.reversal))  return false;
+              if (reqSMF       && !isPosSMF(row.moneyFlow)) return false;
+              if (reqTrend     && !isPosT(row.trend))        return false;
+              if (reqMomentum  && !isPosMom(row.momentum))   return false;
+              if (filterTrend    && row.trend    !==filterTrend)    return false;
+              if (filterMomentum && row.momentum !==filterMomentum) return false;
+              if (filterReversal && row.reversal !==filterReversal) return false;
+              if (filterSMF      && row.moneyFlow!==filterSMF)      return false;
+              return true;
+            });
+
+            if (filtered.length===0) return (
+              <div style={{ background:'#161614', border:'0.5px solid #2a2a28', borderRadius:10, padding:32, textAlign:'center', color:'#555', fontSize:13 }}>
+                {items.length===0 ? 'Scan returned no results. Try Refresh Scan.' : 'No tickers match the selected criteria. Try relaxing your filters.'}
+              </div>
+            );
+
+            // Consistent grid: all equal fr except fixed short columns
+            var GRID = '65px 180px 70px 58px 68px 1fr 1fr 1fr 1fr 48px 70px';
+            return (
+              <div style={{ border:'0.5px solid #2a2a28', borderRadius:10, overflow:'hidden' }}>
+                <div style={{ display:'grid', gridTemplateColumns:GRID, columnGap:12, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
+                  {['Ticker','Company','Price','Chg%','Volume','Trend','Momentum','Reversal','Money Flow','',''].map(function(h,i){
+                    return <div key={i} style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em' }}>{h}</div>;
+                  })}
+                </div>
+                {filtered.map(function(row,i){
+                  var revC = revStatusColor(row.reversal,'main');
+                  var smfC = smfStatusColor(row.moneyFlow,'main');
+                  var tC   = row.trendScore>=55?'#7abd00':row.trendScore>=40?'#EF9F27':'#e05050';
+                  var mC   = row.momentumScore>=65?'#7abd00':row.momentumScore>=50?'#EF9F27':'#e05050';
+                  return (
+                    <div key={row.ticker} style={{ display:'grid', gridTemplateColumns:GRID, columnGap:12, padding:'10px 14px', borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none', background:i%2===0?'#111':'#131311', alignItems:'center' }}>
+                      <div style={{ fontSize:13, fontWeight:800, color:LIME }}>{row.ticker}</div>
+                      <div style={{ fontSize:11, color:'#666', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.company}</div>
+                      <div style={{ fontSize:12, fontWeight:600, color:'#f0ede6' }}>{'$'+row.price.toFixed(2)}</div>
+                      <div style={{ fontSize:11, fontWeight:600, color:row.changePct>=0?'#7abd00':'#e05050' }}>{(row.changePct>=0?'+':'')+row.changePct.toFixed(2)+'%'}</div>
+                      <div style={{ fontSize:11, color:'#888' }}>{fmtVol(row.volume)}</div>
+                      <div style={{ fontSize:11, fontWeight:600, color:tC }}>{row.trend}</div>
+                      <div style={{ fontSize:11, fontWeight:600, color:mC }}>{row.momentum}</div>
+                      <div style={{ fontSize:10, fontWeight:700, color:revC, lineHeight:1.3 }} title={row.reversal}>{cRev(row.reversal)}</div>
+                      <div style={{ fontSize:10, fontWeight:700, color:smfC, lineHeight:1.3 }} title={row.moneyFlow}>{cSmf(row.moneyFlow)}</div>
+                      <button onClick={function(){ window.location.hash=row.ticker; }}
+                        style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#888', fontSize:10, cursor:'pointer', padding:'4px 6px' }}>View</button>
+                      <button onClick={function(){ addToJournal(row); }}
+                        title={'Add '+row.ticker+' to Signal Journal'}
+                        style={{ background:'none', border:'0.5px solid #1a3a1a', borderRadius:6, color:'#5a9a40', fontSize:10, cursor:'pointer', padding:'4px 6px', whiteSpace:'nowrap' }}>+Journal</button>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+          <div style={{ fontSize:10, color:'#444', marginTop:10 }}>
+            {items.length+' tickers scanned \u2022 Sorted by combined reversal + money flow score \u2022 Research use only. Not financial advice.'}
+          </div>
+        </div>
+      )}
+
+      {scanStatus==='error' && <div style={{ color:'#e05050', fontSize:12 }}>{scanMsg}</div>}
+    </div>
+  );
 }
 
 function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling, periodEnd }) {
@@ -2884,7 +3188,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.32</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.34</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2938,7 +3242,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.32</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.34</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -8723,7 +9027,7 @@ export function JournalPage() {
     var active = sortCol === props.col;
     return (
       <th onClick={function(){ setSortDir(active&&sortDir==="asc"?"desc":"asc"); setSortCol(props.col); }}
-        style={{ padding:"6px 7px", fontSize:10, fontWeight:700, color: active?"#c8f000":"#666", textTransform:"uppercase", letterSpacing:"0.06em", cursor:"pointer", whiteSpace:"nowrap", background:"#1a1a18", borderBottom:"1px solid #2a2a28", userSelect:"none" }}>
+        style={{ padding:"6px 7px", fontSize:10, fontWeight:700, color: active?"#c8f000":"#666", textTransform:"uppercase", letterSpacing:"0.06em", cursor:"pointer", whiteSpace:"nowrap", background:"#1a1a18", borderBottom:"1px solid #2a2a28", userSelect:"none", textAlign:"left" }}>
         {props.children}{active?(sortDir==="asc"?" ▲":" ▼"):""}
       </th>
     );
@@ -9316,6 +9620,10 @@ export default function App() {
     return <UpgradePage onBack={function(){ setShowUpgrade(false); }} clerkUser={clerkUser} />;
   }
 
+  if (hashSym === "SCREENER") {
+    return <Screener />;
+  }
+
   if (hashSym === "JOURNAL") {
   return <JournalPage />;
 }
@@ -9441,7 +9749,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.32</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.34</span>
           </div>
         </div>
 
