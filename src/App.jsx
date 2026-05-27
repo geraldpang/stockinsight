@@ -1360,7 +1360,7 @@ function Screener() {
               <div style={{ border:'0.5px solid #2a2a28', borderRadius:10, overflow:'hidden' }}>
                 <div style={{ display:'grid', gridTemplateColumns:GRID, columnGap:12, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
                   {['Ticker','Company','Price','Chg%','Volume','Trend','Momentum','Reversal','Money Flow','',''].map(function(h,i){
-                    return <div key={i} style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em' }}>{h}</div>;
+                    return <div key={i} style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', paddingRight: i===4 ? 32 : 0 }}>{h}</div>;
                   })}
                 </div>
                 {filtered.map(function(row,i){
@@ -1374,7 +1374,7 @@ function Screener() {
                       <div style={{ fontSize:11, color:'#666', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.company}</div>
                       <div style={{ fontSize:12, fontWeight:600, color:'#f0ede6' }}>{'$'+row.price.toFixed(2)}</div>
                       <div style={{ fontSize:11, fontWeight:600, color:row.changePct>=0?'#7abd00':'#e05050' }}>{(row.changePct>=0?'+':'')+row.changePct.toFixed(2)+'%'}</div>
-                      <div style={{ fontSize:11, color:'#888' }}>{fmtVol(row.volume)}</div>
+                      <div style={{ fontSize:11, color:'#888', paddingRight:32 }}>{fmtVol(row.volume)}</div>
                       <div style={{ fontSize:11, fontWeight:600, color:tC }}>{row.trend}</div>
                       <div style={{ fontSize:11, fontWeight:600, color:mC }}>{row.momentum}</div>
                       <div style={{ fontSize:10, fontWeight:700, color:revC, lineHeight:1.3 }} title={row.reversal}>{cRev(row.reversal)}</div>
