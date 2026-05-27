@@ -1355,7 +1355,7 @@ function Screener() {
             );
 
             // Consistent grid: all equal fr except fixed short columns
-            var GRID = '65px 1.8fr 65px 55px 65px 85px 85px 90px 105px 48px 72px';
+            var GRID = '65px 1fr 70px 58px 65px 90px 85px 85px 100px 48px 70px';
             return (
               <div style={{ border:'0.5px solid #2a2a28', borderRadius:10, overflow:'hidden' }}>
                 <div style={{ display:'grid', gridTemplateColumns:GRID, columnGap:12, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
