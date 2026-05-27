@@ -1355,9 +1355,9 @@ function Screener() {
             );
 
             // Consistent grid: all equal fr except fixed short columns
-            var GRID = '65px 180px 70px 58px 68px 1fr 1fr 1fr 1fr 48px 70px';
+            var GRID = '65px 160px 70px 58px 68px 110px 90px 110px 120px 48px 70px';
             return (
-              <div style={{ border:'0.5px solid #2a2a28', borderRadius:10, overflow:'hidden' }}>
+              <div style={{ border:'0.5px solid #2a2a28', borderRadius:10, overflow:'hidden', maxWidth:1100 }}>
                 <div style={{ display:'grid', gridTemplateColumns:GRID, columnGap:12, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
                   {['Ticker','Company','Price','Chg%','Volume','Trend','Momentum','Reversal','Money Flow','',''].map(function(h,i){
                     return <div key={i} style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em' }}>{h}</div>;
