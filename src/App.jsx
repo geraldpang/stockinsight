@@ -1144,14 +1144,14 @@ function Screener() {
       // Step 1: Yahoo Finance most-active screener (via existing /proxy route)
       var candidates = [];
       try {
-        var sUrl = 'https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&start=0&count=50&lang=en-US&region=US';
+        var sUrl = 'https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&start=0&count=100&lang=en-US&region=US';
         var sRes = await fetch('/proxy?url='+encodeURIComponent(sUrl));
         var sData = await sRes.json();
         var quotes = (sData.finance&&sData.finance.result&&sData.finance.result[0]&&sData.finance.result[0].quotes)||[];
         candidates = quotes.filter(function(q){
           return q.regularMarketPrice>5 && q.regularMarketChangePercent>0 &&
                  q.regularMarketVolume>1000000 && q.quoteType==='EQUITY';
-        }).slice(0,20).map(function(q){
+        }).slice(0,50).map(function(q){
           return { sym:q.symbol, name:q.longName||q.shortName||q.symbol,
                    price:q.regularMarketPrice, changePct:q.regularMarketChangePercent, volume:q.regularMarketVolume };
         });
@@ -1165,7 +1165,7 @@ function Screener() {
       if (!candidates.length){ setScanMsg('No candidates after pre-filter.'); setScanStatus('done'); setResults({ cachedAt:new Date().toISOString(), results:[] }); return; }
       setScanMsg('Scanning '+candidates.length+' candidates...');
 
-      // Step 2: Batch technical scans, 5 at a time — max 20 tickers
+      // Step 2: Batch technical scans, 5 at a time — max 50 tickers
       var hdrs = window.__clerkToken ? { Authorization:'Bearer '+window.__clerkToken } : {};
       var matched = [];
       var BATCH = 5;
