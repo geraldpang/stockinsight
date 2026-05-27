@@ -8863,9 +8863,13 @@ export function JournalPage() {
                     <Th col="close_price">Close</Th>
                     <Th col="trend_status">Trend</Th>
                     <Th col="momentum_status">Momentum</Th>
+                    <Th col="momentum_score">M.Score</Th>
                     <Th col="rsi_value">RSI</Th>
                     <Th col="reversal_status">Reversal</Th>
+                    <Th col="bullish_reversal_score">Bull</Th>
+                    <Th col="bearish_reversal_score">Bear</Th>
                     <Th col="smart_money_status">Smart Money</Th>
+                    <Th col="smart_money_score">SM.Score</Th>
                     <Th col="future_return_5d">5D Ret.</Th>
                     <Th col="future_return_10d">10D</Th>
                     <Th col="future_return_20d">20D</Th>
@@ -8890,9 +8894,13 @@ export function JournalPage() {
                         <td style={{ padding:"5px 7px", color:"#f0ede6" }}>${r.close_price?.toFixed(2)}</td>
                         <td style={{ padding:"5px 7px" }}>{StatusBadge(r.trend_status, r.trend_score>=55?"#7abd00":r.trend_score>=40?"#EF9F27":"#e05050")}</td>
                         <td style={{ padding:"5px 7px" }}>{StatusBadge(r.momentum_status, r.momentum_score>=65?"#7abd00":r.momentum_score>=50?"#EF9F27":"#e05050")}</td>
+                        <td style={{ padding:"5px 7px", color:"#aaa", fontWeight:500 }}>{r.momentum_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"5px 7px", color:r.rsi_value>70?"#EF9F27":r.rsi_value>=50?"#7abd00":r.rsi_value>=30?"#888":"#e05050" }}>{r.rsi_value?.toFixed(1)||"—"}</td>
                         <td style={{ padding:"5px 7px", fontSize:10, color:revCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.reversal_status||"—"}</td>
+                        <td style={{ padding:"5px 7px", color:"#aaa" }}>{r.bullish_reversal_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"5px 7px", color:"#aaa" }}>{r.bearish_reversal_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"5px 7px", fontSize:10, color:smfCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.smart_money_status||"—"}</td>
+                        <td style={{ padding:"5px 7px", color:"#aaa", fontWeight:500 }}>{r.smart_money_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_5d)}</td>
                         <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_10d)}</td>
                         <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_20d)}</td>
