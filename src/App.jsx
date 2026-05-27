@@ -1144,14 +1144,14 @@ function Screener() {
       // Step 1: Yahoo Finance most-active screener (via existing /proxy route)
       var candidates = [];
       try {
-        var sUrl = 'https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&start=0&count=50&lang=en-US&region=US';
+        var sUrl = 'https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&start=0&count=100&lang=en-US&region=US';
         var sRes = await fetch('/proxy?url='+encodeURIComponent(sUrl));
         var sData = await sRes.json();
         var quotes = (sData.finance&&sData.finance.result&&sData.finance.result[0]&&sData.finance.result[0].quotes)||[];
         candidates = quotes.filter(function(q){
           return q.regularMarketPrice>5 && q.regularMarketChangePercent>0 &&
                  q.regularMarketVolume>1000000 && q.quoteType==='EQUITY';
-        }).slice(0,20).map(function(q){
+        }).slice(0,50).map(function(q){
           return { sym:q.symbol, name:q.longName||q.shortName||q.symbol,
                    price:q.regularMarketPrice, changePct:q.regularMarketChangePercent, volume:q.regularMarketVolume };
         });
@@ -1165,7 +1165,7 @@ function Screener() {
       if (!candidates.length){ setScanMsg('No candidates after pre-filter.'); setScanStatus('done'); setResults({ cachedAt:new Date().toISOString(), results:[] }); return; }
       setScanMsg('Scanning '+candidates.length+' candidates...');
 
-      // Step 2: Batch technical scans, 5 at a time — max 20 tickers
+      // Step 2: Batch technical scans, 5 at a time — max 50 tickers
       var hdrs = window.__clerkToken ? { Authorization:'Bearer '+window.__clerkToken } : {};
       var matched = [];
       var BATCH = 5;
@@ -1355,12 +1355,12 @@ function Screener() {
             );
 
             // Consistent grid: all equal fr except fixed short columns
-            var GRID = '65px 160px 70px 58px 68px 1fr 1fr 1fr 1fr 48px 70px';
+            var GRID = '65px 160px 70px 58px 68px minmax(100px,140px) minmax(90px,120px) minmax(90px,130px) minmax(110px,150px) 48px 70px';
             return (
               <div style={{ border:'0.5px solid #2a2a28', borderRadius:10, overflow:'hidden' }}>
                 <div style={{ display:'grid', gridTemplateColumns:GRID, columnGap:12, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
                   {['Ticker','Company','Price','Chg%','Volume','Trend','Momentum','Reversal','Money Flow','',''].map(function(h,i){
-                    return <div key={i} style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em' }}>{h}</div>;
+                    return <div key={i} style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', paddingRight: i===4 ? 32 : 0 }}>{h}</div>;
                   })}
                 </div>
                 {filtered.map(function(row,i){
@@ -1374,7 +1374,7 @@ function Screener() {
                       <div style={{ fontSize:11, color:'#666', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.company}</div>
                       <div style={{ fontSize:12, fontWeight:600, color:'#f0ede6' }}>{'$'+row.price.toFixed(2)}</div>
                       <div style={{ fontSize:11, fontWeight:600, color:row.changePct>=0?'#7abd00':'#e05050' }}>{(row.changePct>=0?'+':'')+row.changePct.toFixed(2)+'%'}</div>
-                      <div style={{ fontSize:11, color:'#888' }}>{fmtVol(row.volume)}</div>
+                      <div style={{ fontSize:11, color:'#888', paddingRight:32 }}>{fmtVol(row.volume)}</div>
                       <div style={{ fontSize:11, fontWeight:600, color:tC }}>{row.trend}</div>
                       <div style={{ fontSize:11, fontWeight:600, color:mC }}>{row.momentum}</div>
                       <div style={{ fontSize:10, fontWeight:700, color:revC, lineHeight:1.3 }} title={row.reversal}>{cRev(row.reversal)}</div>
