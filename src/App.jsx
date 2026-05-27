@@ -4,7 +4,8 @@ import { calculateTechnicalSignalSnapshot, calcRSI,
          getReversalDirectionStatus, getOverallReversalStatus,
          validateSmfOHLCV, getSmfScoreLabel, calcSmfVolPriceDivergence,
          calcSmfTodaySignal, calcSmfFiveDaySignal, calcSmfThirtyDaySignal,
-         getSmfOverallStatus, calcSmfSummaryCard } from "./technicalSignals.js";
+         getSmfOverallStatus, calcSmfSummaryCard,
+         isPositiveReversal, isPositiveMoneyFlow } from "./technicalSignals.js";
 
 // ─── Central signal colour system ─────────────────────────────────────────────
 var _CLR = {
@@ -1095,6 +1096,201 @@ function buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200) {
     indicators: ind,
     meta:       { price: price||0, hi52: 0, lo52: 0 },
   });
+}
+
+// ── Screener: data adapter — converts Massive data to snapshot (no tech calc) ──
+function buildScreenerSnapshot(sym, massiveInfo) {
+  if (!massiveInfo || !massiveInfo.aggs || massiveInfo.aggs.length < 10) return null;
+  var rawAggs = massiveInfo.aggs;
+  var ind     = massiveInfo.indicators || {};
+  var mSnap   = massiveInfo.snapshot   || {};
+  var price   = mSnap.close || (rawAggs[0] && rawAggs[0].c) || 0;
+  var hi52 = 0, lo52 = Infinity;
+  rawAggs.forEach(function(b){ if (b.h>hi52) hi52=b.h; if (b.l>0&&b.l<lo52) lo52=b.l; });
+  if (lo52===Infinity) lo52=0;
+  var ohlcv = rawAggs.filter(function(b){ return b&&b.c>0; }).slice().reverse()
+    .map(function(b){ return { date:'',open:b.o||0,high:b.h||0,low:b.l||0,close:b.c||0,volume:b.v||0 }; });
+  try {
+    return calculateTechnicalSignalSnapshot({ ticker:sym, date:new Date().toISOString().split('T')[0],
+      ohlcv:ohlcv, indicators:ind, meta:{ price:price, hi52:hi52, lo52:lo52 } });
+  } catch(e) { return null; }
+}
+
+// ── Screener component ────────────────────────────────────────────────────────
+function Screener() {
+  var [scanStatus, setScanStatus] = useState('loading');
+  var [results,    setResults]    = useState(null);
+  var [scanMsg,    setScanMsg]    = useState('');
+
+  useEffect(function() {
+    // Read 12-hour KV cache on mount
+    fetch('/cache?sym=__SCREENER&tab=results')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d && d.hit && d.value) {
+          var parsed = JSON.parse(d.value);
+          var ageHrs = (Date.now() - new Date(parsed.cachedAt).getTime()) / 3600000;
+          if (ageHrs < 12 && parsed.results) { setResults(parsed); setScanStatus('done'); return; }
+        }
+        setScanStatus('idle');
+      })
+      .catch(function(){ setScanStatus('idle'); });
+  }, []);
+
+  async function runScan() {
+    if (scanStatus==='scanning') return;
+    setScanStatus('scanning'); setScanMsg('Fetching most active tickers...');
+    try {
+      // Step 1: Yahoo Finance most-active screener (via existing /proxy route)
+      var candidates = [];
+      try {
+        var sUrl = 'https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&start=0&count=50&lang=en-US&region=US';
+        var sRes = await fetch('/proxy?url='+encodeURIComponent(sUrl));
+        var sData = await sRes.json();
+        var quotes = (sData.finance&&sData.finance.result&&sData.finance.result[0]&&sData.finance.result[0].quotes)||[];
+        candidates = quotes.filter(function(q){
+          return q.regularMarketPrice>5 && q.regularMarketChangePercent>0 &&
+                 q.regularMarketVolume>1000000 && q.quoteType==='EQUITY';
+        }).slice(0,20).map(function(q){
+          return { sym:q.symbol, name:q.longName||q.shortName||q.symbol,
+                   price:q.regularMarketPrice, changePct:q.regularMarketChangePercent, volume:q.regularMarketVolume };
+        });
+      } catch(e) {
+        // Fallback: curated top-US ticker universe
+        ['NVDA','AAPL','MSFT','AMZN','GOOGL','META','TSLA','AMD','AVGO','PLTR',
+         'COIN','MARA','RIOT','HOOD','SOFI','NFLX','DIS','INTL','NOW','SNOW']
+          .forEach(function(s){ candidates.push({ sym:s, name:s, price:0, changePct:0, volume:0 }); });
+      }
+
+      if (!candidates.length){ setScanMsg('No candidates after pre-filter.'); setScanStatus('done'); setResults({ cachedAt:new Date().toISOString(), results:[] }); return; }
+      setScanMsg('Scanning '+candidates.length+' candidates...');
+
+      // Step 2: Batch technical scans, 5 at a time — max 20 tickers
+      var hdrs = window.__clerkToken ? { Authorization:'Bearer '+window.__clerkToken } : {};
+      var matched = [];
+      var BATCH = 5;
+      for (var i=0; i<candidates.length; i+=BATCH) {
+        var batch = candidates.slice(i, i+BATCH);
+        setScanMsg('Scanning '+(Math.min(i+BATCH,candidates.length))+' / '+candidates.length+'...');
+        var bRes = await Promise.all(batch.map(async function(c) {
+          try {
+            var mRes = await fetch('/massive?sym='+c.sym, { headers:hdrs });
+            if (!mRes.ok) return null;
+            var mData = await mRes.json();
+            if (!mData||!mData.aggs||mData.aggs.length<10) return null;
+            var snap = buildScreenerSnapshot(c.sym, mData);
+            if (!snap) return null;
+            // Screen using technicalSignals.js pure helper functions
+            if (!isPositiveReversal(snap)||!isPositiveMoneyFlow(snap)) return null;
+            var ms = mData.snapshot||{};
+            return { ticker:c.sym, company:(mData.ticker&&mData.ticker.name)||c.name||c.sym,
+                     price:c.price||ms.close||0, changePct:c.changePct||ms.change||0, volume:c.volume||ms.volume||0,
+                     reversal:snap.reversalWatch.status, reversalScore:snap.reversalWatch.score||0,
+                     moneyFlow:snap.smartMoneyFlow.status, moneyFlowScore:snap.smartMoneyFlow.score||0,
+                     trend:snap.trend.status, trendScore:snap.trend.score||0,
+                     momentum:snap.momentum.status, momentumScore:snap.momentum.score||0 };
+          } catch(e){ return null; }
+        }));
+        matched = matched.concat(bRes.filter(Boolean));
+      }
+
+      // Sort by combined reversal + money flow score
+      matched.sort(function(a,b){ return (b.reversalScore+b.moneyFlowScore)-(a.reversalScore+a.moneyFlowScore); });
+
+      var cacheObj = { cachedAt:new Date().toISOString(), results:matched };
+      // Write to KV cache (12h enforced on read via cachedAt check above)
+      var postHdrs = { 'Content-Type':'text/plain' };
+      if (window.__clerkToken) postHdrs['Authorization']='Bearer '+window.__clerkToken;
+      fetch('/cache?sym=__SCREENER&tab=results', { method:'POST', headers:postHdrs, body:JSON.stringify(cacheObj) }).catch(function(){});
+
+      setResults(cacheObj); setScanStatus('done'); setScanMsg('');
+    } catch(e) { setScanStatus('error'); setScanMsg('Scan failed: '+(e.message||'Unknown error')); }
+  }
+
+  var LIME  = '#c8f000';
+  var items = (results&&results.results)||[];
+
+  function fmtVol(v){ if(!v||v===0) return String.fromCharCode(0x2014); if(v>=1e9) return (v/1e9).toFixed(1)+'B'; if(v>=1e6) return (v/1e6).toFixed(1)+'M'; return (v/1e3).toFixed(0)+'K'; }
+  function fmtDate(iso){ if(!iso) return ''; var d=new Date(iso); return d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+', '+d.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'}); }
+
+  return (
+    <div style={{ minHeight:'100vh', background:'#0e0e0c', color:'#f0ede6', padding:'32px 24px', fontFamily:"'Inter','SF Pro',sans-serif" }}>
+      <button onClick={function(){ window.location.hash=''; }} style={{ background:'none', border:'none', color:'#666', fontSize:12, cursor:'pointer', marginBottom:20, padding:0 }}>
+        {'← Back'}
+      </button>
+      <div style={{ marginBottom:24 }}>
+        <div style={{ fontSize:11, color:'#555', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:6 }}>Screener</div>
+        <div style={{ fontSize:22, fontWeight:800, color:LIME, marginBottom:8 }}>Bullish Reversal + Money Flow</div>
+        <div style={{ fontSize:13, color:'#666', lineHeight:1.7, maxWidth:620 }}>
+          {'Screens top active US stocks for early or positive bullish reversal signals appearing together with useful money flow.'}
+        </div>
+        <div style={{ fontSize:11, color:'#444', marginTop:6, lineHeight:1.6 }}>
+          {'Bullish Reversal Spark is an early-interest signal — not confirmation. Results cached for 12 hours. Research use only, not financial advice.'}
+        </div>
+      </div>
+
+      <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:24, flexWrap:'wrap' }}>
+        <button onClick={runScan} disabled={scanStatus==='scanning'}
+          style={{ background:scanStatus==='scanning'?'#1a1a18':LIME, color:scanStatus==='scanning'?'#555':'#0e0e0c', fontWeight:700, fontSize:12, border:'none', borderRadius:8, padding:'9px 18px', cursor:scanStatus==='scanning'?'not-allowed':'pointer' }}>
+          {scanStatus==='scanning' ? String.fromCharCode(0x23f3)+' Scanning...' : String.fromCharCode(0x1f50d)+' Refresh Scan'}
+        </button>
+        {scanMsg && <span style={{ fontSize:11, color:'#666' }}>{scanMsg}</span>}
+        {results&&results.cachedAt && <span style={{ fontSize:11, color:'#444' }}>{'Showing cached scan. Last scanned: '+fmtDate(results.cachedAt)}</span>}
+      </div>
+
+      {scanStatus==='loading' && <div style={{ color:'#444', fontSize:12 }}>{'Loading cached results...'}</div>}
+
+      {scanStatus==='idle' && (
+        <div style={{ background:'#161614', border:'0.5px solid #2a2a28', borderRadius:10, padding:32, textAlign:'center', color:'#555', fontSize:13 }}>
+          {'No cached scan available. Click '}<strong style={{ color:LIME }}>{'Refresh Scan'}</strong>{' to screen top active US tickers.'}
+        </div>
+      )}
+
+      {(scanStatus==='done'||scanStatus==='scanning') && results && (
+        <div>
+          {items.length===0 ? (
+            <div style={{ background:'#161614', border:'0.5px solid #2a2a28', borderRadius:10, padding:32, textAlign:'center', color:'#555', fontSize:13 }}>
+              {'No active tickers currently meet both positive reversal and positive money flow criteria.'}
+            </div>
+          ) : (
+            <div style={{ border:'0.5px solid #2a2a28', borderRadius:10, overflow:'hidden' }}>
+              <div style={{ display:'grid', gridTemplateColumns:'80px 1fr 75px 65px 70px 1.4fr 1.2fr 90px 90px 60px', columnGap:14, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
+                {['Ticker','Company','Price','Chg%','Volume','Reversal','Money Flow','Trend','Momentum',''].map(function(h,i){
+                  return <div key={i} style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em' }}>{h}</div>;
+                })}
+              </div>
+              {items.map(function(row,i){
+                var revC = revStatusColor(row.reversal,'main');
+                var smfC = smfStatusColor(row.moneyFlow,'main');
+                var tC   = row.trendScore>=55?'#7abd00':row.trendScore>=40?'#EF9F27':'#e05050';
+                var mC   = row.momentumScore>=65?'#7abd00':row.momentumScore>=50?'#EF9F27':'#e05050';
+                return (
+                  <div key={row.ticker} style={{ display:'grid', gridTemplateColumns:'80px 1fr 75px 65px 70px 1.4fr 1.2fr 90px 90px 60px', columnGap:14, padding:'10px 14px', borderBottom:i<items.length-1?'1px solid #1a1a16':'none', background:i%2===0?'#111':'#131311', alignItems:'center' }}>
+                    <div style={{ fontSize:13, fontWeight:800, color:LIME }}>{row.ticker}</div>
+                    <div style={{ fontSize:11, color:'#666', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.company}</div>
+                    <div style={{ fontSize:12, fontWeight:600, color:'#f0ede6' }}>{'$'+row.price.toFixed(2)}</div>
+                    <div style={{ fontSize:11, fontWeight:600, color:row.changePct>=0?'#7abd00':'#e05050' }}>{(row.changePct>=0?'+':'')+row.changePct.toFixed(2)+'%'}</div>
+                    <div style={{ fontSize:11, color:'#888' }}>{fmtVol(row.volume)}</div>
+                    <div style={{ fontSize:10, fontWeight:700, color:revC, lineHeight:1.3 }}>{row.reversal}</div>
+                    <div style={{ fontSize:10, fontWeight:700, color:smfC, lineHeight:1.3 }}>{row.moneyFlow}</div>
+                    <div style={{ fontSize:11, fontWeight:600, color:tC }}>{row.trend}</div>
+                    <div style={{ fontSize:11, fontWeight:600, color:mC }}>{row.momentum}</div>
+                    <button onClick={function(){ window.location.hash=row.ticker; }}
+                      style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#888', fontSize:10, cursor:'pointer', padding:'4px 10px' }}>{'View'}</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div style={{ fontSize:10, color:'#444', marginTop:10 }}>
+            {items.length+' ticker'+(items.length!==1?'s':'')+' matched \u2022 Sorted by combined reversal + money flow score \u2022 Research use only. Not financial advice.'}
+          </div>
+        </div>
+      )}
+
+      {scanStatus==='error' && <div style={{ color:'#e05050', fontSize:12 }}>{scanMsg}</div>}
+    </div>
+  );
 }
 
 function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling, periodEnd }) {
@@ -2884,7 +3080,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.32</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.33</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -2938,7 +3134,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.32</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.33</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -8863,9 +9059,13 @@ export function JournalPage() {
                     <Th col="close_price">Close</Th>
                     <Th col="trend_status">Trend</Th>
                     <Th col="momentum_status">Momentum</Th>
+                    <Th col="momentum_score">M.Score</Th>
                     <Th col="rsi_value">RSI</Th>
                     <Th col="reversal_status">Reversal</Th>
+                    <Th col="bullish_reversal_score">Bull</Th>
+                    <Th col="bearish_reversal_score">Bear</Th>
                     <Th col="smart_money_status">Smart Money</Th>
+                    <Th col="smart_money_score">SM.Score</Th>
                     <Th col="future_return_5d">5D Ret.</Th>
                     <Th col="future_return_10d">10D</Th>
                     <Th col="future_return_20d">20D</Th>
@@ -8890,9 +9090,13 @@ export function JournalPage() {
                         <td style={{ padding:"5px 7px", color:"#f0ede6" }}>${r.close_price?.toFixed(2)}</td>
                         <td style={{ padding:"5px 7px" }}>{StatusBadge(r.trend_status, r.trend_score>=55?"#7abd00":r.trend_score>=40?"#EF9F27":"#e05050")}</td>
                         <td style={{ padding:"5px 7px" }}>{StatusBadge(r.momentum_status, r.momentum_score>=65?"#7abd00":r.momentum_score>=50?"#EF9F27":"#e05050")}</td>
+                        <td style={{ padding:"5px 7px", color:"#aaa", fontWeight:500 }}>{r.momentum_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"5px 7px", color:r.rsi_value>70?"#EF9F27":r.rsi_value>=50?"#7abd00":r.rsi_value>=30?"#888":"#e05050" }}>{r.rsi_value?.toFixed(1)||"—"}</td>
                         <td style={{ padding:"5px 7px", fontSize:10, color:revCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.reversal_status||"—"}</td>
+                        <td style={{ padding:"5px 7px", color:"#aaa" }}>{r.bullish_reversal_score?.toFixed(0)||"—"}</td>
+                        <td style={{ padding:"5px 7px", color:"#aaa" }}>{r.bearish_reversal_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"5px 7px", fontSize:10, color:smfCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.smart_money_status||"—"}</td>
+                        <td style={{ padding:"5px 7px", color:"#aaa", fontWeight:500 }}>{r.smart_money_score?.toFixed(0)||"—"}</td>
                         <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_5d)}</td>
                         <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_10d)}</td>
                         <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_20d)}</td>
@@ -9308,6 +9512,10 @@ export default function App() {
     return <UpgradePage onBack={function(){ setShowUpgrade(false); }} clerkUser={clerkUser} />;
   }
 
+  if (hashSym === "SCREENER") {
+    return <Screener />;
+  }
+
   if (hashSym === "JOURNAL") {
   return <JournalPage />;
 }
@@ -9433,8 +9641,14 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.32</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.33</span>
           </div>
+        </div>
+        <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+          <button onClick={function(){ window.location.hash="SCREENER"; }}
+            style={{ background:"none", border:"0.5px solid rgba(200,240,0,0.3)", borderRadius:6, color:"rgba(200,240,0,0.7)", fontSize:11, fontWeight:600, padding:"5px 12px", cursor:"pointer", letterSpacing:"0.04em" }}>
+            {String.fromCharCode(0x1f50d)+' Screener'}
+          </button>
         </div>
 
       </nav>
