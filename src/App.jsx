@@ -1355,7 +1355,7 @@ function Screener() {
             );
 
             // Consistent grid: all equal fr except fixed short columns
-            var GRID = '65px 1fr 70px 58px 65px 90px 85px 85px 100px 48px 70px';
+            var GRID = '65px 180px 70px 58px 68px 1fr 1fr 1fr 1fr 48px 70px';
             return (
               <div style={{ border:'0.5px solid #2a2a28', borderRadius:10, overflow:'hidden' }}>
                 <div style={{ display:'grid', gridTemplateColumns:GRID, columnGap:12, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
@@ -9751,10 +9751,6 @@ export default function App() {
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
             <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.33</span>
           </div>
-          <button onClick={function(){ window.location.hash="SCREENER"; }}
-            style={{ background:"none", border:"0.5px solid rgba(200,240,0,0.3)", borderRadius:6, color:"rgba(200,240,0,0.7)", fontSize:11, fontWeight:600, padding:"5px 12px", cursor:"pointer", letterSpacing:"0.04em", marginLeft:16, flexShrink:0 }}>
-            {String.fromCharCode(0x1f50d)+' Screener'}
-          </button>
         </div>
 
       </nav>
