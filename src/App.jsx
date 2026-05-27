@@ -1181,7 +1181,7 @@ function Screener() {
             var snap = buildScreenerSnapshot(c.sym, mData);
             if (!snap) return null;
             // Screen using technicalSignals.js pure helper functions
-            if (!isPositiveReversal(snap)||!isPositiveMoneyFlow(snap)) return null;
+            // Store all results — criteria applied client-side for flexible filtering
             var ms = mData.snapshot||{};
             return { ticker:c.sym, company:(mData.ticker&&mData.ticker.name)||c.name||c.sym,
                      price:c.price||ms.close||0, changePct:c.changePct||ms.change||0, volume:c.volume||ms.volume||0,
@@ -1240,6 +1240,11 @@ function Screener() {
   var [filterMomentum, setFilterMomentum] = useState('');
   var [filterReversal, setFilterReversal] = useState('');
   var [filterSMF,      setFilterSMF]      = useState('');
+  // Scan criteria — applied client-side on cached results
+  var [reqReversal,  setReqReversal]  = useState(true);
+  var [reqSMF,       setReqSMF]       = useState(true);
+  var [reqTrend,     setReqTrend]     = useState(false);
+  var [reqMomentum,  setReqMomentum]  = useState(false);
   var items = (results&&results.results)||[];
 
   function fmtVol(v){ if(!v||v===0) return String.fromCharCode(0x2014); if(v>=1e9) return (v/1e9).toFixed(1)+'B'; if(v>=1e6) return (v/1e6).toFixed(1)+'M'; return (v/1e3).toFixed(0)+'K'; }
@@ -1280,51 +1285,80 @@ function Screener() {
 
       {(scanStatus==='done'||scanStatus==='scanning') && results && (
         <div>
-          {/* Filter dropdowns — client-side filtering of cached results */}
-          {items.length > 0 && (
-            <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14, alignItems:'center' }}>
-              <span style={{ fontSize:10, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginRight:4 }}>Filter:</span>
+          {/* Scan criteria checkboxes */}
+          <div style={{ background:'#161614', border:'0.5px solid #2a2a28', borderRadius:8, padding:'12px 14px', marginBottom:12 }}>
+            <div style={{ fontSize:10, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:10 }}>Screening Criteria</div>
+            <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
               {[
-                ['Trend',        filterTrend,    setFilterTrend,    ['Strong Uptrend','Uptrend','Sideways','Downtrend','Strong Downtrend']],
-                ['Momentum',     filterMomentum, setFilterMomentum, ['Strong','Building','Neutral','Fading','Weak']],
-                ['Reversal',     filterReversal, setFilterReversal, ['Bullish Reversal Spark','Bullish Reversal Watch','Bullish Reversal Forming','Bullish Reversal Triggered','Bullish Reversal Confirming','Bullish Reversal Confirmed']],
-                ['Money Flow',   filterSMF,      setFilterSMF,      ['Strong Multi-Timeframe Flow','Accumulation Trend Positive','Early Accumulation','Constructive but Cooling']],
-              ].map(function(f){
+                ['Positive Reversal',  reqReversal,  setReqReversal],
+                ['Positive Money Flow',reqSMF,        setReqSMF],
+                ['Uptrend+',           reqTrend,      setReqTrend],
+                ['Building+ Momentum', reqMomentum,   setReqMomentum],
+              ].map(function(c){
                 return (
-                  <select key={f[0]} value={f[1]} onChange={function(e){ f[2](e.target.value); }}
-                    style={{ background:'#1a1a18', border:'0.5px solid '+(f[1]?'#7abd00':'#333'), borderRadius:6, color:f[1]?'#c8f000':'#666', fontSize:11, padding:'5px 10px', cursor:'pointer', outline:'none' }}>
-                    <option value=''>{'All '+f[0]}</option>
-                    {f[3].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
-                  </select>
+                  <label key={c[0]} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:12, color:c[1]?'#c8f000':'#666' }}>
+                    <input type='checkbox' checked={c[1]} onChange={function(e){ c[2](e.target.checked); }}
+                      style={{ accentColor:'#c8f000', width:13, height:13, cursor:'pointer' }} />
+                    {c[0]}
+                  </label>
                 );
               })}
-              {(filterTrend||filterMomentum||filterReversal||filterSMF) &&
-                <button onClick={function(){ setFilterTrend(''); setFilterMomentum(''); setFilterReversal(''); setFilterSMF(''); }}
-                  style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#555', fontSize:11, padding:'5px 10px', cursor:'pointer' }}>
-                  Clear
-                </button>}
             </div>
-          )}
+          </div>
+          {/* Specific value filters */}
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14, alignItems:'center' }}>
+            <span style={{ fontSize:10, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginRight:2 }}>Filter:</span>
+            {[
+              ['Trend',      filterTrend,    setFilterTrend,    ['Strong Uptrend','Uptrend','Sideways','Downtrend','Strong Downtrend']],
+              ['Momentum',   filterMomentum, setFilterMomentum, ['Strong','Building','Neutral','Fading','Weak']],
+              ['Reversal',   filterReversal, setFilterReversal, ['Bullish Reversal Spark','Bullish Reversal Watch','Bullish Reversal Forming','Bullish Reversal Triggered','Bullish Reversal Confirming','Bullish Reversal Confirmed']],
+              ['Money Flow', filterSMF,      setFilterSMF,      ['Strong Multi-Timeframe Flow','Accumulation Trend Positive','Early Accumulation','Constructive but Cooling']],
+            ].map(function(f){
+              return (
+                <select key={f[0]} value={f[1]} onChange={function(e){ f[2](e.target.value); }}
+                  style={{ background:'#1a1a18', border:'0.5px solid '+(f[1]?'#7abd00':'#333'), borderRadius:6, color:f[1]?'#c8f000':'#666', fontSize:11, padding:'5px 8px', cursor:'pointer', outline:'none' }}>
+                  <option value=''>{'All '+f[0]}</option>
+                  {f[3].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
+                </select>
+              );
+            })}
+            {(filterTrend||filterMomentum||filterReversal||filterSMF) &&
+              <button onClick={function(){ setFilterTrend(''); setFilterMomentum(''); setFilterReversal(''); setFilterSMF(''); }}
+                style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#555', fontSize:11, padding:'5px 8px', cursor:'pointer' }}>Clear</button>}
+          </div>
           {(function(){
-            // Apply client-side filters to cached results
+            // Compact display labels for long status strings
+            function cRev(s){ if(!s) return String.fromCharCode(0x2014); var l=s.toLowerCase(); if(l.indexOf('no clear')!==-1) return String.fromCharCode(0x2014); if(l.indexOf('spark')!==-1) return 'Spark'; if(l.indexOf('confirming')!==-1) return 'Confirming'; if(l.indexOf('confirmed')!==-1) return 'Confirmed'; if(l.indexOf('triggered')!==-1) return 'Triggered'; if(l.indexOf('forming')!==-1) return 'Forming'; if(l.indexOf('watch')!==-1&&l.indexOf('bull')!==-1) return 'Bull Watch'; if(l.indexOf('watch')!==-1&&l.indexOf('bear')!==-1) return 'Bear Watch'; if(l.indexOf('confirmed')!==-1&&l.indexOf('bear')!==-1) return 'Bear Conf.'; if(l.indexOf('forming')!==-1&&l.indexOf('bear')!==-1) return 'Bear Form.'; if(l.indexOf('mixed')!==-1) return 'Mixed'; return s; }
+            function cSmf(s){ if(!s) return String.fromCharCode(0x2014); var l=s.toLowerCase(); if(l.indexOf('no clear')!==-1) return String.fromCharCode(0x2014); if(l.indexOf('strong multi')!==-1) return 'Strong Flow'; if(l.indexOf('accumulation trend')!==-1) return 'Accumulating'; if(l.indexOf('early')!==-1) return 'Early Accum.'; if(l.indexOf('constructive')!==-1) return 'Constructive'; if(l.indexOf('short-term')!==-1) return 'ST Spike'; return s; }
+            function isPosRev(s){ return s && s.indexOf('Bullish')===0; }
+            function isPosSMF(s){ return ['Strong Multi-Timeframe Flow','Accumulation Trend Positive','Early Accumulation','Constructive but Cooling'].indexOf(s)!==-1; }
+            function isPosT(s)  { return s==='Uptrend'||s==='Strong Uptrend'; }
+            function isPosMom(s){ return s==='Building'||s==='Strong'; }
+
+            // Apply criteria + specific value filters
             var filtered = items.filter(function(row){
-              if (filterTrend    && row.trend    !== filterTrend)    return false;
-              if (filterMomentum && row.momentum !== filterMomentum) return false;
-              if (filterReversal && row.reversal !== filterReversal) return false;
-              if (filterSMF      && row.moneyFlow!== filterSMF)      return false;
+              if (reqReversal  && !isPosRev(row.reversal))  return false;
+              if (reqSMF       && !isPosSMF(row.moneyFlow)) return false;
+              if (reqTrend     && !isPosT(row.trend))        return false;
+              if (reqMomentum  && !isPosMom(row.momentum))   return false;
+              if (filterTrend    && row.trend    !==filterTrend)    return false;
+              if (filterMomentum && row.momentum !==filterMomentum) return false;
+              if (filterReversal && row.reversal !==filterReversal) return false;
+              if (filterSMF      && row.moneyFlow!==filterSMF)      return false;
               return true;
             });
-            if (filtered.length === 0) return (
+
+            if (filtered.length===0) return (
               <div style={{ background:'#161614', border:'0.5px solid #2a2a28', borderRadius:10, padding:32, textAlign:'center', color:'#555', fontSize:13 }}>
-                {items.length === 0
-                  ? 'No active tickers currently meet both positive reversal and positive money flow criteria.'
-                  : 'No tickers match the selected filters. Try relaxing your criteria.'}
+                {items.length===0 ? 'Scan returned no results. Try Refresh Scan.' : 'No tickers match the selected criteria. Try relaxing your filters.'}
               </div>
             );
+
+            // Consistent grid: all equal fr except fixed short columns
+            var GRID = '65px 1.8fr 65px 55px 65px 85px 85px 90px 105px 48px 72px';
             return (
               <div style={{ border:'0.5px solid #2a2a28', borderRadius:10, overflow:'hidden' }}>
-                {/* Column order: Ticker | Company | Price | Chg% | Volume | Trend | Momentum | Reversal | Money Flow | View | +Journal */}
-                <div style={{ display:'grid', gridTemplateColumns:'80px 1fr 75px 60px 70px 90px 90px 1.4fr 1.3fr 50px 80px', columnGap:12, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
+                <div style={{ display:'grid', gridTemplateColumns:GRID, columnGap:12, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
                   {['Ticker','Company','Price','Chg%','Volume','Trend','Momentum','Reversal','Money Flow','',''].map(function(h,i){
                     return <div key={i} style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em' }}>{h}</div>;
                   })}
@@ -1335,7 +1369,7 @@ function Screener() {
                   var tC   = row.trendScore>=55?'#7abd00':row.trendScore>=40?'#EF9F27':'#e05050';
                   var mC   = row.momentumScore>=65?'#7abd00':row.momentumScore>=50?'#EF9F27':'#e05050';
                   return (
-                    <div key={row.ticker} style={{ display:'grid', gridTemplateColumns:'80px 1fr 75px 60px 70px 90px 90px 1.4fr 1.3fr 50px 80px', columnGap:12, padding:'10px 14px', borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none', background:i%2===0?'#111':'#131311', alignItems:'center' }}>
+                    <div key={row.ticker} style={{ display:'grid', gridTemplateColumns:GRID, columnGap:12, padding:'10px 14px', borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none', background:i%2===0?'#111':'#131311', alignItems:'center' }}>
                       <div style={{ fontSize:13, fontWeight:800, color:LIME }}>{row.ticker}</div>
                       <div style={{ fontSize:11, color:'#666', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.company}</div>
                       <div style={{ fontSize:12, fontWeight:600, color:'#f0ede6' }}>{'$'+row.price.toFixed(2)}</div>
@@ -1343,13 +1377,13 @@ function Screener() {
                       <div style={{ fontSize:11, color:'#888' }}>{fmtVol(row.volume)}</div>
                       <div style={{ fontSize:11, fontWeight:600, color:tC }}>{row.trend}</div>
                       <div style={{ fontSize:11, fontWeight:600, color:mC }}>{row.momentum}</div>
-                      <div style={{ fontSize:10, fontWeight:700, color:revC, lineHeight:1.3 }}>{row.reversal}</div>
-                      <div style={{ fontSize:10, fontWeight:700, color:smfC, lineHeight:1.3 }}>{row.moneyFlow}</div>
+                      <div style={{ fontSize:10, fontWeight:700, color:revC, lineHeight:1.3 }} title={row.reversal}>{cRev(row.reversal)}</div>
+                      <div style={{ fontSize:10, fontWeight:700, color:smfC, lineHeight:1.3 }} title={row.moneyFlow}>{cSmf(row.moneyFlow)}</div>
                       <button onClick={function(){ window.location.hash=row.ticker; }}
-                        style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#888', fontSize:10, cursor:'pointer', padding:'4px 6px' }}>{'View'}</button>
+                        style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#888', fontSize:10, cursor:'pointer', padding:'4px 6px' }}>View</button>
                       <button onClick={function(){ addToJournal(row); }}
                         title={'Add '+row.ticker+' to Signal Journal'}
-                        style={{ background:'none', border:'0.5px solid #1a3a1a', borderRadius:6, color:'#5a9a40', fontSize:10, cursor:'pointer', padding:'4px 6px', whiteSpace:'nowrap' }}>{'+Journal'}</button>
+                        style={{ background:'none', border:'0.5px solid #1a3a1a', borderRadius:6, color:'#5a9a40', fontSize:10, cursor:'pointer', padding:'4px 6px', whiteSpace:'nowrap' }}>+Journal</button>
                     </div>
                   );
                 })}
@@ -1357,7 +1391,7 @@ function Screener() {
             );
           })()}
           <div style={{ fontSize:10, color:'#444', marginTop:10 }}>
-            {items.length+' match'+(items.length!==1?'es':'')+' from scan \u2022 Sorted by combined reversal + money flow score \u2022 Research use only. Not financial advice.'}
+            {items.length+' tickers scanned \u2022 Sorted by combined reversal + money flow score \u2022 Research use only. Not financial advice.'}
           </div>
         </div>
       )}
