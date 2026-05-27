@@ -998,7 +998,35 @@ export async function onRequest(context) {
               updated++;
             }
           }
-          return new Response(JSON.stringify({ ok: true, updated: updated }), { headers: jHeaders });
+          var priceCount = Object.keys(priceByDate).length;
+          var dateRange  = priceCount > 0
+            ? { first: Object.keys(priceByDate).sort()[0], last: Object.keys(priceByDate).sort().pop() }
+            : null;
+
+          var debugRows = [];
+          for (var si2 = 0; si2 < rows3.length; si2++) {
+            var r2 = rows3[si2];
+            var r2Ms = new Date(r2.snapshot_date).getTime();
+            var windowDebug = {};
+            [1,3,5,10,20,30].forEach(function(w2) {
+              var tMs = r2Ms + Math.round(w2 * 1.4) * DAY_MS;
+              var tDate = new Date(tMs).toISOString().split("T")[0];
+              var found = priceNearDate(tMs, 5);
+              windowDebug[w2 + "d"] = { targetDate: tDate, found: found !== null, price: found };
+            });
+            debugRows.push({ id: r2.id, date: r2.snapshot_date, basePrice: r2.close_price, windows: windowDebug });
+          }
+
+          return new Response(JSON.stringify({
+            ok: true, updated: updated,
+            debug: {
+              ticker: ticker3,
+              yahooFetchSuccess: priceCount > 0,
+              pricesLoaded: priceCount,
+              dateRange: dateRange,
+              rows: debugRows,
+            }
+          }), { headers: jHeaders });
         }
 
         // POST delete snapshot
