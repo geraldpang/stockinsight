@@ -9227,23 +9227,32 @@ export function JournalPage() {
                             var g = Math.max(0, gain || 0);
                             var l = Math.min(0, loss || 0);
                             var ret = r.future_return_20d;
-                            var HALF = 50; var MAX_SIDE = 20;
-                            var lossW = Math.min(HALF, (-l / MAX_SIDE) * HALF);
-                            var gainW = Math.min(HALF, ( g / MAX_SIDE) * HALF);
-                            var dotX = ret != null ? HALF + Math.max(-HALF+3, Math.min(HALF-3, (ret/MAX_SIDE)*HALF)) : null;
+                            var total = g - l; // full range e.g. 8.5-(-10.2)=18.7
+                            if (total === 0) return <span style={{color:"#444",fontSize:10}}>—</span>;
+                            var W = 120;
+                            var zeroX = (-l / total) * W;   // 0% mark position
+                            var lossW = zeroX;               // red: left edge → zero
+                            var gainW = W - zeroX;           // green: zero → right edge
+                            // dot: where actual 20D return lands
+                            var dotX = ret != null ? Math.max(3, Math.min(W-3, ((-l + ret) / total) * W)) : null;
                             return (
-                              <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                                <span style={{ fontSize:9, color:"#e05050", width:34, textAlign:"right", flexShrink:0 }}>
+                              <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                                <span style={{ fontSize:9, color:"#e05050", width:36, textAlign:"right", flexShrink:0 }}>
                                   {l < 0 ? l.toFixed(1)+"%" : ""}
                                 </span>
-                                <svg width={HALF*2} height={8} style={{ display:"block", flexShrink:0 }}>
-                                  <rect x={0} y={2} width={HALF*2} height={4} rx={2} fill="#1e1e1e" />
-                                  {lossW > 0 && <rect x={HALF-lossW} y={1} width={lossW} height={6} rx={2} fill="#e05050" opacity={0.85} />}
-                                  {gainW > 0 && <rect x={HALF} y={1} width={gainW} height={6} rx={2} fill="#7abd00" opacity={0.85} />}
-                                  <rect x={HALF-0.5} y={0} width={1} height={8} fill="#666" />
-                                  {dotX != null && <circle cx={dotX} cy={4} r={2.5} fill="#fff" stroke="#111" strokeWidth={0.5} />}
-                                </svg>
-                                <span style={{ fontSize:9, color:"#7abd00", width:34, textAlign:"left", flexShrink:0 }}>
+                                <div style={{ position:"relative", flexShrink:0 }}>
+                                  <svg width={W} height={10} style={{ display:"block" }}>
+                                    {/* Red loss segment */}
+                                    {lossW > 0 && <rect x={0} y={2} width={lossW} height={6} rx={2} fill="#e05050" opacity={0.85} />}
+                                    {/* Green gain segment */}
+                                    {gainW > 0 && <rect x={zeroX} y={2} width={gainW} height={6} rx={2} fill="#7abd00" opacity={0.85} />}
+                                    {/* Zero tick */}
+                                    <rect x={zeroX-0.5} y={0} width={1} height={10} fill="#888" />
+                                    {/* Actual return dot */}
+                                    {dotX != null && <circle cx={dotX} cy={5} r={3} fill="#fff" stroke="#111" strokeWidth={0.5} />}
+                                  </svg>
+                                </div>
+                                <span style={{ fontSize:9, color:"#7abd00", width:36, textAlign:"left", flexShrink:0 }}>
                                   {g > 0 ? "+"+g.toFixed(1)+"%" : ""}
                                 </span>
                               </div>
