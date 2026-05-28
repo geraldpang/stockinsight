@@ -5164,71 +5164,73 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           )}
                         </div>
 
-                        {/* Technical AI Card */}
+                        {/* Rule Based Analytics Card — replaces Technical AI */}
                         <div style={{ marginBottom:8 }}>
-                          <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:12, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                            <div>
-                              <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Technical AI</span>
-                              {isAdmin && cachedAtTechStr && <span style={{ fontSize:10, color:"#aaa", marginLeft:8 }}>{"cached " + cachedAtTechStr + " (1d TTL)"}</span>}
-                            </div>
-                            {aiTechRefreshing && (
-                              <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                                <div style={{ width:10, height:10, borderRadius:"50%", border:"1.5px solid #e0dbd0", borderTop:"1.5px solid #EF9F27", animation:"spin 0.8s linear infinite" }}></div>
-                                <span style={{ fontSize:10, color:"#EF9F27", fontWeight:600 }}>Refreshing in background...</span>
-                              </div>
-                            )}
+                          <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:12 }}>
+                            <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Rule Based Analytics</span>
                           </div>
-                          {aiTechLoading && (
-                            <div style={{ textAlign:"center", padding:"20px 0" }}>
-                              <div style={{ width:20, height:20, border:"3px solid #e0dbd0", borderTop:"3px solid #c8f000", borderRadius:"50%", animation:"spin 0.8s linear infinite", margin:"0 auto 8px" }}></div>
-                              <div style={{ fontSize:12, color:"#aaa" }}>Analysing technicals...</div>
+                          {!ruleAnalytics && (
+                            <div style={{ textAlign:"center", padding:"20px 0", color:"#aaa", fontSize:12 }}>
+                              {"Rule Based Analytics is loading technical signals..."}
                             </div>
                           )}
-                          {!aiTechLoading && aiTechResult && (
-                            <div>
-                              <VerdictBanner title="Technical Verdict" verdict={aiTechResult.verdict} confidence={aiTechResult.confidence}
-                                sub={aiTechResult.stVerdict ? "Short-term (1-3m): " + aiTechResult.stVerdict : null} />
-                              {aiTechResult.strength && (
+                          {ruleAnalytics && (function(){
+                            var rba = ruleAnalytics;
+                            function toneColor(tone) {
+                              if (tone==="bullish"||tone==="cautiously_bullish") return "#1a6a1a";
+                              if (tone==="neutral") return "#b88000";
+                              return "#c03030";
+                            }
+                            var tc = toneColor(rba.tone);
+                            return (
+                              <div>
+                                {/* Verdict */}
+                                <div style={{ marginBottom:8, padding:"8px 12px", background: tone==="bearish"||tone==="cautiously_bearish"?"#fff8f8":"#f8fdf8", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
+                                  <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:2, textTransform:"uppercase" }}>{"Technical (Trade)"}</div>
+                                  <div style={{ fontSize:15, fontWeight:800, color:tc }}>{rba.verdict}</div>
+                                </div>
+                                {/* Four-factor row */}
+                                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:6, marginBottom:8 }}>
+                                  {[["Trend",rba.factorLabels.trend],["Momentum",rba.factorLabels.momentum],["Reversal",rba.factorLabels.reversal],["Smart Money",rba.factorLabels.smartMoney]].map(function(f){
+                                    return <div key={f[0]} style={{ padding:"5px 8px", background:"#faf8f4", borderRadius:5, border:"0.5px solid #e0dbd0" }}>
+                                      <div style={{ fontSize:9, color:"#888", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:1 }}>{f[0]}</div>
+                                      <div style={{ fontSize:10, fontWeight:700, color:"#111", lineHeight:1.3 }}>{f[1]||"—"}</div>
+                                    </div>;
+                                  })}
+                                </div>
+                                {/* Analysis */}
                                 <div style={{ marginBottom:8, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
-                                  <div style={{ fontSize:10, color:"#1a6a1a", fontWeight:700, marginBottom:2 }}>KEY STRENGTH</div>
-                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.6 }}>{aiTechResult.strength}</div>
+                                  <div style={{ fontSize:10, color:"#111", fontWeight:700, marginBottom:4, textTransform:"uppercase" }}>{"Analysis"}</div>
+                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.7 }}>{rba.analysis}</div>
                                 </div>
-                              )}
-                              {aiTechResult.risk && (
+                                {/* Key Levels */}
                                 <div style={{ marginBottom:8, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
-                                  <div style={{ fontSize:10, color:"#c03030", fontWeight:700, marginBottom:2 }}>KEY RISK</div>
-                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.6 }}>{aiTechResult.risk}</div>
+                                  <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:4, textTransform:"uppercase" }}>{"Key Levels"}</div>
+                                  <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:6 }}>
+                                    <span style={{ fontSize:10, color:"#111" }}>{"Close: "}<strong>{rba.closingPrice}</strong></span>
+                                    {rba.breakoutLevel && <span style={{ fontSize:10, color:"#1a6a1a" }}>{"Breakout: $"+rba.breakoutLevel.toFixed(2)}</span>}
+                                    {rba.invalidationLevel && <span style={{ fontSize:10, color:"#c03030" }}>{"Invalidation: $"+rba.invalidationLevel.toFixed(2)}</span>}
+                                  </div>
+                                  <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:6 }}>
+                                    {rba.supportLevels&&rba.supportLevels.length>0&&rba.supportLevels.map(function(v,i){return <span key={i} style={{fontSize:10,color:"#c03030",background:"#fff0f0",border:"0.5px solid #c03030",borderRadius:4,padding:"1px 6px"}}>{"S: $"+v.toFixed(2)}</span>;})}
+                                    {rba.resistanceLevels&&rba.resistanceLevels.length>0&&rba.resistanceLevels.map(function(v,i){return <span key={i} style={{fontSize:10,color:"#1a6a1a",background:"#f0fff0",border:"0.5px solid #1a6a1a",borderRadius:4,padding:"1px 6px"}}>{"R: $"+v.toFixed(2)}</span>;})}
+                                  </div>
+                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.5 }}>{rba.keyLevels}</div>
+                                  {rba.potentialEntryZone && <div style={{ marginTop:6, fontSize:11, color:"#5577aa", fontStyle:"italic" }}>{"Watch Zone: "+rba.potentialEntryZone+" — "+rba.entryZoneText}</div>}
                                 </div>
-                              )}
-                              {aiTechResult.keyLevel && (
+                                {/* Smart Money + Technical lines */}
                                 <div style={{ marginBottom:8, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
-                                  <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:2 }}>KEY LEVEL</div>
-                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.5 }}>{aiTechResult.keyLevel}</div>
+                                  <div style={{ fontSize:11, color:"#555", lineHeight:1.6, marginBottom:4 }}>{rba.smartMoneyLine}</div>
+                                  <div style={{ fontSize:11, color:"#555", lineHeight:1.6 }}>{rba.technicalIndicatorsLine}</div>
                                 </div>
-                              )}
-                              {aiTechResult.summary && (
-                                <div style={{ marginBottom:12, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
-                                  <div style={{ fontSize:10, color:"#111", fontWeight:700, marginBottom:4 }}>SUMMARY</div>
-                                  <div style={{ fontSize:12, color:"#111", lineHeight:1.7 }}>{aiTechResult.summary}</div>
+                                {/* Summary */}
+                                <div style={{ marginBottom:4, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
+                                  <div style={{ fontSize:10, color:"#111", fontWeight:700, marginBottom:4, textTransform:"uppercase" }}>{"Summary"}</div>
+                                  <div style={{ fontSize:12, color:"#111", lineHeight:1.7 }}>{rba.summary}</div>
                                 </div>
-                              )}
-                              {isAdmin && <div style={{ marginTop:12 }}>
-                                <div style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Exact prompt sent to AI</div>
-                                {aiTechResult.promptSent
-                                  ? <pre style={{ padding:"10px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:10, color:"#555", lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word", margin:0, fontFamily:"monospace" }}>{aiTechResult.promptSent}</pre>
-                                  : <div style={{ padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:11, color:"#aaa", fontStyle:"italic" }}>{"Prompt not available for cached results. Clear cache and reload to see the full prompt."}</div>
-                                }
-                              </div>}
-                            </div>
-                          )}
-                          {!aiTechLoading && !aiTechResult && (
-                            <div style={{ textAlign:"center", padding:"20px 0" }}>
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-                                <div style={{ width:8, height:8, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div>
-                                <span style={{ fontSize:12, color:"#555" }}>Analysing technical data...</span>
                               </div>
-                            </div>
-                          )}
+                            );
+                          })()}
                         </div>
                       </div>
                     );
