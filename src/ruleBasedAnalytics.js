@@ -153,6 +153,16 @@ function _cap(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+// Shared price extractor — tolerates multiple snapshot shapes
+function _extractPrice(snapshot) {
+  if (!snapshot) return null;
+  if (snapshot.meta && snapshot.meta.price != null) return snapshot.meta.price;
+  if (snapshot.close         != null) return snapshot.close;
+  if (snapshot.currentPrice  != null) return snapshot.currentPrice;
+  if (snapshot.price         != null) return snapshot.price;
+  return null;
+}
+
 function _trendLabel(t) {
   var map = {
     strongUptrend:   'strong and rising',
@@ -342,8 +352,7 @@ function _scenarioContent(scenarioId, ticker, trend, momentum, reversal, smCateg
                    'interest remains engaged. All four technical factors are broadly aligned in ' +
                    'favour of continued strength.',
         keyLevels: 'Holding above recent support keeps the bullish structure intact. A sustained ' +
-                   'move above recent resistance would signal continuation and may attract further ' +
-                   'buying interest.',
+                   'move above recent resistance would suggest stronger demand and continuation.',
         summary:   t + ' is presenting a strong technical setup with trend, momentum, reversal, ' +
                    'and smart money all pointing in the same direction. The overall picture ' +
                    'favours continued strength. A pullback toward recent support would be a ' +
@@ -408,8 +417,7 @@ function _scenarioContent(scenarioId, ticker, trend, momentum, reversal, smCateg
                    'Recent support remains the downside reference.',
         summary:   t + ' is bouncing within a broader downtrend, but the evidence for a sustained ' +
                    'reversal is not yet convincing. Momentum improvement is encouraging, but smart ' +
-                   'money is not yet providing strong backing. This is a watch situation, not a ' +
-                   'confirmed opportunity.',
+                   'money is not yet providing strong backing. This remains a watch setup, not a confirmed recovery.',
       };
 
     case 'uptrend_losing_strength':
@@ -440,7 +448,7 @@ function _scenarioContent(scenarioId, ticker, trend, momentum, reversal, smCateg
                    'directional edge.',
         summary:   t + ' is in a technical holding pattern with no strong signal emerging from ' +
                    'the four factors. Trend, momentum, reversal, and smart money are all returning ' +
-                   'mixed or inconclusive readings. Waiting for clearer alignment is the prudent approach.',
+                   'mixed or inconclusive readings. Clearer alignment across the four factors is needed before the picture improves.',
       };
 
     case 'bearish_watch':
@@ -464,7 +472,7 @@ function _scenarioContent(scenarioId, ticker, trend, momentum, reversal, smCateg
         tone:      'bearish',
         analysis:  t + ' remains in ' + tDesc + ' with momentum that is ' + mDesc + '. ' +
                    _cap(rDesc) + '. Smart money flow is neutral to negative, and there are no ' +
-                   'meaningful signs of sustained buying interest from the data available.',
+                   'meaningful signs of sustained demand from the data available.',
         keyLevels: 'Recent resistance is the overhead level that would need to be reclaimed to ' +
                    'change the current picture. Continued pressure below recent support lowers ' +
                    'the reference range over time.',
@@ -476,18 +484,16 @@ function _scenarioContent(scenarioId, ticker, trend, momentum, reversal, smCateg
 
     case 'strong_bearish_alignment':
       return {
-        verdict:   'Strong Bearish — Avoid Until Conditions Improve',
+        verdict:   'Strong Bearish — Conditions Remain Weak',
         tone:      'bearish',
         analysis:  t + ' is in ' + tDesc + ' with momentum that is ' + mDesc + '. Bearish ' +
                    'reversal signals are confirmed and smart money flow is showing clear negative ' +
-                   'activity. All four technical factors are aligned to the downside — this is a ' +
-                   'setup that requires patience and careful risk awareness.',
+                   'activity. All four technical factors are aligned to the downside — caution remains warranted until conditions improve.',
         keyLevels: 'Recent resistance is a significant overhead barrier. Support levels that ' +
                    'have already been broken may now act as resistance on any bounce.',
         summary:   t + ' is presenting a strongly bearish technical picture across all four ' +
                    'factors. Trend, momentum, reversal, and smart money are all aligned to the ' +
-                   'downside. Conditions need to improve meaningfully — particularly reversal and ' +
-                   'smart money signals — before a more constructive view is warranted.',
+                   'downside. Conditions need to improve meaningfully — particularly reversal and smart money signals — before the picture becomes more constructive.',
       };
 
     default:
@@ -509,6 +515,25 @@ function _scenarioContent(scenarioId, ticker, trend, momentum, reversal, smCateg
  * Main entry point. Accepts a pre-computed snapshot from
  * calculateTechnicalSignalSnapshot() and returns structured rule-based commentary.
  *
+ * ── App.jsx integration note ────────────────────────────────────────────────
+ * For full support/resistance and Watch Zone calculation, App.jsx should pass
+ * an enriched snapshot that includes the raw OHLCV bars and indicator values:
+ *
+ *   generateRuleBasedAnalytics({
+ *     ...technicalSnapshot,          // from calculateTechnicalSignalSnapshot()
+ *     ohlcv:      originalOhlcvBars, // array of { open, high, low, close, volume }
+ *     indicators: originalIndicators,// { ema20, sma50, sma200, ... }
+ *     meta: {
+ *       price: currentPrice,         // snapshot.meta.price
+ *       hi52:  hi52,
+ *       lo52:  lo52,
+ *     },
+ *   });
+ *
+ * calculateKeyLevels() uses ohlcv, indicators, and price to produce real
+ * support/resistance numbers instead of falling back to placeholder text.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
  * @param {object} snapshot
  * @returns {object} analytics result
  */
@@ -516,7 +541,7 @@ export function generateRuleBasedAnalytics(snapshot) {
   if (!snapshot) return null;
 
   var ticker = snapshot.ticker || 'This stock';
-  var price  = snapshot.meta && snapshot.meta.price != null ? snapshot.meta.price : null;
+  var price  = _extractPrice(snapshot);
   var close  = price != null ? '$' + price.toFixed(2) : 'N/A';
 
   // Extract status strings
@@ -544,29 +569,40 @@ export function generateRuleBasedAnalytics(snapshot) {
   var smartMoneyLine           = _buildSmfLine(smCategory, smDirection, smfStatus);
   var technicalIndicatorsLine  = _buildTechLine(trend, momentum, reversal);
 
+  // Calculate key levels with actual price data
+  var kl = calculateKeyLevels(snapshot, scenarioId);
+
   return {
     // Scenario
     scenarioId:   scenarioId,
     verdict:      content.verdict,
-    tone:         content.tone,  // 'bullish' | 'cautiously_bullish' | 'neutral' | 'cautiously_bearish' | 'bearish'
+    tone:         content.tone,
 
     // Public commentary — NO numeric scores
     analysis:                content.analysis,
-    keyLevels:               content.keyLevels,
+    keyLevels:               kl.keyLevelsText,
     closingPrice:            close,
-    support:                 'Recent support',
-    resistance:              'Recent resistance',
+    support:                 kl.supportText,
+    resistance:              kl.resistanceText,
     smartMoneyLine:          smartMoneyLine,
     technicalIndicatorsLine: technicalIndicatorsLine,
     summary:                 content.summary,
 
-    // Classified factor keys (for rendering, colour logic, etc.)
+    // Key level details
+    supportLevels:      kl.supportLevels,
+    resistanceLevels:   kl.resistanceLevels,
+    breakoutLevel:      kl.breakoutLevel,
+    invalidationLevel:  kl.invalidationLevel,
+    potentialEntryZone: kl.potentialEntryZone,
+    entryZoneText:      kl.entryZoneText,
+
+    // Classified factor keys
     factorGroups: {
-      trend:              trend,
-      momentum:           momentum,
-      reversal:           reversal,
-      smartMoney:         smCategory,
-      smartMoneyDirection:smDirection,
+      trend:               trend,
+      momentum:            momentum,
+      reversal:            reversal,
+      smartMoney:          smCategory,
+      smartMoneyDirection: smDirection,
     },
 
     // Original status strings for display
@@ -577,15 +613,269 @@ export function generateRuleBasedAnalytics(snapshot) {
       smartMoney: smfStatus    || 'N/A',
     },
 
-    // Internal scores — for developer/debug use ONLY, never shown publicly
+    // Internal scores — developer/debug ONLY, never shown publicly
     debugScores: {
-      trendScore:    snapshot.trend          && snapshot.trend.score,
-      momentumScore: snapshot.momentum       && snapshot.momentum.score,
-      reversalScore: snapshot.reversalWatch  && snapshot.reversalWatch.score,
+      trendScore:    snapshot.trend         && snapshot.trend.score,
+      momentumScore: snapshot.momentum      && snapshot.momentum.score,
+      reversalScore: snapshot.reversalWatch && snapshot.reversalWatch.score,
       smfScore:      smf && smf.score,
       smfToday:      smf && smf.todayActivityScore,
       smfFiveDay:    smf && smf.fiveDayFlowScore,
       smfThirtyDay:  smf && smf.thirtyDayAccumulationScore,
     },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Run 2 additions — calculateKeyLevels
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Internal deduplication ──────────────────────────────────────────────────
+
+function _dedup(levels, price) {
+  if (!levels || levels.length === 0) return [];
+  var THRESHOLD = 0.015; // 1.5% — levels closer than this are treated as the same zone
+  var sorted = levels.filter(function(v){ return v > 0; }).sort(function(a,b){ return a - b; });
+  var result = [];
+  for (var i = 0; i < sorted.length; i++) {
+    var v = sorted[i];
+    var isDup = false;
+    for (var j = 0; j < result.length; j++) {
+      if (Math.abs(result[j] - v) / price < THRESHOLD) { isDup = true; break; }
+    }
+    if (!isDup) result.push(parseFloat(v.toFixed(2)));
+  }
+  return result;
+}
+
+// ─── Entry zone calculator ────────────────────────────────────────────────────
+
+function _calcEntryZone(scenarioId, price, nearestSupport, breakoutLevel) {
+  var BULLISH   = ['strong_bullish_alignment','healthy_bullish_trend','sideways_recovery_setup','early_bullish_reversal'];
+  var BEARISH   = ['bearish_watch','bearish_control','strong_bearish_alignment'];
+
+  if (BEARISH.indexOf(scenarioId) !== -1) {
+    return {
+      potentialEntryZone: null,
+      entryZoneText: 'No constructive watch zone is identified while the technical picture remains weak.',
+    };
+  }
+  if (scenarioId === 'risky_bounce') {
+    return {
+      potentialEntryZone: null,
+      entryZoneText: 'This is not a clean entry setup yet. A better Watch Zone would be either a hold above support with improving smart money, or a close above resistance.',
+    };
+  }
+  if (BULLISH.indexOf(scenarioId) === -1) {
+    // neutral scenarios
+    return {
+      potentialEntryZone: null,
+      entryZoneText: 'No clear watch zone is identified in the current neutral setup.',
+    };
+  }
+  if (!nearestSupport || !price || price <= 0) {
+    return {
+      potentialEntryZone: null,
+      entryZoneText: 'A potential watch zone cannot be calculated because support levels are not available.',
+    };
+  }
+
+  var distance = price - nearestSupport;
+  if (distance <= 0) {
+    return {
+      potentialEntryZone: null,
+      entryZoneText: 'A potential watch zone cannot be calculated because support levels are not available.',
+    };
+  }
+  var lower   = parseFloat(nearestSupport.toFixed(2));
+  var upper   = parseFloat((nearestSupport + distance * 0.25).toFixed(2));
+  var zoneStr = '$' + lower.toFixed(2) + '\u2013$' + upper.toFixed(2);
+  var text    = 'A potential watch zone is around ' + zoneStr + ', provided support continues to hold.';
+
+  // Close-to-resistance warning
+  if (breakoutLevel && price > 0 && (breakoutLevel - price) / price < 0.02) {
+    text += ' Since price is already close to resistance at $' + breakoutLevel.toFixed(2) +
+            ', chasing the move near resistance carries higher risk. A breakout confirmation above $' +
+            breakoutLevel.toFixed(2) + ' may be the more important level to watch.';
+  }
+
+  return { potentialEntryZone: zoneStr, entryZoneText: text };
+}
+
+// ─── Key levels narrative per scenario ───────────────────────────────────────
+
+function _buildKeyLevelsText(scenarioId, ticker, breakoutLevel, invalidationLevel, entryZone, entryZoneText, resistanceLevels) {
+  var t  = ticker;
+  var bl = breakoutLevel     ? '$' + breakoutLevel.toFixed(2)     : 'recent resistance';
+  var il = invalidationLevel ? '$' + invalidationLevel.toFixed(2) : 'recent support';
+
+  // Second and third resistance levels for continuation text
+  var nextResText = '';
+  if (resistanceLevels && resistanceLevels.length >= 2) {
+    nextResText = ', with the next resistance zone near $' + resistanceLevels[1].toFixed(2) +
+                 (resistanceLevels[2] ? ' to $' + resistanceLevels[2].toFixed(2) : '');
+  }
+
+  switch (scenarioId) {
+    case 'strong_bullish_alignment':
+    case 'healthy_bullish_trend':
+      return 'The bullish setup remains constructive while ' + t + ' holds above ' + il +
+             '. A close above ' + bl + ' would suggest stronger demand and continuation' + nextResText + '.' +
+             (entryZone ? ' A constructive watch zone is around ' + entryZone + ', provided support continues to hold.' : '');
+
+    case 'sideways_recovery_setup':
+      return 'The recovery setup remains constructive while ' + t + ' holds above ' + il +
+             '. A close above ' + bl + ' would suggest the stock is moving out of its sideways range.' +
+             (entryZone ? ' A potential watch zone is near ' + entryZone + ' if buyers continue to support the base.' : '');
+
+    case 'early_bullish_reversal':
+      return 'The reversal attempt remains in play while ' + t + ' holds above ' + il +
+             '. A close above ' + bl + ' would strengthen the case for a trend change.' +
+             (entryZone ? ' A potential watch zone is near ' + entryZone + ' for those watching for confirmation.' : '');
+
+    case 'risky_bounce':
+      return 'The bounce remains valid while ' + t + ' holds above ' + il +
+             '. A close above ' + bl + ' would improve the setup, but failure near resistance could mean this remains a short-term bounce. ' +
+             entryZoneText;
+
+    case 'uptrend_losing_strength':
+      return t + ' must hold above ' + il + ' to keep the uptrend structure intact. ' +
+             'A close below ' + il + ' would increase the risk of a deeper pullback. ' +
+             'Recovery above ' + bl + ' would be needed to restore momentum.';
+
+    case 'bearish_watch':
+    case 'bearish_control':
+    case 'strong_bearish_alignment':
+      return t + ' needs to reclaim ' + bl + ' to reduce bearish pressure. ' +
+             'A close below ' + il + ' would suggest sellers remain in control. ' +
+             entryZoneText;
+
+    case 'neutral_no_clear_edge':
+    default:
+      return 'Price is testing between ' + il + ' support and ' + bl + ' resistance. ' +
+             'A clear and sustained break in either direction is needed to establish a meaningful edge.';
+  }
+}
+
+// ─── Fallback empty result ────────────────────────────────────────────────────
+
+function _emptyKeyLevels(scenarioId) {
+  var ez = _calcEntryZone(scenarioId, 0, null, null);
+  return {
+    currentPrice:       null,
+    supportLevels:      [],
+    resistanceLevels:   [],
+    breakoutLevel:      null,
+    invalidationLevel:  null,
+    potentialEntryZone: ez.potentialEntryZone,
+    entryZoneText:      ez.entryZoneText,
+    supportText:        'Recent support',
+    resistanceText:     'Recent resistance',
+    keyLevelsText:      'Key levels are not available for this setup.',
+  };
+}
+
+// ─── 6. calculateKeyLevels ───────────────────────────────────────────────────
+
+/**
+ * Calculates definite support, resistance, breakout, invalidation, and
+ * potential entry/watch zones from the snapshot's price data and indicators.
+ *
+ * Does NOT recalculate any technical signals.
+ * Uses only data already present in the snapshot.
+ *
+ * @param {object} snapshot  - pre-computed snapshot from calculateTechnicalSignalSnapshot()
+ * @param {string} [scenarioId] - optional, used to tailor entry zone wording
+ * @returns {object}
+ */
+export function calculateKeyLevels(snapshot, scenarioId) {
+  var sid = scenarioId || null;
+  if (!snapshot) return _emptyKeyLevels(sid);
+
+  var price = _extractPrice(snapshot);
+  if (!price || price <= 0) return _emptyKeyLevels(sid);
+
+  var ohlcv      = snapshot.ohlcv      || null;
+  var trend      = snapshot.trend      || {};
+  var indicators = snapshot.indicators || {};
+
+  // ── Get indicator levels ──────────────────────────────────────────────────
+  // Try direct indicator values first; derive from % fields as fallback.
+
+  var ema20  = indicators.ema20  != null ? parseFloat(indicators.ema20.toFixed(2))  : null;
+  var sma50  = indicators.sma50  != null ? parseFloat(indicators.sma50.toFixed(2))  : null;
+  var sma200 = indicators.sma200 != null ? parseFloat(indicators.sma200.toFixed(2)) : null;
+
+  if (ema20  == null && trend.priceVs20dEmaPct  != null && trend.priceVs20dEmaPct  !== 0) {
+    ema20  = parseFloat((price / (1 + trend.priceVs20dEmaPct  / 100)).toFixed(2));
+  }
+  if (sma50  == null && trend.priceVs50dSmaPct  != null && trend.priceVs50dSmaPct  !== 0) {
+    sma50  = parseFloat((price / (1 + trend.priceVs50dSmaPct  / 100)).toFixed(2));
+  }
+  if (sma200 == null && trend.priceVs200dSmaPct != null && trend.priceVs200dSmaPct !== 0) {
+    sma200 = parseFloat((price / (1 + trend.priceVs200dSmaPct / 100)).toFixed(2));
+  }
+
+  // ── OHLCV-based high/low ──────────────────────────────────────────────────
+  var supportCandidates    = [];
+  var resistanceCandidates = [];
+
+  if (ohlcv && ohlcv.length > 0) {
+    // ohlcv is oldest-first; last N bars = most recent N bars
+    var recent5  = ohlcv.slice(-5);
+    var recent20 = ohlcv.slice(-20);
+
+    var low5   = Math.min.apply(null, recent5.map(function(b){  var v = b.low  != null ? b.low  : b.l; return v != null ? v : Infinity; }));
+    var low20  = Math.min.apply(null, recent20.map(function(b){ var v = b.low  != null ? b.low  : b.l; return v != null ? v : Infinity; }));
+    var high5  = Math.max.apply(null, recent5.map(function(b){  var v = b.high != null ? b.high : b.h; return v != null ? v : 0; }));
+    var high20 = Math.max.apply(null, recent20.map(function(b){ var v = b.high != null ? b.high : b.h; return v != null ? v : 0; }));
+
+    if (low5  > 0 && low5  < price  && isFinite(low5))  supportCandidates.push(low5);
+    if (low20 > 0 && low20 < price  && isFinite(low20)) supportCandidates.push(low20);
+    if (high5  > 0 && high5  > price) resistanceCandidates.push(high5);
+    if (high20 > 0 && high20 > price) resistanceCandidates.push(high20);
+  }
+
+  // ── Indicator-based levels ────────────────────────────────────────────────
+  [ema20, sma50, sma200].forEach(function(v) {
+    if (v != null && v > 0) {
+      if (v < price) supportCandidates.push(v);
+      else           resistanceCandidates.push(v);
+    }
+  });
+
+  // ── Deduplicate, sort, limit ──────────────────────────────────────────────
+  // Support: sorted highest first (nearest to current price first)
+  var supportLevels    = _dedup(supportCandidates,    price).sort(function(a,b){ return b - a; }).slice(0, 3);
+  // Resistance: sorted lowest first (nearest to current price first)
+  var resistanceLevels = _dedup(resistanceCandidates, price).sort(function(a,b){ return a - b; }).slice(0, 3);
+
+  var breakoutLevel     = resistanceLevels.length > 0 ? resistanceLevels[0] : null;
+  var invalidationLevel = supportLevels.length    > 0 ? supportLevels[0]    : null;
+
+  // ── Entry zone ────────────────────────────────────────────────────────────
+  var ez = _calcEntryZone(sid, price, invalidationLevel, breakoutLevel);
+
+  // ── Text fields ───────────────────────────────────────────────────────────
+  var supportText    = supportLevels.length    > 0 ? supportLevels.map(function(v){    return '$' + v.toFixed(2); }).join(' / ') : 'Recent support';
+  var resistanceText = resistanceLevels.length > 0 ? resistanceLevels.map(function(v){ return '$' + v.toFixed(2); }).join(' / ') : 'Recent resistance';
+
+  var ticker = snapshot.ticker || 'This stock';
+  var keyLevelsText = _buildKeyLevelsText(
+    sid, ticker, breakoutLevel, invalidationLevel,
+    ez.potentialEntryZone, ez.entryZoneText, resistanceLevels
+  );
+
+  return {
+    currentPrice:       parseFloat(price.toFixed(2)),
+    supportLevels:      supportLevels,
+    resistanceLevels:   resistanceLevels,
+    breakoutLevel:      breakoutLevel,
+    invalidationLevel:  invalidationLevel,
+    potentialEntryZone: ez.potentialEntryZone,
+    entryZoneText:      ez.entryZoneText,
+    supportText:        supportText,
+    resistanceText:     resistanceText,
+    keyLevelsText:      keyLevelsText,
   };
 }
