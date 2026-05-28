@@ -5185,7 +5185,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             return (
                               <div>
                                 {/* Verdict */}
-                                <div style={{ marginBottom:8, padding:"8px 12px", background: tone==="bearish"||tone==="cautiously_bearish"?"#fff8f8":"#f8fdf8", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
+                                <div style={{ marginBottom:8, padding:"8px 12px", background: rba.tone==="bearish"||rba.tone==="cautiously_bearish"?"#fff8f8":"#f8fdf8", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
                                   <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:2, textTransform:"uppercase" }}>{"Technical (Trade)"}</div>
                                   <div style={{ fontSize:15, fontWeight:800, color:tc }}>{rba.verdict}</div>
                                 </div>
