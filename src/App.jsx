@@ -4994,62 +4994,58 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                             {/* Key Levels card */}
                             <div style={{ background:"#161614", border:"0.5px solid #2a2a28", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
-                              <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>{"Key Levels"}</div>
+                              <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>{"Key Levels"}</div>
 
-                              {/* Price row */}
-                              <div style={{ display:"flex", gap:12, marginBottom:10, flexWrap:"wrap" }}>
-                                <div style={{ background:"#0e0e0c", borderRadius:6, padding:"6px 12px", minWidth:90 }}>
-                                  <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>{"Closing Price"}</div>
-                                  <div style={{ fontSize:14, fontWeight:700, color:"#f0ede6" }}>{rba.closingPrice}</div>
-                                </div>
-                                {rba.breakoutLevel && (
-                                  <div style={{ background:"#0e0e0c", borderRadius:6, padding:"6px 12px", minWidth:90 }}>
-                                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>{"Breakout"}</div>
-                                    <div style={{ fontSize:14, fontWeight:700, color:"#7abd00" }}>{"$"+rba.breakoutLevel.toFixed(2)}</div>
-                                  </div>
-                                )}
-                                {rba.invalidationLevel && (
-                                  <div style={{ background:"#0e0e0c", borderRadius:6, padding:"6px 12px", minWidth:90 }}>
-                                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>{"Invalidation"}</div>
-                                    <div style={{ fontSize:14, fontWeight:700, color:"#e05050" }}>{"$"+rba.invalidationLevel.toFixed(2)}</div>
-                                  </div>
-                                )}
+                              {/* Price / Breakout / Invalidation row */}
+                              <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+                                {[
+                                  ["Close",        rba.closingPrice,                                      "#f0ede6"],
+                                  ["Breakout",     rba.breakoutLevel     ? "$"+rba.breakoutLevel.toFixed(2)     : null, "#7abd00"],
+                                  ["Invalidation", rba.invalidationLevel ? "$"+rba.invalidationLevel.toFixed(2) : null, "#e05050"],
+                                ].filter(function(r){ return r[1]; }).map(function(r,i){
+                                  return <div key={i} style={{ background:"#0e0e0c", borderRadius:6, padding:"6px 12px" }}>
+                                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>{r[0]}</div>
+                                    <div style={{ fontSize:13, fontWeight:700, color:r[2] }}>{r[1]}</div>
+                                  </div>;
+                                })}
                               </div>
 
                               {/* Support / Resistance chips */}
-                              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
-                                <div>
-                                  <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{"Support"}</div>
+                              <div style={{ marginBottom:10 }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
+                                  <span style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", minWidth:70 }}>{"Support"}</span>
                                   <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
                                     {rba.supportLevels && rba.supportLevels.length > 0
-                                      ? rba.supportLevels.map(function(v,i){ return <span key={i} style={{ background:"#200808", border:"0.5px solid #e05050", borderRadius:4, padding:"2px 7px", fontSize:11, color:"#e05050" }}>{"$"+v.toFixed(2)}</span>; })
+                                      ? rba.supportLevels.map(function(v,i){ return <span key={i} style={{ background:"#200808", border:"0.5px solid #e05050", borderRadius:4, padding:"2px 8px", fontSize:11, color:"#e05050" }}>{"$"+v.toFixed(2)}</span>; })
                                       : <span style={{ fontSize:11, color:"#555" }}>{"Recent support"}</span>}
                                   </div>
                                 </div>
-                                <div>
-                                  <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{"Resistance"}</div>
+                                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                                  <span style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", minWidth:70 }}>{"Resistance"}</span>
                                   <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
                                     {rba.resistanceLevels && rba.resistanceLevels.length > 0
-                                      ? rba.resistanceLevels.map(function(v,i){ return <span key={i} style={{ background:"#0d200d", border:"0.5px solid #7abd00", borderRadius:4, padding:"2px 7px", fontSize:11, color:"#7abd00" }}>{"$"+v.toFixed(2)}</span>; })
+                                      ? rba.resistanceLevels.map(function(v,i){ return <span key={i} style={{ background:"#0d200d", border:"0.5px solid #7abd00", borderRadius:4, padding:"2px 8px", fontSize:11, color:"#7abd00" }}>{"$"+v.toFixed(2)}</span>; })
                                       : <span style={{ fontSize:11, color:"#555" }}>{"Recent resistance"}</span>}
                                   </div>
                                 </div>
                               </div>
 
-                              {/* Key levels narrative */}
-                              <div style={{ fontSize:12, color:"#aaa", lineHeight:1.7, marginBottom: rba.potentialEntryZone ? 10 : 0 }}>{rba.keyLevels}</div>
+                              {/* Key levels narrative — clean, no Watch Zone sentence */}
+                              <div style={{ fontSize:12, color:"#aaa", lineHeight:1.7, borderTop:"0.5px solid #2a2a28", paddingTop:10, marginBottom: rba.entryZoneText ? 10 : 0 }}>{rba.keyLevels}</div>
 
-                              {/* Watch Zone */}
-                              {rba.potentialEntryZone && (
-                                <div style={{ background:"#081020", border:"0.5px solid #6090d080", borderRadius:6, padding:"8px 12px", marginTop:8 }}>
-                                  <div style={{ fontSize:9, color:"#6090d0", textTransform:"uppercase", letterSpacing:"0.06em", fontWeight:700, marginBottom:3 }}>{"Watch Zone"}</div>
-                                  <div style={{ fontSize:12, fontWeight:700, color:"#6090d0", marginBottom:3 }}>{rba.potentialEntryZone}</div>
-                                  <div style={{ fontSize:11, color:"#7090a0", lineHeight:1.5 }}>{rba.entryZoneText}</div>
+                              {/* Watch Zone — shown once, separately */}
+                              {rba.potentialEntryZone ? (
+                                <div style={{ background:"#081020", border:"0.5px solid #6090d060", borderRadius:6, padding:"10px 12px" }}>
+                                  <div style={{ fontSize:9, color:"#6090d0", textTransform:"uppercase", letterSpacing:"0.06em", fontWeight:700, marginBottom:4 }}>{"Watch Zone"}</div>
+                                  <div style={{ fontSize:13, fontWeight:700, color:"#6090d0", marginBottom:4 }}>{rba.potentialEntryZone}</div>
+                                  <div style={{ fontSize:11, color:"#7090a0", lineHeight:1.6 }}>{rba.entryZoneText}</div>
                                 </div>
-                              )}
-                              {!rba.potentialEntryZone && rba.entryZoneText && (
-                                <div style={{ fontSize:11, color:"#555", lineHeight:1.5, marginTop:6, fontStyle:"italic" }}>{rba.entryZoneText}</div>
-                              )}
+                              ) : rba.entryZoneText ? (
+                                <div style={{ borderTop:"0.5px solid #2a2a28", paddingTop:8 }}>
+                                  <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:3 }}>{"Watch Zone"}</div>
+                                  <div style={{ fontSize:11, color:"#555", lineHeight:1.5, fontStyle:"italic" }}>{rba.entryZoneText}</div>
+                                </div>
+                              ) : null}
                             </div>
 
                             {/* Summary card */}
@@ -5205,18 +5201,51 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 </div>
                                 {/* Key Levels */}
                                 <div style={{ marginBottom:8, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
-                                  <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:4, textTransform:"uppercase" }}>{"Key Levels"}</div>
-                                  <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:6 }}>
+                                  <div style={{ fontSize:10, color:"#888", fontWeight:700, marginBottom:8, textTransform:"uppercase" }}>{"Key Levels"}</div>
+
+                                  {/* Price chips row */}
+                                  <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:8 }}>
                                     <span style={{ fontSize:10, color:"#111" }}>{"Close: "}<strong>{rba.closingPrice}</strong></span>
-                                    {rba.breakoutLevel && <span style={{ fontSize:10, color:"#1a6a1a" }}>{"Breakout: $"+rba.breakoutLevel.toFixed(2)}</span>}
-                                    {rba.invalidationLevel && <span style={{ fontSize:10, color:"#c03030" }}>{"Invalidation: $"+rba.invalidationLevel.toFixed(2)}</span>}
+                                    {rba.breakoutLevel     && <span style={{ fontSize:10, color:"#1a6a1a", fontWeight:600 }}>{"Breakout: $"+rba.breakoutLevel.toFixed(2)}</span>}
+                                    {rba.invalidationLevel && <span style={{ fontSize:10, color:"#c03030", fontWeight:600 }}>{"Invalidation: $"+rba.invalidationLevel.toFixed(2)}</span>}
                                   </div>
-                                  <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:6 }}>
-                                    {rba.supportLevels&&rba.supportLevels.length>0&&rba.supportLevels.map(function(v,i){return <span key={i} style={{fontSize:10,color:"#c03030",background:"#fff0f0",border:"0.5px solid #c03030",borderRadius:4,padding:"1px 6px"}}>{"S: $"+v.toFixed(2)}</span>;})}
-                                    {rba.resistanceLevels&&rba.resistanceLevels.length>0&&rba.resistanceLevels.map(function(v,i){return <span key={i} style={{fontSize:10,color:"#1a6a1a",background:"#f0fff0",border:"0.5px solid #1a6a1a",borderRadius:4,padding:"1px 6px"}}>{"R: $"+v.toFixed(2)}</span>;})}
+
+                                  {/* Support / Resistance inline */}
+                                  <div style={{ marginBottom:8 }}>
+                                    {rba.supportLevels && rba.supportLevels.length > 0 && (
+                                      <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:4 }}>
+                                        <span style={{ fontSize:9, color:"#888", textTransform:"uppercase", letterSpacing:"0.05em", minWidth:64 }}>{"Support"}</span>
+                                        <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+                                          {rba.supportLevels.map(function(v,i){ return <span key={i} style={{ fontSize:10, color:"#c03030", background:"#fff0f0", border:"0.5px solid #c03030", borderRadius:4, padding:"1px 7px" }}>{"$"+v.toFixed(2)}</span>; })}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {rba.resistanceLevels && rba.resistanceLevels.length > 0 && (
+                                      <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                                        <span style={{ fontSize:9, color:"#888", textTransform:"uppercase", letterSpacing:"0.05em", minWidth:64 }}>{"Resistance"}</span>
+                                        <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+                                          {rba.resistanceLevels.map(function(v,i){ return <span key={i} style={{ fontSize:10, color:"#1a6a1a", background:"#f0fff0", border:"0.5px solid #1a6a1a", borderRadius:4, padding:"1px 7px" }}>{"$"+v.toFixed(2)}</span>; })}
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
-                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.5 }}>{rba.keyLevels}</div>
-                                  {rba.potentialEntryZone && <div style={{ marginTop:6, fontSize:11, color:"#5577aa", fontStyle:"italic" }}>{"Watch Zone: "+rba.potentialEntryZone+" — "+rba.entryZoneText}</div>}
+
+                                  {/* Key levels narrative */}
+                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.6, borderTop:"0.5px solid #e0dbd0", paddingTop:8, marginBottom: rba.entryZoneText ? 8 : 0 }}>{rba.keyLevels}</div>
+
+                                  {/* Watch Zone — once only */}
+                                  {rba.potentialEntryZone ? (
+                                    <div style={{ background:"#f0f4ff", border:"0.5px solid #8899cc", borderRadius:5, padding:"7px 10px" }}>
+                                      <div style={{ fontSize:9, color:"#5577aa", textTransform:"uppercase", letterSpacing:"0.06em", fontWeight:700, marginBottom:3 }}>{"Watch Zone"}</div>
+                                      <div style={{ fontSize:12, fontWeight:700, color:"#3355aa", marginBottom:3 }}>{rba.potentialEntryZone}</div>
+                                      <div style={{ fontSize:11, color:"#5577aa", lineHeight:1.5 }}>{rba.entryZoneText}</div>
+                                    </div>
+                                  ) : rba.entryZoneText ? (
+                                    <div style={{ borderTop:"0.5px solid #e0dbd0", paddingTop:6 }}>
+                                      <div style={{ fontSize:9, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:3 }}>{"Watch Zone"}</div>
+                                      <div style={{ fontSize:11, color:"#888", lineHeight:1.5, fontStyle:"italic" }}>{rba.entryZoneText}</div>
+                                    </div>
+                                  ) : null}
                                 </div>
                                 {/* Smart Money + Technical lines */}
                                 <div style={{ marginBottom:8, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
