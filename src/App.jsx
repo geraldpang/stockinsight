@@ -4982,15 +4982,29 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 })}
                               </div>
 
-                              {/* Analysis — main paragraph */}
-                              <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>{"Analysis"}</div>
-                              <div style={{ fontSize:13, color:"#c0bdb4", lineHeight:1.8, marginBottom:10 }}>{rba.analysis}</div>
-                              {/* Key level commentary paragraph */}
-                              <div style={{ fontSize:13, color:"#c0bdb4", lineHeight:1.8, marginBottom:10 }}>{rba.keyLevels}</div>
-                              {/* Smart money sentence */}
-                              <div style={{ fontSize:12, color:"#9a9790", lineHeight:1.6, marginBottom:6 }}>{rba.smartMoneyLine}</div>
-                              {/* Technical indicators sentence */}
-                              <div style={{ fontSize:12, color:"#9a9790", lineHeight:1.6 }}>{rba.technicalIndicatorsLine}</div>
+                              {/* Analysis — bold prices in text via helper */}
+                              {(function(){
+                                // Splits text on $X.XX price patterns and ticker, returns array of elements
+                                function bp(text) {
+                                  if (!text) return null;
+                                  var parts = (text + '').split(/(\$[\d,]+(?:\.\d+)?)/g);
+                                  return parts.map(function(s, i) {
+                                    if (/^\$[\d,]+/.test(s)) {
+                                      return <strong key={i} style={{ fontWeight:700, color:"#dedad0" }}>{s}</strong>;
+                                    }
+                                    return s;
+                                  });
+                                }
+                                return (
+                                  <div>
+                                    <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>{"Analysis"}</div>
+                                    <div style={{ fontSize:14, color:"#c0bdb4", lineHeight:1.7, marginBottom:10 }}>{bp(rba.analysis)}</div>
+                                    <div style={{ fontSize:14, color:"#c0bdb4", lineHeight:1.7, marginBottom:10 }}>{bp(rba.keyLevels)}</div>
+                                    <div style={{ fontSize:13, color:"#9a9790", lineHeight:1.6, marginBottom:7 }}>{bp(rba.smartMoneyLine)}</div>
+                                    <div style={{ fontSize:13, color:"#9a9790", lineHeight:1.6 }}>{bp(rba.technicalIndicatorsLine)}</div>
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                             {/* ── Key Levels card — factual prices only ────── */}
@@ -5189,11 +5203,27 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                                 {/* Analysis — all commentary together */}
                                 <div style={{ marginBottom:10, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
-                                  <div style={{ fontSize:9, color:"#111", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>{"Analysis"}</div>
-                                  <div style={{ fontSize:12, color:"#333", lineHeight:1.8, marginBottom:8 }}>{rba.analysis}</div>
-                                  <div style={{ fontSize:12, color:"#333", lineHeight:1.8, marginBottom:8 }}>{rba.keyLevels}</div>
-                                  <div style={{ fontSize:11, color:"#555", lineHeight:1.6, marginBottom:5 }}>{rba.smartMoneyLine}</div>
-                                  <div style={{ fontSize:11, color:"#555", lineHeight:1.6 }}>{rba.technicalIndicatorsLine}</div>
+                                  <div style={{ fontSize:9, color:"#111", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:10 }}>{"Analysis"}</div>
+                                  {(function(){
+                                    function bp2(text) {
+                                      if (!text) return null;
+                                      var parts = (text + '').split(/(\$[\d,]+(?:\.\d+)?)/g);
+                                      return parts.map(function(s, i) {
+                                        if (/^\$[\d,]+/.test(s)) {
+                                          return <strong key={i} style={{ fontWeight:700 }}>{s}</strong>;
+                                        }
+                                        return s;
+                                      });
+                                    }
+                                    return (
+                                      <div>
+                                        <div style={{ fontSize:13, color:"#333", lineHeight:1.7, marginBottom:10 }}>{bp2(rba.analysis)}</div>
+                                        <div style={{ fontSize:13, color:"#333", lineHeight:1.7, marginBottom:10 }}>{bp2(rba.keyLevels)}</div>
+                                        <div style={{ fontSize:12, color:"#555", lineHeight:1.6, marginBottom:6 }}>{bp2(rba.smartMoneyLine)}</div>
+                                        <div style={{ fontSize:12, color:"#555", lineHeight:1.6 }}>{bp2(rba.technicalIndicatorsLine)}</div>
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
 
                                 {/* Key Levels — factual prices only */}
