@@ -9189,8 +9189,7 @@ export function JournalPage() {
                     <Th col="future_return_30d">30D</Th>
                     <Th col="future_return_60d">60D</Th>
                     <Th col="future_return_90d">90D</Th>
-                    <Th col="max_gain_30d">MaxGain30</Th>
-                    <Th col="max_drawdown_30d">MaxDD30</Th>
+                    <Th col="max_gain_30d">Range 30D</Th>
                     <Th col="bullish_outcome_label">Outcome</Th>
                     <th style={{ padding:"8px 6px", fontSize:10, color:"#444", background:"#1a1a18", borderBottom:"1px solid #2a2a28" }}></th>
                   </tr>
@@ -9220,8 +9219,41 @@ export function JournalPage() {
                         <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_30d)}</td>
                         <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_60d)}</td>
                         <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_90d)}</td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.max_gain_30d)}</td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.max_drawdown_30d)}</td>
+                        <td style={{ padding:"5px 7px" }}>
+                          {(function(){
+                            var gain = r.max_gain_30d;
+                            var loss = r.max_drawdown_30d; // always <= 0
+                            var ret  = r.future_return_20d; // actual 20D return as dot
+                            if (gain == null && loss == null) return <span style={{color:"#444",fontSize:10}}>Pending</span>;
+                            var g = gain || 0;
+                            var l = loss || 0; // 0 or negative
+                            var total = g - l; // total range width
+                            if (total === 0) return <span style={{color:"#444",fontSize:10}}>—</span>;
+                            var W = 110; // bar width px
+                            var zeroX = (-l / total) * W; // x position of 0% (entry price)
+                            var gainW = (g / total) * W;
+                            var lossW = (-l / total) * W;
+                            var dotX = ret != null ? Math.max(2, Math.min(W-2, ((-l + ret) / total) * W)) : null;
+                            return (
+                              <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                                <svg width={W} height={8} style={{ display:"block" }}>
+                                  {/* Loss segment (left of zero) */}
+                                  {lossW > 0 && <rect x={0} y={1} width={lossW} height={6} rx={2} fill="#e05050" opacity={0.7} />}
+                                  {/* Gain segment (right of zero) */}
+                                  {gainW > 0 && <rect x={zeroX} y={1} width={gainW} height={6} rx={2} fill="#7abd00" opacity={0.7} />}
+                                  {/* Zero line */}
+                                  <rect x={zeroX - 0.5} y={0} width={1} height={8} fill="#888" />
+                                  {/* Actual return dot */}
+                                  {dotX != null && <circle cx={dotX} cy={4} r={3} fill="#fff" stroke="#222" strokeWidth={0.5} />}
+                                </svg>
+                                <div style={{ display:"flex", justifyContent:"space-between", fontSize:9, lineHeight:1 }}>
+                                  <span style={{ color:"#e05050" }}>{l === 0 ? "0%" : l.toFixed(1)+"%"}</span>
+                                  <span style={{ color:"#7abd00" }}>{g === 0 ? "0%" : "+"+g.toFixed(1)+"%"}</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </td>
                         <td style={{ padding:"5px 7px" }}>{OutcomeBadge(r.bullish_outcome_label)}</td>
                         <td style={{ padding:"5px 5px" }}>
                           <div style={{ display:"flex", gap:4, alignItems:"center" }}>
