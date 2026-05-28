@@ -9222,33 +9222,37 @@ export function JournalPage() {
                         <td style={{ padding:"5px 7px" }}>
                           {(function(){
                             var gain = r.max_gain_30d;
-                            var loss = r.max_drawdown_30d; // always <= 0
-                            var ret  = r.future_return_20d; // actual 20D return as dot
+                            var loss = r.max_drawdown_30d;
                             if (gain == null && loss == null) return <span style={{color:"#444",fontSize:10}}>Pending</span>;
-                            var g = gain || 0;
-                            var l = loss || 0; // 0 or negative
-                            var total = g - l; // total range width
-                            if (total === 0) return <span style={{color:"#444",fontSize:10}}>—</span>;
-                            var W = 110; // bar width px
-                            var zeroX = (-l / total) * W; // x position of 0% (entry price)
-                            var gainW = (g / total) * W;
-                            var lossW = (-l / total) * W;
-                            var dotX = ret != null ? Math.max(2, Math.min(W-2, ((-l + ret) / total) * W)) : null;
+                            var g = Math.max(0, gain || 0);  // clamp gain >= 0
+                            var l = Math.min(0, loss || 0);  // clamp loss <= 0
+                            var ret = r.future_return_20d;
+                            // Fixed centre layout: left half = loss, right half = gain
+                            var HALF = 55; // px each side
+                            var W = HALF * 2;
+                            // Scale each side independently to its half
+                            var MAX_SIDE = 25; // cap at 25% for visual scale
+                            var lossW = g===0&&l===0 ? 0 : Math.min(HALF, (-l / MAX_SIDE) * HALF);
+                            var gainW = g===0&&l===0 ? 0 : Math.min(HALF, (g  / MAX_SIDE) * HALF);
+                            // Dot position for actual 20D return
+                            var dotX = ret != null ? HALF + Math.max(-HALF+3, Math.min(HALF-3, (ret / MAX_SIDE) * HALF)) : null;
                             return (
                               <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
                                 <svg width={W} height={8} style={{ display:"block" }}>
-                                  {/* Loss segment (left of zero) */}
-                                  {lossW > 0 && <rect x={0} y={1} width={lossW} height={6} rx={2} fill="#e05050" opacity={0.7} />}
-                                  {/* Gain segment (right of zero) */}
-                                  {gainW > 0 && <rect x={zeroX} y={1} width={gainW} height={6} rx={2} fill="#7abd00" opacity={0.7} />}
-                                  {/* Zero line */}
-                                  <rect x={zeroX - 0.5} y={0} width={1} height={8} fill="#888" />
+                                  {/* Background */}
+                                  <rect x={0} y={2} width={W} height={4} rx={2} fill="#222" />
+                                  {/* Loss bar — grows LEFT from centre */}
+                                  {lossW > 0 && <rect x={HALF - lossW} y={1} width={lossW} height={6} rx={2} fill="#e05050" opacity={0.8} />}
+                                  {/* Gain bar — grows RIGHT from centre */}
+                                  {gainW > 0 && <rect x={HALF} y={1} width={gainW} height={6} rx={2} fill="#7abd00" opacity={0.8} />}
+                                  {/* Zero centre line */}
+                                  <rect x={HALF - 0.5} y={0} width={1} height={8} fill="#555" />
                                   {/* Actual return dot */}
-                                  {dotX != null && <circle cx={dotX} cy={4} r={3} fill="#fff" stroke="#222" strokeWidth={0.5} />}
+                                  {dotX != null && <circle cx={dotX} cy={4} r={3} fill="#fff" stroke="#1a1a1a" strokeWidth={0.5} />}
                                 </svg>
                                 <div style={{ display:"flex", justifyContent:"space-between", fontSize:9, lineHeight:1 }}>
-                                  <span style={{ color:"#e05050" }}>{l === 0 ? "0%" : l.toFixed(1)+"%"}</span>
-                                  <span style={{ color:"#7abd00" }}>{g === 0 ? "0%" : "+"+g.toFixed(1)+"%"}</span>
+                                  <span style={{ color: l < 0 ? "#e05050" : "#555" }}>{l < 0 ? l.toFixed(1)+"%" : "0%"}</span>
+                                  <span style={{ color: g > 0 ? "#7abd00" : "#555" }}>{g > 0 ? "+"+g.toFixed(1)+"%" : "0%"}</span>
                                 </div>
                               </div>
                             );
