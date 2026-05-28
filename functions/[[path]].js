@@ -977,8 +977,8 @@ export async function onRequest(context) {
               if (prices.length > 0) {
                 var maxG = Math.max.apply(null, prices);
                 var minG = Math.min.apply(null, prices);
-                updates["max_gain_"     + ww + "d"] = parseFloat(((maxG - basePrice) / basePrice * 100).toFixed(2));
-                updates["max_drawdown_" + ww + "d"] = parseFloat(((minG - basePrice) / basePrice * 100).toFixed(2));
+                updates["max_gain_"     + ww + "d"] = parseFloat(Math.max(0, ((maxG - basePrice) / basePrice * 100)).toFixed(2));
+                updates["max_drawdown_" + ww + "d"] = parseFloat(Math.min(0, ((minG - basePrice) / basePrice * 100)).toFixed(2));
               }
             }
 
