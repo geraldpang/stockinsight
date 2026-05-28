@@ -6,6 +6,7 @@ import { calculateTechnicalSignalSnapshot, calcRSI,
          calcSmfTodaySignal, calcSmfFiveDaySignal, calcSmfThirtyDaySignal,
          getSmfOverallStatus, calcSmfSummaryCard,
          isPositiveReversal, isPositiveMoneyFlow } from "./technicalSignals.js";
+import { generateRuleBasedAnalytics } from "./ruleBasedAnalytics.js";
 
 // ─── Central signal colour system ─────────────────────────────────────────────
 var _CLR = {
@@ -1066,12 +1067,18 @@ function buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData) {
       return { date: b.t ? new Date(b.t).toISOString().split('T')[0] : '',
                open: b.o||0, high: b.h||0, low: b.l||0, close: b.c||0, volume: b.v||0 };
     });
-  return calculateTechnicalSignalSnapshot({
+  var snap = calculateTechnicalSignalSnapshot({
     ticker:     sym,
     date:       new Date().toISOString().split('T')[0],
     ohlcv:      ohlcv,
     indicators: ind,
     crossData:  crossData && crossData.sym === sym ? crossData : null,
+    meta:       { price: price, hi52: hi52, lo52: lo52 },
+  });
+  // Enrich snapshot so ruleBasedAnalytics can calculate real support/resistance
+  return Object.assign({}, snap, {
+    ohlcv:      ohlcv,
+    indicators: ind,
     meta:       { price: price, hi52: hi52, lo52: lo52 },
   });
 }
@@ -1462,6 +1469,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [aiFundCachedAt,setAiFundCachedAt]= useState(null);
   const [aiTechResult,  setAiTechResult]  = useState(null); // { verdict, stVerdict, confidence, keyLevel, summary, dataSnapshot }
   const [aiTechLoading, setAiTechLoading] = useState(false);
+  const [ruleAnalytics, setRuleAnalytics] = useState(null); // Rule Based Analytics output
   const [aiTechRefreshing, setAiTechRefreshing] = useState(false);
   const [aiTechCachedAt,setAiTechCachedAt]= useState(null);
 
@@ -1899,7 +1907,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; if(window.__trendSignalWritten)delete window.__trendSignalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); setRuleAnalytics(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; if(window.__trendSignalWritten)delete window.__trendSignalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -2244,19 +2252,22 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         if (data && (data.news || data.ticker || data.dividends || data.indicators || data.aggs)) {
           setMassiveInfo(data);
           window.__curMassive = data;
-          // Fire Tech AI when massive arrives -- wait for isPaid if needed
+          // Rule Based Analytics runs from the pre-compute useEffect instead.
+          // Technical AI no longer auto-fires. runTechAi() is preserved but not called.
+          /*
           var _tSym = sym; var _tData = data;
           var _techWait = 0;
           var _techWaitInterval = setInterval(function() {
             _techWait++;
-            if (_techWait > 15) { clearInterval(_techWaitInterval); return; } // give up after 30s
+            if (_techWait > 15) { clearInterval(_techWaitInterval); return; }
             if (window.__aiTechDone === _tSym || window.__aiTechRunning === _tSym) { clearInterval(_techWaitInterval); return; }
             var _isFT=FREE_TICKERS.indexOf(_tSym)!==-1;
-            if (!window.__isPaid && !_isFT) return; // wait for auth
+            if (!window.__isPaid && !_isFT) return;
             clearInterval(_techWaitInterval);
             setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech TRIGGER (massive): "+_tSym, data:{price:window.__curPrice||0, waitAttempts:_techWait} }]); });
             runTechAi(_tSym, _tData, window.__curPrice||0, window.__msDots2||0, window.__msLabel2||"");
           }, 2000);
+          */
         } else {
           debugEntries.push({ time: new Date().toISOString(), label: "Massive data empty or error", data: data });
         }
@@ -2484,6 +2495,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         if (!window.__smfScore) window.__smfScore = {};
         window.__smfScore[sym] = smCard;
       }
+
+      // ── Rule Based Analytics — computed from enriched snapshot ─────────────
+      // snap already contains ohlcv, indicators, meta from buildTechnicalSnapshotFromMassive
+      try {
+        var rba = generateRuleBasedAnalytics(snap);
+        if (rba) setRuleAnalytics(rba);
+      } catch(rbaErr) { /* non-fatal */ }
+
     } catch(e) { /* pre-compute error — non-fatal */ }
   }, [massiveInfo, crossData, ov, q, sym]);
 
@@ -3188,7 +3207,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.34</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.35</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -3242,7 +3261,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.34</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.35</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -4896,371 +4915,149 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                       {/* Technical Analysis */}
                       {insightTab === "technical" && (function() {
-                        var ind  = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
-                        var aggs = massiveInfo && massiveInfo.aggs        ? massiveInfo.aggs        : [];
-                        var price = q ? q.price : 0;
-                        var hi52  = ov ? ov.hi52 : 0;
-                        var lo52  = ov ? ov.lo52 : 0;
-                        var rng52 = hi52 - lo52;
-                        var pos52 = rng52 > 0 ? (price - lo52) / rng52 : 0.5;
+                        // ── Rule Based Analytics ───────────────────────────────────────────────────
+                        var rba = ruleAnalytics;
 
-                        // ---- reversal detection helpers (need history arrays) ----
-                        var rsiHist  = ind ? (ind.rsiHistory  || []) : [];
-                        var macdHist = ind ? (ind.macdHistory || []) : [];
-
-                        function detectRsiDivergence() {
-                          if (rsiHist.length < 10 || aggs.length < 10) return false;
-                          var rPriceLow = Math.min.apply(null, aggs.slice(0,5).map(function(a){return a.l;}));
-                          var pPriceLow = Math.min.apply(null, aggs.slice(5,10).map(function(a){return a.l;}));
-                          var rRsiLow   = Math.min.apply(null, rsiHist.slice(0,5));
-                          var pRsiLow   = Math.min.apply(null, rsiHist.slice(5,10));
-                          return rPriceLow < pPriceLow && rRsiLow > pRsiLow;
-                        }
-                        function detectMacdTurning() {
-                          if (macdHist.length < 3) return false;
-                          var h0 = macdHist[0] && macdHist[0].histogram;
-                          var h1 = macdHist[1] && macdHist[1].histogram;
-                          var h2 = macdHist[2] && macdHist[2].histogram;
-                          return h0 != null && h1 != null && h2 != null && h0 < 0 && h0 > h1 && h1 > h2;
-                        }
-                        function detectWeeklyCross() {
-                          if (!ind || !ind.wsma10 || !ind.wsma40) return false;
-                          var gap = Math.abs(ind.wsma10 - ind.wsma40) / ind.wsma40;
-                          return ind.wsma10 < ind.wsma40 && gap < 0.05;
-                        }
-                        function detectRsiBase() {
-                          if (rsiHist.length < 3) return false;
-                          return rsiHist.slice(0,5).every(function(v){ return v != null && v >= 28 && v <= 52; });
-                        }
-                        function detect52wkBase() {
-                          return pos52 < 0.20 && ind && ind.rsi14 != null && ind.rsi14 > 20 && ind.rsi14 < 45;
+                        // Tone colour
+                        function toneColor(tone) {
+                          if (!tone) return "#888";
+                          if (tone === "bullish")            return "#7abd00";
+                          if (tone === "cautiously_bullish") return "#9acd50";
+                          if (tone === "neutral")            return "#EF9F27";
+                          if (tone === "cautiously_bearish") return "#e07030";
+                          if (tone === "bearish")            return "#e05050";
+                          return "#888";
                         }
 
-                        var macdTurning  = detectMacdTurning();
-                        var rsiDivergence = detectRsiDivergence();
-                        var weeklyCross  = detectWeeklyCross();
-                        var rsiBase      = detectRsiBase();
-                        var lowBase      = detect52wkBase();
-                        var revSignals   = [
-                          { label:"RSI Divergence",         active:rsiDivergence, note:"Price new low but RSI higher low" },
-                          { label:"MACD Histogram Turning", active:macdTurning,   note:"Histogram negative but rising 3+ sessions" },
-                          { label:"Weekly SMA Cross Ahead", active:weeklyCross,   note:"WSMA10 within 5% of WSMA40" },
-                          { label:"RSI Base Forming",       active:rsiBase,       note:"RSI stabilising in 28-52 range" },
-                          { label:"52-Wk Low Base",         active:lowBase,       note:"Price in bottom 20% of range, RSI steadying" },
-                        ];
-                        var revCount = revSignals.filter(function(r){ return r.active; }).length;
-
-                        // ---- volume ratio from aggs ----
-                        var vol5  = aggs.slice(0,5).reduce(function(s,a){ return s + (a.v||0); }, 0) / Math.max(aggs.slice(0,5).length,1);
-                        var vol20 = aggs.slice(0,20).reduce(function(s,a){ return s + (a.v||0); }, 0) / Math.max(aggs.slice(0,20).length,1);
-                        var volRatio = vol20 > 0 ? vol5 / vol20 : 1;
-
-                        // ---- score each signal (1-5 scale, weekly/monthly relaxed thresholds) ----
-                        function sigScore(key) {
-                          if (!ind || !price) return 3;
-                          var p = price, r = ind.rsi14, h = ind.macd ? ind.macd.histogram : null;
-                          var wsmaGap, s200gap, crossGap, ema20gap, pct;
-                          if (key === "wsma") {
-                            if (!ind.wsma10 || !ind.wsma40) return 3;
-                            wsmaGap = (ind.wsma10 - ind.wsma40) / ind.wsma40 * 100;
-                            return wsmaGap > 5 ? 5 : wsmaGap > 1 ? 4 : wsmaGap > -1 ? 3 : wsmaGap > -5 ? 2 : 1;
+                        // Factor label colour (reuse existing colour logic)
+                        function factorColor(key, val) {
+                          if (!val || val === "N/A") return "#555";
+                          if (key === "trend") {
+                            if (val === "Strong Uptrend" || val === "Uptrend") return "#7abd00";
+                            if (val === "Sideways") return "#EF9F27";
+                            return "#e05050";
                           }
-                          if (key === "sma200") {
-                            if (!ind.sma200) return 3;
-                            s200gap = (p - ind.sma200) / ind.sma200 * 100;
-                            return s200gap > 10 ? 5 : s200gap > 2 ? 4 : s200gap > -10 ? 3 : s200gap > -20 ? 2 : 1;
+                          if (key === "momentum") {
+                            if (val === "Strong" || val === "Building") return "#7abd00";
+                            if (val === "Neutral") return "#EF9F27";
+                            return "#e05050";
                           }
-                          if (key === "cross") {
-                            if (!ind.sma50 || !ind.sma200) return 3;
-                            crossGap = (ind.sma50 - ind.sma200) / ind.sma200 * 100;
-                            return crossGap > 10 ? 5 : crossGap > 1 ? 4 : crossGap > -1 ? 3 : crossGap > -10 ? 2 : 1;
-                          }
-                          if (key === "pos52") {
-                            return pos52 > 0.80 ? 5 : pos52 > 0.55 ? 4 : pos52 > 0.35 ? 3 : pos52 > 0.15 ? 2 : 1;
-                          }
-                          if (key === "rsi") {
-                            if (r == null) return 3;
-                            return (r >= 50 && r <= 75) ? 5 : (r >= 40 && r < 50) ? 4 : (r >= 30 && r < 40) || r > 75 ? 3 : (r >= 20 && r < 30) ? 2 : 1;
-                          }
-                          if (key === "macd") {
-                            if (h == null) return 3;
-                            if (h > 0.05) return 5;
-                            if (h > 0)    return 4;
-                            if (h > -0.05 || macdTurning) return 3;
-                            if (h > -0.50) return 2;
-                            return 1;
-                          }
-                          if (key === "ema20") {
-                            if (!ind.ema20) return 3;
-                            ema20gap = (p - ind.ema20) / ind.ema20 * 100;
-                            return ema20gap > 5 ? 5 : ema20gap > 1 ? 4 : ema20gap > -5 ? 3 : ema20gap > -15 ? 2 : 1;
-                          }
-                          if (key === "vol") {
-                            return volRatio > 1.4 ? 5 : volRatio > 1.1 ? 4 : volRatio > 0.9 ? 3 : volRatio > 0.7 ? 2 : 1;
-                          }
-                          return 3;
+                          if (key === "reversal") return revStatusColor(val, "main");
+                          if (key === "smartMoney") return smfStatusColor(val, "main");
+                          return "#888";
                         }
 
-                        var W = { wsma:25, sma200:15, cross:10, pos52:5, rsi:20, macd:15, ema20:5, vol:5 };
-                        var trendKeys    = ["wsma","sma200","cross","pos52"];
-                        var momentumKeys = ["rsi","macd","ema20","vol"];
-                        var allKeys      = trendKeys.concat(momentumKeys);
-
-                        var scores = {};
-                        allKeys.forEach(function(k){ scores[k] = sigScore(k); });
-
-                        var baseRaw = 0;
-                        allKeys.forEach(function(k){ baseRaw += (scores[k]/5) * W[k]; });
-                        var base   = Math.round(baseRaw);
-                        var bonusPer = 4;
-                        var bonusRaw = revCount * bonusPer;
-                        var bonus    = base < 50 ? Math.min(bonusRaw, 12) : 0;
-                        var finalScore = Math.min(base + bonus, base < 50 ? 49 : 100);
-
-                        var trendRaw = trendKeys.reduce(function(s,k){ return s + scores[k]; }, 0);
-                        var momRaw   = momentumKeys.reduce(function(s,k){ return s + scores[k]; }, 0);
-                        var trendScore = Math.round((trendRaw / (trendKeys.length * 5)) * 100);
-                        var momScore   = Math.round((momRaw   / (momentumKeys.length * 5)) * 100);
-
-                        var showRevWatch = revCount >= 2 && finalScore < 50;
-
-                        function getVerdict(s) {
-                          return s >= 70 ? "Strong Bullish" : s >= 55 ? "Bullish" : s >= 40 ? "Neutral" : s >= 25 ? "Bearish" : "Strong Bearish";
-                        }
-                        var verdict = getVerdict(finalScore);
-
-                        var vColMap = { "Strong Bullish":"#1a6a1a", "Bullish":"#2a7a2a", "Neutral":"#b88000", "Bearish":"#c03030", "Strong Bearish":"#8b0000" };
-                        var vBgMap  = { "Strong Bullish":"#EAF3DE", "Bullish":"#EAF3DE",  "Neutral":"#FAEEDA",  "Bearish":"#FCEBEB",  "Strong Bearish":"#FCEBEB" };
-                        var vDotMap = { "Strong Bullish":5, "Bullish":4, "Neutral":3, "Bearish":2, "Strong Bearish":1 };
-                        var vCol = vColMap[verdict]; var vBg = vBgMap[verdict]; var vDot = vDotMap[verdict];
-
-                        var scoreColMap = { 5:"#1a6a1a", 4:"#2a7a2a", 3:"#b88000", 2:"#c03030", 1:"#8b0000" };
-                        var scoreEmMap  = { 5:"#c8e8c0", 4:"#c8e8c0", 3:"#faeeda", 2:"#f5c0c0", 1:"#f5c0c0" };
-                        var scoreLbMap  = { 5:"Strong Bullish", 4:"Bullish", 3:"Neutral", 2:"Bearish", 1:"Strong Bearish" };
-
-                        function Dots(props) {
-                          var col = scoreColMap[props.score] || "#b88000";
-                          var em  = scoreEmMap[props.score]  || "#faeeda";
-                          var d = [];
-                          for (var i = 1; i <= 5; i++) {
-                            d.push(<span key={i} style={{ display:"inline-block", width:props.sz||8, height:props.sz||8, borderRadius:"50%", background: i <= props.score ? col : em, marginRight:2 }} />);
-                          }
-                          return <span style={{ display:"inline-flex", alignItems:"center" }}>{d}</span>;
+                        if (!rba) {
+                          return (
+                            <div style={{ padding:"20px", color:"#555", fontSize:12 }}>
+                              {"Rule Based Analytics is loading technical signals..."}
+                            </div>
+                          );
                         }
 
-                        var SIGNALS = [
-                          { key:"wsma",  cat:"Trend",    w:25, label:"Weekly SMA10 vs 40",  val: ind && ind.wsma10 && ind.wsma40 ? "$" + ind.wsma10.toFixed(2) + " vs $" + ind.wsma40.toFixed(2) : "-",        note:"Primary signal" },
-                          { key:"sma200",cat:"Trend",    w:15, label:"Price vs SMA 200",    val: ind && ind.sma200 ? "$" + price.toFixed(2) + " vs $" + ind.sma200.toFixed(2) : "-",                             note:"Long-term trend" },
-                          { key:"cross", cat:"Trend",    w:10, label:"Golden/Death Cross",  val: ind && ind.sma50 && ind.sma200 ? (ind.sma50 > ind.sma200 ? "Golden Cross" : "Death Cross") + " ($" + (ind.sma50||0).toFixed(2) + " vs $" + (ind.sma200||0).toFixed(2) + ")" : "-", note:"Regime" },
-                          { key:"pos52", cat:"Trend",    w:5,  label:"52-Week Position",    val: hi52 > 0 ? (pos52*100).toFixed(0) + "% of range ($" + lo52.toFixed(2) + " - $" + hi52.toFixed(2) + ")" : "-", note:"Relative strength" },
-                          { key:"rsi",   cat:"Momentum", w:20, label:"RSI (14-day)",        val: ind && ind.rsi14 != null ? ind.rsi14.toFixed(1) : "-",                                                           note:"Best momentum" },
-                          { key:"macd",  cat:"Momentum", w:15, label:"MACD Histogram",      val: ind && ind.macd && ind.macd.histogram != null ? ind.macd.histogram.toFixed(4) + (macdTurning ? " (turning)" : "") : "-", note:"Reversal detection" },
-                          { key:"ema20", cat:"Momentum", w:5,  label:"Price vs EMA 20",     val: ind && ind.ema20 ? "$" + price.toFixed(2) + " vs $" + ind.ema20.toFixed(2) : "-",                               note:"Near-term" },
-                          { key:"vol",   cat:"Momentum", w:5,  label:"Volume Ratio 5/20d",  val: aggs.length > 0 ? volRatio.toFixed(2) + "x avg volume" : "-",                                                   note:"New signal" },
-                        ];
-
-                        var trendSigs = SIGNALS.filter(function(s){ return s.cat === "Trend"; });
-                        var momSigs   = SIGNALS.filter(function(s){ return s.cat === "Momentum"; });
-
-                        // ---- if we have no Massive data, show AI-only fallback ----
-                        var hasMassive = ind && price > 0;
-
-                        // ---- AI section (from Haiku) ----
-                        var parsed = parseTechnical(tabContent);
-                        var aiRating = parsed ? parsed.rating : null;
-                        var aiEntry  = parsed ? parsed.entry  : null;
-                        var aiBody   = parsed ? parsed.body   : tabContent;
-                        var aiRatingColors = { "Strong Bullish":["#1a6a1a","#EAF3DE","#7abd00"], "Bullish":["#2a7a2a","#EAF3DE","#9ab800"], "Neutral":["#b88000","#FAEEDA","#d4a800"], "Bearish":["#c03030","#FCEBEB","#e08080"], "Strong Bearish":["#8b0000","#FCEBEB","#c03030"] };
-                        var aiColors = aiRating && aiRatingColors[aiRating] ? aiRatingColors[aiRating] : ["#888","#f5f5f5","#ccc"];
-                        var aiDotScore = aiRating === "Strong Bullish" ? 5 : aiRating === "Bullish" ? 4 : aiRating === "Neutral" ? 3 : aiRating === "Bearish" ? 2 : aiRating === "Strong Bearish" ? 1 : 3;
+                        var tc = toneColor(rba.tone);
 
                         return (
-                          <div>
-                            {/* AI verdict banner */}
-                            {aiRating && (
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:aiColors[1], borderRadius:8, marginBottom:14, border:"0.5px solid " + aiColors[2] }}>
-                                <div>
-                                  <div style={{ fontSize:10, color:aiColors[0], fontWeight:600, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Technical Rating (AI)</div>
-                                  <div style={{ fontSize:15, fontWeight:700, color:aiColors[0] }}>{aiRating}</div>
-                                  {aiEntry && <div style={{ fontSize:11, color:"#555", marginTop:2 }}>Entry: {aiEntry}</div>}
-                                </div>
-                                <Dots score={aiDotScore} sz={8} />
+                          <div style={{ padding:"4px 0" }}>
+
+                            {/* Verdict card */}
+                            <div style={{ background: summaryCardDark(rba.verdict).bg, border:"0.5px solid "+tc, borderRadius:10, padding:"14px 16px", marginBottom:16 }}>
+                              <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>{"Rule Based Analytics"}</div>
+                              <div style={{ fontSize:16, fontWeight:800, color:tc, marginBottom:10 }}>{rba.verdict}</div>
+
+                              {/* Four-factor compact row */}
+                              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:8, marginBottom:12 }}>
+                                {[
+                                  ["Trend",        "trend",       rba.factorLabels.trend],
+                                  ["Momentum",     "momentum",    rba.factorLabels.momentum],
+                                  ["Reversal",     "reversal",    rba.factorLabels.reversal],
+                                  ["Smart Money",  "smartMoney",  rba.factorLabels.smartMoney],
+                                ].map(function(f) {
+                                  return (
+                                    <div key={f[0]} style={{ background:"#0e0e0c", borderRadius:6, padding:"6px 8px" }}>
+                                      <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>{f[0]}</div>
+                                      <div style={{ fontSize:11, fontWeight:700, color:factorColor(f[1],f[2]), lineHeight:1.3 }}>{f[2]||"—"}</div>
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            )}
 
-                            {/* AI narrative */}
-                            {aiBody && (
-                              <div style={{ fontSize:13, color:"#333", lineHeight:1.85, marginBottom:16 }}>
-                                {aiBody.split("Technical Rating:")[0].split("Entry Timing:")[0].trim()}
+                              {/* Analysis paragraph */}
+                              <div style={{ fontSize:13, color:"#c0bdb4", lineHeight:1.7, marginBottom:10 }}>{rba.analysis}</div>
+
+                              <div style={{ borderTop:"0.5px solid "+tc+"33", paddingTop:10 }}>
+                                {/* Smart Money + Technical Indicators lines */}
+                                <div style={{ fontSize:11, color:"#888", lineHeight:1.6, marginBottom:6 }}>{rba.smartMoneyLine}</div>
+                                <div style={{ fontSize:11, color:"#888", lineHeight:1.6 }}>{rba.technicalIndicatorsLine}</div>
                               </div>
-                            )}
-
-                            {/* Market Signal block */}
-                            {hasMassive ? (
-                              <div style={{ border:"0.5px solid #e0dbd0", borderRadius:10, overflow:"hidden", marginBottom:4 }}>
-                                <div style={{ padding:"7px 14px", background:"#1a1a14", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                                  <span style={{ fontSize:11, fontWeight:700, color:"#c8f000", textTransform:"uppercase", letterSpacing:"0.07em" }}>Market Signal</span>
-                                  <span style={{ fontSize:10, color:"#7abd00" }}>Weekly/monthly horizon / Massive.com</span>
-                                </div>
-                                <div style={{ padding:"14px 16px", background:"#fff" }}>
-
-                                  {/* Overall score row */}
-                                  <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", background:vBg, borderRadius:9, border:"0.5px solid " + vCol, marginBottom:14 }}>
-                                    <div style={{ width:56, height:56, borderRadius:9, background:vCol, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", flexShrink:0 }}>
-                                      <span style={{ fontSize:21, fontWeight:900, color:"#fff", lineHeight:1 }}>{finalScore}</span>
-                                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.65)" }}>/100</span>
-                                    </div>
-                                    <div style={{ flex:1 }}>
-                                      <div style={{ fontSize:10, color:vCol, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:2 }}>Overall Signal</div>
-                                      <div style={{ fontSize:17, fontWeight:900, color:vCol, marginBottom:4 }}>{verdict}</div>
-                                      {showRevWatch && (
-                                        <div style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10, fontWeight:700, color:"#633806", background:"#FAEEDA", padding:"2px 8px", borderRadius:10, border:"0.5px solid #EF9F27" }}>
-                                          <span style={{ width:6, height:6, borderRadius:"50%", background:"#BA7517", display:"inline-block" }} />
-                                          Reversal Watch {String.fromCharCode(0x2014)} {revCount} signals
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div style={{ display:"flex", gap:7, flexShrink:0 }}>
-                                      <div style={{ textAlign:"center", padding:"5px 10px", background:"rgba(255,255,255,0.45)", borderRadius:7 }}>
-                                        <div style={{ fontSize:9, color:vCol }}>Trend</div>
-                                        <div style={{ fontSize:15, fontWeight:700, color:vCol }}>{trendScore}</div>
-                                      </div>
-                                      <div style={{ textAlign:"center", padding:"5px 10px", background:"rgba(255,255,255,0.45)", borderRadius:7 }}>
-                                        <div style={{ fontSize:9, color:vCol }}>Momentum</div>
-                                        <div style={{ fontSize:15, fontWeight:700, color:vCol }}>{momScore}</div>
-                                      </div>
-                                    </div>
-                                    <Dots score={vDot} sz={9} />
-                                  </div>
-
-                                  {/* Trend signals */}
-                                  <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:8 }}>
-                                    Trend {"&"} Price Action <span style={{ fontWeight:400, color:"#bbb" }}>55%</span>
-                                  </div>
-                                  {trendSigs.map(function(sig) {
-                                    var sc = scores[sig.key];
-                                    var col = scoreColMap[sc]; var lbl = scoreLbMap[sc];
-                                    var pts = Math.round((sc/5)*sig.w);
-                                    return (
-                                      <div key={sig.key} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 0", borderBottom:"0.5px solid #f5f2ec" }}>
-                                        <div style={{ flex:1, minWidth:0 }}>
-                                          <div style={{ fontSize:11, fontWeight:700, color:"#111", marginBottom:1 }}>{sig.label}</div>
-                                          <div style={{ fontSize:10, color:"#999" }}>{sig.val}</div>
-                                        </div>
-                                        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:2, flexShrink:0 }}>
-                                          <Dots score={sc} sz={7} />
-                                          <span style={{ fontSize:9, fontWeight:600, color:col }}>{lbl}</span>
-                                          <span style={{ fontSize:9, color:"#bbb" }}>{pts}/{sig.w}pts</span>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-
-                                  {/* Momentum signals */}
-                                  <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:8, marginTop:14, paddingTop:12, borderTop:"0.5px solid #f0ede6" }}>
-                                    Momentum <span style={{ fontWeight:400, color:"#bbb" }}>45%</span>
-                                  </div>
-                                  {momSigs.map(function(sig) {
-                                    var sc = scores[sig.key];
-                                    var col = scoreColMap[sc]; var lbl = scoreLbMap[sc];
-                                    var pts = Math.round((sc/5)*sig.w);
-                                    var isNew = sig.key === "vol";
-                                    return (
-                                      <div key={sig.key} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 0", borderBottom:"0.5px solid #f5f2ec" }}>
-                                        <div style={{ flex:1, minWidth:0 }}>
-                                          <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:1 }}>
-                                            <span style={{ fontSize:11, fontWeight:700, color:"#111" }}>{sig.label}</span>
-                                            {isNew && <span style={{ fontSize:9, fontWeight:600, color:"#0C447C", background:"#E6F1FB", padding:"1px 5px", borderRadius:5 }}>new</span>}
-                                          </div>
-                                          <div style={{ fontSize:10, color:"#999" }}>{sig.val}</div>
-                                        </div>
-                                        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:2, flexShrink:0 }}>
-                                          <Dots score={sc} sz={7} />
-                                          <span style={{ fontSize:9, fontWeight:600, color:col }}>{lbl}</span>
-                                          <span style={{ fontSize:9, color:"#bbb" }}>{pts}/{sig.w}pts</span>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-
-                                  {/* Reversal Detection */}
-                                  <div style={{ marginTop:14, paddingTop:12, borderTop:"0.5px solid #f0ede6" }}>
-                                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:9 }}>
-                                      <div style={{ fontSize:10, fontWeight:700, color:"#854F0B", textTransform:"uppercase", letterSpacing:"0.07em" }}>Reversal Signals</div>
-                                      {revCount > 0
-                                        ? <div style={{ fontSize:10, color:"#633806", background:"#FAEEDA", padding:"2px 9px", borderRadius:8, border:"0.5px solid #EF9F27", fontWeight:600 }}>{revCount} active {String.fromCharCode(0x2014)} total bonus <span style={{ color:"#1a6a1a" }}>+{bonus}pts</span></div>
-                                        : <div style={{ fontSize:10, color:"#bbb" }}>0 active {String.fromCharCode(0x2014)} 0 pts</div>
-                                      }
-                                    </div>
-
-                                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:10 }}>
-                                      {revSignals.map(function(rv, i) {
-                                        var pts = rv.active ? bonusPer : 0;
-                                        return (
-                                          <div key={i} style={{ display:"flex", alignItems:"center", gap:7, padding:"7px 9px", background: rv.active ? "#FAEEDA" : "#fafaf8", borderRadius:7, border:"0.5px solid " + (rv.active ? "#EF9F27" : "#e8e4dc") }}>
-                                            <div style={{ width:17, height:17, borderRadius:"50%", background: rv.active ? "#BA7517" : "#d0ccc5", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                                              <span style={{ fontSize:9, fontWeight:700, color:"#fff" }}>{rv.active ? "!" : "-"}</span>
-                                            </div>
-                                            <div style={{ flex:1, minWidth:0 }}>
-                                              <div style={{ fontSize:10, fontWeight: rv.active ? 700 : 400, color: rv.active ? "#412402" : "#aaa" }}>{rv.label}</div>
-                                              <div style={{ fontSize:9, color: rv.active ? "#633806" : "#bbb" }}>{rv.note}</div>
-                                            </div>
-                                            <div style={{ flexShrink:0 }}>
-                                              {rv.active
-                                                ? <span style={{ fontSize:10, fontWeight:700, color:"#27500A", background:"#EAF3DE", padding:"2px 7px", borderRadius:6, border:"0.5px solid #7abd00" }}>+{pts}pts</span>
-                                                : <span style={{ fontSize:10, color:"#ccc" }}>0pts</span>
-                                              }
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-
-                                    {/* Calculation strip */}
-                                    <div style={{ padding:"9px 12px", background:"#f9f7f4", borderRadius:8, border:"0.5px solid #e8e4dc" }}>
-                                      <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-                                        <div style={{ padding:"3px 9px", background:vBg, borderRadius:5, border:"0.5px solid " + vCol, fontSize:11, fontWeight:600, color:vCol }}>Base {base}</div>
-                                        <span style={{ fontSize:11, color:"#bbb" }}>+</span>
-                                        <div style={{ padding:"3px 9px", background: bonus > 0 ? "#EAF3DE" : "#f5f5f5", borderRadius:5, border:"0.5px solid " + (bonus > 0 ? "#7abd00" : "#ddd"), fontSize:11, fontWeight:600, color: bonus > 0 ? "#27500A" : "#bbb" }}>Bonus +{bonus}</div>
-                                        <span style={{ fontSize:11, color:"#bbb" }}>=</span>
-                                        <div style={{ padding:"3px 10px", background:vCol, borderRadius:5, fontSize:12, fontWeight:700, color:"#fff" }}>{finalScore}/100 {verdict}</div>
-                                        {base >= 50 && bonus === 0 && <span style={{ fontSize:10, color:"#aaa" }}>(bonus only when base {"<"} 50)</span>}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                </div>
-                              </div>
-                            ) : (
-                              <div style={{ padding:"12px 14px", background:"#fafaf8", borderRadius:8, border:"0.5px solid #e8e4dc", marginBottom:4, fontSize:12, color:"#aaa" }}>
-                                Market Signal unavailable {String.fromCharCode(0x2014)} requires Massive.com data.
-                              </div>
-                            )}
-
-                            {/* AI badges */}
-                            {(aiRating || aiEntry) && (
-                              <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
-                                {aiRating && (
-                                  <div style={{ flex:1, minWidth:160, padding:"10px 14px", background: vBg.replace ? aiColors[1] : "#f5f5f5", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                                    <div>
-                                      <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>AI Technical Rating</div>
-                                      <div style={{ fontSize:13, fontWeight:700, color:aiColors[0] }}>{aiRating}</div>
-                                    </div>
-                                    <Dots score={aiDotScore} sz={7} />
-                                  </div>
-                                )}
-                                {aiEntry && (
-                                  <div style={{ flex:1, minWidth:160, padding:"10px 14px", background:"#f9f7f4", borderRadius:10 }}>
-                                    <div style={{ fontSize:10, color:"#888", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Entry Timing</div>
-                                    <div style={{ fontSize:13, fontWeight:700, color:"#555" }}>{aiEntry}</div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            <div style={{ marginTop:10, fontSize:11, color:"#bbb" }}>
-                              Market Signal uses Massive.com real-time data. AI analysis by Claude Haiku. Not financial advice.
                             </div>
+
+                            {/* Key Levels card */}
+                            <div style={{ background:"#161614", border:"0.5px solid #2a2a28", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
+                              <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>{"Key Levels"}</div>
+
+                              {/* Price row */}
+                              <div style={{ display:"flex", gap:12, marginBottom:10, flexWrap:"wrap" }}>
+                                <div style={{ background:"#0e0e0c", borderRadius:6, padding:"6px 12px", minWidth:90 }}>
+                                  <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>{"Closing Price"}</div>
+                                  <div style={{ fontSize:14, fontWeight:700, color:"#f0ede6" }}>{rba.closingPrice}</div>
+                                </div>
+                                {rba.breakoutLevel && (
+                                  <div style={{ background:"#0e0e0c", borderRadius:6, padding:"6px 12px", minWidth:90 }}>
+                                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>{"Breakout"}</div>
+                                    <div style={{ fontSize:14, fontWeight:700, color:"#7abd00" }}>{"$"+rba.breakoutLevel.toFixed(2)}</div>
+                                  </div>
+                                )}
+                                {rba.invalidationLevel && (
+                                  <div style={{ background:"#0e0e0c", borderRadius:6, padding:"6px 12px", minWidth:90 }}>
+                                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>{"Invalidation"}</div>
+                                    <div style={{ fontSize:14, fontWeight:700, color:"#e05050" }}>{"$"+rba.invalidationLevel.toFixed(2)}</div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Support / Resistance chips */}
+                              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+                                <div>
+                                  <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{"Support"}</div>
+                                  <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+                                    {rba.supportLevels && rba.supportLevels.length > 0
+                                      ? rba.supportLevels.map(function(v,i){ return <span key={i} style={{ background:"#200808", border:"0.5px solid #e05050", borderRadius:4, padding:"2px 7px", fontSize:11, color:"#e05050" }}>{"$"+v.toFixed(2)}</span>; })
+                                      : <span style={{ fontSize:11, color:"#555" }}>{"Recent support"}</span>}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{"Resistance"}</div>
+                                  <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+                                    {rba.resistanceLevels && rba.resistanceLevels.length > 0
+                                      ? rba.resistanceLevels.map(function(v,i){ return <span key={i} style={{ background:"#0d200d", border:"0.5px solid #7abd00", borderRadius:4, padding:"2px 7px", fontSize:11, color:"#7abd00" }}>{"$"+v.toFixed(2)}</span>; })
+                                      : <span style={{ fontSize:11, color:"#555" }}>{"Recent resistance"}</span>}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Key levels narrative */}
+                              <div style={{ fontSize:12, color:"#aaa", lineHeight:1.7, marginBottom: rba.potentialEntryZone ? 10 : 0 }}>{rba.keyLevels}</div>
+
+                              {/* Watch Zone */}
+                              {rba.potentialEntryZone && (
+                                <div style={{ background:"#081020", border:"0.5px solid #6090d080", borderRadius:6, padding:"8px 12px", marginTop:8 }}>
+                                  <div style={{ fontSize:9, color:"#6090d0", textTransform:"uppercase", letterSpacing:"0.06em", fontWeight:700, marginBottom:3 }}>{"Watch Zone"}</div>
+                                  <div style={{ fontSize:12, fontWeight:700, color:"#6090d0", marginBottom:3 }}>{rba.potentialEntryZone}</div>
+                                  <div style={{ fontSize:11, color:"#7090a0", lineHeight:1.5 }}>{rba.entryZoneText}</div>
+                                </div>
+                              )}
+                              {!rba.potentialEntryZone && rba.entryZoneText && (
+                                <div style={{ fontSize:11, color:"#555", lineHeight:1.5, marginTop:6, fontStyle:"italic" }}>{rba.entryZoneText}</div>
+                              )}
+                            </div>
+
+                            {/* Summary card */}
+                            <div style={{ background:"#161614", border:"0.5px solid #2a2a28", borderRadius:10, padding:"14px 16px" }}>
+                              <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>{"Summary"}</div>
+                              <div style={{ fontSize:13, color:"#aaa", lineHeight:1.8 }}>{rba.summary}</div>
+                            </div>
+
                           </div>
                         );
                       })()}
@@ -8957,12 +8754,21 @@ export function JournalPage() {
     var wTickers = watchlist.map(function(w){ return w.ticker; });
     var allTickers = [...new Set([...wTickers, ...jTickers])];
     if (allTickers.length === 0) { showToast("No tickers found in journal.", "err"); setLoading(""); return; }
-    // Calculate future returns using real Yahoo Finance prices — no snapshot dependency
+    var debugOutput = [];
     for (var tk of allTickers) {
-      await jFetch("updateFutureReturns", "POST", { ticker:tk });
+      var res = await jFetch("updateFutureReturns", "POST", { ticker:tk });
+      if (res && res.debug) {
+        debugOutput.push(res.debug);
+        console.log("[updateFutureReturns]", tk, res.debug);
+      }
     }
+    // Show debug summary as toast
+    var summary = debugOutput.map(function(d){
+      return d.ticker + ": Yahoo=" + (d.yahooFetchSuccess ? "OK ("+d.pricesLoaded+" prices, "+d.dateRange.first+" to "+d.dateRange.last+")" : "FAILED") + ", updated=" + (debugOutput.find(function(x){return x.ticker===d.ticker;}) ? "see console" : "?");
+    }).join(" | ");
+    showToast("Debug: " + summary, "ok");
     setLoading("");
-    showToast("Future returns updated (" + allTickers.length + " tickers).", "ok");
+    showToast("Future returns updated (" + allTickers.length + " tickers). Check console for debug.", "ok");
     loadJournal();
   }
 
@@ -9180,8 +8986,7 @@ export function JournalPage() {
                     <Th col="future_return_30d">30D</Th>
                     <Th col="future_return_60d">60D</Th>
                     <Th col="future_return_90d">90D</Th>
-                    <Th col="max_gain_30d">MaxGain30</Th>
-                    <Th col="max_drawdown_30d">MaxDD30</Th>
+                    <Th col="max_gain_30d">Range 30D</Th>
                     <Th col="bullish_outcome_label">Outcome</Th>
                     <th style={{ padding:"8px 6px", fontSize:10, color:"#444", background:"#1a1a18", borderBottom:"1px solid #2a2a28" }}></th>
                   </tr>
@@ -9211,8 +9016,46 @@ export function JournalPage() {
                         <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_30d)}</td>
                         <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_60d)}</td>
                         <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_90d)}</td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.max_gain_30d)}</td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.max_drawdown_30d)}</td>
+                        <td style={{ padding:"5px 7px" }}>
+                          {(function(){
+                            var gain = r.max_gain_30d;
+                            var loss = r.max_drawdown_30d;
+                            if (gain == null && loss == null) return <span style={{color:"#444",fontSize:10}}>Pending</span>;
+                            var g = Math.max(0, gain || 0);
+                            var l = Math.min(0, loss || 0);
+                            var ret = r.future_return_20d;
+                            var total = g - l; // full range e.g. 8.5-(-10.2)=18.7
+                            if (total === 0) return <span style={{color:"#444",fontSize:10}}>—</span>;
+                            var W = 120;
+                            var zeroX = (-l / total) * W;   // 0% mark position
+                            var lossW = zeroX;               // red: left edge → zero
+                            var gainW = W - zeroX;           // green: zero → right edge
+                            // dot: where actual 20D return lands
+                            var dotX = ret != null ? Math.max(3, Math.min(W-3, ((-l + ret) / total) * W)) : null;
+                            return (
+                              <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                                <span style={{ fontSize:9, color:"#e05050", width:36, textAlign:"right", flexShrink:0 }}>
+                                  {l < 0 ? l.toFixed(1)+"%" : ""}
+                                </span>
+                                <div style={{ position:"relative", flexShrink:0 }}>
+                                  <svg width={W} height={10} style={{ display:"block" }}>
+                                    {/* Red loss segment */}
+                                    {lossW > 0 && <rect x={0} y={2} width={lossW} height={6} rx={2} fill="#e05050" opacity={0.85} />}
+                                    {/* Green gain segment */}
+                                    {gainW > 0 && <rect x={zeroX} y={2} width={gainW} height={6} rx={2} fill="#7abd00" opacity={0.85} />}
+                                    {/* Zero tick */}
+                                    <rect x={zeroX-0.5} y={0} width={1} height={10} fill="#888" />
+                                    {/* Actual return dot */}
+                                    {dotX != null && <circle cx={dotX} cy={5} r={3} fill="#fff" stroke="#111" strokeWidth={0.5} />}
+                                  </svg>
+                                </div>
+                                <span style={{ fontSize:9, color:"#7abd00", width:36, textAlign:"left", flexShrink:0 }}>
+                                  {g > 0 ? "+"+g.toFixed(1)+"%" : ""}
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </td>
                         <td style={{ padding:"5px 7px" }}>{OutcomeBadge(r.bullish_outcome_label)}</td>
                         <td style={{ padding:"5px 5px" }}>
                           <div style={{ display:"flex", gap:4, alignItems:"center" }}>
@@ -9749,7 +9592,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.34</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.35</span>
           </div>
         </div>
 
