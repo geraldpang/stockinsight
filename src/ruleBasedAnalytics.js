@@ -565,6 +565,14 @@ export function generateRuleBasedAnalytics(snapshot) {
   // Build content
   var content = _scenarioContent(scenarioId, ticker, trend, momentum, reversal, smCategory, smDirection);
 
+  // Append "Constructive but Cooling" caution to summary when applicable
+  if (smCategory === 'positiveSmartMoney' && smDirection === 'cooling') {
+    content = Object.assign({}, content, {
+      summary: content.summary +
+        ' Smart money remains constructive, but the pace of accumulation is easing, so confirmation above resistance remains important.',
+    });
+  }
+
   // Build public-facing lines (no scores)
   var smartMoneyLine           = _buildSmfLine(smCategory, smDirection, smfStatus);
   var technicalIndicatorsLine  = _buildTechLine(trend, momentum, reversal);
@@ -720,18 +728,15 @@ function _buildKeyLevelsText(scenarioId, ticker, breakoutLevel, invalidationLeve
     case 'strong_bullish_alignment':
     case 'healthy_bullish_trend':
       return 'The bullish setup remains constructive while ' + t + ' holds above ' + il +
-             '. A close above ' + bl + ' would suggest stronger demand and continuation' + nextResText + '.' +
-             (entryZone ? ' A constructive watch zone is around ' + entryZone + ', provided support continues to hold.' : '');
+             '. A close above ' + bl + ' would suggest stronger demand and continuation' + nextResText + '.';
 
     case 'sideways_recovery_setup':
       return 'The recovery setup remains constructive while ' + t + ' holds above ' + il +
-             '. A close above ' + bl + ' would suggest the stock is moving out of its sideways range.' +
-             (entryZone ? ' A potential watch zone is near ' + entryZone + ' if buyers continue to support the base.' : '');
+             '. A close above ' + bl + ' would suggest the stock is moving out of its sideways range.';
 
     case 'early_bullish_reversal':
       return 'The reversal attempt remains in play while ' + t + ' holds above ' + il +
-             '. A close above ' + bl + ' would strengthen the case for a trend change.' +
-             (entryZone ? ' A potential watch zone is near ' + entryZone + ' for those watching for confirmation.' : '');
+             '. A close above ' + bl + ' would strengthen the case for a trend change.';
 
     case 'risky_bounce':
       return 'The bounce remains valid while ' + t + ' holds above ' + il +
