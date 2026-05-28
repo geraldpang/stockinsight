@@ -5000,8 +5000,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                     <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>{"Analysis"}</div>
                                     <div style={{ fontSize:14, color:"#c0bdb4", lineHeight:1.7, marginBottom:10 }}>{bp(rba.analysis)}</div>
                                     <div style={{ fontSize:14, color:"#c0bdb4", lineHeight:1.7, marginBottom:10 }}>{bp(rba.keyLevels)}</div>
-                                    <div style={{ fontSize:13, color:"#9a9790", lineHeight:1.6, marginBottom:7 }}>{bp(rba.smartMoneyLine)}</div>
-                                    <div style={{ fontSize:13, color:"#9a9790", lineHeight:1.6 }}>{bp(rba.technicalIndicatorsLine)}</div>
+                                    <div style={{ fontSize:14, color:"#c0bdb4", lineHeight:1.7, marginBottom:7 }}>{bp(rba.smartMoneyLine)}</div>
+                                    <div style={{ fontSize:14, color:"#c0bdb4", lineHeight:1.7 }}>{bp(rba.technicalIndicatorsLine)}</div>
                                   </div>
                                 );
                               })()}
@@ -5219,8 +5219,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                       <div>
                                         <div style={{ fontSize:13, color:"#333", lineHeight:1.7, marginBottom:10 }}>{bp2(rba.analysis)}</div>
                                         <div style={{ fontSize:13, color:"#333", lineHeight:1.7, marginBottom:10 }}>{bp2(rba.keyLevels)}</div>
-                                        <div style={{ fontSize:12, color:"#555", lineHeight:1.6, marginBottom:6 }}>{bp2(rba.smartMoneyLine)}</div>
-                                        <div style={{ fontSize:12, color:"#555", lineHeight:1.6 }}>{bp2(rba.technicalIndicatorsLine)}</div>
+                                        <div style={{ fontSize:13, color:"#333", lineHeight:1.7, marginBottom:6 }}>{bp2(rba.smartMoneyLine)}</div>
+                                        <div style={{ fontSize:13, color:"#333", lineHeight:1.7 }}>{bp2(rba.technicalIndicatorsLine)}</div>
                                       </div>
                                     );
                                   })()}
