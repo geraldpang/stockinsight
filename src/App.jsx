@@ -1600,7 +1600,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       }).catch(function(e){ setAiFundLoading(false); window.__aiFundRunning = null; setDebugLog(function(p){return p.concat([{time:new Date().toISOString(),label:"AI Fund fetch error: "+e}]);}); });
   }
 
-  function runTechAi(symA, massiveA, priceA, msDots2, msLabel2) {
+  // DEPRECATED — Technical analysis is now fully rule-based via generateRuleBasedAnalytics().
+  // runTechAi() is preserved here for reference only. It is never called.
+  // eslint-disable-next-line no-unused-vars
+  function runTechAi(symA, massiveA, priceA, msDots2, msLabel2) { return; // DISABLED
     if (!symA) return;
     if (window.__aiTechRunning === symA) return;
     window.__aiTechRunning = symA;
@@ -1778,7 +1781,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
   function runAiAnalysis(symA, ovA, massiveA, parsedA, valsA, oracleA, priceA, msDots2, msLabel2, insightCacheA) {
     runFundAi(symA, ovA, parsedA, valsA, oracleA, priceA, insightCacheA);
-    if (massiveA) runTechAi(symA, massiveA, priceA, msDots2, msLabel2);
+    // Technical analysis is now rule-based via generateRuleBasedAnalytics() in pre-compute useEffect.
   }
   window.__goToPaywall = function() {
     if (!window.__clerkUser) {
@@ -2310,11 +2313,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       // Stop if already running or done
       if (window.__aiFundRunning === symSnap) return;
       if (window.__aiFundDone === symSnap) { clearInterval(fundInterval); return; }
-      // Fallback: fire tech AI if massive ready but tech hasn't started
-      if (window.__curMassive && !window.__aiTechRunning && window.__aiTechDone !== symSnap) {
-        setDebugLog(function(p){ return p.concat([{ time:new Date().toISOString(), label:"AI Tech TRIGGER (fallback): "+symSnap }]); });
-        runTechAi(symSnap, window.__curMassive, window.__curPrice||0, window.__msDots2||0, window.__msLabel2||"");
-      }
+      // Technical AI fallback removed — analysis is now rule-based.
       var _ov2  = window.__curOv || null;
       var _mass = window.__curMassive || null;
       if (!_ov2 || !_mass) return;
@@ -3207,7 +3206,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.35</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.36</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -3261,7 +3260,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.35</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.36</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -3572,9 +3571,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     return 0;
                   }
                   var fundC  = aiVerdictColor(aiFundResult ? aiFundResult.verdict : null);
-                  var techC  = aiVerdictColor(aiTechResult ? aiTechResult.verdict : null);
                   var fundSc = aiVerdictScore(aiFundResult ? aiFundResult.verdict : null);
-                  var techSc = aiVerdictScore(aiTechResult ? aiTechResult.verdict : null);
                   var _isFreeTickerAI = FREE_TICKERS.indexOf(sym) !== -1;
                   if (!window.__isPaid && !_isFreeTickerAI) {
                     return (
@@ -3605,49 +3602,66 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {aiFundResult && fundSc > 0 && <Dots score={fundSc} filled={fundC.dot} empty={fundC.dotEmpty} />}
                         </div>
                       </div>
-                      {/* Technical AI pill */}
-                      <div onClick={function(){ window.__goToTab && window.__goToTab("aianalysis"); }}
-                        style={{ padding:"9px 12px", background:aiTechResult?techC.bg:"#222", border:"0.5px solid "+(aiTechResult?techC.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color:aiTechResult?techC.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8, display:"flex", alignItems:"center", gap:6 }}>
+                      {/* Technical (Trade) pill — Rule Based Analytics */}
+                      <div onClick={function(){ window.__goToTab && window.__goToTab("technical"); }}
+                        style={{ padding:"9px 12px", background: ruleAnalytics ? summaryCardDark(ruleAnalytics.verdict).bg : "#222", border:"0.5px solid "+(ruleAnalytics ? summaryCardDark(ruleAnalytics.verdict).bd : "#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                        <div style={{ fontSize:9, color: ruleAnalytics ? summaryCardDark(ruleAnalytics.verdict).text : "#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>
                           Technical (Trade)
-                          {aiTechRefreshing && <span style={{ fontSize:8, color:"#EF9F27", fontWeight:600, letterSpacing:0 }}>↻ updating</span>}
                         </div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                          {aiTechLoading
-                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
-                            : <span style={{ fontSize:13, fontWeight:700, color:aiTechResult?techC.fg:"#555" }}>{aiTechResult?aiTechResult.verdict:"--"}</span>
+                          {!ruleAnalytics
+                            ? <span style={{ fontSize:10, color:"#555" }}>{"Loading..."}</span>
+                            : <span style={{ fontSize:13, fontWeight:700, color: summaryCardDark(ruleAnalytics.verdict).text }}>
+                                {ruleAnalytics.verdict.split("—")[0].trim()}
+                              </span>
                           }
-                          {aiTechResult && techSc > 0 && <Dots score={techSc} filled={techC.dot} empty={techC.dotEmpty} />}
                         </div>
-                        {(function(){
-                          var _rn=window.__revNetScore3||0;
-                          var _vn=window.__volNetScore||0;
-                          var _hasSig=_rn!==0||_vn!==0;
-                          if(_hasSig){
-                            var _up=String.fromCharCode(0x25B2); var _dn=String.fromCharCode(0x25BC);
-                            // Reversal takes precedence; if reversal present use it; else use volume
-                            var _revBull=_rn>0; var _revBear=_rn<0;
-                            var _volBull=_vn>0; var _volBear=_vn<0;
-                            var _both=(_revBull&&_volBull)||(_revBear&&_volBear);
-                            var _conflict=(_revBull&&_volBear)||(_revBear&&_volBull);
-                            // Precedence: reversal > volume; on conflict reversal wins
-                            var _isBull=_rn!==0?(_rn>0):(_vn>0);
-                            var _arrow=_isBull?_up:_dn;
-                            var _sigCol=_isBull?"#7abd00":"#e05050";
-                            var _label=_both?"Reversal & Volume":_conflict?(_revBull||_revBear)?"Reversal Signal":"Volume Signal":(_revBull||_revBear)?"Reversal Signal":"Volume Signal";
-                            // Add caution indicator if trend or momentum has caution
-                            var _tCaut=window.__trendCaution||false; var _mCaut=window.__momCaution||false;
-                            var _anyCaution=_tCaut||_mCaut;
-                            var _cautStr=_anyCaution?(" "+String.fromCharCode(0x26A0)):"";
-                            return <div style={{marginTop:5,display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
-                              <span style={{fontSize:9,fontWeight:600,color:_sigCol,background:_isBull?"#1e2a1e":"#2a1e1e",border:"0.5px solid "+(_isBull?"#2a5020":"#4a2020"),borderRadius:4,padding:"2px 7px"}}>{_arrow+" "+_label}</span>
-                              {_anyCaution&&<span style={{fontSize:10,color:"#b88000",fontWeight:700}}>{String.fromCharCode(0x26A0)+" "+(_tCaut&&_mCaut?"Trend & Momentum":_tCaut?"Trend":"Momentum")}</span>}
-                            </div>;
-                          }
-                          if(aiTechResult&&aiTechResult.confidence){
+                        {ruleAnalytics && (function(){
+                          var rba = ruleAnalytics;
+                          // Compact factor labels derived from factorLabels
+                          function shortTag(text, maxLen) { if (!text||text==="N/A") return null; return text.length>maxLen?text.substring(0,maxLen)+("..."):text; }
+                          var revLbl = (function(){
+                            var r = rba.factorLabels.reversal||""
+                            if (r.indexOf("Confirmed")!==-1||r.indexOf("Confirming")!==-1||r.indexOf("Triggered")!==-1) return "Reversal " + String.fromCharCode(0x2714);
+                            if (r.indexOf("Bullish")===0) return r.replace("Bullish Reversal ","");
+                            if (r.indexOf("Mixed")!==-1) return "Mixed Reversal";
+                            if (r.indexOf("Bearish")===0) return "Bearish Rev.";
                             return null;
-                          }
-                          return null;
+                          })();
+                          var smfLbl = (function(){
+                            var s = rba.factorLabels.smartMoney||"";
+                            if (s.indexOf("Strong Multi")!==-1) return "Strong Flow";
+                            if (s.indexOf("Accumulation Trend")!==-1) return "Accumulating";
+                            if (s.indexOf("Early Accum")!==-1) return "Early Accum";
+                            if (s.indexOf("Constructive but Cooling")!==-1) return "Cooling Flow";
+                            if (s.indexOf("Short-Term Spike")!==-1) return "ST Spike";
+                            return null;
+                          })();
+                          var trendMomLbl = (function(){
+                            var tr = rba.factorLabels.trend||""; var mo = rba.factorLabels.momentum||"";
+                            var goodT = tr==="Strong Uptrend"||tr==="Uptrend"; var goodM = mo==="Strong"||mo==="Building";
+                            if (goodT&&goodM) return "Trend + Momentum";
+                            if (goodT) return tr; if (goodM) return mo;
+                            if (tr==="Downtrend"||tr==="Strong Downtrend") return tr;
+                            return null;
+                          })();
+                          var sceneLbl = (function(){
+                            var sid = rba.scenarioId;
+                            if (sid==="risky_bounce") return "Risky Bounce";
+                            if (sid==="sideways_recovery_setup") return "Recovery Setup";
+                            if (sid==="early_bullish_reversal") return "Early Reversal";
+                            return null;
+                          })();
+                          var tags = [sceneLbl||trendMomLbl, revLbl||smfLbl].filter(Boolean).slice(0,2);
+                          if (!tags.length) return null;
+                          var tagC = summaryCardDark(rba.verdict).text;
+                          return (
+                            <div style={{ marginTop:5, display:"flex", flexDirection:"column", gap:3 }}>
+                              {tags.map(function(tag,i){
+                                return <span key={i} style={{ fontSize:9, fontWeight:600, color:tagC, background:summaryCardDark(rba.verdict).bg, border:"0.5px solid "+tagC+"55", borderRadius:4, padding:"2px 6px", display:"inline-block", alignSelf:"flex-start" }}>{tag}</span>;
+                              })}
+                            </div>
+                          );
                         })()}
                       </div>
                     </div>
@@ -5117,7 +5131,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       );
                     }
                     var cachedAtFundStr = aiFundCachedAt ? new Date(aiFundCachedAt).toLocaleDateString() : null;
-                    var cachedAtTechStr = aiTechCachedAt ? new Date(aiTechCachedAt).toLocaleDateString() : null;
                     return (
                       <div>
                         {/* Fundamental AI Card */}
@@ -9633,7 +9646,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.35</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.36</span>
           </div>
         </div>
 
