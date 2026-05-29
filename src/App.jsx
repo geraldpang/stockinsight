@@ -1327,10 +1327,6 @@ function Screener() {
   var [scSortCol,      setScSortCol]      = useState('');
   var [scSortDir,      setScSortDir]      = useState('desc');
   // Scan criteria — applied client-side on cached results
-  var [reqReversal,  setReqReversal]  = useState(false);
-  var [reqSMF,       setReqSMF]       = useState(false);
-  var [reqTrend,     setReqTrend]     = useState(false);
-  var [reqMomentum,  setReqMomentum]  = useState(false);
   var items = (results&&results.results)||[];
 
   function fmtVol(v){ if(!v||v===0) return String.fromCharCode(0x2014); if(v>=1e9) return (v/1e9).toFixed(1)+'B'; if(v>=1e6) return (v/1e6).toFixed(1)+'M'; return (v/1e3).toFixed(0)+'K'; }
@@ -1371,26 +1367,7 @@ function Screener() {
 
       {(scanStatus==='done'||scanStatus==='scanning') && results && (
         <div>
-          {/* Scan criteria checkboxes */}
-          <div style={{ background:'#161614', border:'0.5px solid #2a2a28', borderRadius:8, padding:'12px 14px', marginBottom:12 }}>
-            <div style={{ fontSize:10, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:10 }}>Screening Criteria</div>
-            <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
-              {[
-                ['Positive Reversal',  reqReversal,  setReqReversal],
-                ['Positive Money Flow',reqSMF,        setReqSMF],
-                ['Uptrend+',           reqTrend,      setReqTrend],
-                ['Building+ Momentum', reqMomentum,   setReqMomentum],
-              ].map(function(c){
-                return (
-                  <label key={c[0]} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:12, color:c[1]?'#c8f000':'#666' }}>
-                    <input type='checkbox' checked={c[1]} onChange={function(e){ c[2](e.target.checked); }}
-                      style={{ accentColor:'#c8f000', width:13, height:13, cursor:'pointer' }} />
-                    {c[0]}
-                  </label>
-                );
-              })}
-            </div>
-          </div>
+
           {/* Multi-select pill filters */}
           {(function(){
             var SETUP_OPTS = ['Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
@@ -1443,10 +1420,6 @@ function Screener() {
 
             // Apply criteria + specific value filters
             var filtered = items.filter(function(row){
-              if (reqReversal  && !isPosRev(row.reversal))  return false;
-              if (reqSMF       && !isPosSMF(row.moneyFlow)) return false;
-              if (reqTrend     && !isPosT(row.trend))        return false;
-              if (reqMomentum  && !isPosMom(row.momentum))   return false;
               if (filterTrend    && row.trend    !==filterTrend)    return false;
               if (filterMomentum && row.momentum !==filterMomentum) return false;
               if (filterReversal && row.reversal !==filterReversal) return false;
