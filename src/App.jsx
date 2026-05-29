@@ -1025,22 +1025,26 @@ function summaryCardDark(verdict) {
   // ── Explicit overrides BEFORE broad keyword checks ───────────────────────────
   // Prevents "Caution — Uptrend Losing Strength" matching 'uptrend' → green
   // Prevents "Strong Bearish" matching 'strong' → green
-  if (v.indexOf('strong bearish')!==-1)                        return { bg:'#200808', bd:'#e05050', text:'#e05050' };
+  // Prevents "Bullish Watch — Recovery Setup Forming" matching 'forming' → green
+  if (v.indexOf('strong bearish')!==-1)                          return { bg:'#200808', bd:'#e05050', text:'#e05050' };
+  if (v.indexOf('strong bullish')!==-1)                          return { bg:'#0d200d', bd:'#7abd00', text:'#7abd00' };
+  if (v.indexOf('bullish watch')!==-1)                           return { bg:'#1e1800', bd:'#EF9F27', text:'#EF9F27' };
   if (v.indexOf('caution')!==-1 || v.indexOf('uptrend losing')!==-1)
-                                                               return { bg:'#241800', bd:'#b87820', text:'#b87820' };
+                                                                 return { bg:'#241800', bd:'#b87820', text:'#b87820' };
   if (v.indexOf('bearish watch')!==-1 || v.indexOf('breakdown risk')!==-1)
-                                                               return { bg:'#1e1008', bd:'#c86820', text:'#c86820' };
+                                                                 return { bg:'#1e1008', bd:'#c86820', text:'#c86820' };
   // Tier 1 — exceptional / wide / strong uptrend / strong (momentum) / confirmed
   if (v.indexOf('exceptional')!==-1 || v.indexOf('wide')!==-1 ||
       v.indexOf('strong uptrend')!==-1 || v.indexOf('strong multi')!==-1 ||
       v.indexOf('accumulation trend')!==-1 ||
       (v.indexOf('confirmed')!==-1 && v.indexOf('bullish')!==-1))
     return { bg:'#0d200d', bd:'#7abd00', text:'#7abd00' };
-  // Tier 2 — strong / uptrend / building / undervalued / triggered / forming / confirming / good (fundamental)
+  // Tier 2 — strong / uptrend / building / undervalued / triggered / forming / confirming / good (fundamental) / bullish (plain)
   if (v.indexOf('strong')!==-1 || v.indexOf('uptrend')!==-1 ||
       v.indexOf('building')!==-1 || v.indexOf('undervalued')!==-1 ||
       v.indexOf('triggered')!==-1 || v.indexOf('forming')!==-1 ||
-      v.indexOf('confirming')!==-1 || v.indexOf('good')!==-1)
+      v.indexOf('confirming')!==-1 || v.indexOf('good')!==-1 ||
+      v.indexOf('bullish')!==-1)
     return { bg:'#0f2010', bd:'#9acd50', text:'#9acd50' };
   // Tier 3 — moderate / neutral / sideways / watch / spark / early / constructive / fair / premium / stretched (fundamental)
   if (v.indexOf('moderate')!==-1 || v.indexOf('neutral')!==-1 ||
