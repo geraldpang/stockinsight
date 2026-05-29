@@ -1439,7 +1439,7 @@ function bestBetQuality(row) {
   return 'Mixed';
 }
 function buildBestBetRows(rows) {
-  var singleMap = {}, pairMap = {}, tripleMap = {};
+  var singleMap = {}, tripleMap = {}; // pairMap removed — Run 6E
   function addToMap(map, key, ret) {
     if (!map[key]) map[key] = { returns:[], wins:0 };
     map[key].returns.push(ret); if (ret > 0) map[key].wins++;
@@ -1449,11 +1449,6 @@ function buildBestBetRows(rows) {
     var d = row.drivers; var ret = row.futureReturn;
     // Single
     Object.keys(d).forEach(function(k){ if (d[k]) addToMap(singleMap, k, ret); });
-    // Pairs from allowlist
-    var tp = BB_PAIR_ALLOWLIST.filter(function(k){ return d[k]; });
-    for (var i = 0; i < tp.length; i++) {
-      for (var j = i+1; j < tp.length; j++) addToMap(pairMap, tp[i]+' + '+tp[j], ret);
-    }
     // Triples
     BB_TRIPLE_TEMPLATES.forEach(function(t){ if (t.fn(d)) addToMap(tripleMap, t.name, ret); });
   });
@@ -1470,13 +1465,33 @@ function buildBestBetRows(rows) {
   }
   var result = [];
   Object.keys(singleMap).forEach(function(k){ var r=toRow(BB_DRIVER_LABELS[k]||k,'Single Driver',singleMap[k]); if(r) result.push(r); });
-  Object.keys(pairMap).forEach(function(pk){
-    var parts = pk.split(' + ');
-    var label = (BB_DRIVER_LABELS[parts[0]]||parts[0]) + ' + ' + (BB_DRIVER_LABELS[parts[1]]||parts[1]);
-    var r = toRow(label, 'Driver Pair', pairMap[pk]); if (r) result.push(r);
-  });
   Object.keys(tripleMap).forEach(function(k){ var r=toRow(k,'Driver Triple',tripleMap[k]); if(r) result.push(r); });
   return result;
+}
+
+function exportRowsToCsv(filename, rows, columns) {
+  if (!rows || !rows.length) return;
+  function esc(v) {
+    if (v === null || v === undefined) return '';
+    var s = String(v);
+    if (s.indexOf('"') >= 0) s = s.replace(/"/g, '""');
+    if (s.indexOf(',') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('"') >= 0) s = '"' + s + '"';
+    return s;
+  }
+  var header = columns.map(function(c){ return esc(c.label); }).join(',');
+  var body = rows.map(function(row){
+    return columns.map(function(c){
+      var v = typeof c.value === 'function' ? c.value(row) : row[c.key];
+      return esc(v);
+    }).join(',');
+  }).join('\n');
+  var blob = new Blob([header + '\n' + body], { type:'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
 }
 
 function buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData) {
@@ -2146,7 +2161,22 @@ export function SimulatorPage() {
 
             {/* By-Setup breakdown */}
             <div style={card}>
-              <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em', marginBottom:12 }}>Performance by Setup</div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>Performance by Setup</div>
+                {bySetup && bySetup.length > 0
+                  ? <button onClick={function(){
+                      exportRowsToCsv(ticker+'-performance-by-setup-'+results.hp+'D.csv', bySetup, [
+                        { label:'Setup',       key:'setup' },
+                        { label:'Signals',     key:'total' },
+                        { label:'Win Rate %',  value:function(r){ return parseFloat(r.winRate).toFixed(1); } },
+                        { label:'Avg Return %',value:function(r){ return parseFloat(r.avg).toFixed(2); } },
+                        { label:'Median %',    value:function(r){ return parseFloat(r.median).toFixed(2); } },
+                        { label:'Best %',      value:function(r){ return parseFloat(r.best).toFixed(2); } },
+                        { label:'Worst %',     value:function(r){ return parseFloat(r.worst).toFixed(2); } },
+                      ]);
+                    }} style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #333', borderRadius:5, color:'#888', cursor:'pointer' }}>Export CSV</button>
+                  : <button disabled style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #2a2a28', borderRadius:5, color:'#444', cursor:'default' }}>No rows to export</button>}
+              </div>
               <div style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
                   <thead>
@@ -2184,6 +2214,24 @@ export function SimulatorPage() {
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:10 }}>
                 <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Combination Performance'}</div>
                 <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <button onClick={function(){
+                    var minS2 = parseInt(minSignals)||3;
+                    var exp6c = sortCombinationRows(groupByCombination(results.rows).filter(function(r){ return r.signals>=minS2; }), combSortBy);
+                    if (!exp6c.length) return;
+                    exportRowsToCsv(ticker+'-combination-performance-'+results.hp+'D.csv', exp6c, [
+                      { label:'Trend',        key:'trend' },
+                      { label:'Momentum',     key:'momentum' },
+                      { label:'Reversal',     key:'reversal' },
+                      { label:'Smart Money',  key:'smartMoney' },
+                      { label:'Setup',        key:'setup' },
+                      { label:'Signals',      key:'signals' },
+                      { label:'Win Rate %',   value:function(r){ return r.winRate!=null?r.winRate.toFixed(1):''; } },
+                      { label:'Avg Return %', value:function(r){ return r.avgReturn!=null?r.avgReturn.toFixed(2):''; } },
+                      { label:'Median %',     value:function(r){ return r.medianReturn!=null?r.medianReturn.toFixed(2):''; } },
+                      { label:'Best %',       value:function(r){ return r.bestReturn!=null?r.bestReturn.toFixed(2):''; } },
+                      { label:'Worst %',      value:function(r){ return r.worstReturn!=null?r.worstReturn.toFixed(2):''; } },
+                    ]);
+                  }} style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #333', borderRadius:5, color:'#888', cursor:'pointer' }}>Export CSV</button>
                   <div style={{ display:'flex', alignItems:'center', gap:5 }}>
                     <span style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em' }}>{'Min Signals'}</span>
                     <select value={minSignals} onChange={function(e){setMinSignals(e.target.value);}}
@@ -2269,9 +2317,27 @@ export function SimulatorPage() {
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:10 }}>
                 <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Best Bet Signal Research'}</div>
                 <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+                  <button onClick={function(){
+                    var minS3 = parseInt(bbMinSignals)||10;
+                    var expBB = allBestBetRows.filter(function(r){ return r.signals>=minS3 && (bbSignalType==='All'||r.type===bbSignalType); });
+                    expBB.sort(function(a,b){ return b.score-a.score; });
+                    if (!expBB.length) return;
+                    exportRowsToCsv(ticker+'-best-bet-signal-research-'+results.hp+'D.csv', expBB, [
+                      { label:'Signal',       key:'signal' },
+                      { label:'Type',         key:'type' },
+                      { label:'Signals',      key:'signals' },
+                      { label:'Win Rate %',   value:function(r){ return r.winRate.toFixed(1); } },
+                      { label:'Avg Return %', value:function(r){ return r.avgReturn.toFixed(2); } },
+                      { label:'Median %',     value:function(r){ return r.medianReturn.toFixed(2); } },
+                      { label:'Best %',       value:function(r){ return r.bestReturn.toFixed(2); } },
+                      { label:'Worst %',      value:function(r){ return r.worstReturn.toFixed(2); } },
+                      { label:'Score',        value:function(r){ return r.score.toFixed(1); } },
+                      { label:'Quality',      key:'quality' },
+                    ]);
+                  }} style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #333', borderRadius:5, color:'#888', cursor:'pointer' }}>Export CSV</button>
                   {[['Min Signals', bbMinSignals, setBbMinSignals, ['5','10','20','30']],
                     ['Sort By', bbSortBy, setBbSortBy, ['Best Bet Score','Win Rate','Median Return','Avg Return','Signals','Worst Return']],
-                    ['Signal Type', bbSignalType, setBbSignalType, ['All','Single Driver','Driver Pair','Driver Triple']],
+                    ['Signal Type', bbSignalType, setBbSignalType, ['All','Single Driver','Driver Triple']],
                   ].map(function(ctrl){
                     return (
                       <div key={ctrl[0]} style={{ display:'flex', alignItems:'center', gap:5 }}>
@@ -2315,7 +2381,6 @@ export function SimulatorPage() {
                 }
                 function typeColor(tp) {
                   if (tp === 'Single Driver') return '#6090d0';
-                  if (tp === 'Driver Pair')   return '#c890d0';
                   return '#d0a060';
                 }
                 return (
@@ -2364,7 +2429,25 @@ export function SimulatorPage() {
 
             {/* Historical signal table */}
             <div style={card}>
-              <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em', marginBottom:12 }}>Historical Signals ({results.rows.length} rows)</div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Historical Signals ('+results.rows.length+' rows)'}</div>
+                {results.rows.length > 0
+                  ? <button onClick={function(){
+                      exportRowsToCsv(ticker+'-historical-signals-'+results.hp+'D.csv', results.rows, [
+                        { label:'Date',             key:'date' },
+                        { label:'Close',            value:function(r){ return '$'+r.close.toFixed(2); } },
+                        { label:'Setup',            key:'setup' },
+                        { label:'Full Setup',       key:'fullSetup' },
+                        { label:'Trend',            key:'trend' },
+                        { label:'Momentum',         key:'momentum' },
+                        { label:'Reversal',         key:'reversal' },
+                        { label:'Smart Money',      key:'smartMoney' },
+                        { label:'Future Return %',  value:function(r){ return r.futureReturn!=null?r.futureReturn.toFixed(2):''; } },
+                        { label:'Result',           key:'result' },
+                      ]);
+                    }} style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #333', borderRadius:5, color:'#888', cursor:'pointer' }}>Export CSV</button>
+                  : <button disabled style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #2a2a28', borderRadius:5, color:'#444', cursor:'default' }}>No rows to export</button>}
+              </div>
               <div style={{ overflowX:'auto', maxHeight:480, overflowY:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
                   <thead style={{ position:'sticky', top:0, zIndex:1 }}>
@@ -4212,7 +4295,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.41</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.42</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4266,7 +4349,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.41</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.42</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -10644,7 +10727,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.41</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.42</span>
           </div>
         </div>
 
