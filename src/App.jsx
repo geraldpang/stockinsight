@@ -1657,17 +1657,17 @@ function Screener() {
 // ── Run 6: SimulatorPage ────────────────────────────────────────────────────────
 export function SimulatorPage() {
   var today = new Date().toISOString().split('T')[0];
-  var [ticker,      setTicker]      = React.useState('TSLA');
-  var [startDate,   setStartDate]   = React.useState('2024-01-01');
-  var [endDate,     setEndDate]     = React.useState(today);
-  var [holdingPeriod,setHoldingPeriod]=React.useState('20');
-  var [setupFilter, setSetupFilter] = React.useState('All');
-  var [loading,     setLoading]     = React.useState(false);
-  var [loadingMsg,  setLoadingMsg]  = React.useState('');
-  var [feasibility, setFeasibility] = React.useState(null);
-  var [results,     setResults]     = React.useState(null);
-  var [error,       setError]       = React.useState(null);
-  var [progress,    setProgress]    = React.useState(0);
+  var [ticker,      setTicker]      = useState('TSLA');
+  var [startDate,   setStartDate]   = useState('2024-01-01');
+  var [endDate,     setEndDate]     = useState(today);
+  var [holdingPeriod,setHoldingPeriod]=useState('20');
+  var [setupFilter, setSetupFilter] = useState('All');
+  var [loading,     setLoading]     = useState(false);
+  var [loadingMsg,  setLoadingMsg]  = useState('');
+  var [feasibility, setFeasibility] = useState(null);
+  var [results,     setResults]     = useState(null);
+  var [error,       setError]       = useState(null);
+  var [progress,    setProgress]    = useState(0);
 
   var SETUP_OPTS = ['All','Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
   var HP_OPTS    = [['5','5 trading days'],['10','10 trading days'],['20','20 trading days'],['60','60 trading days']];
