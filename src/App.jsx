@@ -1133,6 +1133,49 @@ function enrichRowWithRuleSetup(row) {
 
 // ── Run 6: Simulator helpers ───────────────────────────────────────────────────
 
+// ── Run 6C: Combination Performance helpers ────────────
+function groupByCombination(rows) {
+  var map = {};
+  rows.forEach(function(row) {
+    var key = [row.trend||'N/A',row.momentum||'N/A',row.reversal||'N/A',row.smartMoney||'N/A'].join(' | ');
+    if (!map[key]) map[key] = { key:key, trend:row.trend||'N/A', momentum:row.momentum||'N/A',
+      reversal:row.reversal||'N/A', smartMoney:row.smartMoney||'N/A', setupCounts:{}, returns:[], wins:0 };
+    var g = map[key];
+    var s = row.setup||'N/A';
+    g.setupCounts[s] = (g.setupCounts[s]||0) + 1;
+    if (row.futureReturn != null && !isNaN(row.futureReturn)) {
+      g.returns.push(row.futureReturn);
+      if (row.futureReturn > 0) g.wins++;
+    }
+  });
+  return Object.keys(map).map(function(key) {
+    var g = map[key]; var sigs = g.returns.length;
+    var avg = sigs > 0 ? g.returns.reduce(function(a,b){return a+b;},0)/sigs : null;
+    var mostSetup = 'N/A'; var maxC = 0;
+    Object.keys(g.setupCounts).forEach(function(s){ if(g.setupCounts[s]>maxC){maxC=g.setupCounts[s];mostSetup=s;} });
+    return { key:g.key, trend:g.trend, momentum:g.momentum, reversal:g.reversal, smartMoney:g.smartMoney,
+      setup:mostSetup, signals:sigs, winRate:sigs>0?(g.wins/sigs)*100:null,
+      avgReturn:avg, medianReturn:simMedian(g.returns),
+      bestReturn:sigs>0?Math.max.apply(null,g.returns):null,
+      worstReturn:sigs>0?Math.min.apply(null,g.returns):null };
+  });
+}
+function combinationQualityLabel(row) {
+  if (!row || row.signals < 5) return '';
+  if (row.winRate >= 60 && row.avgReturn > 0) return 'Worked Well';
+  if (row.winRate <= 40 && row.avgReturn < 0) return 'Weak';
+  return 'Mixed';
+}
+function sortCombinationRows(rows, sortBy) {
+  return rows.slice().sort(function(a,b){
+    if (sortBy === 'Signals')       return b.signals - a.signals;
+    if (sortBy === 'Win Rate')      return (b.winRate||0) - (a.winRate||0);
+    if (sortBy === 'Median Return') return (b.medianReturn||0) - (a.medianReturn||0);
+    if (sortBy === 'Worst Return')  return (b.worstReturn||-999) - (a.worstReturn||-999);
+    return (b.avgReturn||0) - (a.avgReturn||0);
+  });
+}
+
 function simMedian(values) {
   if (!values || !values.length) return null;
   var s = values.slice().sort(function(a,b){ return a-b; });
@@ -1668,6 +1711,8 @@ export function SimulatorPage() {
   var [results,     setResults]     = useState(null);
   var [error,       setError]       = useState(null);
   var [progress,    setProgress]    = useState(0);
+  var [minSignals,  setMinSignals]  = useState('3');
+  var [combSortBy,  setCombSortBy]  = useState('Avg Return');
 
   var SETUP_OPTS = ['All','Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
   var HP_OPTS    = [['5','5 trading days'],['10','10 trading days'],['20','20 trading days'],['60','60 trading days']];
@@ -1949,6 +1994,91 @@ export function SimulatorPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+
+
+            {/* Combination Performance */}
+            <div style={card}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:10 }}>
+                <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Combination Performance'}</div>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                    <span style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em' }}>{'Min Signals'}</span>
+                    <select value={minSignals} onChange={function(e){setMinSignals(e.target.value);}}
+                      style={{ background:'#111', border:'0.5px solid #333', borderRadius:5, padding:'4px 8px', color:'#f0ede6', fontSize:10, outline:'none', cursor:'pointer' }}>
+                      {['1','3','5','10'].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
+                    </select>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                    <span style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em' }}>{'Sort By'}</span>
+                    <select value={combSortBy} onChange={function(e){setCombSortBy(e.target.value);}}
+                      style={{ background:'#111', border:'0.5px solid #333', borderRadius:5, padding:'4px 8px', color:'#f0ede6', fontSize:10, outline:'none', cursor:'pointer' }}>
+                      {['Avg Return','Signals','Win Rate','Median Return','Worst Return'].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize:11, color:'#555', lineHeight:1.6, marginBottom:8 }}>
+                {'Combination Performance groups each historical signal by the exact Trend, Momentum, Reversal, and Smart Money values. This helps reveal which combinations worked better than the broader Setup label.'}
+              </div>
+              {(function(){
+                var minS = parseInt(minSignals) || 3;
+                var combRows = groupByCombination(results.rows);
+                var filtered6c = combRows.filter(function(r){ return r.signals >= minS; });
+                var sorted6c   = sortCombinationRows(filtered6c, combSortBy);
+                if (!sorted6c.length) return (
+                  <div style={{ color:'#555', fontSize:11, padding:'16px 0', textAlign:'center' }}>
+                    {'No combinations with ' + minS + '+ signals. Lower the Minimum Signals filter.'}
+                  </div>
+                );
+                return (
+                  <div style={{ overflowX:'auto' }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
+                      <thead>
+                        <tr style={{ borderBottom:'1px solid #2a2a28' }}>
+                          {['Trend','Momentum','Reversal','Smart Money','Setup','Signals','Win Rate','Avg Return','Median','Best','Worst',''].map(function(h){
+                            return <th key={h} style={{ padding:'5px 8px', fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>;
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sorted6c.map(function(row, i){
+                          var sc   = summaryCardDark(row.setup);
+                          var wr   = row.winRate;
+                          var wrC  = wr==null?'#555':wr>=60?'#7abd00':wr>=45?'#EF9F27':'#e05050';
+                          var avgC = row.avgReturn==null?'#555':row.avgReturn>=0?'#7abd00':'#e05050';
+                          var medC = row.medianReturn==null?'#555':row.medianReturn>=0?'#7abd00':'#e05050';
+                          var qlbl = combinationQualityLabel(row);
+                          var qlblStyle = qlbl==='Worked Well'
+                            ? { fontSize:8, fontWeight:700, color:'#7abd00', background:'#0d200d', border:'0.5px solid #7abd00', borderRadius:3, padding:'1px 5px' }
+                            : qlbl==='Weak'
+                            ? { fontSize:8, fontWeight:700, color:'#e05050', background:'#200808', border:'0.5px solid #e05050', borderRadius:3, padding:'1px 5px' }
+                            : { fontSize:8, color:'#555', background:'#111', border:'0.5px solid #333', borderRadius:3, padding:'1px 5px' };
+                          return (
+                            <tr key={row.key+i} style={{ background:i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
+                              <td style={{ padding:'5px 8px', color:'#aaa', fontSize:9, whiteSpace:'nowrap' }}>{row.trend}</td>
+                              <td style={{ padding:'5px 8px', color:'#aaa', fontSize:9 }}>{row.momentum}</td>
+                              <td style={{ padding:'5px 8px', color:'#aaa', fontSize:9, maxWidth:130, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={row.reversal}>{row.reversal}</td>
+                              <td style={{ padding:'5px 8px', color:'#aaa', fontSize:9, maxWidth:130, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={row.smartMoney}>{row.smartMoney}</td>
+                              <td style={{ padding:'5px 8px', fontWeight:700, color:sc.text, whiteSpace:'nowrap', fontSize:10 }}>{row.setup}</td>
+                              <td style={{ padding:'5px 8px', color:'#f0ede6', fontWeight:600, textAlign:'right' }}>{row.signals}</td>
+                              <td style={{ padding:'5px 8px', fontWeight:700, color:wrC, textAlign:'right' }}>{wr!=null?wr.toFixed(1)+'%':'—'}</td>
+                              <td style={{ padding:'5px 8px', fontWeight:700, color:avgC, textAlign:'right' }}>{simFmtPct(row.avgReturn)}</td>
+                              <td style={{ padding:'5px 8px', color:medC, textAlign:'right' }}>{simFmtPct(row.medianReturn)}</td>
+                              <td style={{ padding:'5px 8px', color:'#7abd00', textAlign:'right' }}>{simFmtPct(row.bestReturn)}</td>
+                              <td style={{ padding:'5px 8px', color:'#e05050', textAlign:'right' }}>{simFmtPct(row.worstReturn)}</td>
+                              <td style={{ padding:'5px 8px' }}>
+                                {qlbl && <span style={qlblStyle}>{qlbl}</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+              <div style={{ fontSize:9, color:'#444', marginTop:10 }}>{'Small sample sizes can be misleading. Use combinations with higher signal counts for stronger conclusions.'}</div>
             </div>
 
             {/* Historical signal table */}
@@ -3801,7 +3931,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.39</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.40</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -3855,7 +3985,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.39</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.40</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -10233,7 +10363,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.39</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.40</span>
           </div>
         </div>
 
