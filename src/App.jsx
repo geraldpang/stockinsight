@@ -1418,12 +1418,17 @@ function Screener() {
             function isPosT(s)  { return s==='Uptrend'||s==='Strong Uptrend'; }
             function isPosMom(s){ return s==='Building'||s==='Strong'; }
 
-            // Apply criteria + specific value filters
+            // Apply specific value filters (array multi-select)
+            var REV_MAP2 = {'Bull Spark':'Bullish Reversal Spark','Bull Watch':'Bullish Reversal Watch','Bull Forming':'Bullish Reversal Forming','Bull Triggered':'Bullish Reversal Triggered','Bull Confirming':'Bullish Reversal Confirming','Bull Confirmed':'Bullish Reversal Confirmed','Bear Watch':'Bearish Reversal Watch','Mixed':'Mixed Reversal Signals'};
+            var SMF_MAP2 = {'Strong Flow':'Strong Multi-Timeframe Flow','Accumulating':'Accumulation Trend Positive','Early Accum.':'Early Accumulation','Constructive':'Constructive but Cooling','ST Spike':'Short-Term Spike'};
+            var filterRevFull = filterReversal.map(function(v){ return REV_MAP2[v]||v; });
+            var filterSMFFull = filterSMF.map(function(v){ return SMF_MAP2[v]||v; });
+
             var filtered = items.filter(function(row){
-              if (filterTrend    && row.trend    !==filterTrend)    return false;
-              if (filterMomentum && row.momentum !==filterMomentum) return false;
-              if (filterReversal && row.reversal !==filterReversal) return false;
-              if (filterSMF      && row.moneyFlow!==filterSMF)      return false;
+              if (filterTrend.length    && filterTrend.indexOf(row.trend)    ===-1) return false;
+              if (filterMomentum.length && filterMomentum.indexOf(row.momentum)===-1) return false;
+              if (filterRevFull.length  && filterRevFull.indexOf(row.reversal)===-1) return false;
+              if (filterSMFFull.length  && filterSMFFull.indexOf(row.moneyFlow)===-1) return false;
               return true;
             });
 
