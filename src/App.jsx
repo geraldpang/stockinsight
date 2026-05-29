@@ -1337,26 +1337,7 @@ var BB_DRIVER_LABELS = {
   smartMoneyConstructiveCooling:'Constructive but Cooling',
   smartMoneyAccumulationPositive:'Accumulation Positive', smartMoneyNoClear:'No clear SMF',
 };
-var BB_PAIR_ALLOWLIST = [
-  'priceAboveSma50','priceAboveSma200','priceReclaimedSma50','priceNear52wHigh',
-  'priceFarBelow52wHigh','rsiBetween45And65','rsiRising','macdAboveSignal','macdImproving',
-  'volumeAbove20dAvg','momentumBuilding','momentumFading','reversalBullishConfirming',
-  'reversalBullishSpark','reversalBullishWatch','reversalBearishWatch','reversalMixed',
-  'smartMoneyConstructive','smartMoneyCooling','smartMoneyPositive',
-  'trendStrongUptrend','trendUptrend','trendSideways','trendDowntrend',
-];
-var BB_TRIPLE_TEMPLATES = [
-  { name:'Clean Continuation',            fn:function(d){ return (d.trendUptrend||d.trendStrongUptrend)&&d.momentumBuilding&&d.reversalBullishConfirming; }},
-  { name:'Healthy Trend Continuation',    fn:function(d){ return d.priceAboveSma50&&d.priceAboveSma200&&d.macdImproving; }},
-  { name:'Pullback Rebound',              fn:function(d){ return d.trendStrongUptrend&&d.momentumFading&&d.reversalBearishWatch; }},
-  { name:'Recovery Reclaim',              fn:function(d){ return (d.trendSideways||d.trendDowntrend)&&d.priceReclaimedSma50&&d.rsiRising; }},
-  { name:'Recovery Confirmation',         fn:function(d){ return d.momentumBuilding&&d.reversalBullishConfirming&&d.macdImproving; }},
-  { name:'Not Overextended Continuation', fn:function(d){ return d.priceAboveSma50&&d.rsiBetween45And65&&d.macdImproving; }},
-  { name:'Constructive Pullback',         fn:function(d){ return d.trendStrongUptrend&&d.smartMoneyCooling&&d.rsiBetween45And65; }},
-  { name:'Base Recovery',                 fn:function(d){ return d.trendSideways&&d.momentumBuilding&&d.reversalBullishSpark; }},
-  { name:'Smart Money Continuation',      fn:function(d){ return d.momentumBuilding&&d.reversalBullishConfirming&&d.smartMoneyConstructive; }},
-  { name:'Volume Confirmation',           fn:function(d){ return d.reversalBullishConfirming&&d.macdImproving&&d.volumeAbove20dAvg; }},
-];
+
 function buildSignalDrivers(ctx) {
   var bars = ctx.barsUpToDate || []; var ind = ctx.indicators || {};
   var snap = ctx.snapshot || {}; var bar = ctx.currentBar || {};
@@ -1418,56 +1399,70 @@ function buildSignalDrivers(ctx) {
     smartMoneyConstructiveCooling: smfS.indexOf('Constructive but Cooling')!==-1,
     smartMoneyAccumulationPositive: smfS.indexOf('Accumulation Trend Positive')!==-1,
     smartMoneyNoClear: smfS.indexOf('No Clear')!==-1,
+    smartMoneyStrongMultiTimeframe: smfS.indexOf('Strong Multi-Timeframe Flow')!==-1,
   };
 }
-function bestBetScore(row) {
-  if (!row || row.signals <= 0) return 0;
-  var wr = row.winRate || 0; var med = row.medianReturn || 0;
-  var avg = row.avgReturn || 0; var worst = row.worstReturn || 0; var sigs = row.signals || 0;
-  var sigScore  = Math.min(sigs / 30, 1) * 20;
-  var winScore  = wr * 0.4;
-  var medScore  = Math.max(Math.min(med, 20), -20) * 1.5;
-  var avgScore  = Math.max(Math.min(avg, 20), -20) * 0.8;
-  var worstPen  = worst < -15 ? Math.min(Math.abs(worst + 15), 25) : 0;
-  return sigScore + winScore + medScore + avgScore - worstPen;
+function matchesSelected(value, selectedValues) {
+  if (!selectedValues || selectedValues.length === 0) return true;
+  if (selectedValues.indexOf('Any') >= 0) return true;
+  return selectedValues.indexOf(value || 'N/A') >= 0;
 }
-function bestBetQuality(row) {
-  if (!row || row.signals < 10) return 'Low Sample';
-  if (row.winRate >= 75 && row.medianReturn > 0 && row.avgReturn > 0) return 'Strong';
-  if (row.winRate >= 65 && row.medianReturn > 0 && row.avgReturn > 0) return 'Promising';
-  if (row.winRate < 45 || row.medianReturn < 0) return 'Weak';
+function matchesDriverGroup(row, selectedDriverKeys) {
+  if (!selectedDriverKeys || selectedDriverKeys.length === 0) return true;
+  var d = row && row.drivers ? row.drivers : {};
+  return selectedDriverKeys.some(function(k){ return d[k] === true; });
+}
+function matchesDriverFilters(row, driverFilters) {
+  return matchesDriverGroup(row, driverFilters.trendDrivers)
+      && matchesDriverGroup(row, driverFilters.momentumDrivers)
+      && matchesDriverGroup(row, driverFilters.reversalDrivers)
+      && matchesDriverGroup(row, driverFilters.smartMoneyDrivers);
+}
+function filterCustomSignalRows(rows, filters) {
+  return rows.filter(function(row) {
+    return matchesSelected(row.trend,      filters.trend)
+        && matchesSelected(row.momentum,   filters.momentum)
+        && matchesSelected(row.reversal,   filters.reversal)
+        && matchesSelected(row.smartMoney, filters.smartMoney)
+        && matchesSelected(row.setup,      filters.setup)
+        && matchesDriverFilters(row, filters.driverFilters);
+  });
+}
+function summarizeCustomSignalRows(rows) {
+  var signals = rows.length;
+  var rets = rows.map(function(r){ return Number(r.futureReturn); }).filter(function(v){ return !isNaN(v); });
+  var wins = rets.filter(function(v){ return v > 0; }).length;
+  var avg  = rets.length ? rets.reduce(function(a,b){ return a+b; },0)/rets.length : null;
+  return {
+    signals: signals, wins: wins, losses: signals - wins,
+    winRate:  signals ? (wins/signals)*100 : null,
+    avgReturn: avg, medianReturn: simMedian(rets),
+    bestReturn:  rets.length ? Math.max.apply(null,rets) : null,
+    worstReturn: rets.length ? Math.min.apply(null,rets) : null,
+  };
+}
+function customSignalQuality(s) {
+  if (!s || s.signals < 10) return 'Low Sample';
+  if (s.winRate >= 70 && s.medianReturn > 0 && s.avgReturn > 0) return 'Strong';
+  if (s.winRate >= 60 && s.medianReturn > 0 && s.avgReturn > 0) return 'Promising';
+  if (s.winRate < 45 || s.medianReturn < 0) return 'Weak';
   return 'Mixed';
 }
-function buildBestBetRows(rows) {
-  var singleMap = {}, tripleMap = {}; // pairMap removed — Run 6E
-  function addToMap(map, key, ret) {
-    if (!map[key]) map[key] = { returns:[], wins:0 };
-    map[key].returns.push(ret); if (ret > 0) map[key].wins++;
-  }
-  rows.forEach(function(row) {
-    if (!row.drivers || row.futureReturn == null) return;
-    var d = row.drivers; var ret = row.futureReturn;
-    // Single
-    Object.keys(d).forEach(function(k){ if (d[k]) addToMap(singleMap, k, ret); });
-    // Triples
-    BB_TRIPLE_TEMPLATES.forEach(function(t){ if (t.fn(d)) addToMap(tripleMap, t.name, ret); });
-  });
-  function toRow(signal, type, g, pairKeys) {
-    var sigs = g.returns.length; if (!sigs) return null;
-    var avg = g.returns.reduce(function(a,b){return a+b;},0)/sigs;
-    var med = simMedian(g.returns);
-    var best = Math.max.apply(null, g.returns); var worst = Math.min.apply(null, g.returns);
-    var wr = (g.wins/sigs)*100;
-    var r = { signal:signal, type:type, signals:sigs, winRate:wr, avgReturn:avg,
-              medianReturn:med, bestReturn:best, worstReturn:worst };
-    r.score = bestBetScore(r); r.quality = bestBetQuality(r);
-    return r;
-  }
-  var result = [];
-  Object.keys(singleMap).forEach(function(k){ var r=toRow(BB_DRIVER_LABELS[k]||k,'Single Driver',singleMap[k]); if(r) result.push(r); });
-  Object.keys(tripleMap).forEach(function(k){ var r=toRow(k,'Driver Triple',tripleMap[k]); if(r) result.push(r); });
-  return result;
+function buildCustomConditionText(trend, momentum, reversal, smartMoney, setup, tDrv, mDrv, rDrv, sDrv) {
+  var lines = [];
+  if (trend.length)      lines.push('Trend: '       + trend.join(' OR '));
+  if (momentum.length)   lines.push('Momentum: '    + momentum.join(' OR '));
+  if (reversal.length)   lines.push('Reversal: '    + reversal.join(' OR '));
+  if (smartMoney.length) lines.push('Smart Money: ' + smartMoney.join(' OR '));
+  if (setup.length)      lines.push('Setup: '       + setup.join(' OR '));
+  function drvLabel(k){ return BB_DRIVER_LABELS[k]||k; }
+  if (tDrv.length)  lines.push('Trend Driver: '      + tDrv.map(drvLabel).join(' OR '));
+  if (mDrv.length)  lines.push('Momentum Driver: '   + mDrv.map(drvLabel).join(' OR '));
+  if (rDrv.length)  lines.push('Reversal Driver: '   + rDrv.map(drvLabel).join(' OR '));
+  if (sDrv.length)  lines.push('Smart Money Driver: '+ sDrv.map(drvLabel).join(' OR '));
+  return lines.length ? lines.join('\n') : 'No filters selected (showing all signals).';
 }
+
 
 function exportRowsToCsv(filename, rows, columns) {
   if (!rows || !rows.length) return;
@@ -1894,17 +1889,17 @@ export function SimulatorPage() {
   var [progress,    setProgress]    = useState(0);
   var [minSignals,  setMinSignals]  = useState('3');
   var [combSortBy,  setCombSortBy]  = useState('Avg Return');
-  var [bbMinSignals,setBbMinSignals]= useState('10');
-  var [bbSortBy,    setBbSortBy]    = useState('Best Bet Score');
-  var [bbSignalType,setBbSignalType]= useState('All');
-  var [allBestBetRows,setAllBestBetRows]= useState([]);
-
-  // Recompute Best Bet rows when backtest results change
-  useEffect(function() {
-    if (results && results.rows && results.rows.length > 0) {
-      setAllBestBetRows(buildBestBetRows(results.rows));
-    } else { setAllBestBetRows([]); }
-  }, [results]);
+  // Custom Signal Tester state
+  var [cstTrend,     setCstTrend]     = useState([]);
+  var [cstMomentum,  setCstMomentum]  = useState([]);
+  var [cstReversal,  setCstReversal]  = useState([]);
+  var [cstSmartMoney,setCstSmartMoney]= useState([]);
+  var [cstSetup,     setCstSetup]     = useState([]);
+  var [cstTrendDrv,  setCstTrendDrv]  = useState([]);
+  var [cstMomDrv,    setCstMomDrv]    = useState([]);
+  var [cstRevDrv,    setCstRevDrv]    = useState([]);
+  var [cstSmfDrv,    setCstSmfDrv]    = useState([]);
+  var [cstDrvOpen,   setCstDrvOpen]   = useState(false);
 
   var SETUP_OPTS = ['All','Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
   var HP_OPTS    = [['5','5 trading days'],['10','10 trading days'],['20','20 trading days'],['60','60 trading days']];
@@ -2018,17 +2013,7 @@ export function SimulatorPage() {
       worst: Math.min.apply(null, rets).toFixed(2),
     };
   }
-  function calcBySetup(rows) {
-    var map = {};
-    rows.forEach(function(r){
-      if (!map[r.setup]) map[r.setup] = [];
-      map[r.setup].push(r);
-    });
-    return Object.keys(map).sort().map(function(setup){
-      var s = calcStats(map[setup]);
-      return Object.assign({ setup:setup }, s);
-    });
-  }
+
 
   // ── Styles ─────────────────────────────────────────────────────────────────
   var card   = { background:'#161614', border:'0.5px solid #2a2a28', borderRadius:10, padding:'16px 18px', marginBottom:14 };
@@ -2133,7 +2118,6 @@ export function SimulatorPage() {
 
       {results && results.rows.length > 0 && (function(){
         var stats = calcStats(results.rows);
-        var bySetup = calcBySetup(results.rows);
         return (
           <div>
             {results.wasLimited && <div style={{ background:'#1e1800', border:'0.5px solid #EF9F27', borderRadius:7, padding:'8px 14px', color:'#EF9F27', fontSize:11, marginBottom:14 }}>⚠ Date range produced more than 1,000 test dates. Showing first 1,000 only. Narrow your date range for full coverage.</div>}
@@ -2156,55 +2140,6 @@ export function SimulatorPage() {
                     <div style={{ fontSize:15, fontWeight:800, color:f[2] }}>{f[1]}</div>
                   </div>
                 ); })}
-              </div>
-            </div>
-
-            {/* By-Setup breakdown */}
-            <div style={card}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-                <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>Performance by Setup</div>
-                {bySetup && bySetup.length > 0
-                  ? <button onClick={function(){
-                      exportRowsToCsv(ticker+'-performance-by-setup-'+results.hp+'D.csv', bySetup, [
-                        { label:'Setup',       key:'setup' },
-                        { label:'Signals',     key:'total' },
-                        { label:'Win Rate %',  value:function(r){ return parseFloat(r.winRate).toFixed(1); } },
-                        { label:'Avg Return %',value:function(r){ return parseFloat(r.avg).toFixed(2); } },
-                        { label:'Median %',    value:function(r){ return parseFloat(r.median).toFixed(2); } },
-                        { label:'Best %',      value:function(r){ return parseFloat(r.best).toFixed(2); } },
-                        { label:'Worst %',     value:function(r){ return parseFloat(r.worst).toFixed(2); } },
-                      ]);
-                    }} style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #333', borderRadius:5, color:'#888', cursor:'pointer' }}>Export CSV</button>
-                  : <button disabled style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #2a2a28', borderRadius:5, color:'#444', cursor:'default' }}>No rows to export</button>}
-              </div>
-              <div style={{ overflowX:'auto' }}>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
-                  <thead>
-                    <tr style={{ borderBottom:'1px solid #2a2a28' }}>
-                      {['Setup','Signals','Win Rate','Avg Return','Median','Best','Worst'].map(function(h){
-                        return <th key={h} style={{ padding:'5px 10px', fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18' }}>{h}</th>;
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bySetup.map(function(row, i){
-                      var sc = summaryCardDark(row.setup);
-                      var wr = parseFloat(row.winRate);
-                      var wrCol = wr>=55?'#7abd00':wr>=45?'#EF9F27':'#e05050';
-                      return (
-                        <tr key={row.setup} style={{ background: i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
-                          <td style={{ padding:'6px 10px', fontWeight:700, color:sc.text }}>{row.setup}</td>
-                          <td style={{ padding:'6px 10px', color:'#aaa' }}>{row.total}</td>
-                          <td style={{ padding:'6px 10px', fontWeight:700, color:wrCol }}>{row.winRate}%</td>
-                          <td style={{ padding:'6px 10px', color:parseFloat(row.avg)>=0?'#7abd00':'#e05050', fontWeight:600 }}>{simFmtPct(parseFloat(row.avg))}</td>
-                          <td style={{ padding:'6px 10px', color:parseFloat(row.median)>=0?'#7abd00':'#e05050' }}>{simFmtPct(parseFloat(row.median))}</td>
-                          <td style={{ padding:'6px 10px', color:'#7abd00' }}>{'+'+row.best+'%'}</td>
-                          <td style={{ padding:'6px 10px', color:'#e05050' }}>{row.worst+'%'}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
               </div>
             </div>
 
@@ -2312,120 +2247,224 @@ export function SimulatorPage() {
             </div>
 
 
-            {/* Best Bet Signal Research */}
-            <div style={card}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:10 }}>
-                <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Best Bet Signal Research'}</div>
-                <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
-                  <button onClick={function(){
-                    var minS3 = parseInt(bbMinSignals)||10;
-                    var expBB = allBestBetRows.filter(function(r){ return r.signals>=minS3 && (bbSignalType==='All'||r.type===bbSignalType); });
-                    expBB.sort(function(a,b){ return b.score-a.score; });
-                    if (!expBB.length) return;
-                    exportRowsToCsv(ticker+'-best-bet-signal-research-'+results.hp+'D.csv', expBB, [
-                      { label:'Signal',       key:'signal' },
-                      { label:'Type',         key:'type' },
-                      { label:'Signals',      key:'signals' },
-                      { label:'Win Rate %',   value:function(r){ return r.winRate.toFixed(1); } },
-                      { label:'Avg Return %', value:function(r){ return r.avgReturn.toFixed(2); } },
-                      { label:'Median %',     value:function(r){ return r.medianReturn.toFixed(2); } },
-                      { label:'Best %',       value:function(r){ return r.bestReturn.toFixed(2); } },
-                      { label:'Worst %',      value:function(r){ return r.worstReturn.toFixed(2); } },
-                      { label:'Score',        value:function(r){ return r.score.toFixed(1); } },
-                      { label:'Quality',      key:'quality' },
-                    ]);
-                  }} style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #333', borderRadius:5, color:'#888', cursor:'pointer' }}>Export CSV</button>
-                  {[['Min Signals', bbMinSignals, setBbMinSignals, ['5','10','20','30']],
-                    ['Sort By', bbSortBy, setBbSortBy, ['Best Bet Score','Win Rate','Median Return','Avg Return','Signals','Worst Return']],
-                    ['Signal Type', bbSignalType, setBbSignalType, ['All','Single Driver','Driver Triple']],
-                  ].map(function(ctrl){
-                    return (
-                      <div key={ctrl[0]} style={{ display:'flex', alignItems:'center', gap:5 }}>
-                        <span style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em' }}>{ctrl[0]}</span>
-                        <select value={ctrl[1]} onChange={function(e){ ctrl[2](e.target.value); }}
-                          style={{ background:'#111', border:'0.5px solid #333', borderRadius:5, padding:'4px 8px', color:'#f0ede6', fontSize:10, outline:'none', cursor:'pointer' }}>
-                          {ctrl[3].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
-                        </select>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <div style={{ fontSize:11, color:'#555', lineHeight:1.6, marginBottom:6 }}>
-                {'Best Bet Signal Research tests lower-level technical drivers and small driver combinations. It helps identify which conditions historically produced higher-probability forward returns.'}
-              </div>
-              {(function(){
-                var minS = parseInt(bbMinSignals) || 10;
-                var filtered = allBestBetRows.filter(function(r){ return r.signals >= minS; });
-                if (bbSignalType !== 'All') filtered = filtered.filter(function(r){ return r.type === bbSignalType; });
-                var sorted = filtered.slice().sort(function(a,b){
-                  if (bbSortBy === 'Win Rate')      return (b.winRate||0)       - (a.winRate||0);
-                  if (bbSortBy === 'Median Return')  return (b.medianReturn||0)  - (a.medianReturn||0);
-                  if (bbSortBy === 'Avg Return')     return (b.avgReturn||0)     - (a.avgReturn||0);
-                  if (bbSortBy === 'Signals')        return b.signals            - a.signals;
-                  if (bbSortBy === 'Worst Return')   return (b.worstReturn||-999)- (a.worstReturn||-999);
-                  return b.score - a.score; // Best Bet Score default
-                });
-                var top = sorted.slice(0, 30);
-                if (!top.length) return (
-                  <div style={{ color:'#555', fontSize:11, padding:'16px 0', textAlign:'center' }}>
-                    {'No signals with ' + minS + '+ count. Lower the Minimum Signals filter or run a longer backtest.'}
+
+            {/* Custom Signal Tester */}
+            {(function(){
+              var CST_TREND_OPTS = ['Strong Uptrend','Uptrend','Sideways','Downtrend','Strong Downtrend'];
+              var CST_MOM_OPTS   = ['Strong','Building','Neutral','Fading','Weak'];
+              var CST_REV_OPTS   = ['Bullish Reversal Spark','Bullish Reversal Watch','Bullish Reversal Confirming','Mixed Reversal Signals','Bearish Reversal Watch','Bearish Reversal Forming','No Signal','No Clear Reversal'];
+              var CST_SMF_OPTS   = ['Strong Multi-Timeframe Flow','Accumulation Trend Positive','Constructive but Cooling','No Clear Signal','Early Accumulation','Short-Term Spike'];
+              var CST_SETUP_OPTS = ['Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
+
+              var CST_TREND_DRVS = [['priceAboveSma50','Price above SMA50'],['priceAboveSma200','Price above SMA200'],['sma50AboveSma200','SMA50 above SMA200'],['priceReclaimedSma50','Price reclaimed SMA50'],['priceLostSma50','Price lost SMA50'],['priceAboveEma20','Price above EMA20'],['ema20AboveSma50','EMA20 above SMA50'],['priceNear52wHigh','Near 52W high'],['priceFarBelow52wHigh','Far below 52W high']];
+              var CST_MOM_DRVS   = [['rsiAbove50','RSI above 50'],['rsiBetween45And65','RSI 45–65'],['rsiAbove70','RSI above 70'],['rsiRising','RSI rising'],['rsiFalling','RSI falling'],['macdAboveSignal','MACD above signal'],['macdBelowSignal','MACD below signal'],['macdImproving','MACD improving'],['macdDeteriorating','MACD deteriorating'],['macdHistogramPositive','MACD histogram +'],['macdHistogramImproving','MACD histogram improving']];
+              var CST_REV_DRVS   = [['trendSideways','Trend Sideways'],['trendDowntrend','Trend Downtrend'],['momentumBuilding','Momentum Building'],['reversalBullishSpark','Bull Reversal Spark'],['reversalBullishWatch','Bull Reversal Watch'],['reversalBullishConfirming','Bull Reversal Confirming'],['reversalMixed','Mixed Reversal'],['reversalBearishWatch','Bear Reversal Watch'],['priceReclaimedSma50','Price reclaimed SMA50'],['rsiRising','RSI rising'],['macdImproving','MACD improving'],['volumeAbove20dAvg','Volume above 20D avg']];
+              var CST_SMF_DRVS   = [['volumeAbove20dAvg','Volume above 20D avg'],['volumeAbove50dAvg','Volume above 50D avg'],['volumeRising5d','Volume rising 5D'],['smartMoneyConstructive','SM constructive'],['smartMoneyCooling','SM cooling'],['smartMoneyPositive','SM positive'],['smartMoneyNoClearSignal','No clear signal'],['smartMoneyAccumulationPositive','Accumulation positive'],['smartMoneyStrongMultiTimeframe','Strong multi-TF flow']];
+
+              function toggle(arr, setter, v) { setter(arr.indexOf(v)!==-1 ? arr.filter(function(x){return x!==v;}) : arr.concat([v])); }
+              function pillSel(v, arr, setter, colorFn) {
+                var sel = arr.indexOf(v)!==-1;
+                var ac = colorFn ? colorFn(v) : LIME;
+                return <button key={v} onClick={function(){ toggle(arr, setter, v); }}
+                  style={{ fontSize:9, padding:'3px 9px', borderRadius:10, cursor:'pointer', fontWeight:sel?700:400, outline:'none',
+                    background:sel?'#1a2a0a':'#141412', color:sel?ac:'#666',
+                    border:'0.5px solid '+(sel?ac:'#2a2a28') }}>{v}</button>;
+              }
+              function drvChk(key, label, arr, setter) {
+                var sel = arr.indexOf(key)!==-1;
+                return <button key={key} onClick={function(){ toggle(arr, setter, key); }}
+                  style={{ fontSize:9, padding:'2px 8px', borderRadius:4, cursor:'pointer', fontWeight:sel?700:400, outline:'none',
+                    background:sel?'#0f2010':'#111', color:sel?'#9acd50':'#555',
+                    border:'0.5px solid '+(sel?'#9acd50':'#2a2a28'), marginRight:4, marginBottom:4 }}>{label}</button>;
+              }
+
+              var cstFilters = { trend:cstTrend, momentum:cstMomentum, reversal:cstReversal, smartMoney:cstSmartMoney, setup:cstSetup,
+                driverFilters:{ trendDrivers:cstTrendDrv, momentumDrivers:cstMomDrv, reversalDrivers:cstRevDrv, smartMoneyDrivers:cstSmfDrv } };
+              var matchRows = results ? filterCustomSignalRows(results.rows, cstFilters) : [];
+              var cstStat   = summarizeCustomSignalRows(matchRows);
+              var cstQual   = customSignalQuality(cstStat);
+              var cstCond   = buildCustomConditionText(cstTrend,cstMomentum,cstReversal,cstSmartMoney,cstSetup,cstTrendDrv,cstMomDrv,cstRevDrv,cstSmfDrv);
+              var showTop50 = matchRows.slice(-50).reverse();
+
+              function qualColor(q) {
+                if (q==='Strong')    return '#7abd00';
+                if (q==='Promising') return '#6090d0';
+                if (q==='Weak')      return '#e05050';
+                if (q==='Mixed')     return '#EF9F27';
+                return '#555';
+              }
+              function resetCST() {
+                setCstTrend([]); setCstMomentum([]); setCstReversal([]); setCstSmartMoney([]); setCstSetup([]);
+                setCstTrendDrv([]); setCstMomDrv([]); setCstRevDrv([]); setCstSmfDrv([]);
+              }
+
+              return (
+                <div style={card}>
+                  <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em', marginBottom:8 }}>{'Custom Signal Tester'}</div>
+                  <div style={{ fontSize:11, color:'#555', lineHeight:1.6, marginBottom:14 }}>
+                    {'Select signal conditions below to see how those combinations performed historically. Within each filter is OR logic; across filters is AND logic.'}
                   </div>
-                );
-                function qlblStyle(ql) {
-                  if (ql === 'Strong')     return { fontSize:8, fontWeight:700, color:'#7abd00', background:'#0d200d', border:'0.5px solid #7abd00', borderRadius:3, padding:'1px 5px' };
-                  if (ql === 'Promising')  return { fontSize:8, fontWeight:700, color:'#6090d0', background:'#081020', border:'0.5px solid #6090d0', borderRadius:3, padding:'1px 5px' };
-                  if (ql === 'Weak')       return { fontSize:8, fontWeight:700, color:'#e05050', background:'#200808', border:'0.5px solid #e05050', borderRadius:3, padding:'1px 5px' };
-                  if (ql === 'Low Sample') return { fontSize:8, color:'#555', background:'#111', border:'0.5px solid #333', borderRadius:3, padding:'1px 5px' };
-                  return { fontSize:8, color:'#888', background:'#111', border:'0.5px solid #333', borderRadius:3, padding:'1px 5px' };
-                }
-                function typeColor(tp) {
-                  if (tp === 'Single Driver') return '#6090d0';
-                  return '#d0a060';
-                }
-                return (
-                  <div>
-                    <div style={{ fontSize:9, color:'#555', marginBottom:8 }}>{'Showing top ' + top.length + ' of ' + sorted.length + ' ranked signals based on selected filters.'}</div>
-                    <div style={{ overflowX:'auto' }}>
-                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
-                        <thead>
-                          <tr style={{ borderBottom:'1px solid #2a2a28' }}>
-                            {['Signal','Type','Signals','Win Rate','Avg Ret','Median','Best','Worst','Score','Quality'].map(function(h){
-                              return <th key={h} style={{ padding:'5px 8px', fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>;
+
+                  {!results ? (
+                    <div style={{ color:'#555', fontSize:12, padding:'20px 0' }}>{'Run a backtest first, then use Custom Signal Tester to test your own signal combinations.'}</div>
+                  ) : (
+                    <div>
+                      {/* Main Filters */}
+                      {[
+                        ['Trend',       cstTrend,      setCstTrend,      CST_TREND_OPTS, null],
+                        ['Momentum',    cstMomentum,   setCstMomentum,   CST_MOM_OPTS,   null],
+                        ['Reversal',    cstReversal,   setCstReversal,   CST_REV_OPTS,   null],
+                        ['Smart Money', cstSmartMoney, setCstSmartMoney, CST_SMF_OPTS,   null],
+                        ['Setup',       cstSetup,      setCstSetup,      CST_SETUP_OPTS, function(v){ return summaryCardDark(v).text; }],
+                      ].map(function(row){
+                        return (
+                          <div key={row[0]} style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
+                            <span style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', minWidth:74, paddingTop:3, flexShrink:0 }}>{row[0]}</span>
+                            <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+                              {row[3].map(function(v){ return pillSel(v, row[1], row[2], row[4]); })}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Driver Filters collapsible */}
+                      <div style={{ borderTop:'0.5px solid #2a2a28', marginTop:8, paddingTop:8 }}>
+                        <button onClick={function(){ setCstDrvOpen(!cstDrvOpen); }}
+                          style={{ background:'none', border:'none', color:'#888', fontSize:11, cursor:'pointer', padding:0, display:'flex', alignItems:'center', gap:6 }}>
+                          <span style={{ fontSize:10, color:cstDrvOpen?LIME:'#555', fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' }}>{'Driver Filters'}</span>
+                          <span style={{ fontSize:12, color:'#555' }}>{cstDrvOpen?'▲':'▼'}</span>
+                          {(cstTrendDrv.length+cstMomDrv.length+cstRevDrv.length+cstSmfDrv.length)>0 && <span style={{ fontSize:8, color:LIME, background:'#1a2a0a', border:'0.5px solid '+LIME, borderRadius:8, padding:'1px 5px' }}>{cstTrendDrv.length+cstMomDrv.length+cstRevDrv.length+cstSmfDrv.length}</span>}
+                        </button>
+                        {cstDrvOpen && (
+                          <div style={{ marginTop:10 }}>
+                            <div style={{ fontSize:9, color:'#555', marginBottom:10, lineHeight:1.6 }}>
+                              {'Within each driver group: OR logic. Across driver groups: AND logic. Empty group = ignored.'}
+                            </div>
+                            {[
+                              ['Trend Driver',       cstTrendDrv, setCstTrendDrv, CST_TREND_DRVS],
+                              ['Momentum Driver',    cstMomDrv,   setCstMomDrv,   CST_MOM_DRVS],
+                              ['Reversal Driver',    cstRevDrv,   setCstRevDrv,   CST_REV_DRVS],
+                              ['Smart Money Driver', cstSmfDrv,   setCstSmfDrv,   CST_SMF_DRVS],
+                            ].map(function(grp){
+                              return (
+                                <div key={grp[0]} style={{ marginBottom:12 }}>
+                                  <div style={{ fontSize:9, fontWeight:700, color:grp[1].length?'#9acd50':'#444', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>{grp[0]}</div>
+                                  <div style={{ display:'flex', flexWrap:'wrap' }}>
+                                    {grp[3].map(function(d){ return drvChk(d[0], d[1], grp[1], grp[2]); })}
+                                  </div>
+                                </div>
+                              );
                             })}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {top.map(function(row, i){
-                            var avgC = row.avgReturn >= 0 ? '#7abd00' : '#e05050';
-                            var medC = row.medianReturn >= 0 ? '#7abd00' : '#e05050';
-                            var wrC  = row.winRate >= 65 ? '#7abd00' : row.winRate >= 50 ? '#EF9F27' : '#e05050';
-                            return (
-                              <tr key={row.signal+i} style={{ background:i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
-                                <td style={{ padding:'5px 8px', color:'#f0ede6', fontSize:10, maxWidth:260, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={row.signal}>{row.signal}</td>
-                                <td style={{ padding:'5px 8px', whiteSpace:'nowrap' }}>
-                                  <span style={{ fontSize:8, fontWeight:600, color:typeColor(row.type), background:'#111', border:'0.5px solid '+typeColor(row.type)+'55', borderRadius:3, padding:'1px 5px' }}>{row.type}</span>
-                                </td>
-                                <td style={{ padding:'5px 8px', color:'#f0ede6', fontWeight:600, textAlign:'right' }}>{row.signals}</td>
-                                <td style={{ padding:'5px 8px', fontWeight:700, color:wrC, textAlign:'right' }}>{row.winRate.toFixed(1)+'%'}</td>
-                                <td style={{ padding:'5px 8px', fontWeight:700, color:avgC, textAlign:'right' }}>{simFmtPct(row.avgReturn)}</td>
-                                <td style={{ padding:'5px 8px', color:medC, textAlign:'right' }}>{simFmtPct(row.medianReturn)}</td>
-                                <td style={{ padding:'5px 8px', color:'#7abd00', textAlign:'right' }}>{simFmtPct(row.bestReturn)}</td>
-                                <td style={{ padding:'5px 8px', color:'#e05050', textAlign:'right' }}>{simFmtPct(row.worstReturn)}</td>
-                                <td style={{ padding:'5px 8px', color:'#888', textAlign:'right', fontWeight:600 }}>{row.score.toFixed(1)}</td>
-                                <td style={{ padding:'5px 8px' }}><span style={qlblStyle(row.quality)}>{row.quality}</span></td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Result Summary */}
+                      <div style={{ borderTop:'0.5px solid #2a2a28', marginTop:14, paddingTop:14 }}>
+                        <div style={{ display:'grid', gridTemplateColumns:'repeat(9,1fr)', gap:8, marginBottom:14 }}>
+                          {[
+                            ['Matching',  cstStat.signals,                                       '#f0ede6'],
+                            ['Wins',      cstStat.wins,                                          '#7abd00'],
+                            ['Losses',    cstStat.losses,                                        '#e05050'],
+                            ['Win Rate',  cstStat.winRate!=null?cstStat.winRate.toFixed(1)+'%':'—', cstStat.winRate!=null?(cstStat.winRate>=60?'#7abd00':cstStat.winRate>=45?'#EF9F27':'#e05050'):'#555'],
+                            ['Avg Return',simFmtPct(cstStat.avgReturn),                          cstStat.avgReturn!=null?(cstStat.avgReturn>=0?'#7abd00':'#e05050'):'#555'],
+                            ['Median',    simFmtPct(cstStat.medianReturn),                       cstStat.medianReturn!=null?(cstStat.medianReturn>=0?'#7abd00':'#e05050'):'#555'],
+                            ['Best',      simFmtPct(cstStat.bestReturn),                         '#7abd00'],
+                            ['Worst',     simFmtPct(cstStat.worstReturn),                        '#e05050'],
+                            ['Quality',   cstQual,                                               qualColor(cstQual)],
+                          ].map(function(f){ return (
+                            <div key={f[0]} style={{ background:'#0e0e0c', borderRadius:7, padding:'8px 10px', textAlign:'center' }}>
+                              <div style={{ fontSize:8, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:3 }}>{f[0]}</div>
+                              <div style={{ fontSize:12, fontWeight:800, color:f[2] }}>{f[1]}</div>
+                            </div>
+                          ); })}
+                        </div>
+
+                        {/* Selected Condition */}
+                        <div style={{ background:'#0e0e0c', borderRadius:7, padding:'10px 12px', marginBottom:12 }}>
+                          <div style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6, fontWeight:700 }}>{'Selected Condition'}</div>
+                          <pre style={{ fontSize:10, color:'#888', lineHeight:1.8, whiteSpace:'pre-wrap', wordBreak:'break-word', margin:0, fontFamily:'monospace' }}>{cstCond}</pre>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+                          <button onClick={resetCST}
+                            style={{ fontSize:10, padding:'5px 12px', background:'none', border:'0.5px solid #444', borderRadius:5, color:'#888', cursor:'pointer' }}>Reset Filters</button>
+                          <button onClick={function(){
+                            var txt = cstCond;
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                              navigator.clipboard.writeText(txt);
+                            } else {
+                              var el = document.createElement('textarea'); el.value = txt;
+                              document.body.appendChild(el); el.select(); document.execCommand('copy');
+                              document.body.removeChild(el);
+                            }
+                          }} style={{ fontSize:10, padding:'5px 12px', background:'none', border:'0.5px solid #444', borderRadius:5, color:'#888', cursor:'pointer' }}>Copy Condition</button>
+                          <button onClick={function(){
+                            if (!matchRows.length) return;
+                            exportRowsToCsv(ticker+'-custom-signal-matches-'+results.hp+'D.csv', matchRows, [
+                              { label:'Date',            key:'date' },
+                              { label:'Close',           value:function(r){ return '$'+r.close.toFixed(2); } },
+                              { label:'Setup',           key:'setup' },
+                              { label:'Trend',           key:'trend' },
+                              { label:'Momentum',        key:'momentum' },
+                              { label:'Reversal',        key:'reversal' },
+                              { label:'Smart Money',     key:'smartMoney' },
+                              { label:'Future Return %', value:function(r){ return r.futureReturn!=null?r.futureReturn.toFixed(2):''; } },
+                              { label:'Result',          key:'result' },
+                            ]);
+                          }} style={{ fontSize:10, padding:'5px 12px', background:'none', border:'0.5px solid #444', borderRadius:5, color:'#888', cursor:'pointer',
+                            opacity: matchRows.length ? 1 : 0.4 }}>Export CSV</button>
+                        </div>
+
+                        {/* Matching Historical Signals */}
+                        <div style={{ fontSize:10, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:8 }}>
+                          {'Matching Historical Signals (' + matchRows.length + ' rows' + (matchRows.length>50?', showing latest 50':'')+')'}
+                        </div>
+                        {matchRows.length === 0
+                          ? <div style={{ color:'#555', fontSize:11, padding:'16px 0', textAlign:'center' }}>{'No rows match the selected conditions.'}</div>
+                          : <div style={{ overflowX:'auto', maxHeight:400, overflowY:'auto' }}>
+                              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
+                                <thead style={{ position:'sticky', top:0, zIndex:1 }}>
+                                  <tr style={{ borderBottom:'1px solid #2a2a28' }}>
+                                    {['Date','Close','Setup','Trend','Momentum','Reversal','Smart Money','Return','Result'].map(function(h){
+                                      return <th key={h} style={{ padding:'4px 7px', fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>;
+                                    })}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {showTop50.map(function(r, i){
+                                    var sc  = summaryCardDark(r.setup);
+                                    var ret = r.futureReturn;
+                                    var retC = ret==null?'#555':ret>=5?'#7abd00':ret>=0?'#5a9a40':ret>-5?'#e08050':'#e05050';
+                                    return (
+                                      <tr key={r.date+i} style={{ background:i%2===0?'#181816':'#141412' }}>
+                                        <td style={{ padding:'4px 7px', color:'#888', whiteSpace:'nowrap' }}>{r.date}</td>
+                                        <td style={{ padding:'4px 7px', color:'#f0ede6', fontWeight:600 }}>{'$'+r.close.toFixed(2)}</td>
+                                        <td style={{ padding:'4px 7px', fontWeight:700, color:sc.text, whiteSpace:'nowrap' }} title={r.fullSetup}>{r.setup}</td>
+                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9 }}>{r.trend}</td>
+                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9 }}>{r.momentum}</td>
+                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9, maxWidth:110, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.reversal}>{r.reversal}</td>
+                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9, maxWidth:110, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.smartMoney}>{r.smartMoney}</td>
+                                        <td style={{ padding:'4px 7px', fontWeight:700, color:retC, whiteSpace:'nowrap' }}>{simFmtPct(ret)}</td>
+                                        <td style={{ padding:'4px 7px' }}>
+                                          <span style={{ fontSize:8, fontWeight:700, color:r.result==='Win'?'#7abd00':r.result==='Loss'?'#e05050':'#555',
+                                            background:r.result==='Win'?'#0d200d':r.result==='Loss'?'#200808':'#111', padding:'1px 5px', borderRadius:3 }}>{r.result}</span>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                        }
+                        <div style={{ fontSize:9, color:'#333', marginTop:10 }}>{'Custom Signal Tester is for historical research only. It does not guarantee future performance and is not financial advice.'}</div>
+                      </div>
                     </div>
-                    <div style={{ fontSize:9, color:'#444', marginTop:8 }}>{'Small sample sizes can be misleading. Use higher signal counts and positive median returns for stronger conclusions.'}</div>
-                    <div style={{ fontSize:9, color:'#333', marginTop:4 }}>{'Best Bet Signal Research is a historical research tool only. It does not guarantee future performance.'}</div>
-                  </div>
-                );
-              })()}
-            </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Historical signal table */}
             <div style={card}>
@@ -4295,7 +4334,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.42</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.43</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4349,7 +4388,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.42</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.43</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -10727,7 +10766,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.42</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.43</span>
           </div>
         </div>
 
