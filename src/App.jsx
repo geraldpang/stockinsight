@@ -1131,6 +1131,188 @@ function enrichRowWithRuleSetup(row) {
   }
 }
 
+// ── Run 6: Simulator helpers ───────────────────────────────────────────────────
+
+// ── Run 6C: Combination Performance helpers ────────────
+function groupByCombination(rows) {
+  var map = {};
+  rows.forEach(function(row) {
+    var key = [row.trend||'N/A',row.momentum||'N/A',row.reversal||'N/A',row.smartMoney||'N/A'].join(' | ');
+    if (!map[key]) map[key] = { key:key, trend:row.trend||'N/A', momentum:row.momentum||'N/A',
+      reversal:row.reversal||'N/A', smartMoney:row.smartMoney||'N/A', setupCounts:{}, returns:[], wins:0 };
+    var g = map[key];
+    var s = row.setup||'N/A';
+    g.setupCounts[s] = (g.setupCounts[s]||0) + 1;
+    if (row.futureReturn != null && !isNaN(row.futureReturn)) {
+      g.returns.push(row.futureReturn);
+      if (row.futureReturn > 0) g.wins++;
+    }
+  });
+  return Object.keys(map).map(function(key) {
+    var g = map[key]; var sigs = g.returns.length;
+    var avg = sigs > 0 ? g.returns.reduce(function(a,b){return a+b;},0)/sigs : null;
+    var mostSetup = 'N/A'; var maxC = 0;
+    Object.keys(g.setupCounts).forEach(function(s){ if(g.setupCounts[s]>maxC){maxC=g.setupCounts[s];mostSetup=s;} });
+    return { key:g.key, trend:g.trend, momentum:g.momentum, reversal:g.reversal, smartMoney:g.smartMoney,
+      setup:mostSetup, signals:sigs, winRate:sigs>0?(g.wins/sigs)*100:null,
+      avgReturn:avg, medianReturn:simMedian(g.returns),
+      bestReturn:sigs>0?Math.max.apply(null,g.returns):null,
+      worstReturn:sigs>0?Math.min.apply(null,g.returns):null };
+  });
+}
+function combinationQualityLabel(row) {
+  if (!row || row.signals < 5) return '';
+  if (row.winRate >= 60 && row.avgReturn > 0) return 'Worked Well';
+  if (row.winRate <= 40 && row.avgReturn < 0) return 'Weak';
+  return 'Mixed';
+}
+function sortCombinationRows(rows, sortBy) {
+  return rows.slice().sort(function(a,b){
+    if (sortBy === 'Signals')       return b.signals - a.signals;
+    if (sortBy === 'Win Rate')      return (b.winRate||0) - (a.winRate||0);
+    if (sortBy === 'Median Return') return (b.medianReturn||0) - (a.medianReturn||0);
+    if (sortBy === 'Worst Return')  return (b.worstReturn||-999) - (a.worstReturn||-999);
+    return (b.avgReturn||0) - (a.avgReturn||0);
+  });
+}
+
+function simMedian(values) {
+  if (!values || !values.length) return null;
+  var s = values.slice().sort(function(a,b){ return a-b; });
+  var m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m-1] + s[m]) / 2;
+}
+function simPctReturn(start, end) {
+  if (!start || !end || start <= 0) return null;
+  return ((end - start) / start) * 100;
+}
+function simFmtPct(v) {
+  if (v == null || isNaN(v)) return '—';
+  return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+}
+function simSMA(arr, period) {
+  if (!arr || arr.length < period) return null;
+  var sl = arr.slice(-period);
+  return sl.reduce(function(a,b){return a+b;},0) / period;
+}
+function simEMAHistory(arr, period) {
+  if (!arr || arr.length < period) return [];
+  var k = 2 / (period + 1);
+  var seed = 0;
+  for (var i = 0; i < period; i++) seed += arr[i];
+  seed /= period;
+  var result = [seed];
+  for (var i = period; i < arr.length; i++) {
+    seed = arr[i] * k + seed * (1 - k);
+    result.push(seed);
+  }
+  return result;
+}
+function simWeekKey(dateStr) {
+  var d = new Date(dateStr);
+  // ISO week: days since Jan 4 (always in week 1) ÷ 7
+  var jan4 = new Date(d.getFullYear(), 0, 4);
+  var diff = (d - jan4) / 86400000;
+  return d.getFullYear() + '-W' + (Math.floor(diff / 7) + 1);
+}
+function buildHistoricalIndicators(bars) {
+  var closes = bars.map(function(b){ return b.close; });
+  // EMA histories
+  var ema12h = simEMAHistory(closes, 12);
+  var ema26h = simEMAHistory(closes, 26);
+  var ema20h = simEMAHistory(closes, 20);
+  // MACD line (align by right edge)
+  var minM = Math.min(ema12h.length, ema26h.length);
+  var macdLine = [];
+  for (var i = 0; i < minM; i++) {
+    macdLine.push(ema12h[ema12h.length - minM + i] - ema26h[ema26h.length - minM + i]);
+  }
+  var signalH = simEMAHistory(macdLine, 9);
+  var macdHistory = [];
+  var sigOff = macdLine.length - signalH.length;
+  for (var i = Math.max(0, signalH.length - 50); i < signalH.length; i++) {
+    var mv = macdLine[sigOff + i], sv = signalH[i];
+    macdHistory.push({ macd: mv, signal: sv, histogram: mv - sv });
+  }
+  // RSI history (efficient: use last 65 bars)
+  var rsiHistory = [];
+  var rsiBuf = closes.slice(-65);
+  for (var i = 15; i <= rsiBuf.length; i++) {
+    var rv = calcRSI(rsiBuf.slice(0, i), 14);
+    if (rv != null) rsiHistory.push(rv);
+  }
+  // Weekly closes (last close of each ISO week)
+  var weekMap = {};
+  var weekOrder = [];
+  bars.forEach(function(b) {
+    var wk = simWeekKey(b.date);
+    if (!weekMap[wk]) weekOrder.push(wk);
+    weekMap[wk] = b.close;
+  });
+  var weeklyCloses = weekOrder.map(function(wk){ return weekMap[wk]; });
+  return {
+    sma50:       simSMA(closes, 50),
+    sma200:      simSMA(closes, 200),
+    ema20:       ema20h.length ? ema20h[ema20h.length-1] : null,
+    rsi14:       calcRSI(closes, 14),
+    rsiHistory:  rsiHistory,
+    macd:        macdHistory.length ? macdHistory[macdHistory.length-1].macd : null,
+    macdHistory: macdHistory,
+    wsma10:      simSMA(weeklyCloses, 10),
+    wsma40:      simSMA(weeklyCloses, 40),
+  };
+}
+function simRolling52(bars) {
+  var last = bars.slice(-252);
+  if (!last.length) return { hi52: null, lo52: null };
+  var hi = last[0].high, lo = last[0].low;
+  for (var i = 1; i < last.length; i++) {
+    if (last[i].high > hi) hi = last[i].high;
+    if (last[i].low  < lo) lo = last[i].low;
+  }
+  return { hi52: hi, lo52: lo };
+}
+async function fetchYahooHistoricalBars(ticker, startDate, endDate, holdingPeriod) {
+  // Yahoo ticker normalisation
+  var yhTicker = ticker.toUpperCase() === 'BRKB' ? 'BRK-B' : ticker.toUpperCase();
+  // Extend lookback: 400 calendar days before start for SMA200; extend end for future returns
+  var sd = new Date(startDate);
+  sd.setDate(sd.getDate() - 400);
+  var ed = new Date(endDate);
+  ed.setDate(ed.getDate() + Math.max(holdingPeriod * 2, 90));
+  var p1 = Math.floor(sd.getTime() / 1000);
+  var p2 = Math.floor(ed.getTime() / 1000);
+  var url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + yhTicker
+          + '?interval=1d&period1=' + p1 + '&period2=' + p2 + '&includeAdjustedClose=true';
+  var resp = await fetch('/proxy?url=' + encodeURIComponent(url));
+  if (!resp.ok) throw new Error('Yahoo fetch failed: ' + resp.status);
+  var json = await resp.json();
+  var result = json && json.chart && json.chart.result && json.chart.result[0];
+  if (!result) throw new Error('Yahoo returned no data for ' + yhTicker);
+  var timestamps = result.timestamp || [];
+  var quote = result.indicators && result.indicators.quote && result.indicators.quote[0];
+  var adjClose = result.indicators && result.indicators.adjclose && result.indicators.adjclose[0] && result.indicators.adjclose[0].adjclose;
+  if (!quote || !timestamps.length) throw new Error('Yahoo data missing OHLCV for ' + yhTicker);
+  var bars = [];
+  for (var i = 0; i < timestamps.length; i++) {
+    var c = (adjClose && adjClose[i] != null) ? adjClose[i] : quote.close[i];
+    if (c == null || quote.open[i] == null) continue;  // skip null bars
+    var d = new Date(timestamps[i] * 1000);
+    var dateStr = d.toISOString().split('T')[0];
+    bars.push({
+      date:   dateStr,
+      open:   quote.open[i],
+      high:   quote.high[i],
+      low:    quote.low[i],
+      close:  c,
+      volume: quote.volume[i] || 0,
+    });
+  }
+  // Oldest-first (Yahoo already returns oldest-first for v8)
+  bars.sort(function(a,b){ return a.date < b.date ? -1 : 1; });
+  return bars;
+}
+
 function buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData) {
   if (!massiveInfo || !q) return null;
   var rawAggs = massiveInfo.aggs || [];
@@ -1510,6 +1692,443 @@ function Screener() {
       )}
 
       {scanStatus==='error' && <div style={{ color:'#e05050', fontSize:12 }}>{scanMsg}</div>}
+    </div>
+  );
+}
+
+
+// ── Run 6: SimulatorPage ────────────────────────────────────────────────────────
+export function SimulatorPage() {
+  var today = new Date().toISOString().split('T')[0];
+  var [ticker,      setTicker]      = useState('TSLA');
+  var [startDate,   setStartDate]   = useState('2024-01-01');
+  var [endDate,     setEndDate]     = useState(today);
+  var [holdingPeriod,setHoldingPeriod]=useState('20');
+  var [setupFilter, setSetupFilter] = useState('All');
+  var [loading,     setLoading]     = useState(false);
+  var [loadingMsg,  setLoadingMsg]  = useState('');
+  var [feasibility, setFeasibility] = useState(null);
+  var [results,     setResults]     = useState(null);
+  var [error,       setError]       = useState(null);
+  var [progress,    setProgress]    = useState(0);
+  var [minSignals,  setMinSignals]  = useState('3');
+  var [combSortBy,  setCombSortBy]  = useState('Avg Return');
+
+  var SETUP_OPTS = ['All','Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
+  var HP_OPTS    = [['5','5 trading days'],['10','10 trading days'],['20','20 trading days'],['60','60 trading days']];
+
+  async function testData() {
+    setLoading(true); setError(null); setFeasibility(null); setResults(null);
+    try {
+      var bars = await fetchYahooHistoricalBars(ticker, startDate, endDate, parseInt(holdingPeriod));
+      var startTs = new Date(startDate).getTime();
+      var endTs   = new Date(endDate).getTime();
+      var priorBars = bars.filter(function(b){ return new Date(b.date).getTime() < startTs; });
+      var rangeBars = bars.filter(function(b){ var t=new Date(b.date).getTime(); return t>=startTs&&t<=endTs; });
+      var hasOHLCV  = bars.length > 0 && bars.every(function(b){ return b.open&&b.high&&b.low&&b.close; });
+      var has250    = priorBars.length >= 250;
+      var status    = !hasOHLCV ? 'Failed' : !has250 ? 'Limited' : 'Ready';
+      setFeasibility({
+        ticker: ticker.toUpperCase(),
+        totalBars: bars.length,
+        firstDate: bars[0] ? bars[0].date : '—',
+        lastDate: bars[bars.length-1] ? bars[bars.length-1].date : '—',
+        hasOHLCV: hasOHLCV,
+        priorBars: priorBars.length,
+        rangeBars: rangeBars.length,
+        has250: has250,
+        status: status,
+      });
+    } catch(e) { setError('Yahoo data error: ' + e.message); }
+    setLoading(false);
+  }
+
+  async function runBacktest() {
+    setLoading(true); setLoadingMsg('Fetching historical data from Yahoo...'); setResults(null); setError(null); setProgress(0);
+    try {
+      var bars = await fetchYahooHistoricalBars(ticker, startDate, endDate, parseInt(holdingPeriod));
+      setLoadingMsg('Running backtest...');
+      await new Promise(function(r){ setTimeout(r, 20); });
+      var hp = parseInt(holdingPeriod);
+      var startTs = new Date(startDate).getTime();
+      var endTs   = new Date(endDate).getTime();
+      var rows = [];
+      var processed = 0;
+      var LIMIT = 1000;
+      var inRangeCount = bars.filter(function(b){ var t=new Date(b.date).getTime(); return t>=startTs&&t<=endTs; }).length;
+      for (var i = 0; i < bars.length; i++) {
+        var bar = bars[i];
+        var barTs = new Date(bar.date).getTime();
+        if (barTs < startTs || barTs > endTs) continue;
+        if (i < 250) continue;                      // need 250 prior bars
+        if (i + hp >= bars.length) continue;        // need future bars
+        processed++;
+        if (processed > LIMIT) break;
+        if (processed % 50 === 0) {
+          setProgress(Math.round(processed / Math.min(inRangeCount, LIMIT) * 100));
+          await new Promise(function(r){ setTimeout(r, 0); });
+        }
+        var futureBar = bars[i + hp];
+        var slice = bars.slice(0, i + 1);
+        var ind    = buildHistoricalIndicators(slice);
+        var hw     = simRolling52(slice);
+        var ohlcv  = slice.map(function(b){ return { date:b.date, open:b.open, high:b.high, low:b.low, close:b.close, volume:b.volume }; });
+        var snap;
+        try {
+          snap = calculateTechnicalSignalSnapshot({ ticker:ticker, date:bar.date, ohlcv:ohlcv, indicators:ind, crossData:null, meta:{ price:bar.close, hi52:hw.hi52, lo52:hw.lo52 } });
+        } catch(e){ continue; }
+        var rba;
+        try {
+          rba = generateRuleBasedAnalytics(Object.assign({}, snap, { ohlcv:ohlcv, indicators:ind, meta:{ price:bar.close, hi52:hw.hi52, lo52:hw.lo52 } }));
+        } catch(e){ continue; }
+        if (!rba) continue;
+        var sv = shortRuleVerdict(rba.verdict);
+        if (setupFilter !== 'All' && sv !== setupFilter) continue;
+        var ret = simPctReturn(bar.close, futureBar.close);
+        rows.push({
+          date: bar.date,
+          close: bar.close,
+          setup: sv,
+          fullSetup: rba.verdict,
+          scenarioId: rba.scenarioId,
+          tone: rba.tone,
+          trend:      snap.trend       ? snap.trend.status       : '—',
+          momentum:   snap.momentum    ? snap.momentum.status    : '—',
+          reversal:   snap.reversalWatch ? snap.reversalWatch.status : '—',
+          smartMoney: snap.smartMoneyFlow ? snap.smartMoneyFlow.status : '—',
+          futureClose: futureBar.close,
+          futureReturn: ret,
+          result: ret != null ? (ret >= 0 ? 'Win' : 'Loss') : '—',
+        });
+      }
+      setResults({ rows:rows, hp:hp, wasLimited: processed >= LIMIT });
+    } catch(e){ setError('Backtest failed: ' + e.message); }
+    setLoading(false); setLoadingMsg(''); setProgress(0);
+  }
+
+  // ── Stats helpers ───────────────────────────────────────────────────────────
+  function calcStats(rows) {
+    if (!rows || !rows.length) return null;
+    var rets = rows.filter(function(r){ return r.futureReturn != null; }).map(function(r){ return r.futureReturn; });
+    if (!rets.length) return null;
+    var wins = rets.filter(function(r){ return r >= 0; }).length;
+    return {
+      total: rows.length,
+      winRate: (wins / rets.length * 100).toFixed(1),
+      avg: (rets.reduce(function(a,b){return a+b;},0) / rets.length).toFixed(2),
+      median: (simMedian(rets) || 0).toFixed(2),
+      best: Math.max.apply(null, rets).toFixed(2),
+      worst: Math.min.apply(null, rets).toFixed(2),
+    };
+  }
+  function calcBySetup(rows) {
+    var map = {};
+    rows.forEach(function(r){
+      if (!map[r.setup]) map[r.setup] = [];
+      map[r.setup].push(r);
+    });
+    return Object.keys(map).sort().map(function(setup){
+      var s = calcStats(map[setup]);
+      return Object.assign({ setup:setup }, s);
+    });
+  }
+
+  // ── Styles ─────────────────────────────────────────────────────────────────
+  var card   = { background:'#161614', border:'0.5px solid #2a2a28', borderRadius:10, padding:'16px 18px', marginBottom:14 };
+  var inp    = { background:'#111', border:'0.5px solid #333', borderRadius:6, padding:'7px 10px', color:'#f0ede6', fontSize:12, outline:'none', width:'100%', boxSizing:'border-box' };
+  var btn    = { background:'#c8f000', color:'#111', fontWeight:700, fontSize:12, border:'none', borderRadius:7, padding:'9px 18px', cursor:'pointer' };
+  var btnGhost = { background:'none', color:'#888', fontWeight:600, fontSize:11, border:'0.5px solid #333', borderRadius:7, padding:'7px 14px', cursor:'pointer' };
+  var lbl    = { fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', fontWeight:700, marginBottom:4, display:'block' };
+  var stat   = { background:'#0e0e0c', borderRadius:8, padding:'12px 14px', textAlign:'center' };
+
+  return (
+    <div style={{ fontFamily:FONT, background:BG, minHeight:'100vh', padding:'24px 28px', color:'#f0ede6', maxWidth:1200, margin:'0 auto' }}>
+      {/* Header */}
+      <button onClick={function(){ window.location.hash=''; }} style={{ background:'none', border:'none', color:'#555', fontSize:12, cursor:'pointer', marginBottom:16, padding:0 }}>{'← Back'}</button>
+      <div style={{ fontSize:10, color:LIME, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>Simulator</div>
+      <div style={{ fontSize:22, fontWeight:800, color:'#f0ede6', marginBottom:4 }}>Rule Based Setup Simulator</div>
+      <div style={{ fontSize:12, color:'#666', marginBottom:24 }}>Backtest how NervousGeek Setups performed historically using Yahoo daily price data.</div>
+
+      {/* Inputs */}
+      <div style={Object.assign({},card,{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr',gap:12,alignItems:'end'})}>
+        <div>
+          <span style={lbl}>Ticker</span>
+          <input value={ticker} onChange={function(e){setTicker(e.target.value.toUpperCase());}} style={inp} placeholder="e.g. TSLA" />
+        </div>
+        <div>
+          <span style={lbl}>Start Date</span>
+          <input type="date" value={startDate} onChange={function(e){setStartDate(e.target.value);}} style={inp} />
+        </div>
+        <div>
+          <span style={lbl}>End Date</span>
+          <input type="date" value={endDate} onChange={function(e){setEndDate(e.target.value);}} style={inp} />
+        </div>
+        <div>
+          <span style={lbl}>Holding Period</span>
+          <select value={holdingPeriod} onChange={function(e){setHoldingPeriod(e.target.value);}} style={Object.assign({},inp,{cursor:'pointer'})}>
+            {HP_OPTS.map(function(o){ return <option key={o[0]} value={o[0]}>{o[1]}</option>; })}
+          </select>
+        </div>
+        <div>
+          <span style={lbl}>Setup Filter</span>
+          <select value={setupFilter} onChange={function(e){setSetupFilter(e.target.value);}} style={Object.assign({},inp,{cursor:'pointer'})}>
+            {SETUP_OPTS.map(function(o){ return <option key={o} value={o}>{o}</option>; })}
+          </select>
+        </div>
+      </div>
+
+      {/* Buttons */}
+      <div style={{ display:'flex', gap:10, marginBottom:20 }}>
+        <button style={btn} disabled={loading} onClick={runBacktest}>{loading&&loadingMsg?loadingMsg:'Run Backtest'}</button>
+        <button style={btnGhost} disabled={loading} onClick={testData}>{loading&&!loadingMsg?'Testing...':'Test Yahoo Data'}</button>
+      </div>
+
+      {/* Progress */}
+      {loading && progress > 0 && (
+        <div style={{ marginBottom:14 }}>
+          <div style={{ background:'#1a1a18', borderRadius:4, height:4, marginBottom:6 }}>
+            <div style={{ background:LIME, borderRadius:4, height:4, width:progress+'%', transition:'width 0.2s' }}></div>
+          </div>
+          <div style={{ fontSize:11, color:'#555' }}>{progress}% complete</div>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && <div style={{ background:'#200808', border:'0.5px solid #e05050', borderRadius:8, padding:'12px 16px', color:'#e05050', fontSize:12, marginBottom:14 }}>{error}</div>}
+
+      {/* Feasibility */}
+      {feasibility && (
+        <div style={card}>
+          <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em', marginBottom:12 }}>Yahoo Data Check — {feasibility.ticker}</div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:12 }}>
+            {[
+              ['Total Bars', feasibility.totalBars],
+              ['First Date', feasibility.firstDate],
+              ['Last Date',  feasibility.lastDate],
+              ['In-Range Bars', feasibility.rangeBars],
+            ].map(function(f){ return (
+              <div key={f[0]} style={stat}>
+                <div style={{ fontSize:9, color:'#555', textTransform:'uppercase', marginBottom:3 }}>{f[0]}</div>
+                <div style={{ fontSize:14, fontWeight:700, color:'#f0ede6' }}>{f[1]}</div>
+              </div>
+            ); })}
+          </div>
+          <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginBottom:10 }}>
+            {[
+              ['Prior bars',    feasibility.priorBars + ' (need 250)', feasibility.has250 ? '#7abd00' : '#e05050'],
+              ['OHLCV complete',feasibility.hasOHLCV ? 'Yes' : 'Partial', feasibility.hasOHLCV ? '#7abd00' : '#EF9F27'],
+              ['Status',        feasibility.status, feasibility.status==='Ready'?'#7abd00':feasibility.status==='Limited'?'#EF9F27':'#e05050'],
+            ].map(function(f){ return (
+              <div key={f[0]} style={{ background:'#0e0e0c', borderRadius:6, padding:'7px 12px' }}>
+                <div style={{ fontSize:9, color:'#555', textTransform:'uppercase', marginBottom:2 }}>{f[0]}</div>
+                <div style={{ fontSize:13, fontWeight:700, color:f[2] }}>{f[1]}</div>
+              </div>
+            ); })}
+          </div>
+          {!feasibility.has250 && <div style={{ fontSize:11, color:'#EF9F27', marginTop:6 }}>⚠ Not enough lookback data to calculate SMA200 reliably. Try an earlier start date.</div>}
+        </div>
+      )}
+
+      {/* Results */}
+      {results && results.rows.length === 0 && (
+        <div style={{ ...card, color:'#555', fontSize:13, textAlign:'center', padding:32 }}>No matching setup signals found for the selected period and filter.</div>
+      )}
+
+      {results && results.rows.length > 0 && (function(){
+        var stats = calcStats(results.rows);
+        var bySetup = calcBySetup(results.rows);
+        return (
+          <div>
+            {results.wasLimited && <div style={{ background:'#1e1800', border:'0.5px solid #EF9F27', borderRadius:7, padding:'8px 14px', color:'#EF9F27', fontSize:11, marginBottom:14 }}>⚠ Date range produced more than 1,000 test dates. Showing first 1,000 only. Narrow your date range for full coverage.</div>}
+
+            {/* Summary stats */}
+            <div style={card}>
+              <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em', marginBottom:12 }}>{'Summary — ' + ticker.toUpperCase() + ' · ' + results.hp + 'D Holding · ' + results.rows.length + ' signals'}</div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:10 }}>
+                {[
+                  ['Signals',     stats.total,           '#f0ede6'],
+                  ['Win Rate',    stats.winRate+'%',      parseFloat(stats.winRate)>=55?'#7abd00':parseFloat(stats.winRate)>=45?'#EF9F27':'#e05050'],
+                  ['Avg Return',  simFmtPct(parseFloat(stats.avg)),   parseFloat(stats.avg)>=0?'#7abd00':'#e05050'],
+                  ['Median',      simFmtPct(parseFloat(stats.median)),parseFloat(stats.median)>=0?'#7abd00':'#e05050'],
+                  ['Best',        '+'+stats.best+'%',    '#7abd00'],
+                  ['Worst',       stats.worst+'%',       '#e05050'],
+                  ['Hold Period', results.hp+'D',         '#888'],
+                ].map(function(f){ return (
+                  <div key={f[0]} style={stat}>
+                    <div style={{ fontSize:9, color:'#555', textTransform:'uppercase', marginBottom:4 }}>{f[0]}</div>
+                    <div style={{ fontSize:15, fontWeight:800, color:f[2] }}>{f[1]}</div>
+                  </div>
+                ); })}
+              </div>
+            </div>
+
+            {/* By-Setup breakdown */}
+            <div style={card}>
+              <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em', marginBottom:12 }}>Performance by Setup</div>
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
+                  <thead>
+                    <tr style={{ borderBottom:'1px solid #2a2a28' }}>
+                      {['Setup','Signals','Win Rate','Avg Return','Median','Best','Worst'].map(function(h){
+                        return <th key={h} style={{ padding:'5px 10px', fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18' }}>{h}</th>;
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bySetup.map(function(row, i){
+                      var sc = summaryCardDark(row.setup);
+                      var wr = parseFloat(row.winRate);
+                      var wrCol = wr>=55?'#7abd00':wr>=45?'#EF9F27':'#e05050';
+                      return (
+                        <tr key={row.setup} style={{ background: i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
+                          <td style={{ padding:'6px 10px', fontWeight:700, color:sc.text }}>{row.setup}</td>
+                          <td style={{ padding:'6px 10px', color:'#aaa' }}>{row.total}</td>
+                          <td style={{ padding:'6px 10px', fontWeight:700, color:wrCol }}>{row.winRate}%</td>
+                          <td style={{ padding:'6px 10px', color:parseFloat(row.avg)>=0?'#7abd00':'#e05050', fontWeight:600 }}>{simFmtPct(parseFloat(row.avg))}</td>
+                          <td style={{ padding:'6px 10px', color:parseFloat(row.median)>=0?'#7abd00':'#e05050' }}>{simFmtPct(parseFloat(row.median))}</td>
+                          <td style={{ padding:'6px 10px', color:'#7abd00' }}>{'+'+row.best+'%'}</td>
+                          <td style={{ padding:'6px 10px', color:'#e05050' }}>{row.worst+'%'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+
+            {/* Combination Performance */}
+            <div style={card}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:10 }}>
+                <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Combination Performance'}</div>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                    <span style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em' }}>{'Min Signals'}</span>
+                    <select value={minSignals} onChange={function(e){setMinSignals(e.target.value);}}
+                      style={{ background:'#111', border:'0.5px solid #333', borderRadius:5, padding:'4px 8px', color:'#f0ede6', fontSize:10, outline:'none', cursor:'pointer' }}>
+                      {['1','3','5','10'].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
+                    </select>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                    <span style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em' }}>{'Sort By'}</span>
+                    <select value={combSortBy} onChange={function(e){setCombSortBy(e.target.value);}}
+                      style={{ background:'#111', border:'0.5px solid #333', borderRadius:5, padding:'4px 8px', color:'#f0ede6', fontSize:10, outline:'none', cursor:'pointer' }}>
+                      {['Avg Return','Signals','Win Rate','Median Return','Worst Return'].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize:11, color:'#555', lineHeight:1.6, marginBottom:8 }}>
+                {'Combination Performance groups each historical signal by the exact Trend, Momentum, Reversal, and Smart Money values. This helps reveal which combinations worked better than the broader Setup label.'}
+              </div>
+              {(function(){
+                var minS = parseInt(minSignals) || 3;
+                var combRows = groupByCombination(results.rows);
+                var filtered6c = combRows.filter(function(r){ return r.signals >= minS; });
+                var sorted6c   = sortCombinationRows(filtered6c, combSortBy);
+                if (!sorted6c.length) return (
+                  <div style={{ color:'#555', fontSize:11, padding:'16px 0', textAlign:'center' }}>
+                    {'No combinations with ' + minS + '+ signals. Lower the Minimum Signals filter.'}
+                  </div>
+                );
+                return (
+                  <div style={{ overflowX:'auto' }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
+                      <thead>
+                        <tr style={{ borderBottom:'1px solid #2a2a28' }}>
+                          {['Trend','Momentum','Reversal','Smart Money','Setup','Signals','Win Rate','Avg Return','Median','Best','Worst',''].map(function(h){
+                            return <th key={h} style={{ padding:'5px 8px', fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>;
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sorted6c.map(function(row, i){
+                          var sc   = summaryCardDark(row.setup);
+                          var wr   = row.winRate;
+                          var wrC  = wr==null?'#555':wr>=60?'#7abd00':wr>=45?'#EF9F27':'#e05050';
+                          var avgC = row.avgReturn==null?'#555':row.avgReturn>=0?'#7abd00':'#e05050';
+                          var medC = row.medianReturn==null?'#555':row.medianReturn>=0?'#7abd00':'#e05050';
+                          var qlbl = combinationQualityLabel(row);
+                          var qlblStyle = qlbl==='Worked Well'
+                            ? { fontSize:8, fontWeight:700, color:'#7abd00', background:'#0d200d', border:'0.5px solid #7abd00', borderRadius:3, padding:'1px 5px' }
+                            : qlbl==='Weak'
+                            ? { fontSize:8, fontWeight:700, color:'#e05050', background:'#200808', border:'0.5px solid #e05050', borderRadius:3, padding:'1px 5px' }
+                            : { fontSize:8, color:'#555', background:'#111', border:'0.5px solid #333', borderRadius:3, padding:'1px 5px' };
+                          return (
+                            <tr key={row.key+i} style={{ background:i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
+                              <td style={{ padding:'5px 8px', color:'#aaa', fontSize:9, whiteSpace:'nowrap' }}>{row.trend}</td>
+                              <td style={{ padding:'5px 8px', color:'#aaa', fontSize:9 }}>{row.momentum}</td>
+                              <td style={{ padding:'5px 8px', color:'#aaa', fontSize:9, maxWidth:130, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={row.reversal}>{row.reversal}</td>
+                              <td style={{ padding:'5px 8px', color:'#aaa', fontSize:9, maxWidth:130, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={row.smartMoney}>{row.smartMoney}</td>
+                              <td style={{ padding:'5px 8px', fontWeight:700, color:sc.text, whiteSpace:'nowrap', fontSize:10 }}>{row.setup}</td>
+                              <td style={{ padding:'5px 8px', color:'#f0ede6', fontWeight:600, textAlign:'right' }}>{row.signals}</td>
+                              <td style={{ padding:'5px 8px', fontWeight:700, color:wrC, textAlign:'right' }}>{wr!=null?wr.toFixed(1)+'%':'—'}</td>
+                              <td style={{ padding:'5px 8px', fontWeight:700, color:avgC, textAlign:'right' }}>{simFmtPct(row.avgReturn)}</td>
+                              <td style={{ padding:'5px 8px', color:medC, textAlign:'right' }}>{simFmtPct(row.medianReturn)}</td>
+                              <td style={{ padding:'5px 8px', color:'#7abd00', textAlign:'right' }}>{simFmtPct(row.bestReturn)}</td>
+                              <td style={{ padding:'5px 8px', color:'#e05050', textAlign:'right' }}>{simFmtPct(row.worstReturn)}</td>
+                              <td style={{ padding:'5px 8px' }}>
+                                {qlbl && <span style={qlblStyle}>{qlbl}</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+              <div style={{ fontSize:9, color:'#444', marginTop:10 }}>{'Small sample sizes can be misleading. Use combinations with higher signal counts for stronger conclusions.'}</div>
+            </div>
+
+            {/* Historical signal table */}
+            <div style={card}>
+              <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em', marginBottom:12 }}>Historical Signals ({results.rows.length} rows)</div>
+              <div style={{ overflowX:'auto', maxHeight:480, overflowY:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
+                  <thead style={{ position:'sticky', top:0, zIndex:1 }}>
+                    <tr style={{ borderBottom:'1px solid #2a2a28' }}>
+                      {['Date','Close','Setup','Trend','Momentum','Reversal','Smart Money','Return','Result'].map(function(h){
+                        return <th key={h} style={{ padding:'5px 8px', fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>;
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.rows.map(function(r, i){
+                      var sc  = summaryCardDark(r.setup);
+                      var ret = r.futureReturn;
+                      var retCol = ret==null?'#555':ret>=5?'#7abd00':ret>=0?'#5a9a40':ret>-5?'#e08050':'#e05050';
+                      return (
+                        <tr key={r.date+i} style={{ background:i%2===0?'#181816':'#141412' }}>
+                          <td style={{ padding:'4px 8px', color:'#888', whiteSpace:'nowrap' }}>{r.date}</td>
+                          <td style={{ padding:'4px 8px', color:'#f0ede6', fontWeight:600 }}>{'$'+r.close.toFixed(2)}</td>
+                          <td style={{ padding:'4px 8px', fontWeight:700, color:sc.text, whiteSpace:'nowrap' }} title={r.fullSetup}>{r.setup}</td>
+                          <td style={{ padding:'4px 8px', color:'#888', fontSize:9, whiteSpace:'nowrap' }}>{r.trend}</td>
+                          <td style={{ padding:'4px 8px', color:'#888', fontSize:9 }}>{r.momentum}</td>
+                          <td style={{ padding:'4px 8px', color:'#888', fontSize:9, maxWidth:120, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.reversal}</td>
+                          <td style={{ padding:'4px 8px', color:'#888', fontSize:9, maxWidth:120, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.smartMoney}</td>
+                          <td style={{ padding:'4px 8px', fontWeight:700, color:retCol, whiteSpace:'nowrap' }}>{simFmtPct(ret)}</td>
+                          <td style={{ padding:'4px 8px' }}>
+                            <span style={{ fontSize:9, fontWeight:700, color:r.result==='Win'?'#7abd00':r.result==='Loss'?'#e05050':'#555',
+                              background:r.result==='Win'?'#0d200d':r.result==='Loss'?'#200808':'#111',
+                              padding:'2px 6px', borderRadius:4 }}>{r.result}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Disclaimer */}
+            <div style={{ fontSize:10, color:'#444', lineHeight:1.7, padding:'0 4px' }}>
+              Backtest uses historical Yahoo daily price data and NervousGeek rule-based technical logic. Results are for research only and are not financial advice. Historical performance does not guarantee future results.
+              <br />Signals are calculated using only data available up to each historical date to reduce look-ahead bias.
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -3312,7 +3931,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.38</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.40</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -3366,7 +3985,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.38</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.40</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -9615,6 +10234,10 @@ export default function App() {
     return <Screener />;
   }
 
+  if (hashSym === "SIMULATOR") {
+    return <SimulatorPage />;
+  }
+
   if (hashSym === "JOURNAL") {
   return <JournalPage />;
 }
@@ -9740,7 +10363,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.38</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.40</span>
           </div>
         </div>
 
