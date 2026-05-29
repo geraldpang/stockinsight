@@ -1022,17 +1022,29 @@ function CalcPanel({ currentPrice, onClose }) {
 function summaryCardDark(verdict) {
   if (!verdict) return { bg:'#1a1a1a', bd:'#333', text:'#666' };
   var v = verdict.toLowerCase();
+  // ── Explicit overrides BEFORE broad keyword checks ───────────────────────────
+  // Prevents "Caution — Uptrend Losing Strength" matching 'uptrend' → green
+  // Prevents "Strong Bearish" matching 'strong' → green
+  // Prevents "Bullish Watch — Recovery Setup Forming" matching 'forming' → green
+  if (v.indexOf('strong bearish')!==-1)                          return { bg:'#200808', bd:'#e05050', text:'#e05050' };
+  if (v.indexOf('strong bullish')!==-1)                          return { bg:'#0d200d', bd:'#7abd00', text:'#7abd00' };
+  if (v.indexOf('bullish watch')!==-1)                           return { bg:'#1e1800', bd:'#EF9F27', text:'#EF9F27' };
+  if (v.indexOf('caution')!==-1 || v.indexOf('uptrend losing')!==-1)
+                                                                 return { bg:'#241800', bd:'#b87820', text:'#b87820' };
+  if (v.indexOf('bearish watch')!==-1 || v.indexOf('breakdown risk')!==-1)
+                                                                 return { bg:'#1e1008', bd:'#c86820', text:'#c86820' };
   // Tier 1 — exceptional / wide / strong uptrend / strong (momentum) / confirmed
   if (v.indexOf('exceptional')!==-1 || v.indexOf('wide')!==-1 ||
       v.indexOf('strong uptrend')!==-1 || v.indexOf('strong multi')!==-1 ||
       v.indexOf('accumulation trend')!==-1 ||
       (v.indexOf('confirmed')!==-1 && v.indexOf('bullish')!==-1))
     return { bg:'#0d200d', bd:'#7abd00', text:'#7abd00' };
-  // Tier 2 — strong / uptrend / building / undervalued / triggered / forming / confirming / good (fundamental)
+  // Tier 2 — strong / uptrend / building / undervalued / triggered / forming / confirming / good (fundamental) / bullish (plain)
   if (v.indexOf('strong')!==-1 || v.indexOf('uptrend')!==-1 ||
       v.indexOf('building')!==-1 || v.indexOf('undervalued')!==-1 ||
       v.indexOf('triggered')!==-1 || v.indexOf('forming')!==-1 ||
-      v.indexOf('confirming')!==-1 || v.indexOf('good')!==-1)
+      v.indexOf('confirming')!==-1 || v.indexOf('good')!==-1 ||
+      v.indexOf('bullish')!==-1)
     return { bg:'#0f2010', bd:'#9acd50', text:'#9acd50' };
   // Tier 3 — moderate / neutral / sideways / watch / spark / early / constructive / fair / premium / stretched (fundamental)
   if (v.indexOf('moderate')!==-1 || v.indexOf('neutral')!==-1 ||
@@ -1311,15 +1323,14 @@ function Screener() {
   }
 
   var LIME  = '#c8f000';
-  var [filterTrend,    setFilterTrend]    = useState('');
-  var [filterMomentum, setFilterMomentum] = useState('');
-  var [filterReversal, setFilterReversal] = useState('');
-  var [filterSMF,      setFilterSMF]      = useState('');
+  var [filterTrend,    setFilterTrend]    = useState([]);
+  var [filterMomentum, setFilterMomentum] = useState([]);
+  var [filterReversal, setFilterReversal] = useState([]);
+  var [filterSMF,      setFilterSMF]      = useState([]);
+  var [filterSetupSc,  setFilterSetupSc]  = useState([]);
+  var [scSortCol,      setScSortCol]      = useState('');
+  var [scSortDir,      setScSortDir]      = useState('desc');
   // Scan criteria — applied client-side on cached results
-  var [reqReversal,  setReqReversal]  = useState(false);
-  var [reqSMF,       setReqSMF]       = useState(false);
-  var [reqTrend,     setReqTrend]     = useState(false);
-  var [reqMomentum,  setReqMomentum]  = useState(false);
   var items = (results&&results.results)||[];
 
   function fmtVol(v){ if(!v||v===0) return String.fromCharCode(0x2014); if(v>=1e9) return (v/1e9).toFixed(1)+'B'; if(v>=1e6) return (v/1e6).toFixed(1)+'M'; return (v/1e3).toFixed(0)+'K'; }
@@ -1360,47 +1371,48 @@ function Screener() {
 
       {(scanStatus==='done'||scanStatus==='scanning') && results && (
         <div>
-          {/* Scan criteria checkboxes */}
-          <div style={{ background:'#161614', border:'0.5px solid #2a2a28', borderRadius:8, padding:'12px 14px', marginBottom:12 }}>
-            <div style={{ fontSize:10, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:10 }}>Screening Criteria</div>
-            <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
-              {[
-                ['Positive Reversal',  reqReversal,  setReqReversal],
-                ['Positive Money Flow',reqSMF,        setReqSMF],
-                ['Uptrend+',           reqTrend,      setReqTrend],
-                ['Building+ Momentum', reqMomentum,   setReqMomentum],
-              ].map(function(c){
-                return (
-                  <label key={c[0]} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:12, color:c[1]?'#c8f000':'#666' }}>
-                    <input type='checkbox' checked={c[1]} onChange={function(e){ c[2](e.target.checked); }}
-                      style={{ accentColor:'#c8f000', width:13, height:13, cursor:'pointer' }} />
-                    {c[0]}
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-          {/* Specific value filters */}
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14, alignItems:'center' }}>
-            <span style={{ fontSize:10, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginRight:2 }}>Filter:</span>
-            {[
+
+          {/* Multi-select pill filters */}
+          {(function(){
+            var SETUP_OPTS = ['Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
+            var FILTER_GROUPS = [
               ['Trend',      filterTrend,    setFilterTrend,    ['Strong Uptrend','Uptrend','Sideways','Downtrend','Strong Downtrend']],
               ['Momentum',   filterMomentum, setFilterMomentum, ['Strong','Building','Neutral','Fading','Weak']],
-              ['Reversal',   filterReversal, setFilterReversal, ['Bullish Reversal Spark','Bullish Reversal Watch','Bullish Reversal Forming','Bullish Reversal Triggered','Bullish Reversal Confirming','Bullish Reversal Confirmed']],
-              ['Money Flow', filterSMF,      setFilterSMF,      ['Strong Multi-Timeframe Flow','Accumulation Trend Positive','Early Accumulation','Constructive but Cooling']],
-            ].map(function(f){
-              return (
-                <select key={f[0]} value={f[1]} onChange={function(e){ f[2](e.target.value); }}
-                  style={{ background:'#1a1a18', border:'0.5px solid '+(f[1]?'#7abd00':'#333'), borderRadius:6, color:f[1]?'#c8f000':'#666', fontSize:11, padding:'5px 8px', cursor:'pointer', outline:'none' }}>
-                  <option value=''>{'All '+f[0]}</option>
-                  {f[3].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
-                </select>
-              );
-            })}
-            {(filterTrend||filterMomentum||filterReversal||filterSMF) &&
-              <button onClick={function(){ setFilterTrend(''); setFilterMomentum(''); setFilterReversal(''); setFilterSMF(''); }}
-                style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#555', fontSize:11, padding:'5px 8px', cursor:'pointer' }}>Clear</button>}
-          </div>
+              ['Setup',      filterSetupSc,  setFilterSetupSc,  SETUP_OPTS],
+              ['Reversal',   filterReversal, setFilterReversal, ['Bull Spark','Bull Watch','Bull Forming','Bull Triggered','Bull Confirming','Bull Confirmed','Bear Watch','Mixed']],
+              ['Money Flow', filterSMF,      setFilterSMF,      ['Strong Flow','Accumulating','Early Accum.','Constructive','ST Spike']],
+            ];
+            // Map display labels back to actual values for filtering
+            var REV_MAP = {'Bull Spark':'Bullish Reversal Spark','Bull Watch':'Bullish Reversal Watch','Bull Forming':'Bullish Reversal Forming','Bull Triggered':'Bullish Reversal Triggered','Bull Confirming':'Bullish Reversal Confirming','Bull Confirmed':'Bullish Reversal Confirmed','Bear Watch':'Bearish Reversal Watch','Mixed':'Mixed Reversal Signals'};
+            var SMF_MAP = {'Strong Flow':'Strong Multi-Timeframe Flow','Accumulating':'Accumulation Trend Positive','Early Accum.':'Early Accumulation','Constructive':'Constructive but Cooling','ST Spike':'Short-Term Spike'};
+            var anyActive = filterTrend.length||filterMomentum.length||filterReversal.length||filterSMF.length||filterSetupSc.length;
+            function toggle(arr, setArr, v) { setArr(arr.indexOf(v)!==-1 ? arr.filter(function(x){return x!==v;}) : arr.concat([v])); }
+            return (
+              <div style={{ background:'#151513', border:'0.5px solid #222', borderRadius:8, padding:'10px 14px', marginBottom:14 }}>
+                {FILTER_GROUPS.map(function(fg){
+                  var lbl=fg[0], arr=fg[1], setArr=fg[2], opts=fg[3];
+                  return (
+                    <div key={lbl} style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
+                      <span style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', minWidth:70, paddingTop:3, flexShrink:0 }}>{lbl}</span>
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+                        {opts.map(function(v){
+                          var sel = arr.indexOf(v)!==-1;
+                          var sc = summaryCardDark(lbl==='Setup'?v:lbl==='Trend'?v:lbl==='Momentum'?v:'Neutral');
+                          var ac = lbl==='Setup' ? summaryCardDark(v).text : '#c8f000';
+                          return <button key={v} onClick={function(){ toggle(arr,setArr,v); }}
+                            style={{ fontSize:9, padding:'2px 8px', borderRadius:10, cursor:'pointer', fontWeight:sel?700:400,
+                              background:sel?'#1e2a10':'#1a1a18', color:sel?ac:'#555',
+                              border:'0.5px solid '+(sel?ac:'#2a2a28'), outline:'none' }}>{v}</button>;
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+                {anyActive ? <button onClick={function(){ setFilterTrend([]); setFilterMomentum([]); setFilterReversal([]); setFilterSMF([]); setFilterSetupSc([]); }}
+                  style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #444', borderRadius:5, color:'#666', cursor:'pointer', marginTop:2 }}>Clear all filters</button> : null}
+              </div>
+            );
+          })()}
           {(function(){
             // Compact display labels for long status strings
             function cRev(s){ if(!s) return String.fromCharCode(0x2014); var l=s.toLowerCase(); if(l.indexOf('no clear')!==-1) return String.fromCharCode(0x2014); if(l.indexOf('spark')!==-1) return 'Spark'; if(l.indexOf('confirming')!==-1) return 'Confirming'; if(l.indexOf('confirmed')!==-1) return 'Confirmed'; if(l.indexOf('triggered')!==-1) return 'Triggered'; if(l.indexOf('forming')!==-1) return 'Forming'; if(l.indexOf('watch')!==-1&&l.indexOf('bull')!==-1) return 'Bull Watch'; if(l.indexOf('watch')!==-1&&l.indexOf('bear')!==-1) return 'Bear Watch'; if(l.indexOf('confirmed')!==-1&&l.indexOf('bear')!==-1) return 'Bear Conf.'; if(l.indexOf('forming')!==-1&&l.indexOf('bear')!==-1) return 'Bear Form.'; if(l.indexOf('mixed')!==-1) return 'Mixed'; return s; }
@@ -1410,16 +1422,17 @@ function Screener() {
             function isPosT(s)  { return s==='Uptrend'||s==='Strong Uptrend'; }
             function isPosMom(s){ return s==='Building'||s==='Strong'; }
 
-            // Apply criteria + specific value filters
+            // Apply specific value filters (array multi-select)
+            var REV_MAP2 = {'Bull Spark':'Bullish Reversal Spark','Bull Watch':'Bullish Reversal Watch','Bull Forming':'Bullish Reversal Forming','Bull Triggered':'Bullish Reversal Triggered','Bull Confirming':'Bullish Reversal Confirming','Bull Confirmed':'Bullish Reversal Confirmed','Bear Watch':'Bearish Reversal Watch','Mixed':'Mixed Reversal Signals'};
+            var SMF_MAP2 = {'Strong Flow':'Strong Multi-Timeframe Flow','Accumulating':'Accumulation Trend Positive','Early Accum.':'Early Accumulation','Constructive':'Constructive but Cooling','ST Spike':'Short-Term Spike'};
+            var filterRevFull = filterReversal.map(function(v){ return REV_MAP2[v]||v; });
+            var filterSMFFull = filterSMF.map(function(v){ return SMF_MAP2[v]||v; });
+
             var filtered = items.filter(function(row){
-              if (reqReversal  && !isPosRev(row.reversal))  return false;
-              if (reqSMF       && !isPosSMF(row.moneyFlow)) return false;
-              if (reqTrend     && !isPosT(row.trend))        return false;
-              if (reqMomentum  && !isPosMom(row.momentum))   return false;
-              if (filterTrend    && row.trend    !==filterTrend)    return false;
-              if (filterMomentum && row.momentum !==filterMomentum) return false;
-              if (filterReversal && row.reversal !==filterReversal) return false;
-              if (filterSMF      && row.moneyFlow!==filterSMF)      return false;
+              if (filterTrend.length    && filterTrend.indexOf(row.trend)    ===-1) return false;
+              if (filterMomentum.length && filterMomentum.indexOf(row.momentum)===-1) return false;
+              if (filterRevFull.length  && filterRevFull.indexOf(row.reversal)===-1) return false;
+              if (filterSMFFull.length  && filterSMFFull.indexOf(row.moneyFlow)===-1) return false;
               return true;
             });
 
@@ -1429,17 +1442,34 @@ function Screener() {
               </div>
             );
 
-            // Enrich with Setup (rule-based, no AI)
+            // Enrich + Setup filter + sort
             var enriched = filtered.map(enrichRowWithRuleSetup);
-
-            // Grid: Ticker | Company | Price | Chg% | Volume | Trend | Momentum | Setup | Reversal | Money Flow | View | +Journal
-            var GRID = '65px 150px 70px 58px 68px 90px 85px 110px minmax(80px,130px) minmax(80px,110px) 48px 70px';
+            if (filterSetupSc.length) enriched = enriched.filter(function(row){ return filterSetupSc.indexOf(row.ruleShortVerdict)!==-1; });
+            var SC_KEY = {ticker:'ticker',company:'company',price:'price',chg:'changePct',vol:'volume',trend:'trend',momentum:'momentum',reversal:'reversal',moneyFlow:'moneyFlow',setup:'ruleShortVerdict'};
+            if (scSortCol && SC_KEY[scSortCol]) {
+              var _sk = SC_KEY[scSortCol];
+              enriched = enriched.slice().sort(function(a,b){
+                var av=a[_sk],bv=b[_sk];
+                if(av==null)return 1; if(bv==null)return -1;
+                var cmp=av<bv?-1:av>bv?1:0; return scSortDir==='asc'?cmp:-cmp;
+              });
+            }
+            function ScTh(col,label,rightPad){
+              var active=scSortCol===col;
+              return <div style={{fontSize:9,fontWeight:700,color:active?'#c8f000':'#555',textTransform:'uppercase',letterSpacing:'0.06em',cursor:'pointer',userSelect:'none',paddingRight:rightPad||0}}
+                onClick={function(){setScSortCol(col);setScSortDir(active&&scSortDir==='asc'?'desc':'asc');}}>
+                {label}{active?(scSortDir==='asc'?' ▲':' ▼'):''}
+              </div>;
+            }
+            // Column order: Ticker|Company|Price|Chg%|Volume|Trend|Momentum|Reversal|Money Flow|Setup|View|+Journal
+            var GRID = '65px 150px 70px 58px 68px 90px 85px minmax(80px,130px) minmax(80px,110px) 110px 48px 70px';
             return (
               <div style={{ border:'0.5px solid #2a2a28', borderRadius:10, overflow:'hidden' }}>
                 <div style={{ display:'grid', gridTemplateColumns:GRID, columnGap:12, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
-                  {['Ticker','Company','Price','Chg%','Volume','Trend','Momentum','Setup','Reversal','Money Flow','',''].map(function(h,i){
-                    return <div key={i} style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', paddingRight: i===4 ? 32 : 0 }}>{h}</div>;
-                  })}
+                  {ScTh('ticker','Ticker')}{ScTh('company','Company')}{ScTh('price','Price')}{ScTh('chg','Chg%')}
+                  {ScTh('vol','Volume')}{ScTh('trend','Trend')}{ScTh('momentum','Momentum')}
+                  {ScTh('reversal','Reversal')}{ScTh('moneyFlow','Money Flow')}{ScTh('setup','Setup')}
+                  <div></div><div></div>
                 </div>
                 {enriched.map(function(row,i){
                   var revC   = revStatusColor(row.reversal,'main');
@@ -1453,16 +1483,15 @@ function Screener() {
                       <div style={{ fontSize:11, color:'#666', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.company}</div>
                       <div style={{ fontSize:12, fontWeight:600, color:'#f0ede6' }}>{'$'+row.price.toFixed(2)}</div>
                       <div style={{ fontSize:11, fontWeight:600, color:row.changePct>=0?'#7abd00':'#e05050' }}>{(row.changePct>=0?'+':'')+row.changePct.toFixed(2)+'%'}</div>
-                      <div style={{ fontSize:11, color:'#888', paddingRight:32 }}>{fmtVol(row.volume)}</div>
+                      <div style={{ fontSize:11, color:'#888' }}>{fmtVol(row.volume)}</div>
                       <div style={{ fontSize:11, fontWeight:600, color:tC }}>{row.trend}</div>
                       <div style={{ fontSize:11, fontWeight:600, color:mC }}>{row.momentum}</div>
-                      {/* Setup — Rule Based Analytics verdict */}
+                      <div style={{ fontSize:10, fontWeight:700, color:revC, lineHeight:1.3 }} title={row.reversal}>{cRev(row.reversal)}</div>
+                      <div style={{ fontSize:10, fontWeight:700, color:smfC, lineHeight:1.3 }} title={row.moneyFlow}>{cSmf(row.moneyFlow)}</div>
                       <div title={row.ruleVerdict||''}>
                         <div style={{ fontSize:11, fontWeight:700, color:setupC.text, lineHeight:1.3 }}>{row.ruleShortVerdict}</div>
                         {row.ruleSubtitle && <div style={{ fontSize:9, color:setupC.text+'99', lineHeight:1.3, marginTop:2 }}>{row.ruleSubtitle}</div>}
                       </div>
-                      <div style={{ fontSize:10, fontWeight:700, color:revC, lineHeight:1.3 }} title={row.reversal}>{cRev(row.reversal)}</div>
-                      <div style={{ fontSize:10, fontWeight:700, color:smfC, lineHeight:1.3 }} title={row.moneyFlow}>{cSmf(row.moneyFlow)}</div>
                       <button onClick={function(){ window.location.hash=row.ticker; }}
                         style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#888', fontSize:10, cursor:'pointer', padding:'4px 6px' }}>View</button>
                       <button onClick={function(){ addToJournal(row); }}
@@ -3283,7 +3312,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.37</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.38</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -3337,7 +3366,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.37</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.38</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -8649,7 +8678,7 @@ export function JournalPage() {
   var [addTicker, setAddTicker]     = useState("");
   var [loading, setLoading]         = useState("");
   var [toast, setToast]             = useState(null);
-  var [filter, setFilter]           = useState({ ticker:"", trend:"", momentum:"", reversal:"", smartMoney:"", outcome:"" });
+  var [filter, setFilter]           = useState({ ticker:[], trend:[], momentum:[], reversal:[], smartMoney:[], outcome:[], setup:[] });
   var [generating, setGenerating]   = useState({});
   var [sortCol, setSortCol]         = useState("snapshot_date");
   var [sortDir, setSortDir]         = useState("desc");
@@ -8897,20 +8926,15 @@ export function JournalPage() {
     return "#555";
   }
   function filteredJournal() {
+    // Returns filtered (unsorted) rows; sort is applied after enrichment below
     return journal.filter(function(r) {
-      if (filter.ticker   && r.ticker !== filter.ticker.toUpperCase()) return false;
-      if (filter.trend    && r.trend_status    !== filter.trend)       return false;
-      if (filter.momentum && r.momentum_status !== filter.momentum)    return false;
-      if (filter.reversal && !(r.reversal_status||"").includes(filter.reversal)) return false;
-      if (filter.smartMoney && !(r.smart_money_status||"").includes(filter.smartMoney)) return false;
-      if (filter.outcome  && r.bullish_outcome_label !== filter.outcome) return false;
+      if (filter.ticker.length    && filter.ticker.indexOf(r.ticker)===-1)                         return false;
+      if (filter.trend.length     && filter.trend.indexOf(r.trend_status)===-1)                    return false;
+      if (filter.momentum.length  && filter.momentum.indexOf(r.momentum_status)===-1)              return false;
+      if (filter.reversal.length  && !filter.reversal.some(function(v){ return (r.reversal_status||"").includes(v); })) return false;
+      if (filter.smartMoney.length&& filter.smartMoney.indexOf(r.smart_money_status)===-1)         return false;
+      if (filter.outcome.length   && filter.outcome.indexOf(r.bullish_outcome_label)===-1)         return false;
       return true;
-    }).sort(function(a, b) {
-      var av = a[sortCol], bv = b[sortCol];
-      if (av === null || av === undefined) return 1;
-      if (bv === null || bv === undefined) return -1;
-      var cmp = av < bv ? -1 : av > bv ? 1 : 0;
-      return sortDir === "asc" ? cmp : -cmp;
     });
   }
 
@@ -8970,7 +8994,19 @@ export function JournalPage() {
     </div>
   );
 
-  var fj = filteredJournal();
+  // Enrich all filtered rows, apply Setup filter, then sort
+  var fjRaw = filteredJournal();
+  var fjEnriched = fjRaw.map(enrichRowWithRuleSetup);
+  if (filter.setup.length) fjEnriched = fjEnriched.filter(function(r){ return filter.setup.indexOf(r.ruleShortVerdict)!==-1; });
+  fjEnriched.sort(function(a,b){
+    var av = sortCol==='rule_setup' ? a.ruleShortVerdict : a[sortCol];
+    var bv = sortCol==='rule_setup' ? b.ruleShortVerdict : b[sortCol];
+    if (av===null||av===undefined) return 1;
+    if (bv===null||bv===undefined) return -1;
+    var cmp = av<bv?-1:av>bv?1:0;
+    return sortDir==='asc'?cmp:-cmp;
+  });
+  var fj = fjEnriched;
   var activeTickers = [...new Set(journal.map(function(e){ return e.ticker; }))];
 
   // ── Main journal UI ─────────────────────────────────────────────────────────
@@ -9021,26 +9057,46 @@ export function JournalPage() {
         <div>
           <div style={{ fontSize:12, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>Signal Journal ({fj.length} records)</div>
 
-          {/* Filters */}
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:12 }}>
-            {[
-              ["Ticker",      "ticker",     activeTickers],
-              ["Trend",       "trend",      ["Strong Uptrend","Uptrend","Sideways","Downtrend","Strong Downtrend"]],
-              ["Momentum",    "momentum",   ["Strong","Building","Neutral","Fading","Weak"]],
-              ["Reversal",    "reversal",   ["Bullish Reversal Spark","Bullish Reversal Watch","Bullish Reversal Forming","Bullish Reversal Triggered","Bullish Reversal Confirming","Bullish Reversal Confirmed","Bearish Reversal Watch","Bearish Reversal Forming","Bearish Reversal Triggered","Bearish Reversal Confirmed","Mixed Reversal Signals","No Clear Reversal"]],
-              ["Smart Money", "smartMoney", ["Strong Multi-Timeframe Flow","Accumulation Trend Positive","Early Accumulation","Constructive but Cooling","Short-Term Spike","No Clear Signal"]],
-              ["Outcome",     "outcome",    ["Strong Win","Win","Neutral","Failed","Strong Failed","Pending"]],
-            ].map(function(f) {
-              return <select key={f[0]} value={filter[f[1]]} onChange={function(e){ setFilter(function(prev){ return Object.assign({},prev,{ [f[1]]: e.target.value }); }); }}
-                style={{ background:"#181816", border:"0.5px solid #333", borderRadius:6, padding:"6px 10px", color:filter[f[1]]?"#c8f000":"#666", fontSize:11, outline:"none" }}>
-                <option value="">All {f[0]}</option>
-                {f[2].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
-              </select>;
-            })}
-            <button onClick={function(){ setFilter({ ticker:"", trend:"", momentum:"", reversal:"", smartMoney:"", outcome:"" }); }}
-              style={{ background:"none", border:"0.5px solid #333", borderRadius:6, padding:"6px 10px", color:"#555", fontSize:11, cursor:"pointer" }}>
-              Clear Filters
-            </button>
+          {/* Multi-select pill filters */}
+          <div style={{ background:"#181816", border:"0.5px solid #222", borderRadius:8, padding:"10px 14px", marginBottom:12 }}>
+            {(function(){
+              var SETUP_OPTS = ['Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
+              function toggle(key, v) { setFilter(function(prev){ var a=prev[key]; var next=a.indexOf(v)!==-1?a.filter(function(x){return x!==v;}):a.concat([v]); return Object.assign({},prev,{[key]:next}); }); }
+              var groups = [
+                ["Ticker",      "ticker",     activeTickers],
+                ["Trend",       "trend",      ["Strong Uptrend","Uptrend","Sideways","Downtrend","Strong Downtrend"]],
+                ["Momentum",    "momentum",   ["Strong","Building","Neutral","Fading","Weak"]],
+                ["Reversal",    "reversal",   ["Bull Spark","Bull Watch","Bull Forming","Bull Triggered","Bull Confirming","Bull Confirmed","Bear Watch","Bear Forming","Bear Triggered","Bear Confirmed","Mixed"]],
+                ["Smart Money", "smartMoney", ["Strong Flow","Accumulating","Early Accum.","Constructive","ST Spike","No Signal"]],
+                ["Setup",       "setup",      SETUP_OPTS],
+                ["Outcome",     "outcome",    ["Strong Win","Win","Neutral","Failed","Strong Failed","Pending"]],
+              ];
+              var anyActive = Object.values(filter).some(function(a){return a.length>0;});
+              return (
+                <div>
+                  {groups.map(function(fg){
+                    var lbl=fg[0], key=fg[1], opts=fg[2];
+                    return (
+                      <div key={key} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:7 }}>
+                        <span style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", minWidth:74, paddingTop:3, flexShrink:0 }}>{lbl}</span>
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+                          {opts.map(function(v){
+                            var sel = filter[key].indexOf(v)!==-1;
+                            var ac  = key==="setup" ? summaryCardDark(v).text : "#c8f000";
+                            return <button key={v} onClick={function(){ toggle(key,v); }}
+                              style={{ fontSize:9, padding:"2px 8px", borderRadius:10, cursor:"pointer", fontWeight:sel?700:400,
+                                background:sel?"#1e2a10":"#141412", color:sel?ac:"#555",
+                                border:"0.5px solid "+(sel?ac:"#2a2a28"), outline:"none" }}>{v}</button>;
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {anyActive && <button onClick={function(){ setFilter({ ticker:[], trend:[], momentum:[], reversal:[], smartMoney:[], outcome:[], setup:[] }); }}
+                    style={{ fontSize:10, padding:"3px 10px", background:"none", border:"0.5px solid #444", borderRadius:5, color:"#666", cursor:"pointer", marginTop:2 }}>Clear all filters</button>}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Table */}
@@ -9079,7 +9135,7 @@ export function JournalPage() {
                 </thead>
                 <tbody>
                   {fj.map(function(r, i) {
-                    var er  = enrichRowWithRuleSetup(r);
+                    var er  = r;  // already enriched above
                     var rowBg = i % 2 === 0 ? "#181816" : "#141412";
                     var revCol = reversalColor(r.reversal_status);
                     var smfCol = smfColor(r.smart_money_status);
@@ -9684,7 +9740,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.37</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.38</span>
           </div>
         </div>
 
