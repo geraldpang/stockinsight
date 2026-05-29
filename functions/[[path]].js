@@ -904,15 +904,7 @@ export async function onRequest(context) {
           var yahooUrl = "https://query2.finance.yahoo.com/v8/finance/chart/" + ticker3 + "?interval=1d&range=2y";
           var priceByDate = {};
           try {
-            var yRes = await fetch(yahooUrl, {
-              headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "application/json, text/plain, */*",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Origin": "https://finance.yahoo.com",
-                "Referer": "https://finance.yahoo.com/",
-              }
-            });
+            var yRes = await fetch(yahooUrl);
             var yJson = await yRes.json();
             var result = yJson && yJson.chart && yJson.chart.result && yJson.chart.result[0];
             if (result) {
@@ -977,8 +969,8 @@ export async function onRequest(context) {
               if (prices.length > 0) {
                 var maxG = Math.max.apply(null, prices);
                 var minG = Math.min.apply(null, prices);
-                updates["max_gain_"     + ww + "d"] = parseFloat(Math.max(0, ((maxG - basePrice) / basePrice * 100)).toFixed(2));
-                updates["max_drawdown_" + ww + "d"] = parseFloat(Math.min(0, ((minG - basePrice) / basePrice * 100)).toFixed(2));
+                updates["max_gain_"     + ww + "d"] = parseFloat(((maxG - basePrice) / basePrice * 100).toFixed(2));
+                updates["max_drawdown_" + ww + "d"] = parseFloat(((minG - basePrice) / basePrice * 100).toFixed(2));
               }
             }
 
@@ -998,35 +990,7 @@ export async function onRequest(context) {
               updated++;
             }
           }
-          var priceCount = Object.keys(priceByDate).length;
-          var dateRange  = priceCount > 0
-            ? { first: Object.keys(priceByDate).sort()[0], last: Object.keys(priceByDate).sort().pop() }
-            : null;
-
-          var debugRows = [];
-          for (var si2 = 0; si2 < rows3.length; si2++) {
-            var r2 = rows3[si2];
-            var r2Ms = new Date(r2.snapshot_date).getTime();
-            var windowDebug = {};
-            [1,3,5,10,20,30].forEach(function(w2) {
-              var tMs = r2Ms + Math.round(w2 * 1.4) * DAY_MS;
-              var tDate = new Date(tMs).toISOString().split("T")[0];
-              var found = priceNearDate(tMs, 5);
-              windowDebug[w2 + "d"] = { targetDate: tDate, found: found !== null, price: found };
-            });
-            debugRows.push({ id: r2.id, date: r2.snapshot_date, basePrice: r2.close_price, windows: windowDebug });
-          }
-
-          return new Response(JSON.stringify({
-            ok: true, updated: updated,
-            debug: {
-              ticker: ticker3,
-              yahooFetchSuccess: priceCount > 0,
-              pricesLoaded: priceCount,
-              dateRange: dateRange,
-              rows: debugRows,
-            }
-          }), { headers: jHeaders });
+          return new Response(JSON.stringify({ ok: true, updated: updated }), { headers: jHeaders });
         }
 
         // POST delete snapshot
