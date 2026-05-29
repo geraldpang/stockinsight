@@ -1313,6 +1313,172 @@ async function fetchYahooHistoricalBars(ticker, startDate, endDate, holdingPerio
   return bars;
 }
 
+// ── Run 6D: Best Bet Signal Research helpers ────────────
+var BB_DRIVER_LABELS = {
+  priceAboveSma50:'Price above SMA50', priceAboveSma200:'Price above SMA200',
+  sma50AboveSma200:'SMA50 above SMA200', priceReclaimedSma50:'Price reclaimed SMA50',
+  priceLostSma50:'Price lost SMA50', priceNear52wHigh:'Near 52W high',
+  priceFarBelow52wHigh:'Far below 52W high', priceAboveEma20:'Price above EMA20',
+  ema20AboveSma50:'EMA20 above SMA50', rsiAbove50:'RSI above 50',
+  rsiBetween45And65:'RSI 45–65', rsiAbove70:'RSI above 70', rsiRising:'RSI rising',
+  rsiFalling:'RSI falling', macdAboveSignal:'MACD above signal',
+  macdBelowSignal:'MACD below signal', macdImproving:'MACD improving',
+  macdDeteriorating:'MACD deteriorating', macdHistogramPositive:'MACD histogram positive',
+  macdHistogramImproving:'MACD histogram improving', volumeAbove20dAvg:'Volume above 20D avg',
+  volumeAbove50dAvg:'Volume above 50D avg', volumeRising5d:'Volume rising 5D',
+  smartMoneyConstructive:'Smart money constructive', smartMoneyCooling:'Smart money cooling',
+  smartMoneyPositive:'Smart money positive', smartMoneyNoClearSignal:'No clear SMF signal',
+  trendStrongUptrend:'Strong Uptrend', trendUptrend:'Uptrend',
+  trendSideways:'Sideways', trendDowntrend:'Downtrend',
+  momentumBuilding:'Momentum Building', momentumFading:'Momentum Fading',
+  momentumNeutral:'Momentum Neutral', reversalBullishConfirming:'Bullish Reversal Confirming',
+  reversalBullishSpark:'Bullish Reversal Spark', reversalBullishWatch:'Bullish Reversal Watch',
+  reversalBearishWatch:'Bearish Reversal Watch', reversalMixed:'Mixed Reversal',
+  smartMoneyConstructiveCooling:'Constructive but Cooling',
+  smartMoneyAccumulationPositive:'Accumulation Positive', smartMoneyNoClear:'No clear SMF',
+};
+var BB_PAIR_ALLOWLIST = [
+  'priceAboveSma50','priceAboveSma200','priceReclaimedSma50','priceNear52wHigh',
+  'priceFarBelow52wHigh','rsiBetween45And65','rsiRising','macdAboveSignal','macdImproving',
+  'volumeAbove20dAvg','momentumBuilding','momentumFading','reversalBullishConfirming',
+  'reversalBullishSpark','reversalBullishWatch','reversalBearishWatch','reversalMixed',
+  'smartMoneyConstructive','smartMoneyCooling','smartMoneyPositive',
+  'trendStrongUptrend','trendUptrend','trendSideways','trendDowntrend',
+];
+var BB_TRIPLE_TEMPLATES = [
+  { name:'Clean Continuation',            fn:function(d){ return (d.trendUptrend||d.trendStrongUptrend)&&d.momentumBuilding&&d.reversalBullishConfirming; }},
+  { name:'Healthy Trend Continuation',    fn:function(d){ return d.priceAboveSma50&&d.priceAboveSma200&&d.macdImproving; }},
+  { name:'Pullback Rebound',              fn:function(d){ return d.trendStrongUptrend&&d.momentumFading&&d.reversalBearishWatch; }},
+  { name:'Recovery Reclaim',              fn:function(d){ return (d.trendSideways||d.trendDowntrend)&&d.priceReclaimedSma50&&d.rsiRising; }},
+  { name:'Recovery Confirmation',         fn:function(d){ return d.momentumBuilding&&d.reversalBullishConfirming&&d.macdImproving; }},
+  { name:'Not Overextended Continuation', fn:function(d){ return d.priceAboveSma50&&d.rsiBetween45And65&&d.macdImproving; }},
+  { name:'Constructive Pullback',         fn:function(d){ return d.trendStrongUptrend&&d.smartMoneyCooling&&d.rsiBetween45And65; }},
+  { name:'Base Recovery',                 fn:function(d){ return d.trendSideways&&d.momentumBuilding&&d.reversalBullishSpark; }},
+  { name:'Smart Money Continuation',      fn:function(d){ return d.momentumBuilding&&d.reversalBullishConfirming&&d.smartMoneyConstructive; }},
+  { name:'Volume Confirmation',           fn:function(d){ return d.reversalBullishConfirming&&d.macdImproving&&d.volumeAbove20dAvg; }},
+];
+function buildSignalDrivers(ctx) {
+  var bars = ctx.barsUpToDate || []; var ind = ctx.indicators || {};
+  var snap = ctx.snapshot || {}; var bar = ctx.currentBar || {};
+  var close = bar.close || 0; var volume = bar.volume || 0;
+  var closes = bars.map(function(b){ return b.close; });
+  var sma50 = ind.sma50 || 0; var sma200 = ind.sma200 || 0; var ema20 = ind.ema20 || 0;
+  var rsi14 = ind.rsi14 || 0;
+  var rsiH = ind.rsiHistory || []; var macdH = ind.macdHistory || [];
+  var prevRsi  = rsiH.length >= 2 ? rsiH[rsiH.length-2] : rsi14;
+  var curHist  = macdH.length >= 1 ? macdH[macdH.length-1].histogram : 0;
+  var prevHist = macdH.length >= 2 ? macdH[macdH.length-2].histogram : curHist;
+  var curMacd  = macdH.length >= 1 ? macdH[macdH.length-1].macd   : 0;
+  var curSig   = macdH.length >= 1 ? macdH[macdH.length-1].signal : 0;
+  // Previous SMA50 from prior day closes
+  var prevSma50 = closes.length >= 51 ? simSMA(closes.slice(0,-1), 50) : sma50;
+  var prevClose = closes.length >= 2 ? closes[closes.length-2] : close;
+  // Volume averages
+  var vols20 = bars.slice(-21,-1).map(function(b){ return b.volume||0; });
+  var vols50 = bars.slice(-51,-1).map(function(b){ return b.volume||0; });
+  var last5v  = bars.slice(-5).map(function(b){ return b.volume||0; });
+  var prior5v = bars.slice(-10,-5).map(function(b){ return b.volume||0; });
+  var avg20v = vols20.length ? vols20.reduce(function(a,b){return a+b;},0)/vols20.length : 0;
+  var avg50v = vols50.length ? vols50.reduce(function(a,b){return a+b;},0)/vols50.length : 0;
+  var avgL5 = last5v.length ? last5v.reduce(function(a,b){return a+b;},0)/last5v.length : 0;
+  var avgP5 = prior5v.length ? prior5v.reduce(function(a,b){return a+b;},0)/prior5v.length : 0;
+  var hi52 = snap.meta && snap.meta.hi52 ? snap.meta.hi52 : 0;
+  var smfS = snap.smartMoneyFlow ? (snap.smartMoneyFlow.status||'') : '';
+  var tS   = snap.trend           ? (snap.trend.status||'')           : '';
+  var mS   = snap.momentum        ? (snap.momentum.status||'')        : '';
+  var rS   = snap.reversalWatch   ? (snap.reversalWatch.status||'')   : '';
+  return {
+    priceAboveSma50: sma50>0&&close>sma50, priceAboveSma200: sma200>0&&close>sma200,
+    sma50AboveSma200: sma50>0&&sma200>0&&sma50>sma200,
+    priceReclaimedSma50: prevSma50>0&&prevClose<=prevSma50&&close>sma50,
+    priceLostSma50: prevSma50>0&&prevClose>=prevSma50&&close<sma50,
+    priceNear52wHigh: hi52>0&&close>=hi52*0.90,
+    priceFarBelow52wHigh: hi52>0&&close<=hi52*0.75,
+    priceAboveEma20: ema20>0&&close>ema20, ema20AboveSma50: ema20>0&&sma50>0&&ema20>sma50,
+    rsiAbove50: rsi14>50, rsiBetween45And65: rsi14>=45&&rsi14<=65, rsiAbove70: rsi14>=70,
+    rsiRising: rsi14>prevRsi, rsiFalling: rsi14<prevRsi,
+    macdAboveSignal: curMacd>curSig, macdBelowSignal: curMacd<curSig,
+    macdImproving: curHist>prevHist, macdDeteriorating: curHist<prevHist,
+    macdHistogramPositive: curHist>0, macdHistogramImproving: curHist>prevHist,
+    volumeAbove20dAvg: avg20v>0&&volume>avg20v, volumeAbove50dAvg: avg50v>0&&volume>avg50v,
+    volumeRising5d: avgP5>0&&avgL5>avgP5,
+    smartMoneyConstructive: smfS.indexOf('Constructive')!==-1||smfS.indexOf('Accumulation')!==-1,
+    smartMoneyCooling: smfS.indexOf('Cooling')!==-1,
+    smartMoneyPositive: smfS.indexOf('Positive')!==-1||smfS.indexOf('Strong')!==-1,
+    smartMoneyNoClearSignal: smfS.indexOf('No Clear')!==-1,
+    trendStrongUptrend: tS==='Strong Uptrend', trendUptrend: tS==='Uptrend',
+    trendSideways: tS==='Sideways', trendDowntrend: tS==='Downtrend'||tS==='Strong Downtrend',
+    momentumBuilding: mS==='Building', momentumFading: mS==='Fading'||mS==='Weak',
+    momentumNeutral: mS==='Neutral',
+    reversalBullishConfirming: rS.indexOf('Confirming')!==-1||rS.indexOf('Confirmed')!==-1,
+    reversalBullishSpark: rS.indexOf('Spark')!==-1,
+    reversalBullishWatch: rS.indexOf('Watch')!==-1&&rS.indexOf('Bullish')!==-1,
+    reversalBearishWatch: rS.indexOf('Bearish')!==-1,
+    reversalMixed: rS.indexOf('Mixed')!==-1,
+    smartMoneyConstructiveCooling: smfS.indexOf('Constructive but Cooling')!==-1,
+    smartMoneyAccumulationPositive: smfS.indexOf('Accumulation Trend Positive')!==-1,
+    smartMoneyNoClear: smfS.indexOf('No Clear')!==-1,
+  };
+}
+function bestBetScore(row) {
+  if (!row || row.signals <= 0) return 0;
+  var wr = row.winRate || 0; var med = row.medianReturn || 0;
+  var avg = row.avgReturn || 0; var worst = row.worstReturn || 0; var sigs = row.signals || 0;
+  var sigScore  = Math.min(sigs / 30, 1) * 20;
+  var winScore  = wr * 0.4;
+  var medScore  = Math.max(Math.min(med, 20), -20) * 1.5;
+  var avgScore  = Math.max(Math.min(avg, 20), -20) * 0.8;
+  var worstPen  = worst < -15 ? Math.min(Math.abs(worst + 15), 25) : 0;
+  return sigScore + winScore + medScore + avgScore - worstPen;
+}
+function bestBetQuality(row) {
+  if (!row || row.signals < 10) return 'Low Sample';
+  if (row.winRate >= 75 && row.medianReturn > 0 && row.avgReturn > 0) return 'Strong';
+  if (row.winRate >= 65 && row.medianReturn > 0 && row.avgReturn > 0) return 'Promising';
+  if (row.winRate < 45 || row.medianReturn < 0) return 'Weak';
+  return 'Mixed';
+}
+function buildBestBetRows(rows) {
+  var singleMap = {}, pairMap = {}, tripleMap = {};
+  function addToMap(map, key, ret) {
+    if (!map[key]) map[key] = { returns:[], wins:0 };
+    map[key].returns.push(ret); if (ret > 0) map[key].wins++;
+  }
+  rows.forEach(function(row) {
+    if (!row.drivers || row.futureReturn == null) return;
+    var d = row.drivers; var ret = row.futureReturn;
+    // Single
+    Object.keys(d).forEach(function(k){ if (d[k]) addToMap(singleMap, k, ret); });
+    // Pairs from allowlist
+    var tp = BB_PAIR_ALLOWLIST.filter(function(k){ return d[k]; });
+    for (var i = 0; i < tp.length; i++) {
+      for (var j = i+1; j < tp.length; j++) addToMap(pairMap, tp[i]+' + '+tp[j], ret);
+    }
+    // Triples
+    BB_TRIPLE_TEMPLATES.forEach(function(t){ if (t.fn(d)) addToMap(tripleMap, t.name, ret); });
+  });
+  function toRow(signal, type, g, pairKeys) {
+    var sigs = g.returns.length; if (!sigs) return null;
+    var avg = g.returns.reduce(function(a,b){return a+b;},0)/sigs;
+    var med = simMedian(g.returns);
+    var best = Math.max.apply(null, g.returns); var worst = Math.min.apply(null, g.returns);
+    var wr = (g.wins/sigs)*100;
+    var r = { signal:signal, type:type, signals:sigs, winRate:wr, avgReturn:avg,
+              medianReturn:med, bestReturn:best, worstReturn:worst };
+    r.score = bestBetScore(r); r.quality = bestBetQuality(r);
+    return r;
+  }
+  var result = [];
+  Object.keys(singleMap).forEach(function(k){ var r=toRow(BB_DRIVER_LABELS[k]||k,'Single Driver',singleMap[k]); if(r) result.push(r); });
+  Object.keys(pairMap).forEach(function(pk){
+    var parts = pk.split(' + ');
+    var label = (BB_DRIVER_LABELS[parts[0]]||parts[0]) + ' + ' + (BB_DRIVER_LABELS[parts[1]]||parts[1]);
+    var r = toRow(label, 'Driver Pair', pairMap[pk]); if (r) result.push(r);
+  });
+  Object.keys(tripleMap).forEach(function(k){ var r=toRow(k,'Driver Triple',tripleMap[k]); if(r) result.push(r); });
+  return result;
+}
+
 function buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData) {
   if (!massiveInfo || !q) return null;
   var rawAggs = massiveInfo.aggs || [];
@@ -1713,6 +1879,17 @@ export function SimulatorPage() {
   var [progress,    setProgress]    = useState(0);
   var [minSignals,  setMinSignals]  = useState('3');
   var [combSortBy,  setCombSortBy]  = useState('Avg Return');
+  var [bbMinSignals,setBbMinSignals]= useState('10');
+  var [bbSortBy,    setBbSortBy]    = useState('Best Bet Score');
+  var [bbSignalType,setBbSignalType]= useState('All');
+  var [allBestBetRows,setAllBestBetRows]= useState([]);
+
+  // Recompute Best Bet rows when backtest results change
+  useEffect(function() {
+    if (results && results.rows && results.rows.length > 0) {
+      setAllBestBetRows(buildBestBetRows(results.rows));
+    } else { setAllBestBetRows([]); }
+  }, [results]);
 
   var SETUP_OPTS = ['All','Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
   var HP_OPTS    = [['5','5 trading days'],['10','10 trading days'],['20','20 trading days'],['60','60 trading days']];
@@ -1785,6 +1962,10 @@ export function SimulatorPage() {
         var sv = shortRuleVerdict(rba.verdict);
         if (setupFilter !== 'All' && sv !== setupFilter) continue;
         var ret = simPctReturn(bar.close, futureBar.close);
+        var drv = {};
+        try { drv = buildSignalDrivers({ barsUpToDate:slice, indicators:ind,
+          snapshot:Object.assign({},snap,{meta:{price:bar.close,hi52:hw.hi52,lo52:hw.lo52}}),
+          currentBar:bar }); } catch(e) {}
         rows.push({
           date: bar.date,
           close: bar.close,
@@ -1799,6 +1980,7 @@ export function SimulatorPage() {
           futureClose: futureBar.close,
           futureReturn: ret,
           result: ret != null ? (ret >= 0 ? 'Win' : 'Loss') : '—',
+          drivers: drv,
         });
       }
       setResults({ rows:rows, hp:hp, wasLimited: processed >= LIMIT });
@@ -2079,6 +2261,105 @@ export function SimulatorPage() {
                 );
               })()}
               <div style={{ fontSize:9, color:'#444', marginTop:10 }}>{'Small sample sizes can be misleading. Use combinations with higher signal counts for stronger conclusions.'}</div>
+            </div>
+
+
+            {/* Best Bet Signal Research */}
+            <div style={card}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:10 }}>
+                <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Best Bet Signal Research'}</div>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+                  {[['Min Signals', bbMinSignals, setBbMinSignals, ['5','10','20','30']],
+                    ['Sort By', bbSortBy, setBbSortBy, ['Best Bet Score','Win Rate','Median Return','Avg Return','Signals','Worst Return']],
+                    ['Signal Type', bbSignalType, setBbSignalType, ['All','Single Driver','Driver Pair','Driver Triple']],
+                  ].map(function(ctrl){
+                    return (
+                      <div key={ctrl[0]} style={{ display:'flex', alignItems:'center', gap:5 }}>
+                        <span style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em' }}>{ctrl[0]}</span>
+                        <select value={ctrl[1]} onChange={function(e){ ctrl[2](e.target.value); }}
+                          style={{ background:'#111', border:'0.5px solid #333', borderRadius:5, padding:'4px 8px', color:'#f0ede6', fontSize:10, outline:'none', cursor:'pointer' }}>
+                          {ctrl[3].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div style={{ fontSize:11, color:'#555', lineHeight:1.6, marginBottom:6 }}>
+                {'Best Bet Signal Research tests lower-level technical drivers and small driver combinations. It helps identify which conditions historically produced higher-probability forward returns.'}
+              </div>
+              {(function(){
+                var minS = parseInt(bbMinSignals) || 10;
+                var filtered = allBestBetRows.filter(function(r){ return r.signals >= minS; });
+                if (bbSignalType !== 'All') filtered = filtered.filter(function(r){ return r.type === bbSignalType; });
+                var sorted = filtered.slice().sort(function(a,b){
+                  if (bbSortBy === 'Win Rate')      return (b.winRate||0)       - (a.winRate||0);
+                  if (bbSortBy === 'Median Return')  return (b.medianReturn||0)  - (a.medianReturn||0);
+                  if (bbSortBy === 'Avg Return')     return (b.avgReturn||0)     - (a.avgReturn||0);
+                  if (bbSortBy === 'Signals')        return b.signals            - a.signals;
+                  if (bbSortBy === 'Worst Return')   return (b.worstReturn||-999)- (a.worstReturn||-999);
+                  return b.score - a.score; // Best Bet Score default
+                });
+                var top = sorted.slice(0, 30);
+                if (!top.length) return (
+                  <div style={{ color:'#555', fontSize:11, padding:'16px 0', textAlign:'center' }}>
+                    {'No signals with ' + minS + '+ count. Lower the Minimum Signals filter or run a longer backtest.'}
+                  </div>
+                );
+                function qlblStyle(ql) {
+                  if (ql === 'Strong')     return { fontSize:8, fontWeight:700, color:'#7abd00', background:'#0d200d', border:'0.5px solid #7abd00', borderRadius:3, padding:'1px 5px' };
+                  if (ql === 'Promising')  return { fontSize:8, fontWeight:700, color:'#6090d0', background:'#081020', border:'0.5px solid #6090d0', borderRadius:3, padding:'1px 5px' };
+                  if (ql === 'Weak')       return { fontSize:8, fontWeight:700, color:'#e05050', background:'#200808', border:'0.5px solid #e05050', borderRadius:3, padding:'1px 5px' };
+                  if (ql === 'Low Sample') return { fontSize:8, color:'#555', background:'#111', border:'0.5px solid #333', borderRadius:3, padding:'1px 5px' };
+                  return { fontSize:8, color:'#888', background:'#111', border:'0.5px solid #333', borderRadius:3, padding:'1px 5px' };
+                }
+                function typeColor(tp) {
+                  if (tp === 'Single Driver') return '#6090d0';
+                  if (tp === 'Driver Pair')   return '#c890d0';
+                  return '#d0a060';
+                }
+                return (
+                  <div>
+                    <div style={{ fontSize:9, color:'#555', marginBottom:8 }}>{'Showing top ' + top.length + ' of ' + sorted.length + ' ranked signals based on selected filters.'}</div>
+                    <div style={{ overflowX:'auto' }}>
+                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
+                        <thead>
+                          <tr style={{ borderBottom:'1px solid #2a2a28' }}>
+                            {['Signal','Type','Signals','Win Rate','Avg Ret','Median','Best','Worst','Score','Quality'].map(function(h){
+                              return <th key={h} style={{ padding:'5px 8px', fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>;
+                            })}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {top.map(function(row, i){
+                            var avgC = row.avgReturn >= 0 ? '#7abd00' : '#e05050';
+                            var medC = row.medianReturn >= 0 ? '#7abd00' : '#e05050';
+                            var wrC  = row.winRate >= 65 ? '#7abd00' : row.winRate >= 50 ? '#EF9F27' : '#e05050';
+                            return (
+                              <tr key={row.signal+i} style={{ background:i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
+                                <td style={{ padding:'5px 8px', color:'#f0ede6', fontSize:10, maxWidth:260, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={row.signal}>{row.signal}</td>
+                                <td style={{ padding:'5px 8px', whiteSpace:'nowrap' }}>
+                                  <span style={{ fontSize:8, fontWeight:600, color:typeColor(row.type), background:'#111', border:'0.5px solid '+typeColor(row.type)+'55', borderRadius:3, padding:'1px 5px' }}>{row.type}</span>
+                                </td>
+                                <td style={{ padding:'5px 8px', color:'#f0ede6', fontWeight:600, textAlign:'right' }}>{row.signals}</td>
+                                <td style={{ padding:'5px 8px', fontWeight:700, color:wrC, textAlign:'right' }}>{row.winRate.toFixed(1)+'%'}</td>
+                                <td style={{ padding:'5px 8px', fontWeight:700, color:avgC, textAlign:'right' }}>{simFmtPct(row.avgReturn)}</td>
+                                <td style={{ padding:'5px 8px', color:medC, textAlign:'right' }}>{simFmtPct(row.medianReturn)}</td>
+                                <td style={{ padding:'5px 8px', color:'#7abd00', textAlign:'right' }}>{simFmtPct(row.bestReturn)}</td>
+                                <td style={{ padding:'5px 8px', color:'#e05050', textAlign:'right' }}>{simFmtPct(row.worstReturn)}</td>
+                                <td style={{ padding:'5px 8px', color:'#888', textAlign:'right', fontWeight:600 }}>{row.score.toFixed(1)}</td>
+                                <td style={{ padding:'5px 8px' }}><span style={qlblStyle(row.quality)}>{row.quality}</span></td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div style={{ fontSize:9, color:'#444', marginTop:8 }}>{'Small sample sizes can be misleading. Use higher signal counts and positive median returns for stronger conclusions.'}</div>
+                    <div style={{ fontSize:9, color:'#333', marginTop:4 }}>{'Best Bet Signal Research is a historical research tool only. It does not guarantee future performance.'}</div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Historical signal table */}
@@ -3931,7 +4212,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.40</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.41</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -3985,7 +4266,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.40</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.41</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -10363,7 +10644,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.40</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.41</span>
           </div>
         </div>
 
