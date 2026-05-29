@@ -1288,3 +1288,43 @@ export function calcMassiveScore(bars, ind, meta) {
 
   return { score: final, dots: dots, label: label };
 }
+
+// ============================================================
+// Run 4 — Screener helper functions
+// Pure functions only. No API calls, no React state, no window.
+// ============================================================
+
+// isPositiveReversal: returns true for positive or early-interest bullish statuses.
+// Includes Bullish Reversal Spark and Bullish Reversal Confirming intentionally.
+// Does NOT include Mixed, Bearish, or No Clear Reversal.
+export function isPositiveReversal(snapshot) {
+  var status = snapshot && snapshot.reversalWatch && snapshot.reversalWatch.status;
+  if (!status) return false;
+  // All Bullish Reversal statuses are positive:
+  // Spark | Watch | Forming | Triggered | Confirming | Confirmed
+  return status.indexOf('Bullish') === 0;
+}
+
+// isPositiveMoneyFlow: returns true for positive or useful money flow statuses.
+// Constructive but Cooling is included as a moderate/watch signal.
+// Short-Term Spike and No Clear Signal are excluded.
+export function isPositiveMoneyFlow(snapshot) {
+  var status = snapshot && snapshot.smartMoneyFlow && snapshot.smartMoneyFlow.status;
+  if (!status) return false;
+  var POSITIVE = [
+    'Strong Multi-Timeframe Flow',
+    'Accumulation Trend Positive',
+    'Early Accumulation',
+    'Constructive but Cooling',
+  ];
+  return POSITIVE.indexOf(status) !== -1;
+}
+
+// screenPositiveReversalMoneyFlow: filters an array of snapshots to only those
+// where both positive Reversal and positive Money Flow are true.
+export function screenPositiveReversalMoneyFlow(snapshots) {
+  if (!snapshots || !snapshots.length) return [];
+  return snapshots.filter(function(snap) {
+    return isPositiveReversal(snap) && isPositiveMoneyFlow(snap);
+  });
+}
