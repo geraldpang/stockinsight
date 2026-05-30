@@ -1313,6 +1313,206 @@ async function fetchYahooHistoricalBars(ticker, startDate, endDate, holdingPerio
   return bars;
 }
 
+// ── Run 6D: Best Bet Signal Research helpers ────────────
+var BB_DRIVER_LABELS = {
+  priceAboveSma50:'Price above SMA50', priceAboveSma200:'Price above SMA200',
+  sma50AboveSma200:'SMA50 above SMA200', priceReclaimedSma50:'Price reclaimed SMA50',
+  priceLostSma50:'Price lost SMA50', priceNear52wHigh:'Near 52W high',
+  priceFarBelow52wHigh:'Far below 52W high', priceAboveEma20:'Price above EMA20',
+  ema20AboveSma50:'EMA20 above SMA50', rsiAbove50:'RSI above 50',
+  rsiBetween45And65:'RSI 45–65', rsiAbove70:'RSI above 70', rsiRising:'RSI rising',
+  rsiFalling:'RSI falling', macdAboveSignal:'MACD above signal',
+  macdBelowSignal:'MACD below signal', macdImproving:'MACD improving',
+  macdDeteriorating:'MACD deteriorating', macdHistogramPositive:'MACD histogram positive',
+  macdHistogramImproving:'MACD histogram improving', volumeAbove20dAvg:'Volume above 20D avg',
+  volumeAbove50dAvg:'Volume above 50D avg', volumeRising5d:'Volume rising 5D',
+  smartMoneyConstructive:'Smart money constructive', smartMoneyCooling:'Smart money cooling',
+  smartMoneyPositive:'Smart money positive', smartMoneyNoClearSignal:'No clear SMF signal',
+  trendStrongUptrend:'Strong Uptrend', trendUptrend:'Uptrend',
+  trendSideways:'Sideways', trendDowntrend:'Downtrend',
+  momentumBuilding:'Momentum Building', momentumFading:'Momentum Fading',
+  momentumNeutral:'Momentum Neutral', reversalBullishConfirming:'Bullish Reversal Confirming',
+  reversalBullishSpark:'Bullish Reversal Spark', reversalBullishWatch:'Bullish Reversal Watch',
+  reversalBearishWatch:'Bearish Reversal Watch', reversalMixed:'Mixed Reversal',
+  smartMoneyConstructiveCooling:'Constructive but Cooling',
+  smartMoneyAccumulationPositive:'Accumulation Positive', smartMoneyNoClear:'No clear SMF',
+};
+
+function buildSignalDrivers(ctx) {
+  var bars = ctx.barsUpToDate || []; var ind = ctx.indicators || {};
+  var snap = ctx.snapshot || {}; var bar = ctx.currentBar || {};
+  var close = bar.close || 0; var volume = bar.volume || 0;
+  var closes = bars.map(function(b){ return b.close; });
+  var sma50 = ind.sma50 || 0; var sma200 = ind.sma200 || 0; var ema20 = ind.ema20 || 0;
+  var rsi14 = ind.rsi14 || 0;
+  var rsiH = ind.rsiHistory || []; var macdH = ind.macdHistory || [];
+  var prevRsi  = rsiH.length >= 2 ? rsiH[rsiH.length-2] : rsi14;
+  var curHist  = macdH.length >= 1 ? macdH[macdH.length-1].histogram : 0;
+  var prevHist = macdH.length >= 2 ? macdH[macdH.length-2].histogram : curHist;
+  var curMacd  = macdH.length >= 1 ? macdH[macdH.length-1].macd   : 0;
+  var curSig   = macdH.length >= 1 ? macdH[macdH.length-1].signal : 0;
+  // Previous SMA50 from prior day closes
+  var prevSma50 = closes.length >= 51 ? simSMA(closes.slice(0,-1), 50) : sma50;
+  var prevClose = closes.length >= 2 ? closes[closes.length-2] : close;
+  // Volume averages
+  var vols20 = bars.slice(-21,-1).map(function(b){ return b.volume||0; });
+  var vols50 = bars.slice(-51,-1).map(function(b){ return b.volume||0; });
+  var last5v  = bars.slice(-5).map(function(b){ return b.volume||0; });
+  var prior5v = bars.slice(-10,-5).map(function(b){ return b.volume||0; });
+  var avg20v = vols20.length ? vols20.reduce(function(a,b){return a+b;},0)/vols20.length : 0;
+  var avg50v = vols50.length ? vols50.reduce(function(a,b){return a+b;},0)/vols50.length : 0;
+  var avgL5 = last5v.length ? last5v.reduce(function(a,b){return a+b;},0)/last5v.length : 0;
+  var avgP5 = prior5v.length ? prior5v.reduce(function(a,b){return a+b;},0)/prior5v.length : 0;
+  var hi52 = snap.meta && snap.meta.hi52 ? snap.meta.hi52 : 0;
+  var lo52 = snap.meta && snap.meta.lo52 ? snap.meta.lo52 : 0;
+  var range52 = (hi52 > lo52 && lo52 > 0) ? hi52 - lo52 : 0;
+  var pos52   = range52 > 0 ? ((close - lo52) / range52) * 100 : -1;
+  var mid52   = lo52 > 0 ? (hi52 + lo52) / 2 : 0;
+  var smfS = snap.smartMoneyFlow ? (snap.smartMoneyFlow.status||'') : '';
+  var tS   = snap.trend           ? (snap.trend.status||'')           : '';
+  var mS   = snap.momentum        ? (snap.momentum.status||'')        : '';
+  var rS   = snap.reversalWatch   ? (snap.reversalWatch.status||'')   : '';
+  return {
+    priceAboveSma50: sma50>0&&close>sma50, priceAboveSma200: sma200>0&&close>sma200,
+    sma50AboveSma200: sma50>0&&sma200>0&&sma50>sma200,
+    priceReclaimedSma50: prevSma50>0&&prevClose<=prevSma50&&close>sma50,
+    priceLostSma50: prevSma50>0&&prevClose>=prevSma50&&close<sma50,
+    priceNear52wHigh: hi52>0&&close>=hi52*0.90,
+    priceFarBelow52wHigh: hi52>0&&close<=hi52*0.75,
+    priceAboveEma20: ema20>0&&close>ema20, ema20AboveSma50: ema20>0&&sma50>0&&ema20>sma50,
+    rsiAbove50: rsi14>50, rsiBetween45And65: rsi14>=45&&rsi14<=65, rsiAbove70: rsi14>=70,
+    rsiRising: rsi14>prevRsi, rsiFalling: rsi14<prevRsi,
+    macdAboveSignal: curMacd>curSig, macdBelowSignal: curMacd<curSig,
+    macdImproving: curHist>prevHist, macdDeteriorating: curHist<prevHist,
+    macdHistogramPositive: curHist>0, macdHistogramImproving: curHist>prevHist,
+    volumeAbove20dAvg: avg20v>0&&volume>avg20v, volumeAbove50dAvg: avg50v>0&&volume>avg50v,
+    volumeRising5d: avgP5>0&&avgL5>avgP5,
+    smartMoneyConstructive: smfS.indexOf('Constructive')!==-1||smfS.indexOf('Accumulation')!==-1,
+    smartMoneyCooling: smfS.indexOf('Cooling')!==-1,
+    smartMoneyPositive: smfS.indexOf('Positive')!==-1||smfS.indexOf('Strong')!==-1,
+    smartMoneyNoClearSignal: smfS.indexOf('No Clear')!==-1,
+    trendStrongUptrend: tS==='Strong Uptrend', trendUptrend: tS==='Uptrend',
+    trendSideways: tS==='Sideways', trendDowntrend: tS==='Downtrend'||tS==='Strong Downtrend',
+    momentumBuilding: mS==='Building', momentumFading: mS==='Fading'||mS==='Weak',
+    momentumNeutral: mS==='Neutral',
+    reversalBullishConfirming: rS.indexOf('Confirming')!==-1||rS.indexOf('Confirmed')!==-1,
+    reversalBullishSpark: rS.indexOf('Spark')!==-1,
+    reversalBullishWatch: rS.indexOf('Watch')!==-1&&rS.indexOf('Bullish')!==-1,
+    reversalBearishWatch: rS.indexOf('Bearish')!==-1,
+    reversalMixed: rS.indexOf('Mixed')!==-1,
+    smartMoneyConstructiveCooling: smfS.indexOf('Constructive but Cooling')!==-1,
+    smartMoneyAccumulationPositive: smfS.indexOf('Accumulation Trend Positive')!==-1,
+    smartMoneyNoClear: smfS.indexOf('No Clear')!==-1,
+    smartMoneyStrongMultiTimeframe: smfS.indexOf('Strong Multi-Timeframe Flow')!==-1,
+    // RSI buckets
+    rsiBelow30:       rsi14 < 30,
+    rsi30To40:        rsi14 >= 30 && rsi14 < 40,
+    rsi40To50:        rsi14 >= 40 && rsi14 < 50,
+    rsi50To60:        rsi14 >= 50 && rsi14 < 60,
+    rsi60To70:        rsi14 >= 60 && rsi14 < 70,
+    // MACD extended
+    macdHistogramNegative: curHist < 0,
+    // Price vs MAs (below variants)
+    priceBelowSma50:  sma50  > 0 && close < sma50,
+    priceBelowSma200: sma200 > 0 && close < sma200,
+    priceBelowEma20:  ema20  > 0 && close < ema20,
+    // 52W range buckets
+    price52wRange0To25:   pos52 >= 0  && pos52 <  25,
+    price52wRange25To50:  pos52 >= 25 && pos52 <  50,
+    price52wRange50To75:  pos52 >= 50 && pos52 <  75,
+    price52wRange75To90:  pos52 >= 75 && pos52 <  90,
+    price52wRange90To100: pos52 >= 90,
+    priceBelow52wMidpoint: mid52 > 0 && close < mid52,
+    priceAbove52wMidpoint: mid52 > 0 && close >= mid52,
+  };
+}
+function matchesSelected(value, selectedValues) {
+  if (!selectedValues || selectedValues.length === 0) return true;
+  if (selectedValues.indexOf('Any') >= 0) return true;
+  return selectedValues.indexOf(value || 'N/A') >= 0;
+}
+function matchesDriverGroup(row, selectedDriverKeys) {
+  if (!selectedDriverKeys || selectedDriverKeys.length === 0) return true;
+  var d = row && row.drivers ? row.drivers : {};
+  return selectedDriverKeys.some(function(k){ return d[k] === true; });
+}
+function matchesDriverFilters(row, driverFilters) {
+  return matchesDriverGroup(row, driverFilters.trendDrivers)
+      && matchesDriverGroup(row, driverFilters.momentumDrivers)
+      && matchesDriverGroup(row, driverFilters.reversalDrivers)
+      && matchesDriverGroup(row, driverFilters.smartMoneyDrivers);
+}
+function filterCustomSignalRows(rows, filters) {
+  return rows.filter(function(row) {
+    return matchesSelected(row.trend,      filters.trend)
+        && matchesSelected(row.momentum,   filters.momentum)
+        && matchesSelected(row.reversal,   filters.reversal)
+        && matchesSelected(row.smartMoney, filters.smartMoney)
+        && matchesSelected(row.setup,      filters.setup)
+        && matchesDriverFilters(row, filters.driverFilters);
+  });
+}
+function summarizeCustomSignalRows(rows) {
+  var signals = rows.length;
+  var rets = rows.map(function(r){ return Number(r.futureReturn); }).filter(function(v){ return !isNaN(v); });
+  var wins = rets.filter(function(v){ return v > 0; }).length;
+  var avg  = rets.length ? rets.reduce(function(a,b){ return a+b; },0)/rets.length : null;
+  return {
+    signals: signals, wins: wins, losses: signals - wins,
+    winRate:  signals ? (wins/signals)*100 : null,
+    avgReturn: avg, medianReturn: simMedian(rets),
+    bestReturn:  rets.length ? Math.max.apply(null,rets) : null,
+    worstReturn: rets.length ? Math.min.apply(null,rets) : null,
+  };
+}
+function customSignalQuality(s) {
+  if (!s || s.signals < 10) return 'Low Sample';
+  if (s.winRate >= 70 && s.medianReturn > 0 && s.avgReturn > 0) return 'Strong';
+  if (s.winRate >= 60 && s.medianReturn > 0 && s.avgReturn > 0) return 'Promising';
+  if (s.winRate < 45 || s.medianReturn < 0) return 'Weak';
+  return 'Mixed';
+}
+function buildCustomConditionText(trend, momentum, reversal, smartMoney, setup, tDrv, mDrv, rDrv, sDrv) {
+  var lines = [];
+  if (trend.length)      lines.push('Trend: '       + trend.join(' OR '));
+  if (momentum.length)   lines.push('Momentum: '    + momentum.join(' OR '));
+  if (reversal.length)   lines.push('Reversal: '    + reversal.join(' OR '));
+  if (smartMoney.length) lines.push('Smart Money: ' + smartMoney.join(' OR '));
+  if (setup.length)      lines.push('Setup: '       + setup.join(' OR '));
+  function drvLabel(k){ return BB_DRIVER_LABELS[k]||k; }
+  if (tDrv.length)  lines.push('Trend Driver: '      + tDrv.map(drvLabel).join(' OR '));
+  if (mDrv.length)  lines.push('Momentum Driver: '   + mDrv.map(drvLabel).join(' OR '));
+  if (rDrv.length)  lines.push('Reversal Driver: '   + rDrv.map(drvLabel).join(' OR '));
+  if (sDrv.length)  lines.push('Smart Money Driver: '+ sDrv.map(drvLabel).join(' OR '));
+  return lines.length ? lines.join('\n') : 'No filters selected (showing all signals).';
+}
+
+
+function exportRowsToCsv(filename, rows, columns) {
+  if (!rows || !rows.length) return;
+  function esc(v) {
+    if (v === null || v === undefined) return '';
+    var s = String(v);
+    if (s.indexOf('"') >= 0) s = s.replace(/"/g, '""');
+    if (s.indexOf(',') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('"') >= 0) s = '"' + s + '"';
+    return s;
+  }
+  var header = columns.map(function(c){ return esc(c.label); }).join(',');
+  var body = rows.map(function(row){
+    return columns.map(function(c){
+      var v = typeof c.value === 'function' ? c.value(row) : row[c.key];
+      return esc(v);
+    }).join(',');
+  }).join('\n');
+  var blob = new Blob([header + '\n' + body], { type:'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+
 function buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData) {
   if (!massiveInfo || !q) return null;
   var rawAggs = massiveInfo.aggs || [];
@@ -1713,6 +1913,22 @@ export function SimulatorPage() {
   var [progress,    setProgress]    = useState(0);
   var [minSignals,  setMinSignals]  = useState('3');
   var [combSortBy,  setCombSortBy]  = useState('Avg Return');
+  // Custom Signal Tester state
+  var [cstTrend,     setCstTrend]     = useState([]);
+  var [cstMomentum,  setCstMomentum]  = useState([]);
+  var [cstReversal,  setCstReversal]  = useState([]);
+  var [cstSmartMoney,setCstSmartMoney]= useState([]);
+  var [cstSetup,     setCstSetup]     = useState([]);
+  var [cstTrendDrv,  setCstTrendDrv]  = useState([]);
+  var [cstMomDrv,    setCstMomDrv]    = useState([]);
+  var [cstRevDrv,    setCstRevDrv]    = useState([]);
+  var [cstSmfDrv,    setCstSmfDrv]    = useState([]);
+  var [cstDrvOpen,   setCstDrvOpen]   = useState(false);
+  var [cstSubSigOpen,setCstSubSigOpen]= useState(false);
+  var [cstRsiFilter, setCstRsiFilter] = useState([]);
+  var [cstMacdFilter,setCstMacdFilter]= useState([]);
+  var [cst52wFilter, setCst52wFilter] = useState([]);
+  var [cstMaFilter,  setCstMaFilter]  = useState([]);
 
   var SETUP_OPTS = ['All','Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
   var HP_OPTS    = [['5','5 trading days'],['10','10 trading days'],['20','20 trading days'],['60','60 trading days']];
@@ -1785,6 +2001,27 @@ export function SimulatorPage() {
         var sv = shortRuleVerdict(rba.verdict);
         if (setupFilter !== 'All' && sv !== setupFilter) continue;
         var ret = simPctReturn(bar.close, futureBar.close);
+        var drv = {};
+        try { drv = buildSignalDrivers({ barsUpToDate:slice, indicators:ind,
+          snapshot:Object.assign({},snap,{meta:{price:bar.close,hi52:hw.hi52,lo52:hw.lo52}}),
+          currentBar:bar }); } catch(e) {}
+        // Raw indicator values for table display
+        var drvV = {};
+        try {
+          var _mh = ind.macdHistory||[]; var _rh = ind.rsiHistory||[];
+          var _hi52 = hw.hi52||0; var _lo52 = hw.lo52||0;
+          var _r52 = (_hi52>_lo52&&_lo52>0)?_hi52-_lo52:0;
+          var _pos52 = _r52>0 ? ((bar.close-_lo52)/_r52)*100 : null;
+          var _bkt52 = _pos52!=null ? (_pos52<25?'0-25%':_pos52<50?'25-50%':_pos52<75?'50-75%':_pos52<90?'75-90%':'90-100%') : '—';
+          drvV = {
+            rsi14:   ind.rsi14!=null?parseFloat(ind.rsi14.toFixed(1)):null,
+            macdHistogram: _mh.length?parseFloat(_mh[_mh.length-1].histogram.toFixed(3)):null,
+            macdAboveSig:  _mh.length?(_mh[_mh.length-1].macd>_mh[_mh.length-1].signal):null,
+            macdImproving: _mh.length>=2?(_mh[_mh.length-1].histogram>_mh[_mh.length-2].histogram):null,
+            pos52w:  _pos52!=null?parseFloat(_pos52.toFixed(1)):null,
+            bucket52w: _bkt52,
+          };
+        } catch(e) {}
         rows.push({
           date: bar.date,
           close: bar.close,
@@ -1799,6 +2036,8 @@ export function SimulatorPage() {
           futureClose: futureBar.close,
           futureReturn: ret,
           result: ret != null ? (ret >= 0 ? 'Win' : 'Loss') : '—',
+          drivers: drv,
+          driverValues: drvV,
         });
       }
       setResults({ rows:rows, hp:hp, wasLimited: processed >= LIMIT });
@@ -1821,17 +2060,7 @@ export function SimulatorPage() {
       worst: Math.min.apply(null, rets).toFixed(2),
     };
   }
-  function calcBySetup(rows) {
-    var map = {};
-    rows.forEach(function(r){
-      if (!map[r.setup]) map[r.setup] = [];
-      map[r.setup].push(r);
-    });
-    return Object.keys(map).sort().map(function(setup){
-      var s = calcStats(map[setup]);
-      return Object.assign({ setup:setup }, s);
-    });
-  }
+
 
   // ── Styles ─────────────────────────────────────────────────────────────────
   var card   = { background:'#161614', border:'0.5px solid #2a2a28', borderRadius:10, padding:'16px 18px', marginBottom:14 };
@@ -1936,7 +2165,6 @@ export function SimulatorPage() {
 
       {results && results.rows.length > 0 && (function(){
         var stats = calcStats(results.rows);
-        var bySetup = calcBySetup(results.rows);
         return (
           <div>
             {results.wasLimited && <div style={{ background:'#1e1800', border:'0.5px solid #EF9F27', borderRadius:7, padding:'8px 14px', color:'#EF9F27', fontSize:11, marginBottom:14 }}>⚠ Date range produced more than 1,000 test dates. Showing first 1,000 only. Narrow your date range for full coverage.</div>}
@@ -1962,46 +2190,30 @@ export function SimulatorPage() {
               </div>
             </div>
 
-            {/* By-Setup breakdown */}
-            <div style={card}>
-              <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em', marginBottom:12 }}>Performance by Setup</div>
-              <div style={{ overflowX:'auto' }}>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
-                  <thead>
-                    <tr style={{ borderBottom:'1px solid #2a2a28' }}>
-                      {['Setup','Signals','Win Rate','Avg Return','Median','Best','Worst'].map(function(h){
-                        return <th key={h} style={{ padding:'5px 10px', fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18' }}>{h}</th>;
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bySetup.map(function(row, i){
-                      var sc = summaryCardDark(row.setup);
-                      var wr = parseFloat(row.winRate);
-                      var wrCol = wr>=55?'#7abd00':wr>=45?'#EF9F27':'#e05050';
-                      return (
-                        <tr key={row.setup} style={{ background: i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
-                          <td style={{ padding:'6px 10px', fontWeight:700, color:sc.text }}>{row.setup}</td>
-                          <td style={{ padding:'6px 10px', color:'#aaa' }}>{row.total}</td>
-                          <td style={{ padding:'6px 10px', fontWeight:700, color:wrCol }}>{row.winRate}%</td>
-                          <td style={{ padding:'6px 10px', color:parseFloat(row.avg)>=0?'#7abd00':'#e05050', fontWeight:600 }}>{simFmtPct(parseFloat(row.avg))}</td>
-                          <td style={{ padding:'6px 10px', color:parseFloat(row.median)>=0?'#7abd00':'#e05050' }}>{simFmtPct(parseFloat(row.median))}</td>
-                          <td style={{ padding:'6px 10px', color:'#7abd00' }}>{'+'+row.best+'%'}</td>
-                          <td style={{ padding:'6px 10px', color:'#e05050' }}>{row.worst+'%'}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
 
             {/* Combination Performance */}
             <div style={card}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:10 }}>
                 <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Combination Performance'}</div>
                 <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <button onClick={function(){
+                    var minS2 = parseInt(minSignals)||3;
+                    var exp6c = sortCombinationRows(groupByCombination(results.rows).filter(function(r){ return r.signals>=minS2; }), combSortBy);
+                    if (!exp6c.length) return;
+                    exportRowsToCsv(ticker+'-combination-performance-'+results.hp+'D.csv', exp6c, [
+                      { label:'Trend',        key:'trend' },
+                      { label:'Momentum',     key:'momentum' },
+                      { label:'Reversal',     key:'reversal' },
+                      { label:'Smart Money',  key:'smartMoney' },
+                      { label:'Setup',        key:'setup' },
+                      { label:'Signals',      key:'signals' },
+                      { label:'Win Rate %',   value:function(r){ return r.winRate!=null?r.winRate.toFixed(1):''; } },
+                      { label:'Avg Return %', value:function(r){ return r.avgReturn!=null?r.avgReturn.toFixed(2):''; } },
+                      { label:'Median %',     value:function(r){ return r.medianReturn!=null?r.medianReturn.toFixed(2):''; } },
+                      { label:'Best %',       value:function(r){ return r.bestReturn!=null?r.bestReturn.toFixed(2):''; } },
+                      { label:'Worst %',      value:function(r){ return r.worstReturn!=null?r.worstReturn.toFixed(2):''; } },
+                    ]);
+                  }} style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #333', borderRadius:5, color:'#888', cursor:'pointer' }}>Export CSV</button>
                   <div style={{ display:'flex', alignItems:'center', gap:5 }}>
                     <span style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em' }}>{'Min Signals'}</span>
                     <select value={minSignals} onChange={function(e){setMinSignals(e.target.value);}}
@@ -2081,9 +2293,323 @@ export function SimulatorPage() {
               <div style={{ fontSize:9, color:'#444', marginTop:10 }}>{'Small sample sizes can be misleading. Use combinations with higher signal counts for stronger conclusions.'}</div>
             </div>
 
+
+
+            {/* Custom Signal Tester */}
+            {(function(){
+              var CST_TREND_OPTS = ['Strong Uptrend','Uptrend','Sideways','Downtrend','Strong Downtrend'];
+              var CST_MOM_OPTS   = ['Strong','Building','Neutral','Fading','Weak'];
+              var CST_REV_OPTS   = ['Bullish Reversal Spark','Bullish Reversal Watch','Bullish Reversal Confirming','Mixed Reversal Signals','Bearish Reversal Watch','Bearish Reversal Forming','No Signal','No Clear Reversal'];
+              var CST_SMF_OPTS   = ['Strong Multi-Timeframe Flow','Accumulation Trend Positive','Constructive but Cooling','No Clear Signal','Early Accumulation','Short-Term Spike'];
+              var CST_SETUP_OPTS = ['Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
+
+              var CST_TREND_DRVS = [['priceAboveSma50','Price above SMA50'],['priceAboveSma200','Price above SMA200'],['sma50AboveSma200','SMA50 above SMA200'],['priceReclaimedSma50','Price reclaimed SMA50'],['priceLostSma50','Price lost SMA50'],['priceAboveEma20','Price above EMA20'],['ema20AboveSma50','EMA20 above SMA50'],['priceNear52wHigh','Near 52W high'],['priceFarBelow52wHigh','Far below 52W high']];
+              var CST_MOM_DRVS   = [['rsiAbove50','RSI above 50'],['rsiBetween45And65','RSI 45–65'],['rsiAbove70','RSI above 70'],['rsiRising','RSI rising'],['rsiFalling','RSI falling'],['macdAboveSignal','MACD above signal'],['macdBelowSignal','MACD below signal'],['macdImproving','MACD improving'],['macdDeteriorating','MACD deteriorating'],['macdHistogramPositive','MACD histogram +'],['macdHistogramImproving','MACD histogram improving']];
+              var CST_REV_DRVS   = [['trendSideways','Trend Sideways'],['trendDowntrend','Trend Downtrend'],['momentumBuilding','Momentum Building'],['reversalBullishSpark','Bull Reversal Spark'],['reversalBullishWatch','Bull Reversal Watch'],['reversalBullishConfirming','Bull Reversal Confirming'],['reversalMixed','Mixed Reversal'],['reversalBearishWatch','Bear Reversal Watch'],['priceReclaimedSma50','Price reclaimed SMA50'],['rsiRising','RSI rising'],['macdImproving','MACD improving'],['volumeAbove20dAvg','Volume above 20D avg']];
+              var CST_SMF_DRVS   = [['volumeAbove20dAvg','Volume above 20D avg'],['volumeAbove50dAvg','Volume above 50D avg'],['volumeRising5d','Volume rising 5D'],['smartMoneyConstructive','SM constructive'],['smartMoneyCooling','SM cooling'],['smartMoneyPositive','SM positive'],['smartMoneyNoClearSignal','No clear signal'],['smartMoneyAccumulationPositive','Accumulation positive'],['smartMoneyStrongMultiTimeframe','Strong multi-TF flow']];
+
+              function toggle(arr, setter, v) { setter(arr.indexOf(v)!==-1 ? arr.filter(function(x){return x!==v;}) : arr.concat([v])); }
+              function pillSel(v, arr, setter, colorFn) {
+                var sel = arr.indexOf(v)!==-1;
+                var ac = colorFn ? colorFn(v) : LIME;
+                return <button key={v} onClick={function(){ toggle(arr, setter, v); }}
+                  style={{ fontSize:9, padding:'3px 9px', borderRadius:10, cursor:'pointer', fontWeight:sel?700:400, outline:'none',
+                    background:sel?'#1a2a0a':'#141412', color:sel?ac:'#666',
+                    border:'0.5px solid '+(sel?ac:'#2a2a28') }}>{v}</button>;
+              }
+              function drvChk(key, label, arr, setter) {
+                var sel = arr.indexOf(key)!==-1;
+                return <button key={key} onClick={function(){ toggle(arr, setter, key); }}
+                  style={{ fontSize:9, padding:'2px 8px', borderRadius:4, cursor:'pointer', fontWeight:sel?700:400, outline:'none',
+                    background:sel?'#0f2010':'#111', color:sel?'#9acd50':'#555',
+                    border:'0.5px solid '+(sel?'#9acd50':'#2a2a28'), marginRight:4, marginBottom:4 }}>{label}</button>;
+              }
+
+              var cstFilters = { trend:cstTrend, momentum:cstMomentum, reversal:cstReversal, smartMoney:cstSmartMoney, setup:cstSetup,
+                driverFilters:{ trendDrivers:cstTrendDrv, momentumDrivers:cstMomDrv, reversalDrivers:cstRevDrv, smartMoneyDrivers:cstSmfDrv } };
+              var matchRows = results ? filterCustomSignalRows(results.rows, cstFilters) : [];
+
+              // Sub-signal chip → driver key mappings
+              var SS_RSI  = {'RSI below 30':'rsiBelow30','RSI 30 to 40':'rsi30To40','RSI 40 to 50':'rsi40To50','RSI 50 to 60':'rsi50To60','RSI 60 to 70':'rsi60To70','RSI above 70':'rsiAbove70','RSI rising':'rsiRising','RSI falling':'rsiFalling','RSI between 45 and 65':'rsiBetween45And65'};
+              var SS_MACD = {'MACD above signal':'macdAboveSignal','MACD below signal':'macdBelowSignal','MACD histogram positive':'macdHistogramPositive','MACD histogram negative':'macdHistogramNegative','MACD improving':'macdImproving','MACD deteriorating':'macdDeteriorating'};
+              var SS_52W  = {'52W range 0 to 25%':'price52wRange0To25','52W range 25 to 50%':'price52wRange25To50','52W range 50 to 75%':'price52wRange50To75','52W range 75 to 90%':'price52wRange75To90','52W range 90 to 100%':'price52wRange90To100','Below 52W midpoint':'priceBelow52wMidpoint','Above 52W midpoint':'priceAbove52wMidpoint','Near 52W high':'priceNear52wHigh','Far below 52W high':'priceFarBelow52wHigh'};
+              var SS_MA   = {'Price above SMA50':'priceAboveSma50','Price below SMA50':'priceBelowSma50','Price above SMA200':'priceAboveSma200','Price below SMA200':'priceBelowSma200','Price above EMA20':'priceAboveEma20','Price below EMA20':'priceBelowEma20','SMA50 above SMA200':'sma50AboveSma200','Price reclaimed SMA50':'priceReclaimedSma50','Price lost SMA50':'priceLostSma50'};
+
+              // Apply sub-signal filters (OR within group, AND across groups)
+              function applySubFilter(rows, chips, map) {
+                if (!chips.length) return rows;
+                return rows.filter(function(r){ var d=r.drivers||{}; return chips.some(function(lbl){ return d[map[lbl]]===true; }); });
+              }
+              if (cstRsiFilter.length||cstMacdFilter.length||cst52wFilter.length||cstMaFilter.length) {
+                matchRows = applySubFilter(matchRows, cstRsiFilter,  SS_RSI);
+                matchRows = applySubFilter(matchRows, cstMacdFilter, SS_MACD);
+                matchRows = applySubFilter(matchRows, cst52wFilter,  SS_52W);
+                matchRows = applySubFilter(matchRows, cstMaFilter,   SS_MA);
+              }
+              var cstStat   = summarizeCustomSignalRows(matchRows);
+              var cstQual   = customSignalQuality(cstStat);
+              var cstCond   = buildCustomConditionText(cstTrend,cstMomentum,cstReversal,cstSmartMoney,cstSetup,cstTrendDrv,cstMomDrv,cstRevDrv,cstSmfDrv);
+              var showTop50 = matchRows.slice(-50).reverse();
+
+              function qualColor(q) {
+                if (q==='Strong')    return '#7abd00';
+                if (q==='Promising') return '#6090d0';
+                if (q==='Weak')      return '#e05050';
+                if (q==='Mixed')     return '#EF9F27';
+                return '#555';
+              }
+              function resetCST() {
+                setCstTrend([]); setCstMomentum([]); setCstReversal([]); setCstSmartMoney([]); setCstSetup([]);
+                setCstTrendDrv([]); setCstMomDrv([]); setCstRevDrv([]); setCstSmfDrv([]);
+                setCstRsiFilter([]); setCstMacdFilter([]); setCst52wFilter([]); setCstMaFilter([]);
+              }
+
+              return (
+                <div style={card}>
+                  <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em', marginBottom:8 }}>{'Custom Signal Tester'}</div>
+                  <div style={{ fontSize:11, color:'#555', lineHeight:1.6, marginBottom:14 }}>
+                    {'Select signal conditions below to see how those combinations performed historically. Within each filter is OR logic; across filters is AND logic.'}
+                  </div>
+
+                  {!results ? (
+                    <div style={{ color:'#555', fontSize:12, padding:'20px 0' }}>{'Run a backtest first, then use Custom Signal Tester to test your own signal combinations.'}</div>
+                  ) : (
+                    <div>
+                      {/* Main Filters */}
+                      {[
+                        ['Trend',       cstTrend,      setCstTrend,      CST_TREND_OPTS, null],
+                        ['Momentum',    cstMomentum,   setCstMomentum,   CST_MOM_OPTS,   null],
+                        ['Reversal',    cstReversal,   setCstReversal,   CST_REV_OPTS,   null],
+                        ['Smart Money', cstSmartMoney, setCstSmartMoney, CST_SMF_OPTS,   null],
+                        ['Setup',       cstSetup,      setCstSetup,      CST_SETUP_OPTS, function(v){ return summaryCardDark(v).text; }],
+                      ].map(function(row){
+                        return (
+                          <div key={row[0]} style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
+                            <span style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', minWidth:74, paddingTop:3, flexShrink:0 }}>{row[0]}</span>
+                            <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+                              {row[3].map(function(v){ return pillSel(v, row[1], row[2], row[4]); })}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Driver Filters collapsible */}
+                      <div style={{ borderTop:'0.5px solid #2a2a28', marginTop:8, paddingTop:8 }}>
+                        <button onClick={function(){ setCstDrvOpen(!cstDrvOpen); }}
+                          style={{ background:'none', border:'none', color:'#888', fontSize:11, cursor:'pointer', padding:0, display:'flex', alignItems:'center', gap:6 }}>
+                          <span style={{ fontSize:10, color:cstDrvOpen?LIME:'#555', fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' }}>{'Driver Filters'}</span>
+                          <span style={{ fontSize:12, color:'#555' }}>{cstDrvOpen?'▲':'▼'}</span>
+                          {(cstTrendDrv.length+cstMomDrv.length+cstRevDrv.length+cstSmfDrv.length)>0 && <span style={{ fontSize:8, color:LIME, background:'#1a2a0a', border:'0.5px solid '+LIME, borderRadius:8, padding:'1px 5px' }}>{cstTrendDrv.length+cstMomDrv.length+cstRevDrv.length+cstSmfDrv.length}</span>}
+                        </button>
+                        {cstDrvOpen && (
+                          <div style={{ marginTop:10 }}>
+                            <div style={{ fontSize:9, color:'#555', marginBottom:10, lineHeight:1.6 }}>
+                              {'Within each driver group: OR logic. Across driver groups: AND logic. Empty group = ignored.'}
+                            </div>
+                            {[
+                              ['Trend Driver',       cstTrendDrv, setCstTrendDrv, CST_TREND_DRVS],
+                              ['Momentum Driver',    cstMomDrv,   setCstMomDrv,   CST_MOM_DRVS],
+                              ['Reversal Driver',    cstRevDrv,   setCstRevDrv,   CST_REV_DRVS],
+                              ['Smart Money Driver', cstSmfDrv,   setCstSmfDrv,   CST_SMF_DRVS],
+                            ].map(function(grp){
+                              return (
+                                <div key={grp[0]} style={{ marginBottom:12 }}>
+                                  <div style={{ fontSize:9, fontWeight:700, color:grp[1].length?'#9acd50':'#444', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>{grp[0]}</div>
+                                  <div style={{ display:'flex', flexWrap:'wrap' }}>
+                                    {grp[3].map(function(d){ return drvChk(d[0], d[1], grp[1], grp[2]); })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Sub-Signal Filters */}
+                      <div style={{ borderTop:'0.5px solid #2a2a28', marginTop:8, paddingTop:8 }}>
+                        <button onClick={function(){ setCstSubSigOpen(!cstSubSigOpen); }}
+                          style={{ background:'none', border:'none', fontSize:11, cursor:'pointer', padding:0, display:'flex', alignItems:'center', gap:6 }}>
+                          <span style={{ fontSize:10, color:cstSubSigOpen?LIME:'#555', fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' }}>{'Sub-Signal Filters'}</span>
+                          <span style={{ fontSize:12, color:'#555' }}>{cstSubSigOpen?'▲':'▼'}</span>
+                          {(cstRsiFilter.length+cstMacdFilter.length+cst52wFilter.length+cstMaFilter.length)>0 &&
+                            <span style={{ fontSize:8, color:LIME, background:'#1a2a0a', border:'0.5px solid '+LIME, borderRadius:8, padding:'1px 5px' }}>
+                              {cstRsiFilter.length+cstMacdFilter.length+cst52wFilter.length+cstMaFilter.length}
+                            </span>}
+                        </button>
+                        {cstSubSigOpen && (function(){
+                          function ssPill(v, arr, setter) {
+                            var sel = arr.indexOf(v)!==-1;
+                            return <button key={v} onClick={function(){ toggle(arr,setter,v); }}
+                              style={{ fontSize:9, padding:'3px 8px', borderRadius:8, cursor:'pointer', fontWeight:sel?700:400, outline:'none',
+                                background:sel?'#0f2010':'#111', color:sel?'#9acd50':'#666',
+                                border:'0.5px solid '+(sel?'#9acd50':'#2a2a28'), marginRight:4, marginBottom:4 }}>{v}</button>;
+                          }
+                          var SS_GROUPS = [
+                            ['RSI',              cstRsiFilter,  setCstRsiFilter,  ['RSI below 30','RSI 30 to 40','RSI 40 to 50','RSI 50 to 60','RSI 60 to 70','RSI above 70','RSI rising','RSI falling','RSI between 45 and 65']],
+                            ['MACD',             cstMacdFilter, setCstMacdFilter, ['MACD above signal','MACD below signal','MACD histogram positive','MACD histogram negative','MACD improving','MACD deteriorating']],
+                            ['52-Week Range',    cst52wFilter,  setCst52wFilter,  ['52W range 0 to 25%','52W range 25 to 50%','52W range 50 to 75%','52W range 75 to 90%','52W range 90 to 100%','Below 52W midpoint','Above 52W midpoint','Near 52W high','Far below 52W high']],
+                            ['Price / Moving Avg',cstMaFilter,  setCstMaFilter,   ['Price above SMA50','Price below SMA50','Price above SMA200','Price below SMA200','Price above EMA20','Price below EMA20','SMA50 above SMA200','Price reclaimed SMA50','Price lost SMA50']],
+                          ];
+                          return (
+                            <div style={{ marginTop:10 }}>
+                              <div style={{ fontSize:9, color:'#555', marginBottom:10, lineHeight:1.6 }}>{'Within each group: OR logic. Across groups: AND logic. Empty group = ignored.'}</div>
+                              {SS_GROUPS.map(function(grp){
+                                return (
+                                  <div key={grp[0]} style={{ marginBottom:10 }}>
+                                    <div style={{ fontSize:9, fontWeight:700, color:grp[1].length?'#9acd50':'#444', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>{grp[0]}</div>
+                                    <div style={{ display:'flex', flexWrap:'wrap' }}>
+                                      {grp[3].map(function(v){ return ssPill(v, grp[1], grp[2]); })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      <div style={{ borderTop:'0.5px solid #2a2a28', marginTop:14, paddingTop:14 }}>
+                        <div style={{ display:'grid', gridTemplateColumns:'repeat(9,1fr)', gap:8, marginBottom:14 }}>
+                          {[
+                            ['Matching',  cstStat.signals,                                       '#f0ede6'],
+                            ['Wins',      cstStat.wins,                                          '#7abd00'],
+                            ['Losses',    cstStat.losses,                                        '#e05050'],
+                            ['Win Rate',  cstStat.winRate!=null?cstStat.winRate.toFixed(1)+'%':'—', cstStat.winRate!=null?(cstStat.winRate>=60?'#7abd00':cstStat.winRate>=45?'#EF9F27':'#e05050'):'#555'],
+                            ['Avg Return',simFmtPct(cstStat.avgReturn),                          cstStat.avgReturn!=null?(cstStat.avgReturn>=0?'#7abd00':'#e05050'):'#555'],
+                            ['Median',    simFmtPct(cstStat.medianReturn),                       cstStat.medianReturn!=null?(cstStat.medianReturn>=0?'#7abd00':'#e05050'):'#555'],
+                            ['Best',      simFmtPct(cstStat.bestReturn),                         '#7abd00'],
+                            ['Worst',     simFmtPct(cstStat.worstReturn),                        '#e05050'],
+                            ['Quality',   cstQual,                                               qualColor(cstQual)],
+                          ].map(function(f){ return (
+                            <div key={f[0]} style={{ background:'#0e0e0c', borderRadius:7, padding:'8px 10px', textAlign:'center' }}>
+                              <div style={{ fontSize:8, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:3 }}>{f[0]}</div>
+                              <div style={{ fontSize:12, fontWeight:800, color:f[2] }}>{f[1]}</div>
+                            </div>
+                          ); })}
+                        </div>
+
+                        {/* Selected Condition */}
+                        <div style={{ background:'#0e0e0c', borderRadius:7, padding:'10px 12px', marginBottom:12 }}>
+                          <div style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6, fontWeight:700 }}>{'Selected Condition'}</div>
+                          <pre style={{ fontSize:10, color:'#888', lineHeight:1.8, whiteSpace:'pre-wrap', wordBreak:'break-word', margin:0, fontFamily:'monospace' }}>{cstCond}</pre>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+                          <button onClick={resetCST}
+                            style={{ fontSize:10, padding:'5px 12px', background:'none', border:'0.5px solid #444', borderRadius:5, color:'#888', cursor:'pointer' }}>Reset Filters</button>
+                          <button onClick={function(){
+                            var txt = cstCond;
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                              navigator.clipboard.writeText(txt);
+                            } else {
+                              var el = document.createElement('textarea'); el.value = txt;
+                              document.body.appendChild(el); el.select(); document.execCommand('copy');
+                              document.body.removeChild(el);
+                            }
+                          }} style={{ fontSize:10, padding:'5px 12px', background:'none', border:'0.5px solid #444', borderRadius:5, color:'#888', cursor:'pointer' }}>Copy Condition</button>
+                          <button onClick={function(){
+                            if (!matchRows.length) return;
+                            exportRowsToCsv(ticker+'-custom-signal-matches-'+results.hp+'D.csv', matchRows, [
+                              { label:'Date',            key:'date' },
+                              { label:'Close',           value:function(r){ return '$'+r.close.toFixed(2); } },
+                              { label:'Setup',           key:'setup' },
+                              { label:'Trend',           key:'trend' },
+                              { label:'Momentum',        key:'momentum' },
+                              { label:'Reversal',        key:'reversal' },
+                              { label:'Smart Money',     key:'smartMoney' },
+                              { label:'RSI',             value:function(r){ return r.driverValues&&r.driverValues.rsi14!=null?r.driverValues.rsi14.toFixed(1):''; } },
+                              { label:'MACD Hist',       value:function(r){ return r.driverValues&&r.driverValues.macdHistogram!=null?r.driverValues.macdHistogram.toFixed(3):''; } },
+                              { label:'MACD State',      value:function(r){ var dv=r.driverValues; if(!dv) return ''; return (dv.macdAboveSig?'Above Sig':'Below Sig')+(dv.macdImproving!=null?(dv.macdImproving?' Improving':' Deteriorating'):''); } },
+                              { label:'52W %',           value:function(r){ return r.driverValues&&r.driverValues.pos52w!=null?r.driverValues.pos52w.toFixed(1)+'%':''; } },
+                              { label:'52W Bucket',      value:function(r){ return r.driverValues&&r.driverValues.bucket52w||''; } },
+                              { label:'Future Return %', value:function(r){ return r.futureReturn!=null?r.futureReturn.toFixed(2):''; } },
+                              { label:'Result',          key:'result' },
+                            ]);
+                          }} style={{ fontSize:10, padding:'5px 12px', background:'none', border:'0.5px solid #444', borderRadius:5, color:'#888', cursor:'pointer',
+                            opacity: matchRows.length ? 1 : 0.4 }}>Export CSV</button>
+                        </div>
+
+                        {/* Matching Historical Signals */}
+                        <div style={{ fontSize:10, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:8 }}>
+                          {'Matching Historical Signals (' + matchRows.length + ' rows' + (matchRows.length>50?', showing latest 50':'')+')'}
+                        </div>
+                        {matchRows.length === 0
+                          ? <div style={{ color:'#555', fontSize:11, padding:'16px 0', textAlign:'center' }}>{'No rows match the selected conditions.'}</div>
+                          : <div style={{ overflowX:'auto', maxHeight:400, overflowY:'auto' }}>
+                              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
+                                <thead style={{ position:'sticky', top:0, zIndex:1 }}>
+                                  <tr style={{ borderBottom:'1px solid #2a2a28' }}>
+                                    {['Date','Close','Setup','Trend','Momentum','Reversal','Smart Money','RSI','MACD Hist','MACD State','52W%','52W Bucket','Return','Result'].map(function(h){
+                                      return <th key={h} style={{ padding:'4px 7px', fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>;
+                                    })}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {showTop50.map(function(r, i){
+                                    var sc  = summaryCardDark(r.setup);
+                                    var ret = r.futureReturn;
+                                    var retC = ret==null?'#555':ret>=5?'#7abd00':ret>=0?'#5a9a40':ret>-5?'#e08050':'#e05050';
+                                    return (
+                                      <tr key={r.date+i} style={{ background:i%2===0?'#181816':'#141412' }}>
+                                        <td style={{ padding:'4px 7px', color:'#888', whiteSpace:'nowrap' }}>{r.date}</td>
+                                        <td style={{ padding:'4px 7px', color:'#f0ede6', fontWeight:600 }}>{'$'+r.close.toFixed(2)}</td>
+                                        <td style={{ padding:'4px 7px', fontWeight:700, color:sc.text, whiteSpace:'nowrap' }} title={r.fullSetup}>{r.setup}</td>
+                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9 }}>{r.trend}</td>
+                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9 }}>{r.momentum}</td>
+                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9, maxWidth:110, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.reversal}>{r.reversal}</td>
+                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9, maxWidth:110, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.smartMoney}>{r.smartMoney}</td>
+                                        <td style={{ padding:'4px 7px', color: r.driverValues&&r.driverValues.rsi14!=null?(r.driverValues.rsi14>70?'#e05050':r.driverValues.rsi14<30?'#7abd00':'#aaa'):'#555', fontSize:9, whiteSpace:'nowrap' }}>{r.driverValues&&r.driverValues.rsi14!=null?r.driverValues.rsi14.toFixed(1):'—'}</td>
+                                        <td style={{ padding:'4px 7px', color: r.driverValues&&r.driverValues.macdHistogram!=null?(r.driverValues.macdHistogram>0?'#7abd00':'#e05050'):'#555', fontSize:9, whiteSpace:'nowrap' }}>{r.driverValues&&r.driverValues.macdHistogram!=null?r.driverValues.macdHistogram.toFixed(3):'—'}</td>
+                                        <td style={{ padding:'4px 7px', fontSize:9, whiteSpace:'nowrap' }}>
+                                          {r.driverValues ? (
+                                            <span style={{ color: r.driverValues.macdAboveSig?'#7abd00':'#e05050' }}>
+                                              {(r.driverValues.macdAboveSig?'↑Sig':'↓Sig')+(r.driverValues.macdImproving!=null?(r.driverValues.macdImproving?' ↑':' ↓'):'  ')}
+                                            </span>
+                                          ) : '—'}
+                                        </td>
+                                        <td style={{ padding:'4px 7px', color:'#aaa', fontSize:9 }}>{r.driverValues&&r.driverValues.pos52w!=null?r.driverValues.pos52w.toFixed(1)+'%':'—'}</td>
+                                        <td style={{ padding:'4px 7px', color:'#666', fontSize:9, whiteSpace:'nowrap' }}>{r.driverValues&&r.driverValues.bucket52w||'—'}</td>
+                                        <td style={{ padding:'4px 7px', fontWeight:700, color:retC, whiteSpace:'nowrap' }}>{simFmtPct(ret)}</td>
+                                        <td style={{ padding:'4px 7px' }}>
+                                          <span style={{ fontSize:8, fontWeight:700, color:r.result==='Win'?'#7abd00':r.result==='Loss'?'#e05050':'#555',
+                                            background:r.result==='Win'?'#0d200d':r.result==='Loss'?'#200808':'#111', padding:'1px 5px', borderRadius:3 }}>{r.result}</span>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                        }
+                        <div style={{ fontSize:9, color:'#333', marginTop:10 }}>{'Custom Signal Tester is for historical research only. It does not guarantee future performance and is not financial advice.'}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Historical signal table */}
             <div style={card}>
-              <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em', marginBottom:12 }}>Historical Signals ({results.rows.length} rows)</div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Historical Signals ('+results.rows.length+' rows)'}</div>
+                {results.rows.length > 0
+                  ? <button onClick={function(){
+                      exportRowsToCsv(ticker+'-historical-signals-'+results.hp+'D.csv', results.rows, [
+                        { label:'Date',             key:'date' },
+                        { label:'Close',            value:function(r){ return '$'+r.close.toFixed(2); } },
+                        { label:'Setup',            key:'setup' },
+                        { label:'Full Setup',       key:'fullSetup' },
+                        { label:'Trend',            key:'trend' },
+                        { label:'Momentum',         key:'momentum' },
+                        { label:'Reversal',         key:'reversal' },
+                        { label:'Smart Money',      key:'smartMoney' },
+                        { label:'Future Return %',  value:function(r){ return r.futureReturn!=null?r.futureReturn.toFixed(2):''; } },
+                        { label:'Result',           key:'result' },
+                      ]);
+                    }} style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #333', borderRadius:5, color:'#888', cursor:'pointer' }}>Export CSV</button>
+                  : <button disabled style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #2a2a28', borderRadius:5, color:'#444', cursor:'default' }}>No rows to export</button>}
+              </div>
               <div style={{ overflowX:'auto', maxHeight:480, overflowY:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
                   <thead style={{ position:'sticky', top:0, zIndex:1 }}>
@@ -3931,7 +4457,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.40</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.44</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -3985,7 +4511,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.40</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.44</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -10363,7 +10889,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.40</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.44</span>
           </div>
         </div>
 
