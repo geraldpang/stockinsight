@@ -1488,6 +1488,91 @@ function buildCustomConditionText(trend, momentum, reversal, smartMoney, setup, 
 }
 
 
+// ── Run 6I: Weekly Momentum helpers ───────────────────────────────────────────
+function buildWeeklyBars(dailyBars) {
+  var weekMap = {}, weekOrder = [];
+  dailyBars.forEach(function(b) {
+    var wk = simWeekKey(b.date);
+    if (!weekMap[wk]) { weekMap[wk] = { open:b.open, high:b.high, low:b.low, close:b.close, volume:b.volume||0, date:b.date }; weekOrder.push(wk); }
+    else { var w=weekMap[wk]; if(b.high>w.high)w.high=b.high; if(b.low<w.low)w.low=b.low; w.close=b.close; w.volume+=b.volume||0; }
+  });
+  return weekOrder.map(function(wk){ return weekMap[wk]; });
+}
+function calcWeeklyMomentum(weeklyBars) {
+  var empty = { status:'Not Enough Data', score:50, rsi14:null, previousRsi14:null, rsiDirection:'—',
+    macdLine:null, macdSignal:null, macdHistogram:null, previousMacdHistogram:null, macdDirection:'—',
+    priceVsSma10Pct:null, roc4wPct:null };
+  if (!weeklyBars || weeklyBars.length < 14) return empty;
+  var closes = weeklyBars.map(function(b){ return b.close; });
+  var wRsi = calcRSI(closes, 14);
+  var prevRsiW = closes.length > 15 ? calcRSI(closes.slice(0,-1), 14) : null;
+  var wE12 = simEMAHistory(closes, 12), wE26 = simEMAHistory(closes, 26);
+  var wMacdLine = [];
+  var minM = Math.min(wE12.length, wE26.length);
+  for (var i=0;i<minM;i++) wMacdLine.push(wE12[wE12.length-minM+i]-wE26[wE26.length-minM+i]);
+  var wSigH = simEMAHistory(wMacdLine, 9);
+  var wHist = wMacdLine.length&&wSigH.length ? wMacdLine[wMacdLine.length-1]-wSigH[wSigH.length-1] : null;
+  var wPrevHist = wMacdLine.length>1&&wSigH.length>1 ? wMacdLine[wMacdLine.length-2]-wSigH[wSigH.length-2] : null;
+  var wSma10 = simSMA(closes, 10);
+  var wVsSma10 = (wSma10&&wSma10>0) ? ((closes[closes.length-1]-wSma10)/wSma10)*100 : null;
+  var wRoc4 = closes.length>=5 ? ((closes[closes.length-1]-closes[closes.length-5])/closes[closes.length-5])*100 : null;
+  // Scores
+  var rsiS = wRsi==null?3:wRsi>=65?5:wRsi>=55?4:wRsi>=45?3:wRsi>=35?2:1;
+  var improving = wHist!=null&&wPrevHist!=null&&wHist>wPrevHist;
+  var macdS = 3;
+  if (wHist!=null){ if(wHist>0&&improving)macdS=5; else if(wHist>0)macdS=4; else if(improving)macdS=3; else if(wHist>-0.5)macdS=2; else macdS=1; }
+  var sma10S = wVsSma10==null?3:wVsSma10>5?5:wVsSma10>2?4:wVsSma10>-2?3:wVsSma10>-5?2:1;
+  var rocS   = wRoc4==null?3:wRoc4>8?5:wRoc4>3?4:wRoc4>-3?3:wRoc4>-8?2:1;
+  var score = (rsiS*0.30 + macdS*0.35 + sma10S*0.20 + rocS*0.15) * 20;
+  var status = score>=80?'Strong':score>=65?'Building':score>=50?'Neutral':score>=35?'Fading':'Weak';
+  return { status:status, score:score, rsi14:wRsi!=null?parseFloat(wRsi.toFixed(1)):null,
+    previousRsi14:prevRsiW, rsiDirection:prevRsiW!=null?(wRsi>prevRsiW?'Rising':'Falling'):'—',
+    macdLine:wMacdLine.length?wMacdLine[wMacdLine.length-1]:null, macdSignal:wSigH.length?wSigH[wSigH.length-1]:null,
+    macdHistogram:wHist!=null?parseFloat(wHist.toFixed(3)):null,
+    previousMacdHistogram:wPrevHist!=null?parseFloat(wPrevHist.toFixed(3)):null,
+    macdDirection:improving?'Improving':(wHist!=null&&wPrevHist!=null?'Deteriorating':'—'),
+    priceVsSma10Pct:wVsSma10!=null?parseFloat(wVsSma10.toFixed(2)):null,
+    roc4wPct:wRoc4!=null?parseFloat(wRoc4.toFixed(2)):null };
+}
+function classifyMomentumAlignment(daily, weekly) {
+  if (!weekly||weekly==='Not Enough Data') return 'Not Enough Data';
+  var dB=daily==='Strong'||daily==='Building', dN=daily==='Neutral', dW=daily==='Fading'||daily==='Weak';
+  var wB=weekly==='Strong'||weekly==='Building', wN=weekly==='Neutral', wW=weekly==='Fading'||weekly==='Weak';
+  if (dB&&wB) return 'Bullish Alignment';
+  if (dB&&wN) return 'Early Bullish Attempt';
+  if (dB&&wW) return 'Short-Term Bounce Only';
+  if (dN&&wB) return 'Weekly Support, Waiting Daily Trigger';
+  if (dW&&wB) return 'Pullback in Larger Momentum';
+  if (dW&&wW) return 'Bearish Alignment';
+  return 'No Clear Alignment';
+}
+// Shared groupBy for A/B test sections
+function simGroupBy(rows, keyFn) {
+  var map = {};
+  rows.forEach(function(r){
+    var k=keyFn(r)||'—';
+    if (!map[k]) map[k]={ returns:[], wins:0 };
+    if (r.futureReturn!=null){ map[k].returns.push(r.futureReturn); if(r.futureReturn>0) map[k].wins++; }
+  });
+  return Object.keys(map).map(function(k){
+    var g=map[k], sigs=g.returns.length;
+    var avg=sigs?g.returns.reduce(function(a,b){return a+b;},0)/sigs:null;
+    var wr=sigs?(g.wins/sigs)*100:null;
+    return { label:k, signals:sigs, winRate:wr, avgReturn:avg,
+      medianReturn:simMedian(g.returns),
+      bestReturn:sigs?Math.max.apply(null,g.returns):null,
+      worstReturn:sigs?Math.min.apply(null,g.returns):null };
+  });
+}
+function simAbQuality(r, minSig) {
+  if (!r||r.signals<(minSig||3)) return 'Low Sample';
+  if (r.winRate>=65&&r.medianReturn>0) return 'Strong';
+  if (r.winRate>=55&&r.medianReturn>0) return 'Watch';
+  if (r.winRate>=50&&r.medianReturn>=0) return 'Mixed';
+  return 'Weak';
+}
+
+
 function exportRowsToCsv(filename, rows, columns) {
   if (!rows || !rows.length) return;
   function esc(v) {
@@ -1913,8 +1998,11 @@ export function SimulatorPage() {
   var [progress,    setProgress]    = useState(0);
   var [minSignals,  setMinSignals]  = useState('3');
   var [combSortBy,  setCombSortBy]  = useState('Avg Return');
-  var [abMinSig,    setAbMinSig]    = useState('3');
-  var [abSortBy,    setAbSortBy]    = useState('Win Rate');
+  var [mbMinSig,    setMbMinSig]    = useState('10');
+  var [mbSortBy,    setMbSortBy]    = useState('Win Rate');
+  // Custom Signal Tester — weekly momentum/alignment filters
+  var [cstWeeklyMom, setCstWeeklyMom] = useState([]);
+  var [cstMomAlign,  setCstMomAlign]  = useState([]);
   // Custom Signal Tester state
   var [cstTrend,     setCstTrend]     = useState([]);
   var [cstMomentum,  setCstMomentum]  = useState([]);
@@ -2024,37 +2112,23 @@ export function SimulatorPage() {
             bucket52w: _bkt52,
           };
         } catch(e) {}
-        // New Trend model calculation (direction / timing / extension)
-        var nt = { direction:'—', timing:'—', extension:'—', directionScore:0 };
-        var ntDrv = {};
-        try {
-          var _c=bar.close, _s50=ind.sma50||0, _s200=ind.sma200||0, _e20=ind.ema20||0, _w10=ind.wsma10||0, _w40=ind.wsma40||0;
-          var _pc = i>0?bars[i-1].close:_c;
-          var _ps50 = _s50; // approx previous SMA50 ≈ current (changes slowly)
-          // Direction (price>SMA200 +2, SMA50>SMA200 +2, WSMA10>WSMA40 +1)
-          var _ds=0;
-          if (_s200>0&&_c>_s200)_ds+=2; if (_s50>0&&_s200>0&&_s50>_s200)_ds+=2; if (_w10>0&&_w40>0&&_w10>_w40)_ds+=1;
-          var _dir = _ds===5?'Strong Uptrend':_ds===4?'Uptrend':_ds>=2?'Sideways':_ds===1?'Downtrend':'Strong Downtrend';
-          // Timing (price>EMA20, price>SMA50, SMA50 reclaim/loss)
-          var _abe=_e20>0&&_c>_e20, _abs=_s50>0&&_c>_s50, _recl=_ps50>0&&_pc<=_ps50&&_c>_s50, _lost=_ps50>0&&_pc>=_ps50&&_c<_s50;
-          var _tim = _abe&&_abs?'Healthy':_abe&&!_abs?'Improving':!_abe&&_abs?'Weakening':'Breakdown';
-          if (_recl) _tim='Improving'; if (_lost) _tim='Breakdown';
-          // Extension (max % deviation from SMA50 / SMA200)
-          var _p50=_s50>0?Math.abs((_c-_s50)/_s50*100):0, _p200=_s200>0?Math.abs((_c-_s200)/_s200*100):0;
-          var _mx=Math.max(_p50,_p200);
-          var _ext=_mx>=20?'Extreme Extension':_mx>=10?'Overextended':_mx>=5?'Moderately Extended':'Not Extended';
-          nt = { direction:_dir, timing:_tim, extension:_ext, directionScore:_ds };
-          ntDrv = {
-            priceVsEma20Pct:  _e20>0?parseFloat(((_c-_e20)/_e20*100).toFixed(2)):null,
-            priceVsSma50Pct:  _s50>0?parseFloat(((_c-_s50)/_s50*100).toFixed(2)):null,
-            priceVsSma200Pct: _s200>0?parseFloat(((_c-_s200)/_s200*100).toFixed(2)):null,
-            sma50VsSma200Pct: (_s50>0&&_s200>0)?parseFloat(((_s50-_s200)/_s200*100).toFixed(2)):null,
-            wsma10VsWsma40Pct:(_w10>0&&_w40>0)?parseFloat(((_w10-_w40)/_w40*100).toFixed(2)):null,
-            priceAboveEma20:_abe, priceAboveSma50:_abs, priceAboveSma200:_s200>0&&_c>_s200,
-            sma50AboveSma200:_s50>0&&_s200>0&&_s50>_s200, wsma10AboveWsma40:_w10>0&&_w40>0&&_w10>_w40,
-            priceReclaimedSma50:_recl, priceLostSma50:_lost,
-          };
-        } catch(e) {}
+        // Weekly Momentum (derived from weekly bars built from daily slice)
+        var wMom = { status:'Not Enough Data', score:50, rsi14:null, macdHistogram:null, macdDirection:'—', priceVsSma10Pct:null, roc4wPct:null };
+        try { wMom = calcWeeklyMomentum(buildWeeklyBars(slice)); } catch(e) {}
+        var nm = {
+          daily: snap.momentum ? snap.momentum.status : '—',
+          weekly: wMom.status,
+          alignment: classifyMomentumAlignment(snap.momentum ? snap.momentum.status : '—', wMom.status),
+          dailyScore: snap.momentum ? snap.momentum.score : null,
+          weeklyScore: wMom.score,
+        };
+        var _mhDrv = ind.macdHistory||[];
+        var nmDrv = {
+          dailyRsi14: ind.rsi14, dailyMacdHistogram: _mhDrv.length?_mhDrv[_mhDrv.length-1].histogram:null,
+          weeklyRsi14: wMom.rsi14, weeklyPrevRsi14: wMom.previousRsi14, weeklyRsiDirection: wMom.rsiDirection,
+          weeklyMacdHistogram: wMom.macdHistogram, weeklyPrevMacdHistogram: wMom.previousMacdHistogram,
+          weeklyMacdDirection: wMom.macdDirection, weeklyPriceVsSma10Pct: wMom.priceVsSma10Pct, weeklyRoc4wPct: wMom.roc4wPct,
+        };
         rows.push({
           date: bar.date,
           close: bar.close,
@@ -2071,9 +2145,9 @@ export function SimulatorPage() {
           result: ret != null ? (ret >= 0 ? 'Win' : 'Loss') : '—',
           drivers: drv,
           driverValues: drvV,
-          oldTrend:    snap.trend ? snap.trend.status : '—',
-          newTrend:    nt,
-          trendDrivers: ntDrv,
+          oldMomentum:    snap.momentum ? snap.momentum.status : '—',
+          newMomentum:    nm,
+          momentumDrivers: nmDrv,
         });
       }
       setResults({ rows:rows, hp:hp, wasLimited: processed >= LIMIT });
@@ -2332,206 +2406,136 @@ export function SimulatorPage() {
 
 
 
-            {/* Trend Model A/B Test */}
+
+            {/* Momentum Model A/B Test */}
             <div style={card}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:8, marginBottom:10 }}>
-                <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Trend Model A/B Test'}</div>
+                <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Momentum Model A/B Test'}</div>
                 <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                  {[['Min Signals', abMinSig, setAbMinSig, ['1','3','5','10','20']],
-                    ['Sort By', abSortBy, setAbSortBy, ['Win Rate','Avg Return','Median Return','Signals','Worst Return']],
+                  {[['Min Signals',mbMinSig,setMbMinSig,['1','3','5','10','20']],
+                    ['Sort By',mbSortBy,setMbSortBy,['Win Rate','Avg Return','Median Return','Signals','Worst Return']],
                   ].map(function(ctrl){
-                    return (
-                      <div key={ctrl[0]} style={{ display:'flex', alignItems:'center', gap:5 }}>
-                        <span style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em' }}>{ctrl[0]}</span>
-                        <select value={ctrl[1]} onChange={function(e){ ctrl[2](e.target.value); }}
-                          style={{ background:'#111', border:'0.5px solid #333', borderRadius:5, padding:'4px 8px', color:'#f0ede6', fontSize:10, outline:'none', cursor:'pointer' }}>
-                          {ctrl[3].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
-                        </select>
-                      </div>
-                    );
+                    return <div key={ctrl[0]} style={{ display:'flex', alignItems:'center', gap:5 }}>
+                      <span style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em' }}>{ctrl[0]}</span>
+                      <select value={ctrl[1]} onChange={function(e){ ctrl[2](e.target.value); }}
+                        style={{ background:'#111', border:'0.5px solid #333', borderRadius:5, padding:'4px 8px', color:'#f0ede6', fontSize:10, outline:'none', cursor:'pointer' }}>
+                        {ctrl[3].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
+                      </select>
+                    </div>;
                   })}
                   <button onClick={function(){
-                    var rows = results.rows;
-                    exportRowsToCsv(ticker+'-trend-ab-test-'+results.hp+'D.csv', rows, [
+                    if (!results||!results.rows.length) return;
+                    exportRowsToCsv(ticker+'-momentum-ab-test-'+results.hp+'D.csv', results.rows, [
                       { label:'Date',          key:'date' },
-                      { label:'Close',         value:function(r){ return '$'+r.close.toFixed(2); } },
-                      { label:'Old Trend',     key:'oldTrend' },
-                      { label:'New Direction', value:function(r){ return r.newTrend?r.newTrend.direction:''; } },
-                      { label:'New Timing',    value:function(r){ return r.newTrend?r.newTrend.timing:''; } },
-                      { label:'New Extension', value:function(r){ return r.newTrend?r.newTrend.extension:''; } },
-                      { label:'Future Return %', value:function(r){ return r.futureReturn!=null?r.futureReturn.toFixed(2):''; } },
+                      { label:'Old Momentum',  key:'oldMomentum' },
+                      { label:'Daily Momentum',value:function(r){ return r.newMomentum?r.newMomentum.daily:''; } },
+                      { label:'Weekly Momentum',value:function(r){ return r.newMomentum?r.newMomentum.weekly:''; } },
+                      { label:'Alignment',     value:function(r){ return r.newMomentum?r.newMomentum.alignment:''; } },
+                      { label:'Weekly RSI',    value:function(r){ return r.momentumDrivers&&r.momentumDrivers.weeklyRsi14!=null?r.momentumDrivers.weeklyRsi14.toFixed(1):''; } },
+                      { label:'Weekly MACD Hist',value:function(r){ return r.momentumDrivers&&r.momentumDrivers.weeklyMacdHistogram!=null?r.momentumDrivers.weeklyMacdHistogram.toFixed(3):''; } },
+                      { label:'Weekly 4W ROC', value:function(r){ return r.momentumDrivers&&r.momentumDrivers.weeklyRoc4wPct!=null?r.momentumDrivers.weeklyRoc4wPct.toFixed(2)+'%':''; } },
+                      { label:'Future Return %',value:function(r){ return r.futureReturn!=null?r.futureReturn.toFixed(2):''; } },
                       { label:'Result',        key:'result' },
                     ]);
                   }} style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #333', borderRadius:5, color:'#888', cursor:'pointer' }}>Export CSV</button>
                 </div>
               </div>
               <div style={{ fontSize:11, color:'#555', marginBottom:14, lineHeight:1.6 }}>
-                {'This compares the old single Trend label against the new Direction / Timing / Extension model using the same historical backtest rows. Results are for research only and are not financial advice.'}
+                {'This compares the old single Momentum label against a new Daily / Weekly / Alignment momentum model using the same historical backtest rows. Results are for research only and are not financial advice.'}
               </div>
-
               {(function(){
-                var minS = parseInt(abMinSig)||3;
-
-                // Generic group-by helper
-                function groupBy(rows, keyFn) {
-                  var map = {};
-                  rows.forEach(function(r){
-                    var k = keyFn(r)||'—';
-                    if (!map[k]) map[k] = { returns:[], wins:0 };
-                    if (r.futureReturn!=null) {
-                      map[k].returns.push(r.futureReturn);
-                      if (r.futureReturn>0) map[k].wins++;
-                    }
-                  });
-                  return Object.keys(map).map(function(k){
-                    var g=map[k], sigs=g.returns.length;
-                    var avg=sigs?g.returns.reduce(function(a,b){return a+b;},0)/sigs:null;
-                    var wr=sigs?(g.wins/sigs)*100:null;
-                    return { label:k, signals:sigs, winRate:wr, avgReturn:avg,
-                      medianReturn:simMedian(g.returns),
-                      bestReturn: sigs?Math.max.apply(null,g.returns):null,
-                      worstReturn:sigs?Math.min.apply(null,g.returns):null };
+                var minS = parseInt(mbMinSig)||10;
+                function sortG(groups) {
+                  return groups.filter(function(r){return r.signals>=minS;}).sort(function(a,b){
+                    if (mbSortBy==='Avg Return')    return (b.avgReturn||0)-(a.avgReturn||0);
+                    if (mbSortBy==='Median Return') return (b.medianReturn||0)-(a.medianReturn||0);
+                    if (mbSortBy==='Signals')       return b.signals-a.signals;
+                    if (mbSortBy==='Worst Return')  return (b.worstReturn||-999)-(a.worstReturn||-999);
+                    return (b.winRate||0)-(a.winRate||0);
                   });
                 }
-
-                function sortGroups(groups) {
-                  return groups.filter(function(r){ return r.signals>=minS; }).sort(function(a,b){
-                    if (abSortBy==='Avg Return')    return (b.avgReturn||0)-(a.avgReturn||0);
-                    if (abSortBy==='Median Return') return (b.medianReturn||0)-(a.medianReturn||0);
-                    if (abSortBy==='Signals')       return b.signals-a.signals;
-                    if (abSortBy==='Worst Return')  return (b.worstReturn||-999)-(a.worstReturn||-999);
-                    return (b.winRate||0)-(a.winRate||0); // Win Rate default
-                  });
-                }
-
-                function abQuality(r) {
-                  if (!r||r.signals<10) return 'Low Sample';
-                  if (r.winRate>=65&&r.medianReturn>0) return 'Strong';
-                  if (r.winRate>=55&&r.medianReturn>0) return 'Watch';
-                  if (r.winRate<50||r.medianReturn<0) return 'Weak';
-                  return 'Mixed';
-                }
-                function qlC(q) {
-                  if (q==='Strong') return '#7abd00'; if (q==='Watch') return '#6090d0';
-                  if (q==='Weak') return '#e05050'; return '#EF9F27';
-                }
-
                 var rows = results.rows;
-                var oldGroups = sortGroups(groupBy(rows, function(r){ return r.oldTrend; }));
-                var dirGroups  = sortGroups(groupBy(rows, function(r){ return r.newTrend&&r.newTrend.direction; }));
-                var timGroups  = sortGroups(groupBy(rows, function(r){ return r.newTrend&&r.newTrend.timing; }));
-                var extGroups  = sortGroups(groupBy(rows, function(r){ return r.newTrend&&r.newTrend.extension; }));
-                var combGroups = sortGroups(groupBy(rows, function(r){ return r.newTrend?(r.newTrend.direction+' | '+r.newTrend.timing+' | '+r.newTrend.extension):'—'; }));
+                var oldG   = sortG(simGroupBy(rows, function(r){ return r.oldMomentum; }));
+                var weekG  = sortG(simGroupBy(rows, function(r){ return r.newMomentum&&r.newMomentum.weekly; }));
+                var alignG = sortG(simGroupBy(rows, function(r){ return r.newMomentum&&r.newMomentum.alignment; }));
+                var combG  = sortG(simGroupBy(rows, function(r){ return r.newMomentum?(r.newMomentum.daily+' / '+r.newMomentum.weekly+' / '+r.newMomentum.alignment):'—'; }));
 
-                // Comparison summary
-                var bestOld  = oldGroups.filter(function(r){return r.signals>=minS;}).sort(function(a,b){return (b.winRate||0)-(a.winRate||0);})[0];
-                var bestDir  = dirGroups[0];
-                var bestComb = combGroups[0];
-                var wDiff = (bestComb&&bestOld) ? (bestComb.winRate-bestOld.winRate).toFixed(1) : null;
-                var mDiff = (bestComb&&bestOld&&bestComb.medianReturn!=null&&bestOld.medianReturn!=null) ? (bestComb.medianReturn-bestOld.medianReturn).toFixed(2) : null;
+                var bestOld  = oldG[0];
+                var bestWeek = weekG[0];
+                var bestAlign= alignG[0];
+                var wDiff = (bestAlign&&bestOld&&bestAlign.winRate!=null&&bestOld.winRate!=null)?(bestAlign.winRate-bestOld.winRate).toFixed(1):null;
+                var mDiff = (bestAlign&&bestOld&&bestAlign.medianReturn!=null&&bestOld.medianReturn!=null)?(bestAlign.medianReturn-bestOld.medianReturn).toFixed(2):null;
 
-                function TH(h) { return <th key={h} style={{ padding:'4px 8px', fontSize:8, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>; }
-
-                function DataRow(r, i, col1) {
-                  var wrC = (r.winRate||0)>=60?'#7abd00':(r.winRate||0)>=45?'#EF9F27':'#e05050';
-                  var avgC = (r.avgReturn||0)>=0?'#7abd00':'#e05050';
-                  var medC = (r.medianReturn||0)>=0?'#7abd00':'#e05050';
-                  var q = abQuality(r);
-                  return (
-                    <tr key={r.label+i} style={{ background:i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
-                      <td style={{ padding:'5px 8px', color:summaryCardDark(col1===r.label?r.label:'—').text||'#aaa', fontSize:10, fontWeight:600, maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.label}>{r.label}</td>
-                      <td style={{ padding:'5px 8px', color:'#f0ede6', textAlign:'right', fontWeight:600 }}>{r.signals}</td>
-                      <td style={{ padding:'5px 8px', color:wrC, textAlign:'right', fontWeight:700 }}>{r.winRate!=null?r.winRate.toFixed(1)+'%':'—'}</td>
-                      <td style={{ padding:'5px 8px', color:avgC, textAlign:'right', fontWeight:700 }}>{simFmtPct(r.avgReturn)}</td>
-                      <td style={{ padding:'5px 8px', color:medC, textAlign:'right' }}>{simFmtPct(r.medianReturn)}</td>
-                      <td style={{ padding:'5px 8px', color:'#7abd00', textAlign:'right' }}>{simFmtPct(r.bestReturn)}</td>
-                      <td style={{ padding:'5px 8px', color:'#e05050', textAlign:'right' }}>{simFmtPct(r.worstReturn)}</td>
-                      <td style={{ padding:'5px 8px' }}><span style={{ fontSize:8, fontWeight:700, color:qlC(q), background:'#111', border:'0.5px solid '+qlC(q)+'55', borderRadius:3, padding:'1px 5px' }}>{q}</span></td>
-                    </tr>
-                  );
+                function qlC(q){ return q==='Strong'?'#7abd00':q==='Watch'?'#6090d0':q==='Weak'?'#e05050':q==='Mixed'?'#EF9F27':'#555'; }
+                function ATH(h){ return <th key={h} style={{ padding:'4px 8px', fontSize:8, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>; }
+                function ARow(r, i) {
+                  var q=simAbQuality(r,minS), wrC=(r.winRate||0)>=60?'#7abd00':(r.winRate||0)>=45?'#EF9F27':'#e05050';
+                  return <tr key={r.label+i} style={{ background:i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
+                    <td style={{ padding:'5px 8px', color:'#d0a060', fontSize:10, fontWeight:600, maxWidth:220, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.label}>{r.label}</td>
+                    <td style={{ padding:'5px 8px', color:'#f0ede6', textAlign:'right', fontWeight:600 }}>{r.signals}</td>
+                    <td style={{ padding:'5px 8px', color:wrC, textAlign:'right', fontWeight:700 }}>{r.winRate!=null?r.winRate.toFixed(1)+'%':'—'}</td>
+                    <td style={{ padding:'5px 8px', color:(r.avgReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right', fontWeight:700 }}>{simFmtPct(r.avgReturn)}</td>
+                    <td style={{ padding:'5px 8px', color:(r.medianReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right' }}>{simFmtPct(r.medianReturn)}</td>
+                    <td style={{ padding:'5px 8px', color:'#7abd00', textAlign:'right' }}>{simFmtPct(r.bestReturn)}</td>
+                    <td style={{ padding:'5px 8px', color:'#e05050', textAlign:'right' }}>{simFmtPct(r.worstReturn)}</td>
+                    <td style={{ padding:'5px 8px' }}><span style={{ fontSize:8, fontWeight:700, color:qlC(q), background:'#111', border:'0.5px solid '+qlC(q)+'55', borderRadius:3, padding:'1px 5px' }}>{q}</span></td>
+                  </tr>;
                 }
-
-                function SimpleTable(groups, col1label) {
-                  if (!groups.length) return <div style={{ color:'#555', fontSize:11, padding:'8px 0' }}>No combinations with {minS}+ signals.</div>;
-                  return (
-                    <div style={{ overflowX:'auto', marginBottom:16 }}>
-                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
-                        <thead><tr style={{ borderBottom:'1px solid #2a2a28' }}>{[col1label,'Signals','Win Rate','Avg Return','Median','Best','Worst','Quality'].map(TH)}</tr></thead>
-                        <tbody>{groups.map(function(r,i){ return DataRow(r,i,col1label); })}</tbody>
-                      </table>
-                    </div>
-                  );
-                }
-
-                // Combined table (split label into 3 cols)
-                function CombinedTable(groups) {
-                  if (!groups.length) return <div style={{ color:'#555', fontSize:11, padding:'8px 0' }}>No combinations with {minS}+ signals.</div>;
-                  return (
-                    <div style={{ overflowX:'auto', marginBottom:16 }}>
-                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
-                        <thead><tr style={{ borderBottom:'1px solid #2a2a28' }}>{['Direction','Timing','Extension','Signals','Win Rate','Avg Return','Median','Best','Worst','Quality'].map(TH)}</tr></thead>
-                        <tbody>{groups.map(function(r,i){
-                          var parts = r.label.split(' | ');
-                          var wrC=(r.winRate||0)>=60?'#7abd00':(r.winRate||0)>=45?'#EF9F27':'#e05050';
-                          var avgC=(r.avgReturn||0)>=0?'#7abd00':'#e05050', medC=(r.medianReturn||0)>=0?'#7abd00':'#e05050';
-                          var q=abQuality(r);
-                          return (
-                            <tr key={r.label+i} style={{ background:i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
-                              <td style={{ padding:'5px 8px', color:'#9acd50', fontSize:9, whiteSpace:'nowrap' }}>{parts[0]||'—'}</td>
-                              <td style={{ padding:'5px 8px', color:'#6090d0', fontSize:9, whiteSpace:'nowrap' }}>{parts[1]||'—'}</td>
-                              <td style={{ padding:'5px 8px', color:'#d0a060', fontSize:9, whiteSpace:'nowrap' }}>{parts[2]||'—'}</td>
-                              <td style={{ padding:'5px 8px', color:'#f0ede6', textAlign:'right', fontWeight:600 }}>{r.signals}</td>
-                              <td style={{ padding:'5px 8px', color:wrC, textAlign:'right', fontWeight:700 }}>{r.winRate!=null?r.winRate.toFixed(1)+'%':'—'}</td>
-                              <td style={{ padding:'5px 8px', color:avgC, textAlign:'right', fontWeight:700 }}>{simFmtPct(r.avgReturn)}</td>
-                              <td style={{ padding:'5px 8px', color:medC, textAlign:'right' }}>{simFmtPct(r.medianReturn)}</td>
-                              <td style={{ padding:'5px 8px', color:'#7abd00', textAlign:'right' }}>{simFmtPct(r.bestReturn)}</td>
-                              <td style={{ padding:'5px 8px', color:'#e05050', textAlign:'right' }}>{simFmtPct(r.worstReturn)}</td>
-                              <td style={{ padding:'5px 8px' }}><span style={{ fontSize:8, fontWeight:700, color:qlC(q), background:'#111', border:'0.5px solid '+qlC(q)+'55', borderRadius:3, padding:'1px 5px' }}>{q}</span></td>
-                            </tr>
-                          );
-                        })}</tbody>
-                      </table>
-                    </div>
-                  );
-                }
-
-                // Comparison summary cards
-                function StatCard(label, val, col) {
-                  return <div key={label} style={{ background:'#0e0e0c', borderRadius:7, padding:'10px 12px' }}>
-                    <div style={{ fontSize:8, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 }}>{label}</div>
-                    <div style={{ fontSize:12, fontWeight:800, color:col||'#f0ede6', lineHeight:1.3 }}>{val||'—'}</div>
+                function ATable(groups, col1label) {
+                  if (!groups.length) return <div style={{ color:'#555', fontSize:11, padding:'6px 0' }}>No groups with {minS}+ signals.</div>;
+                  return <div style={{ overflowX:'auto', marginBottom:14 }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
+                      <thead><tr style={{ borderBottom:'1px solid #2a2a28' }}>{[col1label,'Signals','Win Rate','Avg Return','Median','Best','Worst','Quality'].map(ATH)}</tr></thead>
+                      <tbody>{groups.map(function(r,i){ return ARow(r,i); })}</tbody>
+                    </table>
                   </div>;
                 }
-
+                function CombTable(groups) {
+                  if (!groups.length) return <div style={{ color:'#555', fontSize:11, padding:'6px 0' }}>No groups with {minS}+ signals.</div>;
+                  return <div style={{ overflowX:'auto', marginBottom:14 }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
+                      <thead><tr style={{ borderBottom:'1px solid #2a2a28' }}>{['Daily','Weekly','Alignment','Signals','Win Rate','Avg Return','Median','Best','Worst','Quality'].map(ATH)}</tr></thead>
+                      <tbody>{groups.map(function(r,i){
+                        var pts=r.label.split(' / '), q=simAbQuality(r,minS);
+                        var wrC=(r.winRate||0)>=60?'#7abd00':(r.winRate||0)>=45?'#EF9F27':'#e05050';
+                        return <tr key={r.label+i} style={{ background:i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
+                          <td style={{ padding:'5px 8px', color:'#9acd50', fontSize:9, whiteSpace:'nowrap' }}>{pts[0]||'—'}</td>
+                          <td style={{ padding:'5px 8px', color:'#6090d0', fontSize:9, whiteSpace:'nowrap' }}>{pts[1]||'—'}</td>
+                          <td style={{ padding:'5px 8px', color:'#d0a060', fontSize:9, maxWidth:150, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={pts[2]||''}>{pts[2]||'—'}</td>
+                          <td style={{ padding:'5px 8px', color:'#f0ede6', textAlign:'right', fontWeight:600 }}>{r.signals}</td>
+                          <td style={{ padding:'5px 8px', color:wrC, textAlign:'right', fontWeight:700 }}>{r.winRate!=null?r.winRate.toFixed(1)+'%':'—'}</td>
+                          <td style={{ padding:'5px 8px', color:(r.avgReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right', fontWeight:700 }}>{simFmtPct(r.avgReturn)}</td>
+                          <td style={{ padding:'5px 8px', color:(r.medianReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right' }}>{simFmtPct(r.medianReturn)}</td>
+                          <td style={{ padding:'5px 8px', color:'#7abd00', textAlign:'right' }}>{simFmtPct(r.bestReturn)}</td>
+                          <td style={{ padding:'5px 8px', color:'#e05050', textAlign:'right' }}>{simFmtPct(r.worstReturn)}</td>
+                          <td style={{ padding:'5px 8px' }}><span style={{ fontSize:8, fontWeight:700, color:qlC(q), background:'#111', border:'0.5px solid '+qlC(q)+'55', borderRadius:3, padding:'1px 5px' }}>{q}</span></td>
+                        </tr>;
+                      })}</tbody>
+                    </table>
+                  </div>;
+                }
+                function SCard(label, val, col) {
+                  return <div key={label} style={{ background:'#0e0e0c', borderRadius:7, padding:'10px 12px' }}>
+                    <div style={{ fontSize:8, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 }}>{label}</div>
+                    <div style={{ fontSize:11, fontWeight:800, color:col||'#f0ede6', lineHeight:1.4 }}>{val||'—'}</div>
+                  </div>;
+                }
                 return (
                   <div>
-                    {/* Comparison summary */}
                     <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:18 }}>
-                      {StatCard('Best Old Trend', bestOld?(bestOld.label+' ('+bestOld.winRate.toFixed(1)+'% WR)'):'—', '#9acd50')}
-                      {StatCard('Best New Direction', bestDir?(bestDir.label+' ('+bestDir.winRate.toFixed(1)+'% WR)'):'—', '#6090d0')}
-                      {StatCard('Best New Combined', bestComb?(bestComb.label.split(' | ').slice(0,2).join(' · ')+'…'):'—', '#d0a060')}
-                      {StatCard('vs Old Trend', wDiff!=null?(wDiff>0?'+':'')+wDiff+'% WR / '+(mDiff>0?'+':'')+mDiff+'% med':'—', wDiff!=null&&parseFloat(wDiff)>0?'#7abd00':'#e05050')}
+                      {SCard('Best Old Momentum',  bestOld  ?(bestOld.label  +' ('+bestOld.winRate.toFixed(1)  +'% WR)'):'—', '#9acd50')}
+                      {SCard('Best Weekly Momentum',bestWeek ?(bestWeek.label +' ('+bestWeek.winRate.toFixed(1) +'% WR)'):'—', '#6090d0')}
+                      {SCard('Best Alignment',      bestAlign?(bestAlign.label+' ('+bestAlign.winRate.toFixed(1)+'% WR)'):'—', '#d0a060')}
+                      {SCard('vs Old Momentum', wDiff!=null?(wDiff>0?'+':'')+wDiff+'% WR '+(mDiff!=null?'/ '+(mDiff>0?'+':'')+mDiff+'% med':''):'—', wDiff!=null&&parseFloat(wDiff)>0?'#7abd00':'#e05050')}
                     </div>
-
-                    {/* 1. Old Trend */}
-                    <div style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>Old Trend Performance</div>
-                    {SimpleTable(oldGroups, 'Old Trend')}
-
-                    {/* 2. New Direction */}
-                    <div style={{ fontSize:9, fontWeight:700, color:'#9acd50', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>New Trend Direction</div>
-                    {SimpleTable(dirGroups, 'Direction')}
-
-                    {/* 3. New Timing */}
-                    <div style={{ fontSize:9, fontWeight:700, color:'#6090d0', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>New Trend Timing</div>
-                    {SimpleTable(timGroups, 'Timing')}
-
-                    {/* 4. New Extension */}
-                    <div style={{ fontSize:9, fontWeight:700, color:'#d0a060', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>New Trend Extension</div>
-                    {SimpleTable(extGroups, 'Extension')}
-
-                    {/* 5. Combined */}
-                    <div style={{ fontSize:9, fontWeight:700, color:'#EF9F27', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>Combined New Trend Model</div>
-                    {CombinedTable(combGroups)}
+                    <div style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Old Momentum Performance</div>
+                    {ATable(oldG, 'Old Momentum')}
+                    <div style={{ fontSize:9, fontWeight:700, color:'#6090d0', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Weekly Momentum Performance</div>
+                    {ATable(weekG, 'Weekly Momentum')}
+                    <div style={{ fontSize:9, fontWeight:700, color:'#d0a060', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Momentum Alignment Performance</div>
+                    {ATable(alignG, 'Alignment')}
+                    <div style={{ fontSize:9, fontWeight:700, color:'#EF9F27', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Combined Momentum Model</div>
+                    {CombTable(combG)}
                   </div>
                 );
               })()}
@@ -2568,8 +2572,13 @@ export function SimulatorPage() {
               }
 
               var cstFilters = { trend:cstTrend, momentum:cstMomentum, reversal:cstReversal, smartMoney:cstSmartMoney, setup:cstSetup,
+                weeklyMom:cstWeeklyMom, momAlign:cstMomAlign,
                 driverFilters:{ trendDrivers:cstTrendDrv, momentumDrivers:cstMomDrv, reversalDrivers:cstRevDrv, smartMoneyDrivers:cstSmfDrv } };
-              var matchRows = results ? filterCustomSignalRows(results.rows, cstFilters) : [];
+              var matchRows = results ? results.rows.filter(function(row){
+                return filterCustomSignalRows([row], { trend:cstFilters.trend, momentum:cstFilters.momentum, reversal:cstFilters.reversal, smartMoney:cstFilters.smartMoney, setup:cstFilters.setup, driverFilters:cstFilters.driverFilters }).length > 0
+                  && matchesSelected(row.newMomentum ? row.newMomentum.weekly : 'Not Enough Data', cstFilters.weeklyMom)
+                  && matchesSelected(row.newMomentum ? row.newMomentum.alignment : 'Not Enough Data', cstFilters.momAlign);
+              }) : [];
 
               // Sub-signal chip → driver key mappings
               var SS_RSI  = {'RSI below 30':'rsiBelow30','RSI 30 to 40':'rsi30To40','RSI 40 to 50':'rsi40To50','RSI 50 to 60':'rsi50To60','RSI 60 to 70':'rsi60To70','RSI above 70':'rsiAbove70','RSI rising':'rsiRising','RSI falling':'rsiFalling','RSI between 45 and 65':'rsiBetween45And65'};
@@ -2604,6 +2613,7 @@ export function SimulatorPage() {
                 setCstTrend([]); setCstMomentum([]); setCstReversal([]); setCstSmartMoney([]); setCstSetup([]);
                 setCstTrendDrv([]); setCstMomDrv([]); setCstRevDrv([]); setCstSmfDrv([]);
                 setCstRsiFilter([]); setCstMacdFilter([]); setCst52wFilter([]); setCstMaFilter([]);
+                setCstWeeklyMom([]); setCstMomAlign([]);
               }
 
               return (
@@ -2624,6 +2634,8 @@ export function SimulatorPage() {
                         ['Reversal',    cstReversal,   setCstReversal,   CST_REV_OPTS,   null],
                         ['Smart Money', cstSmartMoney, setCstSmartMoney, CST_SMF_OPTS,   null],
                         ['Setup',       cstSetup,      setCstSetup,      CST_SETUP_OPTS, function(v){ return summaryCardDark(v).text; }],
+                        ['Weekly Mom',  cstWeeklyMom,  setCstWeeklyMom,  ['Strong','Building','Neutral','Fading','Weak','Not Enough Data'], null],
+                        ['Mom Align',   cstMomAlign,   setCstMomAlign,   ['Bullish Alignment','Early Bullish Attempt','Short-Term Bounce Only','Weekly Support, Waiting Daily Trigger','Pullback in Larger Momentum','Bearish Alignment','No Clear Alignment','Not Enough Data'], null],
                       ].map(function(row){
                         return (
                           <div key={row[0]} style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
@@ -2757,6 +2769,10 @@ export function SimulatorPage() {
                               { label:'Setup',           key:'setup' },
                               { label:'Trend',           key:'trend' },
                               { label:'Momentum',        key:'momentum' },
+                              { label:'Weekly Momentum', value:function(r){ return r.newMomentum?r.newMomentum.weekly:''; } },
+                              { label:'Mom Alignment',   value:function(r){ return r.newMomentum?r.newMomentum.alignment:''; } },
+                      { label:'Weekly Momentum', value:function(r){ return r.newMomentum?r.newMomentum.weekly:''; } },
+                      { label:'Mom Alignment',   value:function(r){ return r.newMomentum?r.newMomentum.alignment:''; } },
                               { label:'Reversal',        key:'reversal' },
                               { label:'Smart Money',     key:'smartMoney' },
                               { label:'RSI',             value:function(r){ return r.driverValues&&r.driverValues.rsi14!=null?r.driverValues.rsi14.toFixed(1):''; } },
@@ -2781,7 +2797,7 @@ export function SimulatorPage() {
                               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
                                 <thead style={{ position:'sticky', top:0, zIndex:1 }}>
                                   <tr style={{ borderBottom:'1px solid #2a2a28' }}>
-                                    {['Date','Close','Setup','Trend','Momentum','Reversal','Smart Money','RSI','MACD Hist','MACD State','52W%','52W Bucket','Return','Result'].map(function(h){
+                                    {['Date','Close','Setup','Trend','Momentum','Weekly Mom','Alignment','Reversal','Smart Money','RSI','MACD Hist','MACD State','52W%','52W Bucket','W.RSI','W.Hist','W.ROC','Return','Result'].map(function(h){
                                       return <th key={h} style={{ padding:'4px 7px', fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>;
                                     })}
                                   </tr>
@@ -2798,6 +2814,8 @@ export function SimulatorPage() {
                                         <td style={{ padding:'4px 7px', fontWeight:700, color:sc.text, whiteSpace:'nowrap' }} title={r.fullSetup}>{r.setup}</td>
                                         <td style={{ padding:'4px 7px', color:'#888', fontSize:9 }}>{r.trend}</td>
                                         <td style={{ padding:'4px 7px', color:'#888', fontSize:9 }}>{r.momentum}</td>
+                                        <td style={{ padding:'4px 7px', color: r.newMomentum&&r.newMomentum.weekly==='Strong'?'#7abd00':r.newMomentum&&r.newMomentum.weekly==='Building'?'#9acd50':r.newMomentum&&r.newMomentum.weekly==='Fading'?'#e08050':r.newMomentum&&r.newMomentum.weekly==='Weak'?'#e05050':'#666', fontSize:9, whiteSpace:'nowrap' }}>{r.newMomentum?r.newMomentum.weekly:'—'}</td>
+                                        <td style={{ padding:'4px 7px', color:'#6090d0', fontSize:8, maxWidth:110, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.newMomentum?r.newMomentum.alignment:''}>{r.newMomentum?r.newMomentum.alignment:'—'}</td>
                                         <td style={{ padding:'4px 7px', color:'#888', fontSize:9, maxWidth:110, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.reversal}>{r.reversal}</td>
                                         <td style={{ padding:'4px 7px', color:'#888', fontSize:9, maxWidth:110, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.smartMoney}>{r.smartMoney}</td>
                                         <td style={{ padding:'4px 7px', color: r.driverValues&&r.driverValues.rsi14!=null?(r.driverValues.rsi14>70?'#e05050':r.driverValues.rsi14<30?'#7abd00':'#aaa'):'#555', fontSize:9, whiteSpace:'nowrap' }}>{r.driverValues&&r.driverValues.rsi14!=null?r.driverValues.rsi14.toFixed(1):'—'}</td>
@@ -2811,6 +2829,9 @@ export function SimulatorPage() {
                                         </td>
                                         <td style={{ padding:'4px 7px', color:'#aaa', fontSize:9 }}>{r.driverValues&&r.driverValues.pos52w!=null?r.driverValues.pos52w.toFixed(1)+'%':'—'}</td>
                                         <td style={{ padding:'4px 7px', color:'#666', fontSize:9, whiteSpace:'nowrap' }}>{r.driverValues&&r.driverValues.bucket52w||'—'}</td>
+                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9 }}>{r.momentumDrivers&&r.momentumDrivers.weeklyRsi14!=null?r.momentumDrivers.weeklyRsi14.toFixed(1):'—'}</td>
+                                        <td style={{ padding:'4px 7px', color: r.momentumDrivers&&r.momentumDrivers.weeklyMacdHistogram!=null?(r.momentumDrivers.weeklyMacdHistogram>0?'#7abd00':'#e05050'):'#555', fontSize:9 }}>{r.momentumDrivers&&r.momentumDrivers.weeklyMacdHistogram!=null?r.momentumDrivers.weeklyMacdHistogram.toFixed(3):'—'}</td>
+                                        <td style={{ padding:'4px 7px', color: r.momentumDrivers&&r.momentumDrivers.weeklyRoc4wPct!=null?(r.momentumDrivers.weeklyRoc4wPct>=0?'#7abd00':'#e05050'):'#555', fontSize:9 }}>{r.momentumDrivers&&r.momentumDrivers.weeklyRoc4wPct!=null?r.momentumDrivers.weeklyRoc4wPct.toFixed(1)+'%':'—'}</td>
                                         <td style={{ padding:'4px 7px', fontWeight:700, color:retC, whiteSpace:'nowrap' }}>{simFmtPct(ret)}</td>
                                         <td style={{ padding:'4px 7px' }}>
                                           <span style={{ fontSize:8, fontWeight:700, color:r.result==='Win'?'#7abd00':r.result==='Loss'?'#e05050':'#555',
@@ -4699,7 +4720,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.45</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.46</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4753,7 +4774,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.45</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.46</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11131,7 +11152,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.45</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.46</span>
           </div>
         </div>
 
