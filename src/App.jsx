@@ -1364,6 +1364,10 @@ function buildSignalDrivers(ctx) {
   var avgL5 = last5v.length ? last5v.reduce(function(a,b){return a+b;},0)/last5v.length : 0;
   var avgP5 = prior5v.length ? prior5v.reduce(function(a,b){return a+b;},0)/prior5v.length : 0;
   var hi52 = snap.meta && snap.meta.hi52 ? snap.meta.hi52 : 0;
+  var lo52 = snap.meta && snap.meta.lo52 ? snap.meta.lo52 : 0;
+  var range52 = (hi52 > lo52 && lo52 > 0) ? hi52 - lo52 : 0;
+  var pos52   = range52 > 0 ? ((close - lo52) / range52) * 100 : -1;
+  var mid52   = lo52 > 0 ? (hi52 + lo52) / 2 : 0;
   var smfS = snap.smartMoneyFlow ? (snap.smartMoneyFlow.status||'') : '';
   var tS   = snap.trend           ? (snap.trend.status||'')           : '';
   var mS   = snap.momentum        ? (snap.momentum.status||'')        : '';
@@ -1400,6 +1404,26 @@ function buildSignalDrivers(ctx) {
     smartMoneyAccumulationPositive: smfS.indexOf('Accumulation Trend Positive')!==-1,
     smartMoneyNoClear: smfS.indexOf('No Clear')!==-1,
     smartMoneyStrongMultiTimeframe: smfS.indexOf('Strong Multi-Timeframe Flow')!==-1,
+    // RSI buckets
+    rsiBelow30:       rsi14 < 30,
+    rsi30To40:        rsi14 >= 30 && rsi14 < 40,
+    rsi40To50:        rsi14 >= 40 && rsi14 < 50,
+    rsi50To60:        rsi14 >= 50 && rsi14 < 60,
+    rsi60To70:        rsi14 >= 60 && rsi14 < 70,
+    // MACD extended
+    macdHistogramNegative: curHist < 0,
+    // Price vs MAs (below variants)
+    priceBelowSma50:  sma50  > 0 && close < sma50,
+    priceBelowSma200: sma200 > 0 && close < sma200,
+    priceBelowEma20:  ema20  > 0 && close < ema20,
+    // 52W range buckets
+    price52wRange0To25:   pos52 >= 0  && pos52 <  25,
+    price52wRange25To50:  pos52 >= 25 && pos52 <  50,
+    price52wRange50To75:  pos52 >= 50 && pos52 <  75,
+    price52wRange75To90:  pos52 >= 75 && pos52 <  90,
+    price52wRange90To100: pos52 >= 90,
+    priceBelow52wMidpoint: mid52 > 0 && close < mid52,
+    priceAbove52wMidpoint: mid52 > 0 && close >= mid52,
   };
 }
 function matchesSelected(value, selectedValues) {
@@ -1461,6 +1485,211 @@ function buildCustomConditionText(trend, momentum, reversal, smartMoney, setup, 
   if (rDrv.length)  lines.push('Reversal Driver: '   + rDrv.map(drvLabel).join(' OR '));
   if (sDrv.length)  lines.push('Smart Money Driver: '+ sDrv.map(drvLabel).join(' OR '));
   return lines.length ? lines.join('\n') : 'No filters selected (showing all signals).';
+}
+
+
+// ── Run 6I: Weekly Momentum helpers ───────────────────────────────────────────
+function buildWeeklyBars(dailyBars) {
+  var weekMap = {}, weekOrder = [];
+  dailyBars.forEach(function(b) {
+    var wk = simWeekKey(b.date);
+    if (!weekMap[wk]) { weekMap[wk] = { open:b.open, high:b.high, low:b.low, close:b.close, volume:b.volume||0, date:b.date }; weekOrder.push(wk); }
+    else { var w=weekMap[wk]; if(b.high>w.high)w.high=b.high; if(b.low<w.low)w.low=b.low; w.close=b.close; w.volume+=b.volume||0; }
+  });
+  return weekOrder.map(function(wk){ return weekMap[wk]; });
+}
+function calcWeeklyMomentum(weeklyBars) {
+  var empty = { status:'Not Enough Data', score:50, rsi14:null, previousRsi14:null, rsiDirection:'—',
+    macdLine:null, macdSignal:null, macdHistogram:null, previousMacdHistogram:null, macdDirection:'—',
+    priceVsSma10Pct:null, roc4wPct:null };
+  if (!weeklyBars || weeklyBars.length < 14) return empty;
+  var closes = weeklyBars.map(function(b){ return b.close; });
+  var wRsi = calcRSI(closes, 14);
+  var prevRsiW = closes.length > 15 ? calcRSI(closes.slice(0,-1), 14) : null;
+  var wE12 = simEMAHistory(closes, 12), wE26 = simEMAHistory(closes, 26);
+  var wMacdLine = [];
+  var minM = Math.min(wE12.length, wE26.length);
+  for (var i=0;i<minM;i++) wMacdLine.push(wE12[wE12.length-minM+i]-wE26[wE26.length-minM+i]);
+  var wSigH = simEMAHistory(wMacdLine, 9);
+  var wHist = wMacdLine.length&&wSigH.length ? wMacdLine[wMacdLine.length-1]-wSigH[wSigH.length-1] : null;
+  var wPrevHist = wMacdLine.length>1&&wSigH.length>1 ? wMacdLine[wMacdLine.length-2]-wSigH[wSigH.length-2] : null;
+  var wSma10 = simSMA(closes, 10);
+  var wVsSma10 = (wSma10&&wSma10>0) ? ((closes[closes.length-1]-wSma10)/wSma10)*100 : null;
+  var wRoc4 = closes.length>=5 ? ((closes[closes.length-1]-closes[closes.length-5])/closes[closes.length-5])*100 : null;
+  // Scores
+  var rsiS = wRsi==null?3:wRsi>=65?5:wRsi>=55?4:wRsi>=45?3:wRsi>=35?2:1;
+  var improving = wHist!=null&&wPrevHist!=null&&wHist>wPrevHist;
+  var macdS = 3;
+  if (wHist!=null){ if(wHist>0&&improving)macdS=5; else if(wHist>0)macdS=4; else if(improving)macdS=3; else if(wHist>-0.5)macdS=2; else macdS=1; }
+  var sma10S = wVsSma10==null?3:wVsSma10>5?5:wVsSma10>2?4:wVsSma10>-2?3:wVsSma10>-5?2:1;
+  var rocS   = wRoc4==null?3:wRoc4>8?5:wRoc4>3?4:wRoc4>-3?3:wRoc4>-8?2:1;
+  var score = (rsiS*0.30 + macdS*0.35 + sma10S*0.20 + rocS*0.15) * 20;
+  var status = score>=80?'Strong':score>=65?'Building':score>=50?'Neutral':score>=35?'Fading':'Weak';
+  return { status:status, score:score, rsi14:wRsi!=null?parseFloat(wRsi.toFixed(1)):null,
+    previousRsi14:prevRsiW, rsiDirection:prevRsiW!=null?(wRsi>prevRsiW?'Rising':'Falling'):'—',
+    macdLine:wMacdLine.length?wMacdLine[wMacdLine.length-1]:null, macdSignal:wSigH.length?wSigH[wSigH.length-1]:null,
+    macdHistogram:wHist!=null?parseFloat(wHist.toFixed(3)):null,
+    previousMacdHistogram:wPrevHist!=null?parseFloat(wPrevHist.toFixed(3)):null,
+    macdDirection:improving?'Improving':(wHist!=null&&wPrevHist!=null?'Deteriorating':'—'),
+    priceVsSma10Pct:wVsSma10!=null?parseFloat(wVsSma10.toFixed(2)):null,
+    roc4wPct:wRoc4!=null?parseFloat(wRoc4.toFixed(2)):null };
+}
+function classifyMomentumProfile(daily, weekly) {
+  if (!weekly||weekly==='Not Enough Data') return 'Not Enough Data';
+  var dB=daily==='Strong'||daily==='Building', dN=daily==='Neutral', dW=daily==='Fading'||daily==='Weak';
+  var wB=weekly==='Strong'||weekly==='Building', wN=weekly==='Neutral', wW=weekly==='Fading'||weekly==='Weak';
+  if (dB&&wB) return 'Momentum Continuation';
+  if (dB&&wN) return 'Early Recovery Attempt';
+  if (dB&&wW) return 'Weak Weekly Bounce';
+  if (dN&&wB) return 'Waiting for Daily Trigger';
+  if (dW&&wB) return 'Pullback in Larger Momentum';
+  if (dW&&wW) return 'Bearish Momentum';
+  return 'No Clear Momentum Profile';
+}
+function classifyMonthlyRegime(monthly) {
+  if (!monthly||monthly==='Not Enough Data') return 'Not Enough Data';
+  if (monthly==='Strong'||monthly==='Building') return 'Supportive';
+  if (monthly==='Neutral') return 'Neutral';
+  return 'Weak';
+}
+// classifyMomentumAlignment kept as alias
+function classifyMomentumAlignment(d,w){ return classifyMomentumProfile(d,w); }
+// Shared groupBy for A/B test sections
+function simGroupBy(rows, keyFn) {
+  var map = {};
+  rows.forEach(function(r){
+    var k=keyFn(r)||'—';
+    if (!map[k]) map[k]={ returns:[], wins:0 };
+    if (r.futureReturn!=null){ map[k].returns.push(r.futureReturn); if(r.futureReturn>0) map[k].wins++; }
+  });
+  return Object.keys(map).map(function(k){
+    var g=map[k], sigs=g.returns.length;
+    var avg=sigs?g.returns.reduce(function(a,b){return a+b;},0)/sigs:null;
+    var wr=sigs?(g.wins/sigs)*100:null;
+    return { label:k, signals:sigs, winRate:wr, avgReturn:avg,
+      medianReturn:simMedian(g.returns),
+      bestReturn:sigs?Math.max.apply(null,g.returns):null,
+      worstReturn:sigs?Math.min.apply(null,g.returns):null };
+  });
+}
+function simAbQuality(r, minSig) {
+  if (!r||r.signals<(minSig||3)) return 'Low Sample';
+  if (r.winRate>=65&&r.medianReturn>0) return 'Strong';
+  if (r.winRate>=55&&r.medianReturn>0) return 'Watch';
+  if (r.winRate>=50&&r.medianReturn>=0) return 'Mixed';
+  return 'Weak';
+}
+
+function buildMonthlyBars(dailyBars) {
+  var mMap = {}, mOrder = [];
+  dailyBars.forEach(function(b) {
+    var d = new Date(b.date);
+    var mk = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2);
+    if (!mMap[mk]) { mMap[mk] = { open:b.open, high:b.high, low:b.low, close:b.close, volume:b.volume||0, date:b.date }; mOrder.push(mk); }
+    else { var m=mMap[mk]; if(b.high>m.high)m.high=b.high; if(b.low<m.low)m.low=b.low; m.close=b.close; m.volume+=b.volume||0; }
+  });
+  return mOrder.map(function(mk){ return mMap[mk]; });
+}
+function calcMonthlyMomentum(monthlyBars) {
+  var empty = { status:'Not Enough Data', score:50, rsi14:null, previousRsi14:null, rsiDirection:'—',
+    macdLine:null, macdSignal:null, macdHistogram:null, previousMacdHistogram:null, macdDirection:'—',
+    priceVsSma10Pct:null, roc3mPct:null };
+  if (!monthlyBars || monthlyBars.length < 14) return empty;
+  var closes = monthlyBars.map(function(b){ return b.close; });
+  var mRsi = calcRSI(closes, 14);
+  var prevRsiM = closes.length > 15 ? calcRSI(closes.slice(0,-1), 14) : null;
+  var mE12 = simEMAHistory(closes, 12), mE26 = simEMAHistory(closes, 26);
+  var mMacdLine = [];
+  var minM2 = Math.min(mE12.length, mE26.length);
+  for (var i=0;i<minM2;i++) mMacdLine.push(mE12[mE12.length-minM2+i]-mE26[mE26.length-minM2+i]);
+  var mSigH = simEMAHistory(mMacdLine, 9);
+  var mHist = mMacdLine.length&&mSigH.length ? mMacdLine[mMacdLine.length-1]-mSigH[mSigH.length-1] : null;
+  var mPrevHist = mMacdLine.length>1&&mSigH.length>1 ? mMacdLine[mMacdLine.length-2]-mSigH[mSigH.length-2] : null;
+  var mSma10 = simSMA(closes, 10);
+  var mVsSma10 = (mSma10&&mSma10>0) ? ((closes[closes.length-1]-mSma10)/mSma10)*100 : null;
+  var mRoc3 = closes.length>=4 ? ((closes[closes.length-1]-closes[closes.length-4])/closes[closes.length-4])*100 : null;
+  // Scores (monthly thresholds)
+  var rsiS = mRsi==null?3:mRsi>=65?5:mRsi>=55?4:mRsi>=45?3:mRsi>=35?2:1;
+  var mImproving = mHist!=null&&mPrevHist!=null&&mHist>mPrevHist;
+  var macdS = 3;
+  if (mHist!=null){ if(mHist>0&&mImproving)macdS=5; else if(mHist>0)macdS=4; else if(mImproving)macdS=3; else if(mHist>-0.5)macdS=2; else macdS=1; }
+  var sma10S = mVsSma10==null?3:mVsSma10>8?5:mVsSma10>3?4:mVsSma10>-3?3:mVsSma10>-8?2:1;
+  var rocS   = mRoc3==null?3:mRoc3>15?5:mRoc3>5?4:mRoc3>-5?3:mRoc3>-15?2:1;
+  var score = (rsiS*0.30 + macdS*0.35 + sma10S*0.20 + rocS*0.15) * 20;
+  var status = score>=80?'Strong':score>=65?'Building':score>=50?'Neutral':score>=35?'Fading':'Weak';
+  return { status:status, score:score, rsi14:mRsi!=null?parseFloat(mRsi.toFixed(1)):null,
+    previousRsi14:prevRsiM, rsiDirection:prevRsiM!=null?(mRsi>prevRsiM?'Rising':'Falling'):'—',
+    macdLine:mMacdLine.length?mMacdLine[mMacdLine.length-1]:null, macdSignal:mSigH.length?mSigH[mSigH.length-1]:null,
+    macdHistogram:mHist!=null?parseFloat(mHist.toFixed(3)):null, previousMacdHistogram:mPrevHist!=null?parseFloat(mPrevHist.toFixed(3)):null,
+    macdDirection:mImproving?'Improving':(mHist!=null&&mPrevHist!=null?'Deteriorating':'—'),
+    priceVsSma10Pct:mVsSma10!=null?parseFloat(mVsSma10.toFixed(2)):null, roc3mPct:mRoc3!=null?parseFloat(mRoc3.toFixed(2)):null };
+}
+
+
+// ── Run 6L: Overall Momentum Result helpers ────────────────────────────────────
+function summarizeRows(rows) {
+  if (!rows || !rows.length) return { signals:0, wins:0, losses:0, winRate:null, avgReturn:null, medianReturn:null, bestReturn:null, worstReturn:null };
+  var rets = rows.map(function(r){ return Number(r.futureReturn); }).filter(function(v){ return !isNaN(v); });
+  var wins = rets.filter(function(v){ return v > 0; }).length;
+  var avg  = rets.length ? rets.reduce(function(a,b){ return a+b; },0)/rets.length : null;
+  return { signals:rets.length, wins:wins, losses:rets.length-wins,
+    winRate:  rets.length ? (wins/rets.length)*100 : null,
+    avgReturn: avg, medianReturn: simMedian(rets),
+    bestReturn:  rets.length ? Math.max.apply(null,rets) : null,
+    worstReturn: rets.length ? Math.min.apply(null,rets) : null };
+}
+function classifyMomentumResult(summary, minSignals) {
+  if (!summary || summary.signals < (minSignals||10)) return 'Low Confidence';
+  if (summary.winRate >= 65 && summary.medianReturn > 0)  return 'Favourable';
+  if (summary.winRate >= 55 && summary.medianReturn > 0)  return 'Watch';
+  if (summary.winRate >= 50 && summary.medianReturn >= 0) return 'Mixed';
+  return 'Unfavourable';
+}
+function calculateOverallMomentumResult(row, allRows, minSignals) {
+  var mp = row && row.momentumProfile;
+  var profile       = mp && mp.profile;
+  var monthlyRegime = mp && mp.monthlyRegime;
+  var empty = { result:'Low Confidence', source:'No Profile', profile:profile, monthlyRegime:monthlyRegime, signals:0, winRate:null, medianReturn:null, avgReturn:null, bestReturn:null, worstReturn:null };
+  if (!profile) return empty;
+  // 1. Try exact Profile + Monthly Regime
+  var exactRows = allRows.filter(function(r){ return r&&r.momentumProfile&&r.momentumProfile.profile===profile&&r.momentumProfile.monthlyRegime===monthlyRegime; });
+  var exact = summarizeRows(exactRows);
+  if (exact.signals >= (minSignals||10)) return Object.assign({}, exact, { result:classifyMomentumResult(exact,minSignals), source:'Profile + Monthly Regime', profile:profile, monthlyRegime:monthlyRegime, medianReturn:exact.medianReturn });
+  // 2. Fall back to broader profile
+  var profRows = allRows.filter(function(r){ return r&&r.momentumProfile&&r.momentumProfile.profile===profile; });
+  var prof = summarizeRows(profRows);
+  if (prof.signals >= (minSignals||10)) return Object.assign({}, prof, { result:classifyMomentumResult(prof,minSignals), source:'Momentum Profile', profile:profile, monthlyRegime:monthlyRegime, medianReturn:prof.medianReturn });
+  // 3. Not enough data
+  return Object.assign({}, prof, { result:'Low Confidence', source:'Insufficient Historical Samples', profile:profile, monthlyRegime:monthlyRegime });
+}
+
+
+// ── Run 6M: Momentum tab Historical Confidence ────────────────────────────────
+function classifyHistoricalConfidence(summary, minSignals) {
+  if (!summary || summary.signals < (minSignals||10)) return 'Insufficient Data';
+  if (summary.signals >= 30 && summary.winRate >= 65 && summary.medianReturn > 0) return 'High Confidence';
+  if (summary.signals >= 20 && summary.winRate >= 55 && summary.medianReturn > 0) return 'Moderate Confidence';
+  if (summary.signals >= 10 && summary.winRate >= 50 && summary.medianReturn >= 0) return 'Low Confidence';
+  return 'Unfavourable';
+}
+function calcDailyMomentumApprox(closesArr) {
+  if (!closesArr || closesArr.length < 14) return { status:'Neutral', score:50 };
+  var rsi = calcRSI(closesArr, 14) || 50;
+  var sma5 = simSMA(closesArr, 5) || closesArr[closesArr.length-1];
+  var price = closesArr[closesArr.length-1];
+  var roc = sma5 > 0 ? (price-sma5)/sma5*100 : 0;
+  var e12 = simEMAHistory(closesArr,12), e26 = simEMAHistory(closesArr,26);
+  var ml=[], mn=Math.min(e12.length,e26.length);
+  for(var i=0;i<mn;i++) ml.push(e12[e12.length-mn+i]-e26[e26.length-mn+i]);
+  var sg = simEMAHistory(ml,9);
+  var hist = ml.length&&sg.length ? ml[ml.length-1]-sg[sg.length-1] : 0;
+  var phist = ml.length>1&&sg.length>1 ? ml[ml.length-2]-sg[sg.length-2] : null;
+  var imp = phist!=null&&hist>phist;
+  var rsiS = rsi>=70?5:rsi>=60?4:rsi>=50?3:rsi>=40?2:1;
+  var macdS = (hist>0&&imp)?5:hist>0?4:imp?3:hist>-0.5?2:1;
+  var rocS = roc>5?5:roc>2?4:roc>-2?3:roc>-5?2:1;
+  var score = (rsiS*0.40+macdS*0.40+rocS*0.20)*20;
+  return { status:score>=80?'Strong':score>=65?'Building':score>=50?'Neutral':score>=35?'Fading':'Weak', score:score };
 }
 
 
@@ -1889,6 +2118,13 @@ export function SimulatorPage() {
   var [progress,    setProgress]    = useState(0);
   var [minSignals,  setMinSignals]  = useState('3');
   var [combSortBy,  setCombSortBy]  = useState('Avg Return');
+  var [mbMinSig,    setMbMinSig]    = useState('10');
+  var [mbSortBy,    setMbSortBy]    = useState('Win Rate');
+  // Custom Signal Tester — weekly momentum/alignment filters
+  var [cstWeeklyMom, setCstWeeklyMom] = useState([]);
+  var [cstMomProfile, setCstMomProfile] = useState([]);
+  var [cstMonthlyRegime, setCstMonthlyRegime] = useState([]);
+  var [cstOverallResult, setCstOverallResult] = useState([]);
   // Custom Signal Tester state
   var [cstTrend,     setCstTrend]     = useState([]);
   var [cstMomentum,  setCstMomentum]  = useState([]);
@@ -1900,6 +2136,11 @@ export function SimulatorPage() {
   var [cstRevDrv,    setCstRevDrv]    = useState([]);
   var [cstSmfDrv,    setCstSmfDrv]    = useState([]);
   var [cstDrvOpen,   setCstDrvOpen]   = useState(false);
+  var [cstSubSigOpen,setCstSubSigOpen]= useState(false);
+  var [cstRsiFilter, setCstRsiFilter] = useState([]);
+  var [cstMacdFilter,setCstMacdFilter]= useState([]);
+  var [cst52wFilter, setCst52wFilter] = useState([]);
+  var [cstMaFilter,  setCstMaFilter]  = useState([]);
 
   var SETUP_OPTS = ['All','Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
   var HP_OPTS    = [['5','5 trading days'],['10','10 trading days'],['20','20 trading days'],['60','60 trading days']];
@@ -1976,6 +2217,49 @@ export function SimulatorPage() {
         try { drv = buildSignalDrivers({ barsUpToDate:slice, indicators:ind,
           snapshot:Object.assign({},snap,{meta:{price:bar.close,hi52:hw.hi52,lo52:hw.lo52}}),
           currentBar:bar }); } catch(e) {}
+        // Raw indicator values for table display
+        var drvV = {};
+        try {
+          var _mh = ind.macdHistory||[]; var _rh = ind.rsiHistory||[];
+          var _hi52 = hw.hi52||0; var _lo52 = hw.lo52||0;
+          var _r52 = (_hi52>_lo52&&_lo52>0)?_hi52-_lo52:0;
+          var _pos52 = _r52>0 ? ((bar.close-_lo52)/_r52)*100 : null;
+          var _bkt52 = _pos52!=null ? (_pos52<25?'0-25%':_pos52<50?'25-50%':_pos52<75?'50-75%':_pos52<90?'75-90%':'90-100%') : '—';
+          drvV = {
+            rsi14:   ind.rsi14!=null?parseFloat(ind.rsi14.toFixed(1)):null,
+            macdHistogram: _mh.length?parseFloat(_mh[_mh.length-1].histogram.toFixed(3)):null,
+            macdAboveSig:  _mh.length?(_mh[_mh.length-1].macd>_mh[_mh.length-1].signal):null,
+            macdImproving: _mh.length>=2?(_mh[_mh.length-1].histogram>_mh[_mh.length-2].histogram):null,
+            pos52w:  _pos52!=null?parseFloat(_pos52.toFixed(1)):null,
+            bucket52w: _bkt52,
+          };
+        } catch(e) {}
+        // Weekly + Monthly Momentum (derived from weekly/monthly bars)
+        var wMom = { status:'Not Enough Data', score:50, rsi14:null, macdHistogram:null, macdDirection:'—', priceVsSma10Pct:null, roc4wPct:null };
+        try { wMom = calcWeeklyMomentum(buildWeeklyBars(slice)); } catch(e) {}
+        var mMom = { status:'Not Enough Data', score:50, rsi14:null, macdHistogram:null, macdDirection:'—', priceVsSma10Pct:null, roc3mPct:null };
+        try { mMom = calcMonthlyMomentum(buildMonthlyBars(slice)); } catch(e) {}
+        var nm = {
+          daily: snap.momentum ? snap.momentum.status : '—',
+          weekly: wMom.status,
+          monthly: mMom.status,
+          profile: classifyMomentumProfile(snap.momentum ? snap.momentum.status : '—', wMom.status),
+          monthlyRegime: classifyMonthlyRegime(mMom.status),
+          overallResult: null, // computed dynamically in UI render
+          dailyScore: snap.momentum ? snap.momentum.score : null,
+          weeklyScore: wMom.score,
+          monthlyScore: mMom.score,
+        };
+        var _mhDrv = ind.macdHistory||[];
+        var nmDrv = {
+          dailyRsi14: ind.rsi14, dailyMacdHistogram: _mhDrv.length?_mhDrv[_mhDrv.length-1].histogram:null,
+          weeklyRsi14: wMom.rsi14, weeklyPrevRsi14: wMom.previousRsi14, weeklyRsiDirection: wMom.rsiDirection,
+          weeklyMacdHistogram: wMom.macdHistogram, weeklyPrevMacdHistogram: wMom.previousMacdHistogram,
+          weeklyMacdDirection: wMom.macdDirection, weeklyPriceVsSma10Pct: wMom.priceVsSma10Pct, weeklyRoc4wPct: wMom.roc4wPct,
+          monthlyRsi14: mMom.rsi14, monthlyPrevRsi14: mMom.previousRsi14, monthlyRsiDirection: mMom.rsiDirection,
+          monthlyMacdHistogram: mMom.macdHistogram, monthlyPrevMacdHistogram: mMom.previousMacdHistogram,
+          monthlyMacdDirection: mMom.macdDirection, monthlyPriceVsSma10Pct: mMom.priceVsSma10Pct, monthlyRoc3mPct: mMom.roc3mPct,
+        };
         rows.push({
           date: bar.date,
           close: bar.close,
@@ -1991,8 +2275,26 @@ export function SimulatorPage() {
           futureReturn: ret,
           result: ret != null ? (ret >= 0 ? 'Win' : 'Loss') : '—',
           drivers: drv,
+          driverValues: drvV,
+          oldMomentum:    snap.momentum ? snap.momentum.status : '—',
+          momentumProfile: nm,
+          momentumDrivers: nmDrv,
         });
       }
+      // Post-process: compute overallResult for each row using full rows array
+      var mbMin2 = parseInt(mbMinSig)||10;
+      rows.forEach(function(r) {
+        if (!r.momentumProfile) return;
+        var res = calculateOverallMomentumResult(r, rows, mbMin2);
+        r.momentumProfile.overallResult        = res.result;
+        r.momentumProfile.overallResultSource  = res.source;
+        r.momentumProfile.overallResultSignals = res.signals;
+        r.momentumProfile.overallResultWinRate = res.winRate!=null?parseFloat(res.winRate.toFixed(1)):null;
+        r.momentumProfile.overallResultMedian  = res.medianReturn!=null?parseFloat(res.medianReturn.toFixed(2)):null;
+        r.momentumProfile.overallResultAvg     = res.avgReturn!=null?parseFloat(res.avgReturn.toFixed(2)):null;
+        r.momentumProfile.overallResultBest    = res.bestReturn!=null?parseFloat(res.bestReturn.toFixed(2)):null;
+        r.momentumProfile.overallResultWorst   = res.worstReturn!=null?parseFloat(res.worstReturn.toFixed(2)):null;
+      });
       setResults({ rows:rows, hp:hp, wasLimited: processed >= LIMIT });
     } catch(e){ setError('Backtest failed: ' + e.message); }
     setLoading(false); setLoadingMsg(''); setProgress(0);
@@ -2248,6 +2550,184 @@ export function SimulatorPage() {
 
 
 
+
+
+            {/* Momentum Model A/B Test */}
+            <div style={card}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:8, marginBottom:10 }}>
+                <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Momentum Profile Backtest'}</div>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  {[['Min Signals',mbMinSig,setMbMinSig,['1','3','5','10','20']],
+                    ['Sort By',mbSortBy,setMbSortBy,['Win Rate','Avg Return','Median Return','Signals','Worst Return']],
+                  ].map(function(ctrl){
+                    return <div key={ctrl[0]} style={{ display:'flex', alignItems:'center', gap:5 }}>
+                      <span style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em' }}>{ctrl[0]}</span>
+                      <select value={ctrl[1]} onChange={function(e){ ctrl[2](e.target.value); }}
+                        style={{ background:'#111', border:'0.5px solid #333', borderRadius:5, padding:'4px 8px', color:'#f0ede6', fontSize:10, outline:'none', cursor:'pointer' }}>
+                        {ctrl[3].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
+                      </select>
+                    </div>;
+                  })}
+                  <button onClick={function(){
+                    if (!results||!results.rows.length) return;
+                    exportRowsToCsv(ticker+'-momentum-ab-test-'+results.hp+'D.csv', results.rows, [
+                      { label:'Date',          key:'date' },
+                      { label:'Old Momentum',  key:'oldMomentum' },
+                      { label:'Daily Momentum',value:function(r){ return r.momentumProfile?r.momentumProfile.daily:''; } },
+                      { label:'Weekly Momentum',value:function(r){ return r.momentumProfile?r.momentumProfile.weekly:''; } },
+                      { label:'Alignment',     value:function(r){ return r.momentumProfile?r.momentumProfile.profile:''; } },
+                      { label:'Weekly RSI',    value:function(r){ return r.momentumDrivers&&r.momentumDrivers.weeklyRsi14!=null?r.momentumDrivers.weeklyRsi14.toFixed(1):''; } },
+                      { label:'Weekly MACD Hist',value:function(r){ return r.momentumDrivers&&r.momentumDrivers.weeklyMacdHistogram!=null?r.momentumDrivers.weeklyMacdHistogram.toFixed(3):''; } },
+                      { label:'Weekly 4W ROC', value:function(r){ return r.momentumDrivers&&r.momentumDrivers.weeklyRoc4wPct!=null?r.momentumDrivers.weeklyRoc4wPct.toFixed(2)+'%':''; } },
+                      { label:'Future Return %',value:function(r){ return r.futureReturn!=null?r.futureReturn.toFixed(2):''; } },
+                      { label:'Result',        key:'result' },
+                    ]);
+                  }} style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #333', borderRadius:5, color:'#888', cursor:'pointer' }}>Export CSV</button>
+                </div>
+              </div>
+              <div style={{ fontSize:11, color:'#555', marginBottom:6, lineHeight:1.6 }}>
+                {'Momentum Profile is based mainly on Daily + Weekly momentum. Monthly Regime is used as ticker-specific historical context. When enough samples exist, Overall Momentum Result uses the exact Momentum Profile + Monthly Regime result. Otherwise, it falls back to the broader Momentum Profile result.'}
+              </div>
+              <div style={{ fontSize:10, color:'#3a3a38', marginBottom:14, lineHeight:1.6, fontStyle:'italic' }}>
+                {'Monthly Regime is not automatically good or bad — it is evaluated based on this ticker\'s own historical behaviour.'}
+              </div>
+              {(function(){
+                var minS = parseInt(mbMinSig)||10;
+                function sortG(groups) {
+                  return groups.filter(function(r){return r.signals>=minS;}).sort(function(a,b){
+                    if (mbSortBy==='Avg Return')    return (b.avgReturn||0)-(a.avgReturn||0);
+                    if (mbSortBy==='Median Return') return (b.medianReturn||0)-(a.medianReturn||0);
+                    if (mbSortBy==='Signals')       return b.signals-a.signals;
+                    if (mbSortBy==='Worst Return')  return (b.worstReturn||-999)-(a.worstReturn||-999);
+                    return (b.winRate||0)-(a.winRate||0);
+                  });
+                }
+                var rows = results.rows;
+                var oldG   = sortG(simGroupBy(rows, function(r){ return r.oldMomentum; }));
+                var weekG  = sortG(simGroupBy(rows, function(r){ return r.momentumProfile&&r.momentumProfile.weekly; }));
+                var profG  = sortG(simGroupBy(rows, function(r){ return r.momentumProfile&&r.momentumProfile.profile; }));
+                var monthG = sortG(simGroupBy(rows, function(r){ return r.momentumProfile&&r.momentumProfile.monthlyRegime; }));
+                var combG  = sortG(simGroupBy(rows, function(r){ return r.momentumProfile?(r.momentumProfile.daily+' / '+r.momentumProfile.weekly+' / '+r.momentumProfile.profile+' / '+r.momentumProfile.monthlyRegime):'—'; }));
+
+                var bestOld   = oldG[0];
+                var bestWeek  = weekG[0];
+                var bestProf  = profG[0];
+                var bestMonth = monthG.filter(function(r){ return r.label!=='Not Enough Data'; })[0];
+                // Best Profile + Monthly combined
+                var combGAll = simGroupBy(rows, function(r){ return r.momentumProfile?(r.momentumProfile.profile+'  ·  '+r.momentumProfile.monthlyRegime):'—'; });
+                var bestCombPM = combGAll.filter(function(r){ return r.signals>=minS && r.label!=='—'; }).sort(function(a,b){ return (b.winRate||0)-(a.winRate||0); })[0];
+                var wDiff = (bestProf&&bestOld&&bestProf.winRate!=null&&bestOld.winRate!=null)?(bestProf.winRate-bestOld.winRate).toFixed(1):null;
+                var mDiff = (bestProf&&bestOld&&bestProf.medianReturn!=null&&bestOld.medianReturn!=null)?(bestProf.medianReturn-bestOld.medianReturn).toFixed(2):null;
+
+                function qlC(q){ return q==='Strong'?'#7abd00':q==='Watch'?'#6090d0':q==='Weak'?'#e05050':q==='Mixed'?'#EF9F27':'#555'; }
+                function ATH(h){ return <th key={h} style={{ padding:'4px 8px', fontSize:8, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>; }
+                function ARow(r, i) {
+                  var q=simAbQuality(r,minS), wrC=(r.winRate||0)>=60?'#7abd00':(r.winRate||0)>=45?'#EF9F27':'#e05050';
+                  return <tr key={r.label+i} style={{ background:i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
+                    <td style={{ padding:'5px 8px', color:'#d0a060', fontSize:10, fontWeight:600, maxWidth:220, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.label}>{r.label}</td>
+                    <td style={{ padding:'5px 8px', color:'#f0ede6', textAlign:'right', fontWeight:600 }}>{r.signals}</td>
+                    <td style={{ padding:'5px 8px', color:wrC, textAlign:'right', fontWeight:700 }}>{r.winRate!=null?r.winRate.toFixed(1)+'%':'—'}</td>
+                    <td style={{ padding:'5px 8px', color:(r.avgReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right', fontWeight:700 }}>{simFmtPct(r.avgReturn)}</td>
+                    <td style={{ padding:'5px 8px', color:(r.medianReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right' }}>{simFmtPct(r.medianReturn)}</td>
+                    <td style={{ padding:'5px 8px', color:'#7abd00', textAlign:'right' }}>{simFmtPct(r.bestReturn)}</td>
+                    <td style={{ padding:'5px 8px', color:'#e05050', textAlign:'right' }}>{simFmtPct(r.worstReturn)}</td>
+                    <td style={{ padding:'5px 8px' }}><span style={{ fontSize:8, fontWeight:700, color:qlC(q), background:'#111', border:'0.5px solid '+qlC(q)+'55', borderRadius:3, padding:'1px 5px' }}>{q}</span></td>
+                  </tr>;
+                }
+                function ATable(groups, col1label) {
+                  if (!groups.length) return <div style={{ color:'#555', fontSize:11, padding:'6px 0' }}>No groups with {minS}+ signals.</div>;
+                  return <div style={{ overflowX:'auto', marginBottom:14 }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
+                      <thead><tr style={{ borderBottom:'1px solid #2a2a28' }}>{[col1label,'Signals','Win Rate','Avg Return','Median','Best','Worst','Quality'].map(ATH)}</tr></thead>
+                      <tbody>{groups.map(function(r,i){ return ARow(r,i); })}</tbody>
+                    </table>
+                  </div>;
+                }
+                function CombTable(groups) {
+                  if (!groups.length) return <div style={{ color:'#555', fontSize:11, padding:'6px 0' }}>No groups with {minS}+ signals.</div>;
+                  return <div style={{ overflowX:'auto', marginBottom:14 }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
+                      <thead><tr style={{ borderBottom:'1px solid #2a2a28' }}>{['Daily','Weekly','Profile','Monthly Regime','Signals','Win Rate','Avg Return','Median','Best','Worst','Quality'].map(ATH)}</tr></thead>
+                      <tbody>{groups.map(function(r,i){
+                        var pts=r.label.split(' / '), q=simAbQuality(r,minS);
+                        var wrC=(r.winRate||0)>=60?'#7abd00':(r.winRate||0)>=45?'#EF9F27':'#e05050';
+                        return <tr key={r.label+i} style={{ background:i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
+                          <td style={{ padding:'5px 8px', color:'#9acd50', fontSize:9, whiteSpace:'nowrap' }}>{pts[0]||'—'}</td>
+                          <td style={{ padding:'5px 8px', color:'#6090d0', fontSize:9, whiteSpace:'nowrap' }}>{pts[1]||'—'}</td>
+                          <td style={{ padding:'5px 8px', color:'#d0a060', fontSize:9, maxWidth:130, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={pts[2]||''}>{pts[2]||'—'}</td>
+                          <td style={{ padding:'5px 8px', color:'#c890d0', fontSize:9, whiteSpace:'nowrap' }}>{pts[3]||'—'}</td>
+                          <td style={{ padding:'5px 8px', color:'#f0ede6', textAlign:'right', fontWeight:600 }}>{r.signals}</td>
+                          <td style={{ padding:'5px 8px', color:wrC, textAlign:'right', fontWeight:700 }}>{r.winRate!=null?r.winRate.toFixed(1)+'%':'—'}</td>
+                          <td style={{ padding:'5px 8px', color:(r.avgReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right', fontWeight:700 }}>{simFmtPct(r.avgReturn)}</td>
+                          <td style={{ padding:'5px 8px', color:(r.medianReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right' }}>{simFmtPct(r.medianReturn)}</td>
+                          <td style={{ padding:'5px 8px', color:'#7abd00', textAlign:'right' }}>{simFmtPct(r.bestReturn)}</td>
+                          <td style={{ padding:'5px 8px', color:'#e05050', textAlign:'right' }}>{simFmtPct(r.worstReturn)}</td>
+                          <td style={{ padding:'5px 8px' }}><span style={{ fontSize:8, fontWeight:700, color:qlC(q), background:'#111', border:'0.5px solid '+qlC(q)+'55', borderRadius:3, padding:'1px 5px' }}>{q}</span></td>
+                        </tr>;
+                      })}</tbody>
+                    </table>
+                  </div>;
+                }
+                function SCard(label, val, col) {
+                  return <div key={label} style={{ background:'#0e0e0c', borderRadius:7, padding:'10px 12px' }}>
+                    <div style={{ fontSize:8, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 }}>{label}</div>
+                    <div style={{ fontSize:11, fontWeight:800, color:col||'#f0ede6', lineHeight:1.4 }}>{val||'—'}</div>
+                  </div>;
+                }
+                return (
+                  <div>
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:18 }}>
+                      {SCard('Best Daily Momentum',   bestOld   ?(bestOld.label  +' ('+bestOld.winRate.toFixed(1)  +'% WR)'):'—', '#9acd50')}
+                      {SCard('Best Weekly Momentum',  bestWeek  ?(bestWeek.label +' ('+bestWeek.winRate.toFixed(1) +'% WR)'):'—', '#6090d0')}
+                      {SCard('Best Momentum Profile', bestProf  ?(bestProf.label +' ('+bestProf.winRate.toFixed(1) +'% WR)'):'—', '#d0a060')}
+                      {SCard('Best Monthly Regime',   bestMonth ?(bestMonth.label+' ('+bestMonth.winRate.toFixed(1)+'% WR)'):'—', '#c890d0')}
+                      {SCard('Best Profile + Monthly',bestCombPM?(bestCombPM.label+' ('+bestCombPM.winRate.toFixed(1)+'% WR)'):'—', '#7ab8d0')}
+                      {SCard('vs Daily Momentum', wDiff!=null?(wDiff>0?'+':'')+wDiff+'% WR '+(mDiff!=null?'/ '+(mDiff>0?'+':'')+mDiff+'% med':''):'—', wDiff!=null&&parseFloat(wDiff)>0?'#7abd00':'#e05050')}
+                    </div>
+                    <div style={{ fontSize:9, color:'#555', lineHeight:1.7, marginBottom:14, background:'#0c0c0a', borderRadius:6, padding:'8px 10px' }}>
+                      {'Overall Momentum Result uses a fallback: (1) checks Profile + Monthly Regime exact combination first; (2) if not enough samples, falls back to Momentum Profile; (3) if still insufficient, shows Low Confidence.'}
+                    </div>
+                    <div style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Daily Momentum Performance</div>
+                    {ATable(oldG, 'Daily Momentum')}
+                    <div style={{ fontSize:9, fontWeight:700, color:'#6090d0', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Weekly Momentum Performance</div>
+                    {ATable(weekG, 'Weekly Momentum')}
+                    <div style={{ fontSize:9, fontWeight:700, color:'#d0a060', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Momentum Profile Performance</div>
+                    {ATable(profG, 'Momentum Profile')}
+                    <div style={{ fontSize:9, fontWeight:700, color:'#c890d0', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Monthly Regime Performance</div>
+                    {ATable(monthG, 'Monthly Regime')}
+                    <div style={{ fontSize:9, fontWeight:700, color:'#EF9F27', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Combined Momentum Profile</div>
+                    {CombTable(combG)}
+                    <div style={{ fontSize:9, fontWeight:700, color:'#7ab8d0', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Overall Momentum Result — Source Breakdown</div>
+                    {(function(){
+                      var srcG = sortG(simGroupBy(rows, function(r){ return r.momentumProfile?(r.momentumProfile.overallResult+' / '+(r.momentumProfile.overallResultSource||'—')):'—'; }));
+                      if (!srcG.length) return <div style={{ color:'#555', fontSize:11, padding:'6px 0' }}>No groups with {minS}+ signals.</div>;
+                      return <div style={{ overflowX:'auto', marginBottom:14 }}>
+                        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
+                          <thead><tr style={{ borderBottom:'1px solid #2a2a28' }}>{['Overall Result','Source','Signals','Win Rate','Avg Return','Median','Best','Worst','Quality'].map(ATH)}</tr></thead>
+                          <tbody>{srcG.map(function(r,i){
+                            var pts=r.label.split(' / '), q=simAbQuality(r,minS);
+                            var wrC=(r.winRate||0)>=60?'#7abd00':(r.winRate||0)>=45?'#EF9F27':'#e05050';
+                            var resC = pts[0]==='Favourable'?'#7abd00':pts[0]==='Watch'?'#6090d0':pts[0]==='Mixed'?'#EF9F27':pts[0]==='Unfavourable'?'#e05050':'#555';
+                            return <tr key={r.label+i} style={{ background:i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
+                              <td style={{ padding:'5px 8px', color:resC, fontSize:9, fontWeight:700 }}>{pts[0]||'—'}</td>
+                              <td style={{ padding:'5px 8px', color:'#7ab8d0', fontSize:9 }}>{pts[1]||'—'}</td>
+                              <td style={{ padding:'5px 8px', color:'#f0ede6', textAlign:'right', fontWeight:600 }}>{r.signals}</td>
+                              <td style={{ padding:'5px 8px', color:wrC, textAlign:'right', fontWeight:700 }}>{r.winRate!=null?r.winRate.toFixed(1)+'%':'—'}</td>
+                              <td style={{ padding:'5px 8px', color:(r.avgReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right', fontWeight:700 }}>{simFmtPct(r.avgReturn)}</td>
+                              <td style={{ padding:'5px 8px', color:(r.medianReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right' }}>{simFmtPct(r.medianReturn)}</td>
+                              <td style={{ padding:'5px 8px', color:'#7abd00', textAlign:'right' }}>{simFmtPct(r.bestReturn)}</td>
+                              <td style={{ padding:'5px 8px', color:'#e05050', textAlign:'right' }}>{simFmtPct(r.worstReturn)}</td>
+                              <td style={{ padding:'5px 8px' }}><span style={{ fontSize:8, fontWeight:700, color:qlC(q), background:'#111', border:'0.5px solid '+qlC(q)+'55', borderRadius:3, padding:'1px 5px' }}>{q}</span></td>
+                            </tr>;
+                          })}</tbody>
+                        </table>
+                      </div>;
+                    })()}
+                  </div>
+                );
+              })()}
+            </div>
+
             {/* Custom Signal Tester */}
             {(function(){
               var CST_TREND_OPTS = ['Strong Uptrend','Uptrend','Sideways','Downtrend','Strong Downtrend'];
@@ -2279,8 +2759,33 @@ export function SimulatorPage() {
               }
 
               var cstFilters = { trend:cstTrend, momentum:cstMomentum, reversal:cstReversal, smartMoney:cstSmartMoney, setup:cstSetup,
+                weeklyMom:cstWeeklyMom, momProfile:cstMomProfile, monthlyRegime:cstMonthlyRegime, overallResult:cstOverallResult,
                 driverFilters:{ trendDrivers:cstTrendDrv, momentumDrivers:cstMomDrv, reversalDrivers:cstRevDrv, smartMoneyDrivers:cstSmfDrv } };
-              var matchRows = results ? filterCustomSignalRows(results.rows, cstFilters) : [];
+              var matchRows = results ? results.rows.filter(function(row){
+                return filterCustomSignalRows([row], { trend:cstFilters.trend, momentum:cstFilters.momentum, reversal:cstFilters.reversal, smartMoney:cstFilters.smartMoney, setup:cstFilters.setup, driverFilters:cstFilters.driverFilters }).length > 0
+                  && matchesSelected(row.momentumProfile ? row.momentumProfile.weekly : 'Not Enough Data', cstFilters.weeklyMom)
+                  && matchesSelected(row.momentumProfile ? row.momentumProfile.profile : 'Not Enough Data', cstFilters.momProfile)
+                  && matchesSelected(row.momentumProfile ? row.momentumProfile.monthlyRegime : 'Not Enough Data', cstFilters.monthlyRegime)
+                  && matchesSelected(row.momentumProfile ? (row.momentumProfile.overallResult||'Low Confidence') : 'Low Confidence', cstFilters.overallResult);
+              }) : [];
+
+              // Sub-signal chip → driver key mappings
+              var SS_RSI  = {'RSI below 30':'rsiBelow30','RSI 30 to 40':'rsi30To40','RSI 40 to 50':'rsi40To50','RSI 50 to 60':'rsi50To60','RSI 60 to 70':'rsi60To70','RSI above 70':'rsiAbove70','RSI rising':'rsiRising','RSI falling':'rsiFalling','RSI between 45 and 65':'rsiBetween45And65'};
+              var SS_MACD = {'MACD above signal':'macdAboveSignal','MACD below signal':'macdBelowSignal','MACD histogram positive':'macdHistogramPositive','MACD histogram negative':'macdHistogramNegative','MACD improving':'macdImproving','MACD deteriorating':'macdDeteriorating'};
+              var SS_52W  = {'52W range 0 to 25%':'price52wRange0To25','52W range 25 to 50%':'price52wRange25To50','52W range 50 to 75%':'price52wRange50To75','52W range 75 to 90%':'price52wRange75To90','52W range 90 to 100%':'price52wRange90To100','Below 52W midpoint':'priceBelow52wMidpoint','Above 52W midpoint':'priceAbove52wMidpoint','Near 52W high':'priceNear52wHigh','Far below 52W high':'priceFarBelow52wHigh'};
+              var SS_MA   = {'Price above SMA50':'priceAboveSma50','Price below SMA50':'priceBelowSma50','Price above SMA200':'priceAboveSma200','Price below SMA200':'priceBelowSma200','Price above EMA20':'priceAboveEma20','Price below EMA20':'priceBelowEma20','SMA50 above SMA200':'sma50AboveSma200','Price reclaimed SMA50':'priceReclaimedSma50','Price lost SMA50':'priceLostSma50'};
+
+              // Apply sub-signal filters (OR within group, AND across groups)
+              function applySubFilter(rows, chips, map) {
+                if (!chips.length) return rows;
+                return rows.filter(function(r){ var d=r.drivers||{}; return chips.some(function(lbl){ return d[map[lbl]]===true; }); });
+              }
+              if (cstRsiFilter.length||cstMacdFilter.length||cst52wFilter.length||cstMaFilter.length) {
+                matchRows = applySubFilter(matchRows, cstRsiFilter,  SS_RSI);
+                matchRows = applySubFilter(matchRows, cstMacdFilter, SS_MACD);
+                matchRows = applySubFilter(matchRows, cst52wFilter,  SS_52W);
+                matchRows = applySubFilter(matchRows, cstMaFilter,   SS_MA);
+              }
               var cstStat   = summarizeCustomSignalRows(matchRows);
               var cstQual   = customSignalQuality(cstStat);
               var cstCond   = buildCustomConditionText(cstTrend,cstMomentum,cstReversal,cstSmartMoney,cstSetup,cstTrendDrv,cstMomDrv,cstRevDrv,cstSmfDrv);
@@ -2296,6 +2801,8 @@ export function SimulatorPage() {
               function resetCST() {
                 setCstTrend([]); setCstMomentum([]); setCstReversal([]); setCstSmartMoney([]); setCstSetup([]);
                 setCstTrendDrv([]); setCstMomDrv([]); setCstRevDrv([]); setCstSmfDrv([]);
+                setCstRsiFilter([]); setCstMacdFilter([]); setCst52wFilter([]); setCstMaFilter([]);
+                setCstWeeklyMom([]); setCstMomProfile([]); setCstMonthlyRegime([]); setCstOverallResult([]);
               }
 
               return (
@@ -2316,6 +2823,10 @@ export function SimulatorPage() {
                         ['Reversal',    cstReversal,   setCstReversal,   CST_REV_OPTS,   null],
                         ['Smart Money', cstSmartMoney, setCstSmartMoney, CST_SMF_OPTS,   null],
                         ['Setup',       cstSetup,      setCstSetup,      CST_SETUP_OPTS, function(v){ return summaryCardDark(v).text; }],
+                        ['Weekly Mom',  cstWeeklyMom,  setCstWeeklyMom,  ['Strong','Building','Neutral','Fading','Weak','Not Enough Data'], null],
+                        ['Mom Profile',  cstMomProfile, setCstMomProfile, ['Momentum Continuation','Early Recovery Attempt','Weak Weekly Bounce','Waiting for Daily Trigger','Pullback in Larger Momentum','Bearish Momentum','No Clear Momentum Profile','Not Enough Data'], null],
+                        ['Monthly Regime',cstMonthlyRegime,setCstMonthlyRegime,['Supportive','Neutral','Weak','Not Enough Data'], null],
+                        ['Overall Result',cstOverallResult,setCstOverallResult,['Favourable','Watch','Mixed','Unfavourable','Low Confidence'], null],
                       ].map(function(row){
                         return (
                           <div key={row[0]} style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
@@ -2359,7 +2870,48 @@ export function SimulatorPage() {
                         )}
                       </div>
 
-                      {/* Result Summary */}
+                      {/* Sub-Signal Filters */}
+                      <div style={{ borderTop:'0.5px solid #2a2a28', marginTop:8, paddingTop:8 }}>
+                        <button onClick={function(){ setCstSubSigOpen(!cstSubSigOpen); }}
+                          style={{ background:'none', border:'none', fontSize:11, cursor:'pointer', padding:0, display:'flex', alignItems:'center', gap:6 }}>
+                          <span style={{ fontSize:10, color:cstSubSigOpen?LIME:'#555', fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' }}>{'Sub-Signal Filters'}</span>
+                          <span style={{ fontSize:12, color:'#555' }}>{cstSubSigOpen?'▲':'▼'}</span>
+                          {(cstRsiFilter.length+cstMacdFilter.length+cst52wFilter.length+cstMaFilter.length)>0 &&
+                            <span style={{ fontSize:8, color:LIME, background:'#1a2a0a', border:'0.5px solid '+LIME, borderRadius:8, padding:'1px 5px' }}>
+                              {cstRsiFilter.length+cstMacdFilter.length+cst52wFilter.length+cstMaFilter.length}
+                            </span>}
+                        </button>
+                        {cstSubSigOpen && (function(){
+                          function ssPill(v, arr, setter) {
+                            var sel = arr.indexOf(v)!==-1;
+                            return <button key={v} onClick={function(){ toggle(arr,setter,v); }}
+                              style={{ fontSize:9, padding:'3px 8px', borderRadius:8, cursor:'pointer', fontWeight:sel?700:400, outline:'none',
+                                background:sel?'#0f2010':'#111', color:sel?'#9acd50':'#666',
+                                border:'0.5px solid '+(sel?'#9acd50':'#2a2a28'), marginRight:4, marginBottom:4 }}>{v}</button>;
+                          }
+                          var SS_GROUPS = [
+                            ['RSI',              cstRsiFilter,  setCstRsiFilter,  ['RSI below 30','RSI 30 to 40','RSI 40 to 50','RSI 50 to 60','RSI 60 to 70','RSI above 70','RSI rising','RSI falling','RSI between 45 and 65']],
+                            ['MACD',             cstMacdFilter, setCstMacdFilter, ['MACD above signal','MACD below signal','MACD histogram positive','MACD histogram negative','MACD improving','MACD deteriorating']],
+                            ['52-Week Range',    cst52wFilter,  setCst52wFilter,  ['52W range 0 to 25%','52W range 25 to 50%','52W range 50 to 75%','52W range 75 to 90%','52W range 90 to 100%','Below 52W midpoint','Above 52W midpoint','Near 52W high','Far below 52W high']],
+                            ['Price / Moving Avg',cstMaFilter,  setCstMaFilter,   ['Price above SMA50','Price below SMA50','Price above SMA200','Price below SMA200','Price above EMA20','Price below EMA20','SMA50 above SMA200','Price reclaimed SMA50','Price lost SMA50']],
+                          ];
+                          return (
+                            <div style={{ marginTop:10 }}>
+                              <div style={{ fontSize:9, color:'#555', marginBottom:10, lineHeight:1.6 }}>{'Within each group: OR logic. Across groups: AND logic. Empty group = ignored.'}</div>
+                              {SS_GROUPS.map(function(grp){
+                                return (
+                                  <div key={grp[0]} style={{ marginBottom:10 }}>
+                                    <div style={{ fontSize:9, fontWeight:700, color:grp[1].length?'#9acd50':'#444', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>{grp[0]}</div>
+                                    <div style={{ display:'flex', flexWrap:'wrap' }}>
+                                      {grp[3].map(function(v){ return ssPill(v, grp[1], grp[2]); })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
                       <div style={{ borderTop:'0.5px solid #2a2a28', marginTop:14, paddingTop:14 }}>
                         <div style={{ display:'grid', gridTemplateColumns:'repeat(9,1fr)', gap:8, marginBottom:14 }}>
                           {[
@@ -2380,6 +2932,33 @@ export function SimulatorPage() {
                           ); })}
                         </div>
 
+                        {/* Overall Momentum Result panel */}
+                        {matchRows.length > 0 && (function(){
+                          var resMap = {};
+                          matchRows.forEach(function(r) {
+                            var mp = r.momentumProfile;
+                            var k = (mp&&mp.overallResult)||'Low Confidence';
+                            var src = (mp&&mp.overallResultSource)||'—';
+                            var key = k+'|'+src;
+                            if (!resMap[key]) resMap[key] = { result:k, source:src, count:0, wr:mp&&mp.overallResultWinRate, med:mp&&mp.overallResultMedian, sigs:mp&&mp.overallResultSignals };
+                            resMap[key].count++;
+                          });
+                          var items = Object.values(resMap).sort(function(a,b){ return b.count-a.count; });
+                          function resColor(r){ return r==='Favourable'?'#7abd00':r==='Watch'?'#6090d0':r==='Mixed'?'#EF9F27':r==='Unfavourable'?'#e05050':'#555'; }
+                          return <div style={{ background:'#0c0c0a', borderRadius:6, padding:'10px 12px', marginBottom:12 }}>
+                            <div style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', fontWeight:700, marginBottom:8 }}>Overall Momentum Result</div>
+                            {items.map(function(g,i){
+                              return <div key={i} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:5 }}>
+                                <span style={{ fontSize:10, fontWeight:800, color:resColor(g.result), minWidth:90 }}>{g.result}</span>
+                                <span style={{ fontSize:9, color:'#7ab8d0' }}>{g.source}</span>
+                                <span style={{ fontSize:9, color:'#555' }}>{'('+g.count+' rows)'}</span>
+                                {g.sigs!=null&&<span style={{ fontSize:9, color:'#666' }}>{'| '+g.sigs+' hist. signals'}</span>}
+                                {g.wr!=null&&<span style={{ fontSize:9, color:(g.wr||0)>=60?'#7abd00':'#EF9F27' }}>{g.wr.toFixed(1)+'% WR'}</span>}
+                                {g.med!=null&&<span style={{ fontSize:9, color:(g.med||0)>=0?'#7abd00':'#e05050' }}>{(g.med>=0?'+':'')+g.med.toFixed(2)+'% med'}</span>}
+                              </div>;
+                            })}
+                          </div>;
+                        })()}
                         {/* Selected Condition */}
                         <div style={{ background:'#0e0e0c', borderRadius:7, padding:'10px 12px', marginBottom:12 }}>
                           <div style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6, fontWeight:700 }}>{'Selected Condition'}</div>
@@ -2408,8 +2987,32 @@ export function SimulatorPage() {
                               { label:'Setup',           key:'setup' },
                               { label:'Trend',           key:'trend' },
                               { label:'Momentum',        key:'momentum' },
+                              { label:'Weekly Momentum', value:function(r){ return r.momentumProfile?r.momentumProfile.weekly:''; } },
+                              { label:'Mom Profile',     value:function(r){ return r.momentumProfile?r.momentumProfile.profile:''; } },
+                              { label:'Monthly Regime',  value:function(r){ return r.momentumProfile?r.momentumProfile.monthlyRegime:''; } },
+                              { label:'Overall Result',  value:function(r){ return r.momentumProfile?r.momentumProfile.overallResult||'':''; } },
+                              { label:'Result Source',   value:function(r){ return r.momentumProfile?r.momentumProfile.overallResultSource||'':''; } },
+                              { label:'Result Signals',  value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultSignals!=null?r.momentumProfile.overallResultSignals:''; } },
+                              { label:'Result WR %',     value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultWinRate!=null?r.momentumProfile.overallResultWinRate.toFixed(1):''; } },
+                              { label:'Result Median %', value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultMedian!=null?r.momentumProfile.overallResultMedian.toFixed(2):''; } },
+                      { label:'Weekly Momentum', value:function(r){ return r.momentumProfile?r.momentumProfile.weekly:''; } },
+                      { label:'Mom Profile',     value:function(r){ return r.momentumProfile?r.momentumProfile.profile:''; } },
+                      { label:'Monthly Regime',  value:function(r){ return r.momentumProfile?r.momentumProfile.monthlyRegime:''; } },
+                      { label:'Overall Result',  value:function(r){ return r.momentumProfile?r.momentumProfile.overallResult||'':''; } },
+                      { label:'Result Source',   value:function(r){ return r.momentumProfile?r.momentumProfile.overallResultSource||'':''; } },
+                      { label:'Result Signals',  value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultSignals!=null?r.momentumProfile.overallResultSignals:''; } },
+                      { label:'Result WR %',     value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultWinRate!=null?r.momentumProfile.overallResultWinRate.toFixed(1):''; } },
+                      { label:'Result Median %', value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultMedian!=null?r.momentumProfile.overallResultMedian.toFixed(2):''; } },
+                      { label:'Result Avg %',    value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultAvg!=null?r.momentumProfile.overallResultAvg.toFixed(2):''; } },
+                      { label:'Result Best %',   value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultBest!=null?r.momentumProfile.overallResultBest.toFixed(2):''; } },
+                      { label:'Result Worst %',  value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultWorst!=null?r.momentumProfile.overallResultWorst.toFixed(2):''; } },
                               { label:'Reversal',        key:'reversal' },
                               { label:'Smart Money',     key:'smartMoney' },
+                              { label:'RSI',             value:function(r){ return r.driverValues&&r.driverValues.rsi14!=null?r.driverValues.rsi14.toFixed(1):''; } },
+                              { label:'MACD Hist',       value:function(r){ return r.driverValues&&r.driverValues.macdHistogram!=null?r.driverValues.macdHistogram.toFixed(3):''; } },
+                              { label:'MACD State',      value:function(r){ var dv=r.driverValues; if(!dv) return ''; return (dv.macdAboveSig?'Above Sig':'Below Sig')+(dv.macdImproving!=null?(dv.macdImproving?' Improving':' Deteriorating'):''); } },
+                              { label:'52W %',           value:function(r){ return r.driverValues&&r.driverValues.pos52w!=null?r.driverValues.pos52w.toFixed(1)+'%':''; } },
+                              { label:'52W Bucket',      value:function(r){ return r.driverValues&&r.driverValues.bucket52w||''; } },
                               { label:'Future Return %', value:function(r){ return r.futureReturn!=null?r.futureReturn.toFixed(2):''; } },
                               { label:'Result',          key:'result' },
                             ]);
@@ -2427,7 +3030,7 @@ export function SimulatorPage() {
                               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
                                 <thead style={{ position:'sticky', top:0, zIndex:1 }}>
                                   <tr style={{ borderBottom:'1px solid #2a2a28' }}>
-                                    {['Date','Close','Setup','Trend','Momentum','Reversal','Smart Money','Return','Result'].map(function(h){
+                                    {['Date','Close','Setup','Trend','Daily Mom','Weekly Mom','Mom Profile','Monthly Regime','Overall Result','Src','R.Sigs','R.WR','R.Med','Reversal','Smart Money','RSI','MACD Hist','52W%','W.RSI','W.Hist','W.ROC','M.RSI','M.Hist','M.ROC','Return','Result'].map(function(h){
                                       return <th key={h} style={{ padding:'4px 7px', fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>;
                                     })}
                                   </tr>
@@ -2444,8 +3047,33 @@ export function SimulatorPage() {
                                         <td style={{ padding:'4px 7px', fontWeight:700, color:sc.text, whiteSpace:'nowrap' }} title={r.fullSetup}>{r.setup}</td>
                                         <td style={{ padding:'4px 7px', color:'#888', fontSize:9 }}>{r.trend}</td>
                                         <td style={{ padding:'4px 7px', color:'#888', fontSize:9 }}>{r.momentum}</td>
+                                        <td style={{ padding:'4px 7px', color: r.momentumProfile&&r.momentumProfile.weekly==='Strong'?'#7abd00':r.momentumProfile&&r.momentumProfile.weekly==='Building'?'#9acd50':r.momentumProfile&&r.momentumProfile.weekly==='Fading'?'#e08050':r.momentumProfile&&r.momentumProfile.weekly==='Weak'?'#e05050':'#666', fontSize:9, whiteSpace:'nowrap' }}>{r.momentumProfile?r.momentumProfile.weekly:'—'}</td>
+                                        <td style={{ padding:'4px 7px', color:'#d0a060', fontSize:8, maxWidth:110, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.momentumProfile?r.momentumProfile.profile:''}>{r.momentumProfile?r.momentumProfile.profile:'—'}</td>
+                                        <td style={{ padding:'4px 7px', color:'#c890d0', fontSize:8, whiteSpace:'nowrap' }}>{r.momentumProfile?r.momentumProfile.monthlyRegime:'—'}</td>
+                                        <td style={{ padding:'4px 7px', fontSize:8, fontWeight:700, whiteSpace:'nowrap', color: r.momentumProfile&&r.momentumProfile.overallResult==='Favourable'?'#7abd00':r.momentumProfile&&r.momentumProfile.overallResult==='Watch'?'#6090d0':r.momentumProfile&&r.momentumProfile.overallResult==='Mixed'?'#EF9F27':r.momentumProfile&&r.momentumProfile.overallResult==='Unfavourable'?'#e05050':'#555' }}>{r.momentumProfile&&r.momentumProfile.overallResult||'—'}</td>
+                                        <td style={{ padding:'4px 7px', color:'#7ab8d0', fontSize:8, maxWidth:80, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.momentumProfile&&r.momentumProfile.overallResultSource||''}>{r.momentumProfile&&r.momentumProfile.overallResultSource||'—'}</td>
+                                        <td style={{ padding:'4px 7px', color:'#666', fontSize:8 }}>{r.momentumProfile&&r.momentumProfile.overallResultSignals!=null?r.momentumProfile.overallResultSignals:'—'}</td>
+                                        <td style={{ padding:'4px 7px', fontSize:8, color:r.momentumProfile&&r.momentumProfile.overallResultWinRate!=null?(r.momentumProfile.overallResultWinRate>=60?'#7abd00':r.momentumProfile.overallResultWinRate>=45?'#EF9F27':'#e05050'):'#555' }}>{r.momentumProfile&&r.momentumProfile.overallResultWinRate!=null?r.momentumProfile.overallResultWinRate.toFixed(1)+'%':'—'}</td>
+                                        <td style={{ padding:'4px 7px', fontSize:8, color:r.momentumProfile&&r.momentumProfile.overallResultMedian!=null?(r.momentumProfile.overallResultMedian>=0?'#7abd00':'#e05050'):'#555' }}>{r.momentumProfile&&r.momentumProfile.overallResultMedian!=null?simFmtPct(r.momentumProfile.overallResultMedian):'—'}</td>
                                         <td style={{ padding:'4px 7px', color:'#888', fontSize:9, maxWidth:110, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.reversal}>{r.reversal}</td>
                                         <td style={{ padding:'4px 7px', color:'#888', fontSize:9, maxWidth:110, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.smartMoney}>{r.smartMoney}</td>
+                                        <td style={{ padding:'4px 7px', color: r.driverValues&&r.driverValues.rsi14!=null?(r.driverValues.rsi14>70?'#e05050':r.driverValues.rsi14<30?'#7abd00':'#aaa'):'#555', fontSize:9, whiteSpace:'nowrap' }}>{r.driverValues&&r.driverValues.rsi14!=null?r.driverValues.rsi14.toFixed(1):'—'}</td>
+                                        <td style={{ padding:'4px 7px', color: r.driverValues&&r.driverValues.macdHistogram!=null?(r.driverValues.macdHistogram>0?'#7abd00':'#e05050'):'#555', fontSize:9, whiteSpace:'nowrap' }}>{r.driverValues&&r.driverValues.macdHistogram!=null?r.driverValues.macdHistogram.toFixed(3):'—'}</td>
+                                        <td style={{ padding:'4px 7px', fontSize:9, whiteSpace:'nowrap' }}>
+                                          {r.driverValues ? (
+                                            <span style={{ color: r.driverValues.macdAboveSig?'#7abd00':'#e05050' }}>
+                                              {(r.driverValues.macdAboveSig?'↑Sig':'↓Sig')+(r.driverValues.macdImproving!=null?(r.driverValues.macdImproving?' ↑':' ↓'):'  ')}
+                                            </span>
+                                          ) : '—'}
+                                        </td>
+                                        <td style={{ padding:'4px 7px', color:'#aaa', fontSize:9 }}>{r.driverValues&&r.driverValues.pos52w!=null?r.driverValues.pos52w.toFixed(1)+'%':'—'}</td>
+                                        <td style={{ padding:'4px 7px', color:'#666', fontSize:9, whiteSpace:'nowrap' }}>{r.driverValues&&r.driverValues.bucket52w||'—'}</td>
+                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9 }}>{r.momentumDrivers&&r.momentumDrivers.weeklyRsi14!=null?r.momentumDrivers.weeklyRsi14.toFixed(1):'—'}</td>
+                                        <td style={{ padding:'4px 7px', color: r.momentumDrivers&&r.momentumDrivers.weeklyMacdHistogram!=null?(r.momentumDrivers.weeklyMacdHistogram>0?'#7abd00':'#e05050'):'#555', fontSize:9 }}>{r.momentumDrivers&&r.momentumDrivers.weeklyMacdHistogram!=null?r.momentumDrivers.weeklyMacdHistogram.toFixed(3):'—'}</td>
+                                        <td style={{ padding:'4px 7px', color: r.momentumDrivers&&r.momentumDrivers.weeklyRoc4wPct!=null?(r.momentumDrivers.weeklyRoc4wPct>=0?'#7abd00':'#e05050'):'#555', fontSize:9 }}>{r.momentumDrivers&&r.momentumDrivers.weeklyRoc4wPct!=null?r.momentumDrivers.weeklyRoc4wPct.toFixed(1)+'%':'—'}</td>
+                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9 }}>{r.momentumDrivers&&r.momentumDrivers.monthlyRsi14!=null?r.momentumDrivers.monthlyRsi14.toFixed(1):'—'}</td>
+                                        <td style={{ padding:'4px 7px', color: r.momentumDrivers&&r.momentumDrivers.monthlyMacdHistogram!=null?(r.momentumDrivers.monthlyMacdHistogram>0?'#7abd00':'#e05050'):'#555', fontSize:9 }}>{r.momentumDrivers&&r.momentumDrivers.monthlyMacdHistogram!=null?r.momentumDrivers.monthlyMacdHistogram.toFixed(3):'—'}</td>
+                                        <td style={{ padding:'4px 7px', color: r.momentumDrivers&&r.momentumDrivers.monthlyRoc3mPct!=null?(r.momentumDrivers.monthlyRoc3mPct>=0?'#7abd00':'#e05050'):'#555', fontSize:9 }}>{r.momentumDrivers&&r.momentumDrivers.monthlyRoc3mPct!=null?r.momentumDrivers.monthlyRoc3mPct.toFixed(1)+'%':'—'}</td>
                                         <td style={{ padding:'4px 7px', fontWeight:700, color:retC, whiteSpace:'nowrap' }}>{simFmtPct(ret)}</td>
                                         <td style={{ padding:'4px 7px' }}>
                                           <span style={{ fontSize:8, fontWeight:700, color:r.result==='Win'?'#7abd00':r.result==='Loss'?'#e05050':'#555',
@@ -2578,6 +3206,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [epsError,   setEpsError]   = useState(false);
   const [msg, setMsg] = useState("Loading...");
   const [insightTab,    setInsightTab]    = useState("business");
+  const [momConfResult, setMomConfResult] = useState(null);   // Run 6M
+  const [momConfLoading,setMomConfLoading]= useState(false);
+  const [momConfError,  setMomConfError]  = useState(null);
+  const [momConfSym,    setMomConfSym]    = useState(null);
   const [insightCache,  setInsightCache]  = useState({});
   const [insightLoading,setInsightLoading]= useState(false);
   const [parsedInsights,setParsedInsights]= useState({});
@@ -4334,7 +4966,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.43</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.48</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4388,7 +5020,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.43</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.48</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7987,6 +8619,182 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de"}}>
                           {"Momentum signals use Massive.com real-time data. Not financial advice."}
                         </div>
+
+                        {/* ── Run 6M: Momentum Profile + Historical Confidence ── */}
+                        {(function(){
+                          var _daily = window.__momLabel || 'Neutral';
+                          // Clear stale result when ticker changes
+                          if (momConfSym && momConfSym !== sym) {
+                            setTimeout(function(){
+                              setMomConfResult(null); setMomConfError(null); setMomConfSym(null);
+                            }, 0);
+                          }
+                          function confColor(c) {
+                            return c==='High Confidence'?'#7abd00':c==='Moderate Confidence'?'#6090d0':
+                                   c==='Low Confidence'?'#EF9F27':c==='Unfavourable'?'#e05050':'#555';
+                          }
+                          function confSentence(c) {
+                            if (c==='High Confidence')     return 'This condition has historically shown a strong positive profile for this ticker.';
+                            if (c==='Moderate Confidence') return 'This condition has historically shown a positive profile, but the sample or strength is moderate.';
+                            if (c==='Low Confidence')      return 'This condition has some positive historical evidence, but confidence is limited.';
+                            if (c==='Unfavourable')        return 'This condition has not historically performed well for this ticker.';
+                            return 'Not enough historical samples are available for this condition.';
+                          }
+
+                          // Kick off backtest using Promise chain (no async/await in JSX)
+                          function handleMomConfCheck() {
+                            setMomConfLoading(true); setMomConfError(null);
+                            setMomConfResult(null); setMomConfSym(sym);
+                            var endMs = Date.now();
+                            var startMs = endMs - 2*365*24*3600*1000;
+                            var fmt = function(d){ var dd=new Date(d); return dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2); };
+                            fetchYahooHistoricalBars(sym, fmt(startMs), fmt(endMs), 20)
+                              .then(function(bars) {
+                                if (!bars || bars.length < 120) throw new Error('Not enough historical price data.');
+                                var HP=20, MIN_PRIOR=250, LIMIT=600, rows=[], inRange=0;
+                                for (var bi=0; bi<bars.length; bi++) {
+                                  if (bi<MIN_PRIOR||bi+HP>=bars.length) continue;
+                                  if (inRange>=LIMIT) break; inRange++;
+                                  var bar=bars[bi], slice=bars.slice(0,bi+1);
+                                  var closes=slice.map(function(b){return b.close;});
+                                  var dMom=calcDailyMomentumApprox(closes);
+                                  var wMom2=calcWeeklyMomentum(buildWeeklyBars(slice));
+                                  var mMom2=calcMonthlyMomentum(buildMonthlyBars(slice));
+                                  var prof2=classifyMomentumProfile(dMom.status, wMom2.status);
+                                  var reg2=classifyMonthlyRegime(mMom2.status);
+                                  var futRet=((bars[bi+HP].close-bar.close)/bar.close)*100;
+                                  rows.push({ futureReturn:futRet, momentumProfile:{ profile:prof2, monthlyRegime:reg2 } });
+                                }
+                                if (!rows.length) throw new Error('Momentum confidence check could not be completed.');
+                                // Derive current condition from last slice
+                                var lastSlice=bars.slice(-300);
+                                var lc=lastSlice.map(function(b){return b.close;}); 
+                                var curWMom=calcWeeklyMomentum(buildWeeklyBars(lastSlice));
+                                var curMMom=calcMonthlyMomentum(buildMonthlyBars(lastSlice));
+                                var curProf=classifyMomentumProfile(_daily, curWMom.status);
+                                var curReg=classifyMonthlyRegime(curMMom.status);
+                                var MIN_SIG=10;
+                                var exactR=rows.filter(function(r){return r.momentumProfile.profile===curProf&&r.momentumProfile.monthlyRegime===curReg;});
+                                var profR =rows.filter(function(r){return r.momentumProfile.profile===curProf;});
+                                var exactS=summarizeRows(exactR), profS=summarizeRows(profR);
+                                var source, useSummary;
+                                if (exactS.signals>=MIN_SIG){source='Profile + Monthly Regime';useSummary=exactS;}
+                                else if (profS.signals>=MIN_SIG){source='Momentum Profile';useSummary=profS;}
+                                else {source='Insufficient Historical Samples';useSummary=exactS;}
+                                var conf=classifyHistoricalConfidence(useSummary, MIN_SIG);
+                                setMomConfResult({ confidence:conf, source:source,
+                                  daily:_daily, weekly:curWMom.status, monthly:curMMom.status,
+                                  profile:curProf, monthlyRegime:curReg,
+                                  signals:useSummary.signals, winRate:useSummary.winRate,
+                                  avgReturn:useSummary.avgReturn, medianReturn:useSummary.medianReturn,
+                                  bestReturn:useSummary.bestReturn, worstReturn:useSummary.worstReturn,
+                                  exactStats:exactS, profileStats:profS, ticker:sym, hp:HP, totalRows:rows.length });
+                                setMomConfSym(sym);
+                              })
+                              .catch(function(e){ setMomConfError(e.message||'Momentum confidence check could not be completed.'); })
+                              .then(function(){ setMomConfLoading(false); });
+                          }
+
+                          var cr = momConfResult && momConfResult.ticker===sym ? momConfResult : null;
+
+                          return (
+                            <div>
+                              {/* Live Momentum Profile card */}
+                              <div style={{ background:'#0e0e0c', borderRadius:10, padding:'12px 14px', marginBottom:10, border:'0.5px solid #2a2a28' }}>
+                                <div style={{ fontSize:10, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:7 }}>Momentum Profile</div>
+                                {cr ? (function(){
+                                  var pc=cr.profile==='Momentum Continuation'?'#7abd00':cr.profile==='Early Recovery Attempt'?'#6090d0':cr.profile==='Weak Weekly Bounce'?'#EF9F27':cr.profile==='Pullback in Larger Momentum'?'#d0a060':cr.profile==='Bearish Momentum'?'#e05050':'#888';
+                                  return <div>
+                                    <div style={{ fontSize:14, fontWeight:700, color:pc, marginBottom:8 }}>{cr.profile}</div>
+                                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6 }}>
+                                      {[['Daily',cr.daily,'#9acd50'],['Weekly',cr.weekly,'#6090d0'],['Monthly Regime',cr.monthlyRegime,'#c890d0']].map(function(f){
+                                        return <div key={f[0]} style={{ background:'#141412', borderRadius:5, padding:'5px 8px' }}>
+                                          <div style={{ fontSize:8, color:'#555', textTransform:'uppercase', marginBottom:1 }}>{f[0]}</div>
+                                          <div style={{ fontSize:11, fontWeight:700, color:f[2] }}>{f[1]||'—'}</div>
+                                        </div>;
+                                      })}
+                                    </div>
+                                  </div>;
+                                })() : <div>
+                                  <div style={{ fontSize:13, fontWeight:700, color:'#7abd00', marginBottom:4 }}>{_daily}</div>
+                                  <div style={{ fontSize:10, color:'#444', lineHeight:1.6 }}>Weekly Momentum and Monthly Regime available after running the confidence check below.</div>
+                                </div>}
+                              </div>
+
+                              {/* Check Historical Confidence button */}
+                              <button disabled={momConfLoading} onClick={handleMomConfCheck}
+                                style={{ display:'block', width:'100%', padding:'9px 14px',
+                                  background:momConfLoading?'#1a1a18':'#0f1e08',
+                                  border:'0.5px solid '+(momConfLoading?'#333':'#5a8a20'),
+                                  borderRadius:8, color:momConfLoading?'#555':'#c8f000', fontSize:11, fontWeight:700,
+                                  cursor:momConfLoading?'default':'pointer', marginBottom:8, textAlign:'center' }}>
+                                {momConfLoading ? 'Checking...' : cr ? 'Refresh Historical Confidence' : 'Check Historical Confidence'}
+                              </button>
+                              {!cr && !momConfLoading && <div style={{ fontSize:10, color:'#444', textAlign:'center', marginBottom:10 }}>Default: last 2 years · 20 trading day forward return</div>}
+
+                              {momConfError && <div style={{ background:'#1a0808', border:'0.5px solid #5a1a1a', borderRadius:8, padding:'10px 14px', marginBottom:10 }}>
+                                <div style={{ fontSize:11, color:'#e05050' }}>{momConfError}</div>
+                              </div>}
+
+                              {cr && (function(){
+                                var cc=confColor(cr.confidence);
+                                return <div>
+                                  <div style={{ background:'#0c0c0a', border:'0.5px solid #2a2a28', borderRadius:10, padding:'14px 16px', marginBottom:10 }}>
+                                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                                      <div>
+                                        <div style={{ fontSize:10, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:3 }}>Historical Confidence</div>
+                                        <div style={{ fontSize:16, fontWeight:800, color:cc }}>{cr.confidence}</div>
+                                        <div style={{ fontSize:10, color:'#7ab8d0', marginTop:3 }}>{'Source: '+cr.source}</div>
+                                        {cr.source==='Momentum Profile' && <div style={{ fontSize:9, color:'#555', marginTop:2, fontStyle:'italic' }}>Exact Profile + Monthly Regime had insufficient samples. Using broader Momentum Profile.</div>}
+                                        {cr.source==='Insufficient Historical Samples' && <div style={{ fontSize:9, color:'#555', marginTop:2, fontStyle:'italic' }}>Not enough samples. Consider running the full Simulator.</div>}
+                                      </div>
+                                      <div style={{ textAlign:'right', paddingLeft:12 }}>
+                                        <div style={{ fontSize:22, fontWeight:800, color:cc }}>{cr.winRate!=null?cr.winRate.toFixed(1)+'%':'—'}</div>
+                                        <div style={{ fontSize:9, color:'#555' }}>Win Rate</div>
+                                        <div style={{ fontSize:11, fontWeight:700, color:cr.medianReturn!=null?(cr.medianReturn>=0?'#7abd00':'#e05050'):'#555', marginTop:4 }}>{cr.medianReturn!=null?(cr.medianReturn>=0?'+':'')+cr.medianReturn.toFixed(2)+'%':'—'}</div>
+                                        <div style={{ fontSize:9, color:'#555' }}>Median</div>
+                                      </div>
+                                    </div>
+                                    <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:5, marginBottom:8 }}>
+                                      {[['Signals',cr.signals,'#f0ede6'],['Avg Return',cr.avgReturn!=null?(cr.avgReturn>=0?'+':'')+cr.avgReturn.toFixed(2)+'%':'—',cr.avgReturn!=null?(cr.avgReturn>=0?'#7abd00':'#e05050'):'#555'],['Best',cr.bestReturn!=null?'+'+cr.bestReturn.toFixed(2)+'%':'—','#7abd00'],['Worst',cr.worstReturn!=null?cr.worstReturn.toFixed(2)+'%':'—','#e05050']].map(function(f){
+                                        return <div key={f[0]} style={{ background:'#111', borderRadius:5, padding:'5px 7px', textAlign:'center' }}>
+                                          <div style={{ fontSize:8, color:'#555', textTransform:'uppercase', marginBottom:1 }}>{f[0]}</div>
+                                          <div style={{ fontSize:10, fontWeight:700, color:f[2] }}>{f[1]}</div>
+                                        </div>;
+                                      })}
+                                    </div>
+                                    <div style={{ fontSize:10, color:'#555', marginBottom:6 }}>{'Holding Period: '+cr.hp+' days · Test Range: Last 2 years ('+cr.totalRows+' signals)'}</div>
+                                    <div style={{ fontSize:10, color:cc, fontStyle:'italic', lineHeight:1.5 }}>{confSentence(cr.confidence)}</div>
+                                  </div>
+                                  <div style={{ marginBottom:10 }}>
+                                    <div style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Historical Momentum Match</div>
+                                    <div style={{ overflowX:'auto' }}>
+                                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:9 }}>
+                                        <thead><tr style={{ borderBottom:'1px solid #2a2a28' }}>
+                                          {['Match Type','Signals','Win Rate','Median','Worst','Confidence'].map(function(h){ return <th key={h} style={{ padding:'4px 8px', fontSize:8, fontWeight:700, color:'#555', textTransform:'uppercase', textAlign:'left', background:'#141412' }}>{h}</th>; })}
+                                        </tr></thead>
+                                        <tbody>
+                                          {[['Profile + Monthly Regime',cr.exactStats],['Momentum Profile only',cr.profileStats]].map(function(row,i){
+                                            var s=row[1], c2=classifyHistoricalConfidence(s,10);
+                                            return <tr key={i} style={{ background:i%2===0?'#181816':'#141412' }}>
+                                              <td style={{ padding:'4px 8px', color:'#aaa' }}>{row[0]}</td>
+                                              <td style={{ padding:'4px 8px', color:'#f0ede6', textAlign:'right' }}>{s.signals||0}</td>
+                                              <td style={{ padding:'4px 8px', color:s.winRate!=null?(s.winRate>=60?'#7abd00':'#EF9F27'):'#555', textAlign:'right', fontWeight:700 }}>{s.winRate!=null?s.winRate.toFixed(1)+'%':'—'}</td>
+                                              <td style={{ padding:'4px 8px', color:s.medianReturn!=null?(s.medianReturn>=0?'#7abd00':'#e05050'):'#555', textAlign:'right' }}>{s.medianReturn!=null?(s.medianReturn>=0?'+':'')+s.medianReturn.toFixed(2)+'%':'—'}</td>
+                                              <td style={{ padding:'4px 8px', color:'#e05050', textAlign:'right' }}>{s.worstReturn!=null?s.worstReturn.toFixed(2)+'%':'—'}</td>
+                                              <td style={{ padding:'4px 8px' }}><span style={{ fontSize:8, fontWeight:700, color:confColor(c2), background:'#111', border:'0.5px solid '+confColor(c2)+'55', borderRadius:3, padding:'1px 5px' }}>{c2}</span></td>
+                                            </tr>;
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                  <div style={{ fontSize:9, color:'#333', lineHeight:1.5 }}>Historical research only. Past profile performance does not guarantee future results. Not financial advice.</div>
+                                </div>;
+                              })()}
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })()}
@@ -10766,7 +11574,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.43</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.48</span>
           </div>
         </div>
 
