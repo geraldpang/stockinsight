@@ -1664,6 +1664,35 @@ function calculateOverallMomentumResult(row, allRows, minSignals) {
 }
 
 
+// ── Run 6M: Momentum tab Historical Confidence ────────────────────────────────
+function classifyHistoricalConfidence(summary, minSignals) {
+  if (!summary || summary.signals < (minSignals||10)) return 'Insufficient Data';
+  if (summary.signals >= 30 && summary.winRate >= 65 && summary.medianReturn > 0) return 'High Confidence';
+  if (summary.signals >= 20 && summary.winRate >= 55 && summary.medianReturn > 0) return 'Moderate Confidence';
+  if (summary.signals >= 10 && summary.winRate >= 50 && summary.medianReturn >= 0) return 'Low Confidence';
+  return 'Unfavourable';
+}
+function calcDailyMomentumApprox(closesArr) {
+  if (!closesArr || closesArr.length < 14) return { status:'Neutral', score:50 };
+  var rsi = calcRSI(closesArr, 14) || 50;
+  var sma5 = simSMA(closesArr, 5) || closesArr[closesArr.length-1];
+  var price = closesArr[closesArr.length-1];
+  var roc = sma5 > 0 ? (price-sma5)/sma5*100 : 0;
+  var e12 = simEMAHistory(closesArr,12), e26 = simEMAHistory(closesArr,26);
+  var ml=[], mn=Math.min(e12.length,e26.length);
+  for(var i=0;i<mn;i++) ml.push(e12[e12.length-mn+i]-e26[e26.length-mn+i]);
+  var sg = simEMAHistory(ml,9);
+  var hist = ml.length&&sg.length ? ml[ml.length-1]-sg[sg.length-1] : 0;
+  var phist = ml.length>1&&sg.length>1 ? ml[ml.length-2]-sg[sg.length-2] : null;
+  var imp = phist!=null&&hist>phist;
+  var rsiS = rsi>=70?5:rsi>=60?4:rsi>=50?3:rsi>=40?2:1;
+  var macdS = (hist>0&&imp)?5:hist>0?4:imp?3:hist>-0.5?2:1;
+  var rocS = roc>5?5:roc>2?4:roc>-2?3:roc>-5?2:1;
+  var score = (rsiS*0.40+macdS*0.40+rocS*0.20)*20;
+  return { status:score>=80?'Strong':score>=65?'Building':score>=50?'Neutral':score>=35?'Fading':'Weak', score:score };
+}
+
+
 function exportRowsToCsv(filename, rows, columns) {
   if (!rows || !rows.length) return;
   function esc(v) {
@@ -3177,6 +3206,15 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [epsError,   setEpsError]   = useState(false);
   const [msg, setMsg] = useState("Loading...");
   const [insightTab,    setInsightTab]    = useState("business");
+  const [momConfResult, setMomConfResult] = useState(null);   // Run 6M
+  const [momConfLoading,setMomConfLoading]= useState(false);
+  const [momConfError,  setMomConfError]  = useState(null);
+  const [momConfSym,    setMomConfSym]    = useState(null);
+  // Run 6N: live current momentum profile (auto-computed on tab open)
+  const [momLiveProfile, setMomLiveProfile] = useState(null);
+  const [momLiveLoading, setMomLiveLoading] = useState(false);
+  const [momLiveSym,     setMomLiveSym]     = useState(null);
+  const [momYahooBars,   setMomYahooBars]   = useState(null); // cached bars shared between live + confidence
   const [insightCache,  setInsightCache]  = useState({});
   const [insightLoading,setInsightLoading]= useState(false);
   const [parsedInsights,setParsedInsights]= useState({});
@@ -4313,6 +4351,51 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       });
   }, [insightTab]);
 
+  // ── Run 6N: auto-compute current Momentum Profile (runs on stock load) ──────
+  useEffect(function() {
+    if (!sym || !massiveInfo) return;
+    if (momLiveSym === sym && momLiveProfile) return; // already have it
+    setMomLiveLoading(true);
+    var endMs = Date.now();
+    var startMs = endMs - 2 * 365 * 24 * 3600 * 1000;
+    var fmt = function(d){ var dd=new Date(d); return dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2); };
+    fetchYahooHistoricalBars(sym, fmt(startMs), fmt(endMs), 20)
+      .then(function(bars) {
+        if (!bars || bars.length < 70) throw new Error('Not enough data');
+        setMomYahooBars(bars);
+        var wMom = calcWeeklyMomentum(buildWeeklyBars(bars));
+        var mMom = calcMonthlyMomentum(buildMonthlyBars(bars));
+        var daily = window.__momLabel || 'Neutral';
+        var dailyScore = window.__momScore != null ? window.__momScore : 50;
+        var profile = classifyMomentumProfile(daily, wMom.status);
+        var monthlyRegime = classifyMonthlyRegime(mMom.status);
+        setMomLiveProfile({
+          daily: daily, dailyScore: dailyScore,
+          weekly: wMom.status, weeklyScore: wMom.score,
+          weeklyRsi: wMom.rsi14, weeklyRsiDir: wMom.rsiDirection,
+          weeklyMacdHist: wMom.macdHistogram, weeklyMacdDir: wMom.macdDirection,
+          weeklyPrevMacdHist: wMom.previousMacdHistogram,
+          weeklyPriceVsSma10: wMom.priceVsSma10Pct, weeklyRoc: wMom.roc4wPct,
+          monthly: mMom.status, monthlyScore: mMom.score,
+          monthlyRsi: mMom.rsi14, monthlyRsiDir: mMom.rsiDirection,
+          monthlyMacdHist: mMom.macdHistogram, monthlyMacdDir: mMom.macdDirection,
+          monthlyPrevMacdHist: mMom.previousMacdHistogram,
+          monthlyPriceVsSma10: mMom.priceVsSma10Pct, monthlyRoc: mMom.roc3mPct,
+          profile: profile, monthlyRegime: monthlyRegime,
+        });
+        setMomLiveSym(sym);
+      })
+      .catch(function(e) {
+        setMomLiveProfile({
+          daily: window.__momLabel||'Neutral', dailyScore: window.__momScore||50,
+          weekly:'Not Enough Data', monthly:'Not Enough Data',
+          profile:'Not Enough Data', monthlyRegime:'Not Enough Data',
+        });
+        setMomLiveSym(sym);
+      })
+      .then(function(){ setMomLiveLoading(false); });
+  }, [sym, massiveInfo]);
+
   // -- Insight tab fetch -------------------------------------------------------
   function fetchInsight(tabId) {
     // Guard: don't fetch if already in React state OR window cache
@@ -4933,7 +5016,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.48</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.55</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4987,7 +5070,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.48</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.55</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5428,7 +5511,31 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   return (
                     <div style={{display:"flex",flexDirection:"column"}}>
                       <TechRow label="Trend" value={_hasTech?_trendLabel:"--"} score={_trendDots} dotCol={_trendCol.dot} valCol={_trendCol.fg} caution={_trendCaution} loading={!_hasTech} tab="trend" />
-                      <TechRow label="Momentum" value={_hasTech?_momLabel:"--"} score={_momDots} dotCol={_momCol.dot} valCol={_momCol.fg} caution={_momCaution} loading={!_hasTech} tab="momentum" />
+                      {(function(){
+                        var _lp = momLiveSym===sym ? momLiveProfile : null;
+                        function _sp(p){if(p==='Momentum Continuation') return 'Continuation';if(p==='Early Recovery Attempt') return 'Recovery';if(p==='Weak Weekly Bounce') return 'Weak Bounce';if(p==='Waiting for Daily Trigger') return 'Waiting';if(p==='Pullback in Larger Momentum') return 'Pullback';if(p==='Bearish Momentum') return 'Bearish';if(p==='No Clear Momentum Profile') return 'Unclear';if(p==='Not Enough Data') return 'No Data';return 'No Data';}
+                        function _sc(s){return s==='Strong'||s==='Supportive'?'#7abd00':s==='Building'?'#6090d0':s==='Neutral'?'#b88000':s==='Fading'||s==='Weak'?'#c03030':'#555';}
+                        var _sp2 = _lp ? _sp(_lp.profile) : (momLiveLoading ? '...' : 'No Data');
+                        var _spc = _sp2==='Continuation'?'#7abd00':_sp2==='Recovery'?'#6090d0':_sp2==='Pullback'?'#6090d0':_sp2==='Waiting'?'#b88000':_sp2==='Weak Bounce'?'#b88000':_sp2==='Bearish'?'#c03030':'#aaa';
+                        var _d = _hasTech && _momLabel && _momLabel!=='--' ? _momLabel : '--';
+                        var _w = _lp ? (_lp.weekly==='Not Enough Data'?'No Data':_lp.weekly||'--') : 'No Data';
+                        var _m = _lp ? (_lp.monthlyRegime==='Not Enough Data'?'No Data':_lp.monthlyRegime||'--') : 'No Data';
+                        return (
+                          <div onClick={function(){ window.__goToTab && window.__goToTab('momentum'); }}
+                            style={{display:'flex',alignItems:'center',padding:'11px 12px',borderBottom:'0.5px solid #242424',cursor:'pointer',minHeight:44}}
+                            onMouseEnter={function(e){e.currentTarget.style.background='#252525';}}
+                            onMouseLeave={function(e){e.currentTarget.style.background='transparent';}}>
+                            <span style={{fontSize:11,color:'#666',width:110,flexShrink:0}}>Momentum</span>
+                            <span style={{fontSize:12,fontWeight:600,color:_spc,flex:1}}>{_sp2}</span>
+                            <div style={{textAlign:'right',marginRight:6,flexShrink:0}}>
+                              <div style={{fontSize:9,color:'#555',marginBottom:1}}>D: <span style={{fontWeight:600,color:_sc(_d)}}>{_d}</span></div>
+                              <div style={{fontSize:9,color:'#555',marginBottom:1}}>W: <span style={{fontWeight:600,color:_sc(_w)}}>{_w}</span></div>
+                              <div style={{fontSize:9,color:'#555'}}>M: <span style={{fontWeight:600,color:_sc(_m)}}>{_m}</span></div>
+                            </div>
+                            <span style={{fontSize:11,color:'#444'}}>{'›'}</span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })()}
@@ -8477,117 +8584,300 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     }
                     return (
                       <div>
+                        {/* ══ 1. MOMENTUM PROFILE SUMMARY CARD (unified) ═══════ */}
                         {(function(){
-                          // Momentum score from pre-compute useEffect via technicalSignals.js
-                          var _ms2 = (window.__momScore!=null && window.__momScoreSym===sym) ? window.__momScore : 0;
-                          var _ml2 = window.__momLabel || 'Neutral';
-                          var _md2 = _ms2>=80?5:_ms2>=65?4:_ms2>=50?3:_ms2>=35?2:1;
-                          var _msc=_ms2>=65?"#1a6a1a":_ms2>=50?"#b88000":"#c03030";
-                          var _msbg=_ms2>=65?"#e6f4e6":_ms2>=50?"#fdf8e6":"#fff0f0";
-                          var _msbd=_ms2>=65?"#7abd00":_ms2>=50?"#d4a800":"#e08080";
-                          var _msLong=_ms2>=80?"Momentum is strong. Buying pressure is dominant across RSI, MACD and rate of change.":_ms2>=65?"Momentum is building. More signals are bullish than bearish.":_ms2>=50?"Momentum is neutral. Mixed signals -- no clear buying or selling dominance.":_ms2>=35?"Momentum is fading. Selling pressure is outweighing buying across most signals.":"Momentum is weak. Bearish signals dominate -- buyers are not in control.";
+                          var lp=momLiveSym===sym?momLiveProfile:null;
+                          var cr=momConfResult&&momConfResult.ticker===sym?momConfResult:null;
+                          var _ml2=window.__momLabel||'Neutral';
+                          var _msbg=summaryCardDark(_ml2).bg;
+                          var _msbd=summaryCardDark(_ml2).bd;
+                          function pColor(p){return p==='Momentum Continuation'?'#7abd00':p==='Early Recovery Attempt'?'#6090d0':p==='Weak Weekly Bounce'?'#EF9F27':p==='Waiting for Daily Trigger'?'#9acd50':p==='Pullback in Larger Momentum'?'#d0a060':p==='Bearish Momentum'?'#e05050':'#888';}
+                          function mColor(s){return s==='Strong'?'#7abd00':s==='Building'?'#9acd50':s==='Neutral'?'#EF9F27':s==='Fading'?'#e08050':s==='Weak'?'#e05050':'#555';}
+                          function rColor(r){return r==='Supportive'?'#7abd00':r==='Neutral'?'#EF9F27':r==='Weak'?'#e05050':'#555';}
+                          function pExpl(p){
+                            if(p==='Momentum Continuation') return 'Daily and weekly momentum are both supportive. This suggests the move is continuing across short and medium timeframes.';
+                            if(p==='Early Recovery Attempt') return 'Daily momentum is improving, but weekly momentum has not fully confirmed. This may reflect an early recovery attempt.';
+                            if(p==='Weak Weekly Bounce') return 'Daily momentum is improving, but weekly momentum remains weak. This may be a short-term bounce rather than a confirmed recovery.';
+                            if(p==='Waiting for Daily Trigger') return 'Weekly momentum is supportive, but daily momentum has not fully strengthened yet. This suggests the broader setup is waiting for short-term confirmation.';
+                            if(p==='Pullback in Larger Momentum') return 'Daily momentum is cooling, but weekly momentum remains supportive. This may reflect a short-term pullback within a larger momentum structure.';
+                            if(p==='Bearish Momentum') return 'Daily and weekly momentum are both weak. This suggests momentum remains under pressure.';
+                            if(p==='Not Enough Data') return 'There is not enough weekly or monthly data to classify the momentum profile reliably.';
+                            return 'Daily and weekly momentum are mixed. There is no clear momentum profile at this point.';
+                          }
+                          function confLabel(c){if(c==='High Confidence') return 'Strong Historical Support';if(c==='Moderate Confidence') return 'Positive Historical Support';if(c==='Low Confidence'||c==='Unfavourable') return 'Cautious';return 'Not Enough History';}
+                          function cColor(l){return l==='Strong Historical Support'?'#7abd00':l==='Positive Historical Support'?'#6090d0':l==='Cautious'?'#EF9F27':'#555';}
+                          function confExpl(c){if(c==='High Confidence') return 'This condition has historically shown a strong positive profile for this ticker.';if(c==='Moderate Confidence') return 'This condition has historically shown a positive profile, but sample or strength is moderate.';if(c==='Low Confidence') return 'This condition has some positive historical evidence, but confidence is limited.';if(c==='Unfavourable') return 'This condition has not historically performed well for this ticker.';return 'Not enough historical samples are available for this condition.';}
+                          function doConfCheck(){
+                            if(!lp) return;
+                            setMomConfLoading(true); setMomConfError(null); setMomConfResult(null); setMomConfSym(sym);
+                            var curProf=lp.profile,curReg=lp.monthlyRegime;
+                            var runBT=function(bars){
+                              var HP=20,MIN_PRIOR=250,LIMIT=600,rows=[],inRange=0;
+                              for(var bi=0;bi<bars.length;bi++){
+                                if(bi<MIN_PRIOR||bi+HP>=bars.length) continue;
+                                if(inRange>=LIMIT) break; inRange++;
+                                var bar=bars[bi],slice=bars.slice(0,bi+1);
+                                var dM=calcDailyMomentumApprox(slice.map(function(b){return b.close;}));
+                                var wM=calcWeeklyMomentum(buildWeeklyBars(slice));
+                                var mM=calcMonthlyMomentum(buildMonthlyBars(slice));
+                                rows.push({futureReturn:((bars[bi+HP].close-bar.close)/bar.close)*100,momentumProfile:{profile:classifyMomentumProfile(dM.status,wM.status),monthlyRegime:classifyMonthlyRegime(mM.status)}});
+                              }
+                              if(!rows.length) throw new Error('Not enough signals to compute confidence.');
+                              var MIN_SIG=10,exactR=rows.filter(function(r){return r.momentumProfile.profile===curProf&&r.momentumProfile.monthlyRegime===curReg;}),profR=rows.filter(function(r){return r.momentumProfile.profile===curProf;});
+                              var exactS=summarizeRows(exactR),profS=summarizeRows(profR),source,useS;
+                              if(exactS.signals>=MIN_SIG){source='Profile + Monthly Regime';useS=exactS;}else if(profS.signals>=MIN_SIG){source='Momentum Profile';useS=profS;}else{source='Insufficient Historical Samples';useS=exactS;}
+                              return{conf:classifyHistoricalConfidence(useS,MIN_SIG),source:source,signals:useS.signals,winRate:useS.winRate,avgReturn:useS.avgReturn,medianReturn:useS.medianReturn,bestReturn:useS.bestReturn,worstReturn:useS.worstReturn,hp:HP,totalRows:rows.length};
+                            };
+                            var bP=(momYahooBars&&momLiveSym===sym&&momYahooBars.length>=300)?Promise.resolve(momYahooBars):(function(){var eMs=Date.now(),sMs=eMs-2*365*24*3600*1000;var fmt=function(d){var dd=new Date(d);return dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2);};return fetchYahooHistoricalBars(sym,fmt(sMs),fmt(eMs),20);})();
+                            bP.then(function(bars){if(!bars||bars.length<120) throw new Error('Not enough historical price data.');var res=runBT(bars);setMomConfResult(Object.assign({},res,{confidence:res.conf,ticker:sym,profile:curProf,monthlyRegime:curReg}));setMomConfSym(sym);})
+                            .catch(function(e){setMomConfError(e.message||'Check could not be completed.');})
+                            .then(function(){setMomConfLoading(false);});
+                          }
+                          var crLabel=cr?confLabel(cr.confidence):null;
+                          var crCC=crLabel?cColor(crLabel):'#555';
                           return (
-                            <div style={{ background:summaryCardDark(_ml2).bg, border:"0.5px solid "+summaryCardDark(_ml2).bd, borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
-                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
-                                <div style={{ flex:1 }}>
-                                  <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>{"Momentum"}</div>
-                                  <div style={{ fontSize:15, fontWeight:700, color:summaryCardDark(_ml2).text, marginBottom:4 }}>{_ml2}</div>
-                                  <div style={{ fontSize:11, color:"#888", lineHeight:1.4 }}>{_msLong}</div>
+                            <div style={{background:_msbg,border:'0.5px solid '+_msbd,borderRadius:10,padding:'16px 18px',marginBottom:10}}>
+                              {/* Profile label */}
+                              <div style={{fontSize:9,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:'.1em',marginBottom:8}}>Momentum Profile</div>
+                              {/* Loading state */}
+                              {momLiveLoading&&!lp&&(
+                                <div style={{display:'flex',alignItems:'center',gap:8,color:'#555',fontSize:11}}>
+                                  <div style={{width:10,height:10,borderRadius:'50%',border:'1.5px solid #333',borderTop:'1.5px solid #c8f000',animation:'spin 0.8s linear infinite',flexShrink:0}}></div>
+                                  <span>Calculating momentum profile...</span>
                                 </div>
-                                <div style={{ flexShrink:0, paddingLeft:16, textAlign:"right" }}>
-                                  <div style={{ fontSize:28, fontWeight:800, color:summaryCardDark(_ml2).text, lineHeight:1 }}>{_ms2}</div>
-                                  <div style={{ fontSize:10, color:"#888", marginTop:2 }}>{"/ 100"}</div>
-                                  <div style={{ display:"flex", gap:3, justifyContent:"flex-end", marginTop:4 }}>
-                                    {[1,2,3,4,5].map(function(i){ return <span key={i} style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:i<=_md2?summaryCardDark(_ml2).text:"#333" }} />; })}
+                              )}
+                              {/* No data */}
+                              {lp&&lp.profile==='Not Enough Data'&&<div style={{fontSize:11,color:'#444'}}>Not enough historical price data to calculate momentum profile.</div>}
+                              {/* Profile content */}
+                              {lp&&lp.profile!=='Not Enough Data'&&(function(){
+                                var pc=pColor(lp.profile);
+                                return <div>
+                                  {/* Row: Profile name + D/W/M */}
+                                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+                                    <div style={{flex:1,paddingRight:24}}>
+                                      <div style={{fontSize:17,fontWeight:800,color:pc,marginBottom:6,lineHeight:1.2}}>{lp.profile}</div>
+                                      <div style={{fontSize:12,color:'#888',lineHeight:1.6}}>{pExpl(lp.profile)}</div>
+                                    </div>
+                                    <div style={{textAlign:'right',flexShrink:0,paddingTop:2}}>
+                                      <div style={{fontSize:11,color:'#888',marginBottom:3}}>Daily: <span style={{fontWeight:700,color:mColor(lp.daily)}}>{lp.daily}</span></div>
+                                      <div style={{fontSize:11,color:'#888',marginBottom:3}}>Weekly: <span style={{fontWeight:700,color:mColor(lp.weekly)}}>{lp.weekly}</span></div>
+                                      <div style={{fontSize:11,color:'#888'}}>Monthly Regime: <span style={{fontWeight:700,color:rColor(lp.monthlyRegime)}}>{lp.monthlyRegime}</span></div>
+                                    </div>
                                   </div>
-                                </div>
-                              </div>
-                              <div style={{ borderTop:"0.5px solid "+summaryCardDark(_ml2).bd+"44", paddingTop:8 }}>
-                                <details>
-                                  <summary style={{ fontSize:10, color:"#777", cursor:"pointer", outline:"none", listStyle:"none", display:"flex", alignItems:"center", gap:4 }}>
-                                    <span style={{ fontSize:9 }}>{"▶"}</span><span>{"How is this scored?"}</span>
-                                  </summary>
-                                  <div style={{ fontSize:10, color:"#666", lineHeight:1.8, padding:"6px 0", whiteSpace:"pre-line" }}>{"Weighted average of 3 momentum indicators (total 100 pts):\n\n  RSI-14 (direction-aware)    40 pts\n  MACD histogram              40 pts\n  Rate of Change vs SMA5      20 pts\n\nEach indicator scores 1–5; score = (raw/5) × weight, summed.\nRSI is direction-penalised: an overbought RSI that is turning down\nscores lower than a rising RSI at the same level.\n\n  Strong ≥80 · Building ≥65 · Neutral ≥50 · Fading ≥35 · Weak <35"}</div>
-                                </details>
-                              </div>
+                                  {/* Confidence row */}
+                                  <div style={{borderTop:'0.5px solid '+_msbd+'55',paddingTop:10}}>
+                                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                                      <div>
+                                        <span style={{fontSize:11,color:'#888'}}>Historical Confidence: </span>
+                                        {crLabel
+                                          ? <span style={{fontSize:11,fontWeight:700,color:crCC}}>{crLabel}</span>
+                                          : momConfLoading
+                                            ? <span style={{fontSize:11,color:'#555'}}>Checking...</span>
+                                            : <span style={{fontSize:11,color:'#555'}}>Not checked yet</span>
+                                        }
+                                      </div>
+                                      <button disabled={momConfLoading} onClick={doConfCheck}
+                                        style={{padding:'5px 12px',background:'none',border:'0.5px solid '+(momConfLoading?'#333':'#555'),borderRadius:5,color:momConfLoading?'#444':'#ccc',fontSize:10,fontWeight:600,cursor:momConfLoading?'default':'pointer',whiteSpace:'nowrap',flexShrink:0}}>
+                                        {momConfLoading?'Checking...':cr?'Refresh Historical Confidence':'Check Historical Confidence'}
+                                      </button>
+                                    </div>
+                                    {/* Italic explanation */}
+                                    <div style={{fontSize:10,color:'#666',fontStyle:'italic',lineHeight:1.5,marginBottom:cr?10:0}}>
+                                      {cr ? confExpl(cr.confidence) : pExpl(lp.profile)}
+                                    </div>
+                                    {/* Error */}
+                                    {momConfError&&<div style={{fontSize:10,color:'#e05050',marginTop:4}}>{momConfError}</div>}
+                                    {/* Stats row after check */}
+                                    {cr&&(function(){
+                                      var cc=cColor(confLabel(cr.confidence));
+                                      return <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:8}}>
+                                        <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
+                                          {[['SIGNALS',''+cr.signals,'#ccc'],['MEDIAN',cr.medianReturn!=null?(cr.medianReturn>=0?'+':'')+cr.medianReturn.toFixed(2)+'%':'—',cr.medianReturn!=null?(cr.medianReturn>=0?'#7abd00':'#e05050'):'#555'],['AVG RETURN',cr.avgReturn!=null?(cr.avgReturn>=0?'+':'')+cr.avgReturn.toFixed(2)+'%':'—',cr.avgReturn!=null?(cr.avgReturn>=0?'#7abd00':'#e05050'):'#555'],['BEST',cr.bestReturn!=null?'+'+cr.bestReturn.toFixed(2)+'%':'—','#7abd00'],['WORST',cr.worstReturn!=null?cr.worstReturn.toFixed(2)+'%':'—','#e05050']].map(function(f){
+                                            return <div key={f[0]} style={{minWidth:48}}>
+                                              <div style={{fontSize:8,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:2}}>{f[0]}</div>
+                                              <div style={{fontSize:13,fontWeight:700,color:f[2]}}>{f[1]}</div>
+                                            </div>;
+                                          })}
+                                        </div>
+                                        <div style={{textAlign:'right',flexShrink:0}}>
+                                          <div style={{fontSize:22,fontWeight:800,color:cc,lineHeight:1}}>{cr.winRate!=null?cr.winRate.toFixed(1)+'%':'—'}</div>
+                                          <div style={{fontSize:9,color:'#555',marginTop:2}}>Win Rate</div>
+                                        </div>
+                                      </div>;
+                                    })()}
+                                  </div>
+                                </div>;
+                              })()}
                             </div>
                           );
                         })()}
-                                                <div style={{border:"1px solid #e0dbd0",borderRadius:8,marginBottom:10}}>
-                          {(function(){
-                            // Direction: avg(T-0,T-1) vs avg(T-2..T-6)
-                            var _rsiHist = ind.rsiHistory || [];
-                            var _rsiDirDisp = (_rsiHist.length>=7)
-                              ? ((parseFloat(_rsiHist[0])+parseFloat(_rsiHist[1]))/2) -
-                                ((parseFloat(_rsiHist[2])+parseFloat(_rsiHist[3])+parseFloat(_rsiHist[4])+parseFloat(_rsiHist[5])+parseFloat(_rsiHist[6]))/5)
-                              : 0;
-                            var _dirLabel = _rsiDirDisp>3?"↑ improving":_rsiDirDisp<-3?"↓ declining":"→ stable";
-                            // Direction-aware RSI score
-                            var _rs=(function(){
-                              if(rsi==null) return 3;
-                              if(rsi>70) return _rsiDirDisp<-3?4:4; // overbought capped at 4
-                              if(rsi>=65) return _rsiDirDisp<-3?4:5;
-                              if(rsi>=55) return _rsiDirDisp<-3?3:4;
-                              if(rsi>=45) return _rsiDirDisp>3?4:_rsiDirDisp<-3?2:3;
-                              if(rsi>=35) return _rsiDirDisp>0?3:2;
-                              return 1;
-                            })();
-                            var _rc=_rs>=4?"#1a6a1a":_rs===3?"#b88000":"#c03030";
-                            return <MRow label={"RSI (Relative Strength Index)"}
-                              val={rsi!=null?"RSI "+rsi.toFixed(1)+" ("+_dirLabel+")":null}
-                              valCol={_rc}
-                              score={_rs} dotCol={_rc} weight={40} badge={rsiBadge}
-                              scoring={"●●●●●  5/5: RSI ≥65, not declining\n●●●●○  4/5: RSI ≥55 not declining, OR RSI ≥65 declining, OR RSI >70 (overbought cap)\n●●●○○  3/5: RSI ≥45 stable, OR RSI ≥55 declining, OR RSI ≥35 improving\n●●○○○  2/5: RSI ≥35 declining, OR RSI ≥45 declining\n●○○○○  1/5: RSI < 35\n\nDirection = avg(T-0,T-1) minus avg(T-2 to T-6)\nImproving: > +3 pts  |  Stable: -3 to +3  |  Declining: < -3 pts"}
-                              context={rsi!=null?"RSI "+rsi.toFixed(1)+" with 5-day direction "+(_rsiDirDisp>0?"+":"")+_rsiDirDisp.toFixed(1)+" pts ("+_dirLabel+"). RSI above 50 means buyers are in control; below 50 sellers have the edge. Above 70 is overbought (capped at 4/5). Below 35 is oversold.":null}
-                              desc={rsi===null?"Data unavailable.":rsi>75?"RSI "+rsi.toFixed(0)+" -- overbought. Momentum strong but risk of pullback. Capped at 4/5.":rsi>=65?"RSI "+rsi.toFixed(0)+" -- strong momentum. "+(_rsiDirDisp<-3?"Declining -- watch for continuation.":"Buyers firmly in control."):rsi>=55?"RSI "+rsi.toFixed(0)+" -- good momentum. "+(_rsiDirDisp<-3?"Weakening -- momentum may be fading.":"Trending positively."):rsi>=45?"RSI "+rsi.toFixed(0)+" -- neutral zone. "+(_rsiDirDisp>3?"Improving -- recovering momentum.":_rsiDirDisp<-3?"Declining -- losing momentum.":"No clear edge for buyers or sellers."):rsi>=35?"RSI "+rsi.toFixed(0)+" -- weak. "+(_rsiDirDisp>0?"Slightly improving -- watch for recovery.":"Sellers have the edge."):"RSI "+rsi.toFixed(0)+" -- oversold. Stock has been heavily sold down."}
-                              watch={rsi!=null&&rsi>75?"Watch for RSI to drop below 70 -- often signals overbought move is fading.":rsi!=null&&rsi<35?"Watch for RSI to recover above 45 -- signals selling pressure easing.":rsi!=null&&rsi>45&&rsi<55?"RSI near 50 -- move above 55 turns bullish, below 45 turns bearish.":null} />;
-                          })()}
 
-                          {(function(){
-                            // ROC = (price - SMA5) / SMA5 × 100  — 1-week momentum vs average
-                            var _sma5 = aggs&&aggs.length>=5 ? (aggs[0].c+aggs[1].c+aggs[2].c+aggs[3].c+aggs[4].c)/5 : null;
-                            var _roc10 = _sma5&&_sma5>0 ? ((price>0?price:aggs[0].c) - _sma5)/_sma5*100 : null;
-                            var _rocScore=_roc10===null?3:_roc10>5?5:_roc10>2?4:_roc10>-2?3:_roc10>-5?2:1;
-                            var _rocCol=_rocScore>=4?"#1a6a1a":_rocScore===3?"#b88000":"#c03030";
-                            return <MRow label={"Price vs SMA5 (1-week momentum)"}
-                              val={_roc10!=null?("ROC "+(_roc10>0?"+":"")+_roc10.toFixed(2)+"%"):null}
-                              valCol={_rocCol}
-                              score={_rocScore} dotCol={_rocCol} weight={20}
-                              scoring={"●●●●●  5/5: ROC > +5% (price well above 1-week average)\n●●●●○  4/5: ROC +2% to +5%\n●●●○○  3/5: ROC -2% to +2% (flat)\n●●○○○  2/5: ROC -5% to -2%\n●○○○○  1/5: ROC < -5% (price well below 1-week average)\n\nROC = (price - SMA5) / SMA5 × 100\nSMA5 = average closing price of last 5 days (1 week)"}
-                              context={_roc10!=null?"Price is "+(_roc10>0?"+":"")+_roc10.toFixed(1)+"% "+(Math.abs(_roc10)<0.5?"at":"relative to")+" its 5-day average of $"+(_sma5?_sma5.toFixed(2):"N/A")+". A positive reading means price is above its recent average -- short-term buyers in control. Negative means below -- sellers have the edge this week.":null}
-                              desc={_roc10===null?"Data unavailable.":_roc10>5?"Price well above its 1-week average -- strong short-term buying momentum.":_roc10>2?"Price above its 1-week average -- mild bullish momentum.":_roc10>-2?"Price near its 1-week average -- no clear short-term direction.":_roc10>-5?"Price below its 1-week average -- mild selling pressure.":"Price well below its 1-week average -- strong short-term selling pressure."}
-                              watch={_roc10!=null&&Math.abs(_roc10)>10?"Extreme reading -- price is very extended from its 1-week average. A mean reversion is likely.":null} />;
-                          })()}
-                          {(function(){
-                            var _ms=macdH===null?3:macdH>0&&macdDir==="Rising"?5:macdH>0&&macdDir!=="Falling"?4:macdH>0?3:macdDir==="Rising"?3:macdH>-0.5?2:1;
-                            var _mc=_ms>=4?"#1a6a1a":_ms===3?"#b88000":"#c03030";
-                            var _macdBadge=macdH!=null&&macdH>0&&parseFloat(prevMacdH)>0&&macdH>parseFloat(prevMacdH)*3?{text:"\u26A0 MOMENTUM SPIKE",col:"#b88000",bg:"#fdf8e6"}:null;
-                            return <MRow label={"MACD Histogram"}
-                              val={macdH!=null?macdH.toFixed(4):null}
-                              valCol={macdH===null?"#aaa":macdH>0&&macdDir==="Rising"?"#1a6a1a":macdH>0?"#888":macdDir==="Rising"?"#b88000":"#c03030"}
-                              dir={macdArrow} score={_ms} dotCol={_mc} badge={_macdBadge}
-                              context={macdH!=null?"MACD (Moving Average Convergence Divergence) measures the difference between two price averages to show momentum. The histogram value of "+macdH.toFixed(4)+" represents buying pressure (positive) vs selling pressure (negative). The exact number matters less than whether it is positive or negative and whether it is getting bigger or smaller. Currently it is "+(macdH>0?"positive (buyers winning)":"negative (sellers winning)")+" and "+(macdDir==="Rising"?"improving":"weakening")+".":null}
-                              desc={macdH===null?"Data unavailable.":macdH>0&&macdDir==="Rising"?"MACD positive and rising -- buying momentum is accelerating. Strong bullish signal.":macdH>0&&macdDir==="Falling"?"MACD positive but weakening -- upward momentum is slowing. Watch for a crossover.":macdH<0&&macdDir==="Rising"?"MACD negative but improving -- selling pressure is easing. Early recovery signal.":"MACD negative and falling -- selling momentum is accelerating. Bearish signal."}
-                              watch={macdH!=null&&Math.abs(macdH)<0.01?"MACD histogram is near zero -- a crossover (positive or negative) may be imminent.":null} />;
-                          })()}
-                          {(function(){
-                            var _es=ema20g===null?3:ema20g>5?5:ema20g>1?4:ema20g>-5?3:2;
-                            var _ec=_es>=4?"#1a6a1a":_es===3?"#b88000":"#c03030";
-                            var _emaBadge=ema20g!=null&&ema20g>10?{text:"\u26A0 EXTENDED",col:"#b88000",bg:"#fdf8e6"}:null;
-                            return <MRow label={"Price vs 20-day EMA (short-term)"}
-                              val={ema20g!=null?(ema20g>0?"+":"")+ema20g.toFixed(2)+"%":null}
-                              valCol={ema20g===null?"#aaa":ema20g>1?"#1a6a1a":ema20g>-5?"#888":"#c03030"}
-                              dir={emaDir} score={_es} dotCol={_ec} weight={10} badge={_emaBadge}
-                              context={ema20g!=null?("The 20-day EMA is a short-term trend line. The stock is "+(ema20g>0?ema20g.toFixed(1)+"% above":Math.abs(ema20g).toFixed(1)+"% below")+" it at $"+(ind.ema20?ind.ema20.toFixed(2):"N/A")+"."+(ema20g>10?" At "+ema20g.toFixed(0)+"% above it is stretched -- a pullback is normal.":"")):null}
-                              desc={ema20g===null?"Data unavailable.":ema20g>5?"Well above 20-day average -- strong short-term momentum.":ema20g>1?"Above 20-day average -- short-term uptrend intact.":ema20g>-5?"Near 20-day average -- momentum is flat, could go either way.":"Below 20-day average -- short-term momentum is weak."}
-                              watch={ema20g!=null&&Math.abs(ema20g)<1?"Price is right at its 20-day average -- a key short-term support/resistance to watch.":null} />;
-                          })()}
-                        </div>
+                        {/* ══ 3. DAILY MOMENTUM DETAILS ════════════════════════════ */}
+                        {(function(){
+                          var _ml2=window.__momLabel||'Neutral';
+                          function mColor(s){return s==='Strong'?'#1a6a1a':s==='Building'?'#2a7a2a':s==='Neutral'?'#b88000':s==='Fading'?'#c05030':'#c03030';}
+                          var _rsiHist=ind.rsiHistory||[];
+                          var _rsiDirDisp=(_rsiHist.length>=7)?((parseFloat(_rsiHist[0])+parseFloat(_rsiHist[1]))/2)-((parseFloat(_rsiHist[2])+parseFloat(_rsiHist[3])+parseFloat(_rsiHist[4])+parseFloat(_rsiHist[5])+parseFloat(_rsiHist[6]))/5):0;
+                          var _dirLabel=_rsiDirDisp>3?'↑ improving':_rsiDirDisp<-3?'↓ declining':'→ stable';
+                          var _rs=(function(){if(rsi==null) return 3;if(rsi>70) return 4;if(rsi>=65) return _rsiDirDisp<-3?4:5;if(rsi>=55) return _rsiDirDisp<-3?3:4;if(rsi>=45) return _rsiDirDisp>3?4:_rsiDirDisp<-3?2:3;if(rsi>=35) return _rsiDirDisp>0?3:2;return 1;})();
+                          var _rc=_rs>=4?'#1a6a1a':_rs===3?'#b88000':'#c03030';
+                          var _sma5=aggs&&aggs.length>=5?(aggs[0].c+aggs[1].c+aggs[2].c+aggs[3].c+aggs[4].c)/5:null;
+                          var _roc10=_sma5&&_sma5>0?((price>0?price:aggs[0].c)-_sma5)/_sma5*100:null;
+                          var _rocScore=_roc10===null?3:_roc10>5?5:_roc10>2?4:_roc10>-2?3:_roc10>-5?2:1;
+                          var _rocCol=_rocScore>=4?'#1a6a1a':_rocScore===3?'#b88000':'#c03030';
+                          var _ms=macdH===null?3:macdH>0&&macdDir==='Rising'?5:macdH>0&&macdDir!=='Falling'?4:macdH>0?3:macdH>-0.5?2:1;
+                          var _mc=_ms>=4?'#1a6a1a':_ms===3?'#b88000':'#c03030';
+                          var _es=ema20g===null?3:ema20g>5?5:ema20g>1?4:ema20g>-5?3:2;
+                          var _ec=_es>=4?'#1a6a1a':_es===3?'#b88000':'#c03030';
+                          var _emaBadge=ema20g!=null&&ema20g>10?{text:'\u26A0 EXTENDED',col:'#b88000',bg:'#fdf8e6'}:null;
+                          var _macdBadge=macdH!=null&&macdH>0&&prevMacdH!=null&&macdH>prevMacdH?{text:'\u26A0 ACCELERATING',col:'#1a6a1a',bg:'#eef8ee'}:null;
+                          return (
+                            <div style={{border:'1px solid #e0dbd0',borderRadius:8,marginBottom:10}}>
+                              <div style={{padding:'6px 14px',background:'#faf8f4',borderBottom:'1px solid #e0dbd0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                                <span style={{fontSize:11,fontWeight:700,color:'#555'}}>Daily Momentum Details</span>
+                                <span style={{fontSize:11,fontWeight:700,color:mColor(_ml2)}}>{_ml2}</span>
+                              </div>
+                              <MRow label={"RSI (Relative Strength Index)"}
+                                val={rsi!=null?"RSI "+rsi.toFixed(1)+" ("+_dirLabel+")":null} valCol={_rc}
+                                score={_rs} dotCol={_rc} badge={rsiBadge}
+                                scoring={"●●●●●  5/5: RSI ≥65, not declining\n●●●●○  4/5: RSI ≥55 not declining, or ≥65 declining\n●●●○○  3/5: RSI ≥45 stable, or ≥55 declining\n●●○○○  2/5: RSI ≥35\n●○○○○  1/5: RSI <35"}
+                                context={rsi!=null?"RSI "+rsi.toFixed(1)+" with 5-day direction "+((_rsiDirDisp>0?"+":"")+_rsiDirDisp.toFixed(1))+" pts ("+_dirLabel+"). RSI above 50 means buyers are in control; below 50 sellers have the edge. Above 70 is overbought. Below 35 is oversold.":null}
+                                desc={rsi===null?"Data unavailable.":rsi>75?"RSI "+rsi.toFixed(0)+" -- overbought. Buying pressure is very strong but stretched.":rsi>=65?"RSI "+rsi.toFixed(0)+" -- strong momentum. Buyers firmly in control.":rsi>=55?"RSI "+rsi.toFixed(0)+" -- buyers have the edge.":rsi>=45?"RSI "+rsi.toFixed(0)+" -- momentum is balanced.":rsi>=35?"RSI "+rsi.toFixed(0)+" -- sellers have the edge.":"RSI "+rsi.toFixed(0)+" -- weak momentum."}
+                                watch={rsi!=null&&rsi>75?"Watch for RSI to drop below 70 -- often signals overbought reversal.":null}
+                              />
+                              <MRow label={"Price vs SMA5 (1-week momentum)"}
+                                val={_roc10!=null?("ROC "+(_roc10>0?"+":"")+_roc10.toFixed(2)+"%"):null} valCol={_rocCol}
+                                score={_rocScore} dotCol={_rocCol}
+                                scoring={"●●●●●  5/5: ROC > +5%\n●●●●○  4/5: ROC > +2%\n●●●○○  3/5: ROC -2% to +2%\n●●○○○  2/5: ROC > -5%\n●○○○○  1/5: ROC ≤ -5%"}
+                                context={_roc10!=null?"Price is "+(_roc10>0?"+":"")+_roc10.toFixed(1)+"% relative to its 5-day average"+(aggs&&aggs.length>=5?" of $"+(_sma5?_sma5.toFixed(2):"—"):"")+" . A positive reading means price is above its recent average -- short-term buyers in control. Negative means below -- sellers have the edge this week.":null}
+                                desc={_roc10===null?"Data unavailable.":_roc10>5?"Price well above its 1-week average -- strong short-term buying momentum.":_roc10>2?"Price above its 1-week average -- positive short-term momentum.":_roc10>-2?"Price near its 1-week average -- neutral short-term momentum.":_roc10>-5?"Price below its 1-week average -- weak short-term momentum.":"Price well below its 1-week average -- bearish short-term momentum."}
+                                watch={_roc10!=null&&Math.abs(_roc10)>10?"Extreme reading -- price is very extended from its 1-week average. A mean reversion is likely.":null}
+                              />
+                              <MRow label={"MACD Histogram"}
+                                val={macdH!=null?macdH.toFixed(4):null}
+                                valCol={macdH===null?'#aaa':macdH>0&&macdDir==='Rising'?'#1a6a1a':macdH>0?'#888':'#c03030'}
+                                dir={macdH!=null&&prevMacdH!=null?(macdH>prevMacdH+0.001?'up':macdH<prevMacdH-0.001?'down':'flat'):null}
+                                score={_ms} dotCol={_mc} badge={_macdBadge}
+                                context={macdH!=null?"MACD histogram value of "+macdH.toFixed(4)+" represents buying pressure (positive) vs selling pressure (negative). Currently "+(macdH>0?'positive (buyers winning)':'negative (sellers winning)')+" and "+macdDir.toLowerCase()+".":null}
+                                desc={macdH===null?"Data unavailable.":macdH>0&&macdDir==='Rising'?"MACD positive and rising -- buying momentum is accelerating.":macdH>0&&macdDir!=='Falling'?"MACD positive and holding -- buying pressure continues.":macdH>0?"MACD positive but fading -- buying momentum may be slowing.":macdDir==='Rising'?"MACD negative but improving -- selling pressure is easing.":"MACD negative and falling -- selling momentum is dominant."}
+                                watch={macdH!=null&&Math.abs(macdH)<0.01?"MACD histogram is near zero -- a crossover may be imminent.":null}
+                                scoring={"●●●●●  5/5: Histogram > 0 and Rising\n●●●●○  4/5: Histogram > 0, not falling\n●●●○○  3/5: Histogram > 0 or improving\n●●○○○  2/5: Histogram > -0.5\n●○○○○  1/5: Histogram ≤ -0.5"}
+                              />
+                              <MRow label={"Price vs 20-day EMA (short-term)"}
+                                val={ema20g!=null?(ema20g>0?"+":"")+ema20g.toFixed(2)+"%":null}
+                                valCol={ema20g===null?'#aaa':ema20g>1?'#1a6a1a':ema20g>-5?'#888':'#c03030'}
+                                dir={emaDir} score={_es} dotCol={_ec} badge={_emaBadge}
+                                context={ema20g!=null?"The 20-day EMA is a short-term trend line. The stock is "+Math.abs(ema20g).toFixed(1)+"% "+(ema20g>0?"above":"below")+" it at $"+(ind.ema20?ind.ema20.toFixed(2):"—")+". At "+(Math.abs(ema20g)>10?"above 10%":"this level")+" it is "+(ema20g>10?"stretched -- a pullback is normal.":ema20g>0?"above, which is healthy.":"below, which is a bearish sign."):null}
+                                desc={ema20g===null?"Data unavailable.":ema20g>5?"Well above 20-day average -- strong short-term momentum.":ema20g>1?"Above 20-day average -- positive short-term momentum.":ema20g>-5?"Near 20-day average -- neutral short-term momentum.":"Below 20-day average -- short-term momentum is weak."}
+                                watch={ema20g!=null&&Math.abs(ema20g)<1?"Price is right at its 20-day average -- a key short-term support/resistance level.":null}
+                                scoring={"●●●●●  5/5: Price > +5% above EMA20\n●●●●○  4/5: Price > +1%\n●●●○○  3/5: Price -5% to +1%\n●●○○○  2/5: Price below EMA20\n●○○○○  n/a"}
+                              />
+                            </div>
+                          );
+                        })()}
+
+                        {/* ══ 4. WEEKLY MOMENTUM DETAILS ═══════════════════════════ */}
+                        {(function(){
+                          var lp=momLiveSym===sym?momLiveProfile:null;
+                          if(!lp) return null;
+                          function mColor(s){return s==='Strong'?'#1a6a1a':s==='Building'?'#2a7a2a':s==='Neutral'?'#b88000':s==='Fading'?'#c05030':'#c03030';}
+                          if(lp.weekly==='Not Enough Data') return <div style={{border:'1px solid #e0dbd0',borderRadius:8,marginBottom:10,padding:'10px 14px'}}><div style={{fontSize:11,fontWeight:700,color:'#888',marginBottom:4}}>Weekly Momentum Details</div><div style={{fontSize:11,color:'#aaa'}}>Not enough historical price data to calculate weekly indicators.</div></div>;
+                          var wRsi=lp.weeklyRsi,wRsiDir=lp.weeklyRsiDir;
+                          var wRsiScore=wRsi==null?null:wRsi>=65?5:wRsi>=55?4:wRsi>=45?3:wRsi>=35?2:1;
+                          var wRsiCol=wRsiScore==null?'#aaa':wRsiScore>=4?'#1a6a1a':wRsiScore===3?'#b88000':'#c03030';
+                          var wSma=lp.weeklyPriceVsSma10;
+                          var wSmaScore=wSma==null?null:wSma>5?5:wSma>2?4:wSma>-2?3:wSma>-5?2:1;
+                          var wSmaCol=wSmaScore==null?'#aaa':wSmaScore>=4?'#1a6a1a':wSmaScore===3?'#b88000':'#c03030';
+                          var wMacdH=lp.weeklyMacdHist,wMacdDir=lp.weeklyMacdDir;
+                          var wMacdArrow=wMacdDir==='Rising'?'up':wMacdDir==='Falling'?'down':'flat';
+                          var wMacdScore=wMacdH==null?null:(wMacdH>0&&wMacdDir==='Rising')?5:wMacdH>0?4:(wMacdH<=0&&wMacdDir==='Rising')?3:wMacdH>-0.5?2:1;
+                          var wMacdCol=wMacdScore==null?'#aaa':wMacdScore>=4?'#1a6a1a':wMacdScore===3?'#b88000':'#c03030';
+                          var wRoc=lp.weeklyRoc;
+                          var wRocScore=wRoc==null?null:wRoc>8?5:wRoc>3?4:wRoc>-3?3:wRoc>-8?2:1;
+                          var wRocCol=wRocScore==null?'#aaa':wRocScore>=4?'#1a6a1a':wRocScore===3?'#b88000':'#c03030';
+                          return (
+                            <div style={{border:'1px solid #e0dbd0',borderRadius:8,marginBottom:10}}>
+                              <div style={{padding:'6px 14px',background:'#faf8f4',borderBottom:'1px solid #e0dbd0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                                <span style={{fontSize:11,fontWeight:700,color:'#555'}}>Weekly Momentum Details</span>
+                                <span style={{fontSize:11,fontWeight:700,color:mColor(lp.weekly)}}>{lp.weekly}</span>
+                              </div>
+                              <MRow label={"Weekly RSI (14)"} val={wRsi!=null?"RSI "+wRsi.toFixed(1)+(wRsiDir==='up'?' (↑ improving)':wRsiDir==='down'?' (↓ declining)':' (→ stable)'):null} valCol={wRsiCol} score={wRsiScore} dotCol={wRsiCol}
+                                desc={wRsi==null?"Data unavailable.":wRsi>=65?"RSI "+wRsi.toFixed(0)+" -- buyers firmly in control on a weekly basis.":wRsi>=55?"RSI "+wRsi.toFixed(0)+" -- buyers have the weekly edge.":wRsi>=45?"RSI "+wRsi.toFixed(0)+" -- balanced weekly momentum.":wRsi>=35?"RSI "+wRsi.toFixed(0)+" -- sellers have the weekly edge.":"RSI "+wRsi.toFixed(0)+" -- weak weekly momentum."}
+                                context={wRsi!=null?"Weekly RSI measures momentum over the last 14 weekly bars. Above 55 means buyers are in control on a weekly basis; below 45 means sellers have the edge.":null}
+                              />
+                              <MRow label={"Price vs Weekly SMA10"} val={wSma!=null?(wSma>=0?'+':'')+wSma.toFixed(2)+'%':null} valCol={wSmaCol} score={wSmaScore} dotCol={wSmaCol}
+                                desc={wSma==null?"Data unavailable.":wSma>5?"Price well above its 10-week average -- strong weekly trend.":wSma>2?"Price above its 10-week average -- positive weekly momentum.":wSma>-2?"Price near its 10-week average -- neutral.":wSma>-5?"Price below its 10-week average -- weak weekly trend.":"Price well below its 10-week average -- bearish weekly trend."}
+                                context={wSma!=null?"Price vs 10-week SMA measures whether the stock is tracking above or below its 10-week moving average. Positive means weekly trend is up.":null}
+                              />
+                              <MRow label={"Weekly MACD Histogram"} val={wMacdH!=null?wMacdH.toFixed(4):null}
+                                valCol={wMacdH==null?'#aaa':wMacdH>0&&wMacdDir==='Rising'?'#1a6a1a':wMacdH>0?'#888':'#c03030'}
+                                dir={wMacdArrow} score={wMacdScore} dotCol={wMacdCol}
+                                desc={wMacdH==null?"Data unavailable.":wMacdH>0&&wMacdDir==='Rising'?"Weekly MACD positive and rising -- weekly buying momentum is accelerating.":wMacdH>0?"Weekly MACD positive -- buying pressure on a weekly basis.":wMacdDir==='Rising'?"Weekly MACD negative but improving -- potential weekly recovery forming.":"Weekly MACD negative -- selling pressure on a weekly basis."}
+                                context={wMacdH!=null?"Weekly MACD histogram shows buying or selling momentum over weekly bars. Positive and rising is the strongest signal; negative and falling is the weakest.":null}
+                              />
+                              <MRow label={"Weekly 4-week ROC"} val={wRoc!=null?(wRoc>=0?'+':'')+wRoc.toFixed(2)+'%':null} valCol={wRocCol} score={wRocScore} dotCol={wRocCol}
+                                desc={wRoc==null?"Data unavailable.":wRoc>8?"Price up "+wRoc.toFixed(1)+"% over 4 weeks -- strong weekly momentum.":wRoc>3?"Price up "+wRoc.toFixed(1)+"% over 4 weeks -- positive weekly trend.":wRoc>-3?"Price near flat over 4 weeks -- neutral weekly momentum.":wRoc>-8?"Price down "+Math.abs(wRoc).toFixed(1)+"% over 4 weeks -- weak weekly trend.":"Price down "+Math.abs(wRoc).toFixed(1)+"% over 4 weeks -- strong bearish weekly momentum."}
+                                context={wRoc!=null?"4-week Rate of Change measures how much the price has changed over the past 4 weekly bars. Positive means recent price action is bullish on a weekly basis.":null}
+                              />
+                            </div>
+                          );
+                        })()}
+
+                        {/* ══ 5. MONTHLY CONTEXT ═══════════════════════════════════ */}
+                        {(function(){
+                          var lp=momLiveSym===sym?momLiveProfile:null;
+                          if(!lp) return null;
+                          function regBg(r){return r==='Supportive'?'#eef8ee':r==='Neutral'?'#fdf8e6':'#fff0f0';}
+                          function regFg(r){return r==='Supportive'?'#1a6a1a':r==='Neutral'?'#b88000':'#c03030';}
+                          if(lp.monthly==='Not Enough Data') return <div style={{border:'1px solid #e0dbd0',borderRadius:8,marginBottom:10,padding:'10px 14px'}}><div style={{fontSize:11,fontWeight:700,color:'#888',marginBottom:4}}>Monthly Context</div><div style={{fontSize:11,color:'#aaa'}}>Not enough historical price data to calculate monthly context.</div></div>;
+                          var mRsi=lp.monthlyRsi,mRsiDir=lp.monthlyRsiDir;
+                          var mRsiScore=mRsi==null?null:mRsi>=65?5:mRsi>=55?4:mRsi>=45?3:mRsi>=35?2:1;
+                          var mRsiCol=mRsiScore==null?'#aaa':mRsiScore>=4?'#1a6a1a':mRsiScore===3?'#b88000':'#c03030';
+                          var mMacdH=lp.monthlyMacdHist,mMacdDir=lp.monthlyMacdDir;
+                          var mMacdArrow=mMacdDir==='Rising'?'up':mMacdDir==='Falling'?'down':'flat';
+                          var mMacdScore=mMacdH==null?null:(mMacdH>0&&mMacdDir==='Rising')?5:mMacdH>0?4:(mMacdH<=0&&mMacdDir==='Rising')?3:mMacdH>-0.5?2:1;
+                          var mMacdCol=mMacdScore==null?'#aaa':mMacdScore>=4?'#1a6a1a':mMacdScore===3?'#b88000':'#c03030';
+                          var mRoc=lp.monthlyRoc;
+                          var mRocScore=mRoc==null?null:mRoc>15?5:mRoc>5?4:mRoc>-5?3:mRoc>-15?2:1;
+                          var mRocCol=mRocScore==null?'#aaa':mRocScore>=4?'#1a6a1a':mRocScore===3?'#b88000':'#c03030';
+                          var mSma=lp.monthlyPriceVsSma10;
+                          var mSmaScore=mSma==null?null:mSma>8?5:mSma>3?4:mSma>-3?3:mSma>-8?2:1;
+                          var mSmaCol=mSmaScore==null?'#aaa':mSmaScore>=4?'#1a6a1a':mSmaScore===3?'#b88000':'#c03030';
+                          return (
+                            <div style={{border:'1px solid #e0dbd0',borderRadius:8,marginBottom:10}}>
+                              <div style={{padding:'6px 14px',background:'#faf8f4',borderBottom:'1px solid #e0dbd0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                                <span style={{fontSize:11,fontWeight:700,color:'#555'}}>Monthly Context</span>
+                                <span style={{fontSize:10,fontWeight:700,color:regFg(lp.monthlyRegime),background:regBg(lp.monthlyRegime),padding:'2px 8px',borderRadius:4,border:'0.5px solid '+regFg(lp.monthlyRegime)+'44'}}>{'Regime: '+lp.monthlyRegime}</span>
+                              </div>
+                              <MRow label={"Monthly RSI (14)"} val={mRsi!=null?"RSI "+mRsi.toFixed(1)+(mRsiDir==='up'?' (↑ improving)':mRsiDir==='down'?' (↓ declining)':' (→ stable)'):null} valCol={mRsiCol} score={mRsiScore} dotCol={mRsiCol}
+                                desc={mRsi==null?"Data unavailable.":mRsi>=65?"RSI "+mRsi.toFixed(0)+" -- monthly momentum is strong. Broader macro tailwind.":mRsi>=55?"RSI "+mRsi.toFixed(0)+" -- monthly buyers in control.":mRsi>=45?"RSI "+mRsi.toFixed(0)+" -- neutral monthly momentum.":mRsi>=35?"RSI "+mRsi.toFixed(0)+" -- monthly momentum is weak.":"RSI "+mRsi.toFixed(0)+" -- monthly momentum is strongly weak."}
+                                context={mRsi!=null?"Monthly RSI measures momentum over the last 14 monthly bars. Above 55 reflects a healthy longer-term trend; below 45 suggests caution on a macro timeframe.":null}
+                              />
+                              {mSma!=null&&<MRow label={"Price vs Monthly SMA10"} val={(mSma>=0?'+':'')+mSma.toFixed(2)+'%'} valCol={mSmaCol} score={mSmaScore} dotCol={mSmaCol}
+                                desc={mSma>8?"Price well above its 10-month average -- strong macro trend.":mSma>3?"Price above its 10-month average -- positive macro momentum.":mSma>-3?"Price near its 10-month average -- neutral macro context.":mSma>-8?"Price below its 10-month average -- weak macro trend.":"Price well below its 10-month average -- bearish macro trend."}
+                                context={"Price vs 10-month SMA measures whether the stock is in a long-term uptrend or downtrend."}
+                              />}
+                              <MRow label={"Monthly MACD Histogram"} val={mMacdH!=null?mMacdH.toFixed(4):null}
+                                valCol={mMacdH==null?'#aaa':mMacdH>0&&mMacdDir==='Rising'?'#1a6a1a':mMacdH>0?'#888':'#c03030'}
+                                dir={mMacdArrow} score={mMacdScore} dotCol={mMacdCol}
+                                desc={mMacdH==null?"Data unavailable.":mMacdH>0&&mMacdDir==='Rising'?"Monthly MACD positive and improving -- macro buying pressure is building.":mMacdH>0?"Monthly MACD positive -- longer-term buying bias.":mMacdDir==='Rising'?"Monthly MACD negative but recovering -- macro picture may be turning.":"Monthly MACD negative -- macro selling pressure."}
+                                context={mMacdH!=null?"Monthly MACD histogram shows whether longer-term buying or selling momentum is dominant. It changes slowly and reflects multi-month macro trends.":null}
+                              />
+                              <MRow label={"Monthly 3-month ROC"} val={mRoc!=null?(mRoc>=0?'+':'')+mRoc.toFixed(2)+'%':null} valCol={mRocCol} score={mRocScore} dotCol={mRocCol}
+                                desc={mRoc==null?"Data unavailable.":mRoc>15?"Price up "+mRoc.toFixed(1)+"% over 3 months -- strong macro momentum.":mRoc>5?"Price up "+mRoc.toFixed(1)+"% over 3 months -- healthy quarterly trend.":mRoc>-5?"Price near flat over 3 months -- neutral macro context.":mRoc>-15?"Price down "+Math.abs(mRoc).toFixed(1)+"% over 3 months -- weak macro context.":"Price down "+Math.abs(mRoc).toFixed(1)+"% over 3 months -- strong macro headwind."}
+                                context={mRoc!=null?"3-month Rate of Change measures the price change over the last 3 monthly bars. Gives a macro view of whether the broader trend is supportive.":null}
+                              />
+                            </div>
+                          );
+                        })()}
+
                         <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de"}}>
-                          {"Momentum signals use Massive.com real-time data. Not financial advice."}
+                          {"Momentum signals use Massive.com and Yahoo Finance data. Research only — not financial advice."}
                         </div>
+
                       </div>
                     );
+                  
                   })()}
 
                   {/* REVERSAL TAB */}
@@ -11365,7 +11655,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.48</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.55</span>
           </div>
         </div>
 
