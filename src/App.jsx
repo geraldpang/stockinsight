@@ -4373,9 +4373,15 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         setMomLiveProfile({
           daily: daily, dailyScore: dailyScore,
           weekly: wMom.status, weeklyScore: wMom.score,
-          weeklyRsi: wMom.rsi14, weeklyMacdHist: wMom.macdHistogram, weeklyRoc: wMom.roc4wPct,
+          weeklyRsi: wMom.rsi14, weeklyRsiDir: wMom.rsiDirection,
+          weeklyMacdHist: wMom.macdHistogram, weeklyMacdDir: wMom.macdDirection,
+          weeklyPrevMacdHist: wMom.previousMacdHistogram,
+          weeklyPriceVsSma10: wMom.priceVsSma10Pct, weeklyRoc: wMom.roc4wPct,
           monthly: mMom.status, monthlyScore: mMom.score,
-          monthlyRsi: mMom.rsi14, monthlyRoc: mMom.roc3mPct,
+          monthlyRsi: mMom.rsi14, monthlyRsiDir: mMom.rsiDirection,
+          monthlyMacdHist: mMom.macdHistogram, monthlyMacdDir: mMom.macdDirection,
+          monthlyPrevMacdHist: mMom.previousMacdHistogram,
+          monthlyPriceVsSma10: mMom.priceVsSma10Pct, monthlyRoc: mMom.roc3mPct,
           profile: profile, monthlyRegime: monthlyRegime,
         });
         setMomLiveSym(sym);
@@ -8588,6 +8594,144 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                   <div style={{ fontSize:10, color:"#666", lineHeight:1.8, padding:"6px 0", whiteSpace:"pre-line" }}>{"Weighted average of 3 momentum indicators (total 100 pts):\n\n  RSI-14 (direction-aware)    40 pts\n  MACD histogram              40 pts\n  Rate of Change vs SMA5      20 pts\n\nEach indicator scores 1–5; score = (raw/5) × weight, summed.\nRSI is direction-penalised: an overbought RSI that is turning down\nscores lower than a rising RSI at the same level.\n\n  Strong ≥80 · Building ≥65 · Neutral ≥50 · Fading ≥35 · Weak <35"}</div>
                                 </details>
                               </div>
+                              {/* ── Momentum Profile + Historical Confidence ── */}
+                              {(function(){
+                                var lp = momLiveSym===sym ? momLiveProfile : null;
+                                var _bd = summaryCardDark(_ml2).bd;
+                                function pColor(p) { return p==='Momentum Continuation'?'#7abd00':p==='Early Recovery Attempt'?'#6090d0':p==='Weak Weekly Bounce'?'#EF9F27':p==='Waiting for Daily Trigger'?'#9acd50':p==='Pullback in Larger Momentum'?'#d0a060':p==='Bearish Momentum'?'#e05050':'#888'; }
+                                function pExpl(p) {
+                                  if (p==='Momentum Continuation') return 'Daily and weekly momentum are both supportive. Monthly regime provides broader context.';
+                                  if (p==='Early Recovery Attempt') return 'Daily momentum is improving while weekly momentum has not fully confirmed.';
+                                  if (p==='Weak Weekly Bounce') return 'Daily momentum is improving, but weekly momentum remains weak.';
+                                  if (p==='Waiting for Daily Trigger') return 'Weekly momentum is supportive, but daily momentum has not triggered yet.';
+                                  if (p==='Pullback in Larger Momentum') return 'Daily momentum is cooling, but weekly momentum remains supportive.';
+                                  if (p==='Bearish Momentum') return 'Daily and weekly momentum are both weak. Historical confidence should be checked for this ticker\'s specific behaviour.';
+                                  return 'Momentum signals are mixed or unclear.';
+                                }
+                                function mColor(s) { return s==='Strong'?'#7abd00':s==='Building'?'#9acd50':s==='Neutral'?'#EF9F27':s==='Fading'?'#e08050':s==='Weak'?'#e05050':'#555'; }
+                                function rColor(r) { return r==='Supportive'?'#7abd00':r==='Neutral'?'#EF9F27':r==='Weak'?'#e05050':'#555'; }
+                                function cColor(c) { return c==='High Confidence'?'#7abd00':c==='Moderate Confidence'?'#6090d0':c==='Low Confidence'?'#EF9F27':c==='Unfavourable'?'#e05050':'#555'; }
+                                function cSentence(c) {
+                                  if (c==='High Confidence')     return 'This condition has historically shown a strong positive profile for this ticker.';
+                                  if (c==='Moderate Confidence') return 'This condition has historically shown a positive profile, but the sample or strength is moderate.';
+                                  if (c==='Low Confidence')      return 'This condition has some positive historical evidence, but confidence is limited.';
+                                  if (c==='Unfavourable')        return 'This condition has not historically performed well for this ticker.';
+                                  return 'Not enough historical samples are available for this condition.';
+                                }
+                                function doConfCheck() {
+                                  if (!lp) return;
+                                  setMomConfLoading(true); setMomConfError(null); setMomConfResult(null); setMomConfSym(sym);
+                                  var curProf=lp.profile, curReg=lp.monthlyRegime;
+                                  var runBT = function(bars) {
+                                    var HP=20,MIN_PRIOR=250,LIMIT=600,rows=[],inRange=0;
+                                    for (var bi=0;bi<bars.length;bi++) {
+                                      if (bi<MIN_PRIOR||bi+HP>=bars.length) continue;
+                                      if (inRange>=LIMIT) break; inRange++;
+                                      var bar=bars[bi],slice=bars.slice(0,bi+1);
+                                      var dM=calcDailyMomentumApprox(slice.map(function(b){return b.close;}));
+                                      var wM=calcWeeklyMomentum(buildWeeklyBars(slice));
+                                      var mM=calcMonthlyMomentum(buildMonthlyBars(slice));
+                                      rows.push({ futureReturn:((bars[bi+HP].close-bar.close)/bar.close)*100, momentumProfile:{profile:classifyMomentumProfile(dM.status,wM.status),monthlyRegime:classifyMonthlyRegime(mM.status)} });
+                                    }
+                                    if (!rows.length) throw new Error('Not enough signals to compute confidence.');
+                                    var MIN_SIG=10;
+                                    var exactR=rows.filter(function(r){return r.momentumProfile.profile===curProf&&r.momentumProfile.monthlyRegime===curReg;});
+                                    var profR=rows.filter(function(r){return r.momentumProfile.profile===curProf;});
+                                    var exactS=summarizeRows(exactR),profS=summarizeRows(profR);
+                                    var source,useS;
+                                    if (exactS.signals>=MIN_SIG){source='Profile + Monthly Regime';useS=exactS;}
+                                    else if (profS.signals>=MIN_SIG){source='Momentum Profile';useS=profS;}
+                                    else{source='Insufficient Historical Samples';useS=exactS;}
+                                    return {conf:classifyHistoricalConfidence(useS,MIN_SIG),source:source,signals:useS.signals,winRate:useS.winRate,avgReturn:useS.avgReturn,medianReturn:useS.medianReturn,bestReturn:useS.bestReturn,worstReturn:useS.worstReturn,exactStats:exactS,profileStats:profS,hp:HP,totalRows:rows.length};
+                                  };
+                                  var bP=(momYahooBars&&momLiveSym===sym&&momYahooBars.length>=300)?Promise.resolve(momYahooBars):(function(){var eMs=Date.now(),sMs=eMs-2*365*24*3600*1000;var fmt=function(d){var dd=new Date(d);return dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2);};return fetchYahooHistoricalBars(sym,fmt(sMs),fmt(eMs),20);})();
+                                  bP.then(function(bars){
+                                    if (!bars||bars.length<120) throw new Error('Not enough historical price data.');
+                                    var res=runBT(bars);
+                                    setMomConfResult(Object.assign({},res,{confidence:res.conf,ticker:sym,profile:curProf,monthlyRegime:curReg}));
+                                    setMomConfSym(sym);
+                                  }).catch(function(e){setMomConfError(e.message||'Momentum confidence check could not be completed.');})
+                                  .then(function(){setMomConfLoading(false);});
+                                }
+                                var cr = momConfResult&&momConfResult.ticker===sym ? momConfResult : null;
+                                return (
+                                  <div>
+                                    {/* Profile section */}
+                                    <div style={{ borderTop:'0.5px solid '+_bd+'44', marginTop:12, paddingTop:12 }}>
+                                      <div style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'.07em', marginBottom:7 }}>Momentum Profile</div>
+                                      {momLiveLoading && !lp && (
+                                        <div style={{ display:'flex', alignItems:'center', gap:8, color:'#555', fontSize:11 }}>
+                                          <div style={{ width:10, height:10, borderRadius:'50%', border:'1.5px solid #333', borderTop:'1.5px solid #c8f000', animation:'spin 0.8s linear infinite', flexShrink:0 }}></div>
+                                          <span>Calculating weekly and monthly momentum...</span>
+                                        </div>
+                                      )}
+                                      {lp && lp.profile==='Not Enough Data' && <div style={{ fontSize:10, color:'#444' }}>Not enough historical price data to calculate weekly/monthly momentum.</div>}
+                                      {lp && lp.profile!=='Not Enough Data' && (function(){
+                                        var pc=pColor(lp.profile);
+                                        return <div>
+                                          <div style={{ fontSize:13, fontWeight:700, color:pc, marginBottom:8 }}>{lp.profile}</div>
+                                          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:5, marginBottom:7 }}>
+                                            {[['Daily Momentum',lp.daily,mColor(lp.daily)],['Weekly Momentum',lp.weekly,mColor(lp.weekly)],['Monthly Regime',lp.monthlyRegime,rColor(lp.monthlyRegime)]].map(function(f){
+                                              return <div key={f[0]} style={{ background:'rgba(0,0,0,0.25)', borderRadius:5, padding:'6px 8px', border:'0.5px solid rgba(255,255,255,0.05)' }}>
+                                                <div style={{ fontSize:8, color:'#555', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:2 }}>{f[0]}</div>
+                                                <div style={{ fontSize:11, fontWeight:700, color:f[2] }}>{f[1]||'—'}</div>
+                                              </div>;
+                                            })}
+                                          </div>
+                                          {(lp.weeklyRsi!=null||lp.weeklyMacdHist!=null) && <div style={{ display:'flex', gap:10, fontSize:9, color:'#555', marginBottom:6 }}>
+                                            {lp.weeklyRsi!=null&&<span>W.RSI {lp.weeklyRsi.toFixed(1)}</span>}
+                                            {lp.weeklyMacdHist!=null&&<span>W.MACD {lp.weeklyMacdHist.toFixed(3)}</span>}
+                                            {lp.weeklyRoc!=null&&<span>W.ROC {(lp.weeklyRoc>=0?'+':'')+lp.weeklyRoc.toFixed(1)}%</span>}
+                                            {lp.monthlyRsi!=null&&<span>M.RSI {lp.monthlyRsi.toFixed(1)}</span>}
+                                          </div>}
+                                          <div style={{ fontSize:10, color:'#666', lineHeight:1.6, fontStyle:'italic' }}>{pExpl(lp.profile)}</div>
+                                        </div>;
+                                      })()}
+                                    </div>
+                                    {/* Historical Confidence section */}
+                                    {lp && lp.profile!=='Not Enough Data' && (
+                                      <div style={{ borderTop:'0.5px solid '+_bd+'44', marginTop:12, paddingTop:12 }}>
+                                        <div style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'.07em', marginBottom:6 }}>Historical Confidence</div>
+                                        {!cr && !momConfLoading && !momConfError && <div style={{ marginBottom:8 }}>
+                                          <div style={{ fontSize:11, color:'#444' }}>Not checked yet</div>
+                                          <div style={{ fontSize:9, color:'#333', marginTop:3, lineHeight:1.5 }}>Run Check Historical Confidence to see how this momentum condition has historically performed for this ticker.</div>
+                                        </div>}
+                                        {momConfError && <div style={{ fontSize:10, color:'#e05050', marginBottom:6 }}>{momConfError}</div>}
+                                        {cr && (function(){
+                                          var cc=cColor(cr.confidence);
+                                          return <div style={{ marginBottom:8 }}>
+                                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
+                                              <div>
+                                                <div style={{ fontSize:13, fontWeight:800, color:cc }}>{cr.confidence}</div>
+                                                <div style={{ fontSize:9, color:'#7ab8d0', marginTop:2 }}>{'Source: '+cr.source}</div>
+                                              </div>
+                                              <div style={{ textAlign:'right', paddingLeft:12 }}>
+                                                <div style={{ fontSize:18, fontWeight:800, color:cc }}>{cr.winRate!=null?cr.winRate.toFixed(1)+'%':'—'}</div>
+                                                <div style={{ fontSize:8, color:'#555' }}>Win Rate</div>
+                                                <div style={{ fontSize:10, fontWeight:700, color:cr.medianReturn!=null?(cr.medianReturn>=0?'#7abd00':'#e05050'):'#555', marginTop:2 }}>{cr.medianReturn!=null?(cr.medianReturn>=0?'+':'')+cr.medianReturn.toFixed(2)+'%':'—'} median</div>
+                                              </div>
+                                            </div>
+                                            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:4, marginBottom:6 }}>
+                                              {[['Signals',''+cr.signals,'#f0ede6'],['Avg Rtn',cr.avgReturn!=null?(cr.avgReturn>=0?'+':'')+cr.avgReturn.toFixed(1)+'%':'—',cr.avgReturn!=null?(cr.avgReturn>=0?'#7abd00':'#e05050'):'#555'],['Best',cr.bestReturn!=null?'+'+cr.bestReturn.toFixed(1)+'%':'—','#7abd00'],['Worst',cr.worstReturn!=null?cr.worstReturn.toFixed(1)+'%':'—','#e05050']].map(function(f){
+                                                return <div key={f[0]} style={{ background:'rgba(0,0,0,0.3)', borderRadius:4, padding:'4px 6px', textAlign:'center' }}>
+                                                  <div style={{ fontSize:7, color:'#555', textTransform:'uppercase', marginBottom:1 }}>{f[0]}</div>
+                                                  <div style={{ fontSize:10, fontWeight:700, color:f[2] }}>{f[1]}</div>
+                                                </div>;
+                                              })}
+                                            </div>
+                                            <div style={{ fontSize:9, color:cc, fontStyle:'italic', lineHeight:1.4 }}>{cSentence(cr.confidence)}</div>
+                                            <div style={{ fontSize:8, color:'#333', marginTop:4 }}>{'Holding period: '+cr.hp+'d · '+cr.totalRows+' signals tested · research only'}</div>
+                                          </div>;
+                                        })()}
+                                        <button disabled={momConfLoading||!lp} onClick={doConfCheck}
+                                          style={{ display:'block', width:'100%', padding:'8px 14px', background:momConfLoading?'rgba(0,0,0,0.2)':'rgba(0,0,0,0.3)', border:'0.5px solid '+(momConfLoading?'#333':'#5a8a20'), borderRadius:6, color:momConfLoading?'#555':'#c8f000', fontSize:11, fontWeight:700, cursor:momConfLoading?'default':'pointer', textAlign:'center' }}>
+                                          {momConfLoading?'Checking...':cr?'Refresh Historical Confidence':'Check Historical Confidence'}
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           );
                         })()}
@@ -8665,233 +8809,123 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {"Momentum signals use Massive.com real-time data. Not financial advice."}
                         </div>
 
-                        {/* ── Run 6N: Momentum Profile + Historical Confidence ── */}
+                                                {/* ── Weekly Indicators ─────────────────────────────────── */}
                         {(function(){
-                          var _daily = window.__momLabel || 'Neutral';
-                          var lp = (momLiveSym === sym) ? momLiveProfile : null;
-
-                          // Profile label colour
-                          function profileColor(p) {
-                            if (p==='Momentum Continuation') return '#7abd00';
-                            if (p==='Early Recovery Attempt') return '#6090d0';
-                            if (p==='Weak Weekly Bounce') return '#EF9F27';
-                            if (p==='Waiting for Daily Trigger') return '#9acd50';
-                            if (p==='Pullback in Larger Momentum') return '#d0a060';
-                            if (p==='Bearish Momentum') return '#e05050';
-                            return '#888';
-                          }
-                          function profileExplanation(p) {
-                            if (p==='Momentum Continuation') return 'Daily and weekly momentum are both supportive. Monthly regime provides broader context.';
-                            if (p==='Early Recovery Attempt') return 'Daily momentum is improving while weekly momentum has not fully confirmed.';
-                            if (p==='Weak Weekly Bounce') return 'Daily momentum is improving, but weekly momentum remains weak.';
-                            if (p==='Waiting for Daily Trigger') return 'Weekly momentum is supportive, but daily momentum has not triggered yet.';
-                            if (p==='Pullback in Larger Momentum') return 'Daily momentum is cooling, but weekly momentum remains supportive.';
-                            if (p==='Bearish Momentum') return 'Daily and weekly momentum are both weak. Historical confidence should be checked for this ticker\'s specific behaviour.';
-                            return 'Momentum signals are mixed or unclear.';
-                          }
-                          function regimeColor(r) {
-                            return r==='Supportive'?'#7abd00':r==='Neutral'?'#EF9F27':r==='Weak'?'#e05050':'#555';
-                          }
-                          function momColor(s) {
-                            return s==='Strong'?'#7abd00':s==='Building'?'#9acd50':s==='Neutral'?'#EF9F27':s==='Fading'?'#e08050':s==='Weak'?'#e05050':'#555';
-                          }
-
-                          // Build confidence check using cached bars when available
-                          function handleMomConfCheck() {
-                            if (!lp) return;
-                            setMomConfLoading(true); setMomConfError(null);
-                            setMomConfResult(null); setMomConfSym(sym);
-                            var curProf = lp.profile;
-                            var curReg  = lp.monthlyRegime;
-                            var runBacktest = function(bars) {
-                              var HP=20, MIN_PRIOR=250, LIMIT=600, rows=[], inRange=0;
-                              for (var bi=0; bi<bars.length; bi++) {
-                                if (bi<MIN_PRIOR||bi+HP>=bars.length) continue;
-                                if (inRange>=LIMIT) break; inRange++;
-                                var bar=bars[bi], slice=bars.slice(0,bi+1);
-                                var closes=slice.map(function(b){return b.close;});
-                                var dMom=calcDailyMomentumApprox(closes);
-                                var wMom2=calcWeeklyMomentum(buildWeeklyBars(slice));
-                                var mMom2=calcMonthlyMomentum(buildMonthlyBars(slice));
-                                var prof2=classifyMomentumProfile(dMom.status, wMom2.status);
-                                var reg2=classifyMonthlyRegime(mMom2.status);
-                                var futRet=((bars[bi+HP].close-bar.close)/bar.close)*100;
-                                rows.push({ futureReturn:futRet, momentumProfile:{ profile:prof2, monthlyRegime:reg2 } });
-                              }
-                              if (!rows.length) throw new Error('Not enough signals to compute confidence.');
-                              var MIN_SIG=10;
-                              var exactR=rows.filter(function(r){return r.momentumProfile.profile===curProf&&r.momentumProfile.monthlyRegime===curReg;});
-                              var profR =rows.filter(function(r){return r.momentumProfile.profile===curProf;});
-                              var exactS=summarizeRows(exactR), profS=summarizeRows(profR);
-                              var source, useSummary;
-                              if (exactS.signals>=MIN_SIG){source='Profile + Monthly Regime';useSummary=exactS;}
-                              else if (profS.signals>=MIN_SIG){source='Momentum Profile';useSummary=profS;}
-                              else {source='Insufficient Historical Samples';useSummary=exactS;}
-                              return { conf:classifyHistoricalConfidence(useSummary,MIN_SIG), source:source,
-                                signals:useSummary.signals, winRate:useSummary.winRate,
-                                avgReturn:useSummary.avgReturn, medianReturn:useSummary.medianReturn,
-                                bestReturn:useSummary.bestReturn, worstReturn:useSummary.worstReturn,
-                                exactStats:exactS, profileStats:profS, hp:HP, totalRows:rows.length };
-                            };
-                            // Use cached bars if available (same ticker), else re-fetch 2 years
-                            var barsPromise = (momYahooBars && momLiveSym===sym && momYahooBars.length >= 300)
-                              ? Promise.resolve(momYahooBars)
-                              : (function(){
-                                  var endMs=Date.now(), startMs=endMs-2*365*24*3600*1000;
-                                  var fmt=function(d){var dd=new Date(d);return dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2);};
-                                  return fetchYahooHistoricalBars(sym,fmt(startMs),fmt(endMs),20);
-                                })();
-                            barsPromise
-                              .then(function(bars){
-                                if (!bars||bars.length<120) throw new Error('Not enough historical price data.');
-                                var res = runBacktest(bars);
-                                setMomConfResult(Object.assign({}, res, {
-                                  confidence:res.conf, ticker:sym,
-                                  daily:curProf, profile:curProf, monthlyRegime:curReg,
-                                }));
-                                setMomConfSym(sym);
-                              })
-                              .catch(function(e){ setMomConfError(e.message||'Momentum confidence check could not be completed.'); })
-                              .then(function(){ setMomConfLoading(false); });
-                          }
-
-                          var cr = momConfResult && momConfResult.ticker===sym ? momConfResult : null;
-
-                          function confColor(c) {
-                            return c==='High Confidence'?'#7abd00':c==='Moderate Confidence'?'#6090d0':
-                                   c==='Low Confidence'?'#EF9F27':c==='Unfavourable'?'#e05050':'#555';
-                          }
-                          function confSentence(c) {
-                            if (c==='High Confidence')     return 'This condition has historically shown a strong positive profile for this ticker.';
-                            if (c==='Moderate Confidence') return 'This condition has historically shown a positive profile, but the sample or strength is moderate.';
-                            if (c==='Low Confidence')      return 'This condition has some positive historical evidence, but confidence is limited.';
-                            if (c==='Unfavourable')        return 'This condition has not historically performed well for this ticker.';
-                            return 'Not enough historical samples are available for this condition.';
-                          }
-
+                          var lp = momLiveSym===sym ? momLiveProfile : null;
+                          if (!lp) return null;
+                          function wMomColor(s){return s==='Strong'?'#1a6a1a':s==='Building'?'#2a7a2a':s==='Neutral'?'#b88000':s==='Fading'?'#c05030':'#c03030';}
+                          var noData = lp.weekly==='Not Enough Data';
+                          if (noData) return (
+                            <div style={{border:'1px solid #e0dbd0',borderRadius:8,marginBottom:10,padding:'10px 14px'}}>
+                              <div style={{fontSize:11,fontWeight:700,color:'#888',marginBottom:4}}>Weekly Indicators</div>
+                              <div style={{fontSize:11,color:'#aaa'}}>Not enough historical price data to calculate weekly indicators.</div>
+                            </div>
+                          );
+                          // Weekly RSI
+                          var wRsi=lp.weeklyRsi, wRsiDir=lp.weeklyRsiDir;
+                          var wRsiScore=wRsi==null?null:wRsi>=65?5:wRsi>=55?4:wRsi>=45?3:wRsi>=35?2:1;
+                          var wRsiCol=wRsiScore==null?'#aaa':wRsiScore>=4?'#1a6a1a':wRsiScore===3?'#b88000':'#c03030';
+                          var wRsiLabel=wRsi==null?null:'RSI '+wRsi.toFixed(1)+(wRsiDir==='up'?' (↑ improving)':wRsiDir==='down'?' (↓ declining)':' (→ stable)');
+                          // Weekly SMA10
+                          var wSma=lp.weeklyPriceVsSma10;
+                          var wSmaScore=wSma==null?null:wSma>5?5:wSma>2?4:wSma>-2?3:wSma>-5?2:1;
+                          var wSmaCol=wSmaScore==null?'#aaa':wSmaScore>=4?'#1a6a1a':wSmaScore===3?'#b88000':'#c03030';
+                          var wSmaLabel=wSma==null?null:(wSma>=0?'+':'')+wSma.toFixed(2)+'%';
+                          // Weekly MACD
+                          var wMacdH=lp.weeklyMacdHist, wMacdDir=lp.weeklyMacdDir;
+                          var wMacdArrow=wMacdDir==='Rising'?'up':wMacdDir==='Falling'?'down':'flat';
+                          var wMacdScore=wMacdH==null?null:(wMacdH>0&&wMacdDir==='Rising')?5:wMacdH>0?4:(wMacdH<=0&&wMacdDir==='Rising')?3:wMacdH>-0.5?2:1;
+                          var wMacdCol=wMacdScore==null?'#aaa':wMacdScore>=4?'#1a6a1a':wMacdScore===3?'#b88000':'#c03030';
+                          // Weekly 4W ROC
+                          var wRoc=lp.weeklyRoc;
+                          var wRocScore=wRoc==null?null:wRoc>8?5:wRoc>3?4:wRoc>-3?3:wRoc>-8?2:1;
+                          var wRocCol=wRocScore==null?'#aaa':wRocScore>=4?'#1a6a1a':wRocScore===3?'#b88000':'#c03030';
+                          var wRocLabel=wRoc==null?null:(wRoc>=0?'+':'')+wRoc.toFixed(2)+'%';
                           return (
-                            <div>
-                              {/* ── Momentum Profile card ── */}
-                              <div style={{ background:'#0e0e0c', borderRadius:10, padding:'12px 14px', marginBottom:10, border:'0.5px solid #2a2a28' }}>
-                                <div style={{ fontSize:10, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:7 }}>Momentum Profile</div>
-                                {momLiveLoading && !lp && (
-                                  <div style={{ display:'flex', alignItems:'center', gap:8, color:'#555', fontSize:11 }}>
-                                    <div style={{ width:10, height:10, borderRadius:'50%', border:'1.5px solid #333', borderTop:'1.5px solid #c8f000', animation:'spin 0.8s linear infinite', flexShrink:0 }}></div>
-                                    <span>Calculating weekly and monthly momentum...</span>
-                                  </div>
-                                )}
-                                {lp && lp.profile !== 'Not Enough Data' && (function(){
-                                  var pc = profileColor(lp.profile);
-                                  return <div>
-                                    <div style={{ fontSize:14, fontWeight:700, color:pc, marginBottom:8 }}>{lp.profile}</div>
-                                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6, marginBottom:8 }}>
-                                      {[
-                                        ['Daily Momentum', lp.daily, momColor(lp.daily)],
-                                        ['Weekly Momentum', lp.weekly, momColor(lp.weekly)],
-                                        ['Monthly Regime', lp.monthlyRegime, regimeColor(lp.monthlyRegime)],
-                                      ].map(function(f){
-                                        return <div key={f[0]} style={{ background:'#141412', borderRadius:5, padding:'6px 8px' }}>
-                                          <div style={{ fontSize:8, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:2 }}>{f[0]}</div>
-                                          <div style={{ fontSize:11, fontWeight:700, color:f[2] }}>{f[1]||'—'}</div>
-                                        </div>;
-                                      })}
-                                    </div>
-                                    {lp.weeklyScore != null && (
-                                      <div style={{ display:'flex', gap:12, fontSize:9, color:'#555', marginBottom:6 }}>
-                                        {lp.weeklyRsi!=null && <span>W.RSI {lp.weeklyRsi.toFixed(1)}</span>}
-                                        {lp.weeklyMacdHist!=null && <span>W.MACD {lp.weeklyMacdHist.toFixed(3)}</span>}
-                                        {lp.weeklyRoc!=null && <span>W.ROC {(lp.weeklyRoc>=0?'+':'')+lp.weeklyRoc.toFixed(1)}%</span>}
-                                        {lp.monthlyRsi!=null && <span>M.RSI {lp.monthlyRsi.toFixed(1)}</span>}
-                                      </div>
-                                    )}
-                                    <div style={{ fontSize:10, color:'#666', lineHeight:1.6, fontStyle:'italic' }}>{profileExplanation(lp.profile)}</div>
-                                  </div>;
-                                })()}
-                                {lp && lp.profile === 'Not Enough Data' && (
-                                  <div style={{ fontSize:10, color:'#444' }}>Not enough historical price data to calculate weekly/monthly momentum.</div>
-                                )}
+                            <div style={{border:'1px solid #e0dbd0',borderRadius:8,marginBottom:10}}>
+                              <div style={{padding:'6px 14px',background:'#faf8f4',borderBottom:'1px solid #e0dbd0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                                <span style={{fontSize:11,fontWeight:700,color:'#555'}}>Weekly Indicators</span>
+                                <span style={{fontSize:10,fontWeight:700,color:wMomColor(lp.weekly),background:'#111',padding:'2px 8px',borderRadius:4}}>{lp.weekly}</span>
                               </div>
+                              <MRow label={"Weekly RSI (14)"} val={wRsiLabel} valCol={wRsiCol}
+                                score={wRsiScore} dotCol={wRsiCol} weight={30}
+                                desc={wRsi==null?"Data unavailable.":wRsi>=65?"RSI "+wRsi.toFixed(0)+" -- buyers firmly in control on a weekly basis.":wRsi>=55?"RSI "+wRsi.toFixed(0)+" -- buyers have the edge weekly.":wRsi>=45?"RSI "+wRsi.toFixed(0)+" -- balanced weekly momentum.":wRsi>=35?"RSI "+wRsi.toFixed(0)+" -- sellers have the weekly edge.":"RSI "+wRsi.toFixed(0)+" -- weak weekly momentum."}
+                                context={wRsi!=null?"Weekly RSI measures momentum over the last 14 weekly bars. Above 55 means buyers are in control on a weekly basis; below 45 means sellers have the edge.":null}
+                                scoring={"●●●●●  5/5: Weekly RSI ≥65\n●●●●○  4/5: Weekly RSI ≥55\n●●●○○  3/5: Weekly RSI ≥45\n●●○○○  2/5: Weekly RSI ≥35\n●○○○○  1/5: Weekly RSI <35"}
+                              />
+                              <MRow label={"Price vs Weekly SMA10"} val={wSmaLabel} valCol={wSmaCol}
+                                score={wSmaScore} dotCol={wSmaCol} weight={20}
+                                desc={wSma==null?"Data unavailable.":wSma>5?"Price is well above its 10-week average -- strong weekly trend.":wSma>2?"Price is above its 10-week average -- positive weekly momentum.":wSma>-2?"Price is near its 10-week average -- neutral.":wSma>-5?"Price is below its 10-week average -- weak weekly trend.":"Price is well below its 10-week average -- bearish weekly trend."}
+                                context={wSma!=null?"Price vs 10-week SMA measures whether the stock is tracking above or below its 10-week moving average. Positive means weekly trend is up; negative means weekly trend is down.":null}
+                                scoring={"●●●●●  5/5: Price > +5% above Weekly SMA10\n●●●●○  4/5: +2% to +5%\n●●●○○  3/5: -2% to +2%\n●●○○○  2/5: -5% to -2%\n●○○○○  1/5: < -5%"}
+                              />
+                              <MRow label={"Weekly MACD Histogram"} val={wMacdH!=null?wMacdH.toFixed(4):null}
+                                valCol={wMacdH==null?'#aaa':wMacdH>0&&wMacdDir==='Rising'?'#1a6a1a':wMacdH>0?'#888':'#c03030'}
+                                dir={wMacdArrow} score={wMacdScore} dotCol={wMacdCol} weight={35}
+                                desc={wMacdH==null?"Data unavailable.":wMacdH>0&&wMacdDir==='Rising'?"Weekly MACD positive and rising -- weekly buying momentum is accelerating.":wMacdH>0?"Weekly MACD positive -- buying pressure on a weekly basis.":wMacdDir==='Rising'?"Weekly MACD negative but improving -- potential weekly recovery forming.":"Weekly MACD negative -- selling pressure on a weekly basis."}
+                                context={wMacdH!=null?"Weekly MACD histogram shows buying or selling momentum over weekly bars. Positive and rising is the strongest signal; negative and falling is the weakest.":null}
+                                scoring={"●●●●●  5/5: Histogram > 0 and improving\n●●●●○  4/5: Histogram > 0\n●●●○○  3/5: Histogram ≤0 but improving\n●●○○○  2/5: Histogram > -0.5\n●○○○○  1/5: Histogram ≤ -0.5"}
+                              />
+                              <MRow label={"Weekly 4-week ROC"} val={wRocLabel} valCol={wRocCol}
+                                score={wRocScore} dotCol={wRocCol} weight={15}
+                                desc={wRoc==null?"Data unavailable.":wRoc>8?"Price up "+wRoc.toFixed(1)+"% over 4 weeks -- strong weekly momentum.":wRoc>3?"Price up "+wRoc.toFixed(1)+"% over 4 weeks -- positive weekly trend.":wRoc>-3?"Price near flat over 4 weeks -- neutral weekly momentum.":wRoc>-8?"Price down "+Math.abs(wRoc).toFixed(1)+"% over 4 weeks -- weak weekly trend.":"Price down "+Math.abs(wRoc).toFixed(1)+"% over 4 weeks -- strong bearish weekly momentum."}
+                                context={wRoc!=null?"4-week Rate of Change measures how much the price has changed over the past 4 weekly bars. Positive means recent price action is bullish on a weekly basis.":null}
+                                scoring={"●●●●●  5/5: 4W ROC > +8%\n●●●●○  4/5: +3% to +8%\n●●●○○  3/5: -3% to +3%\n●●○○○  2/5: -8% to -3%\n●○○○○  1/5: < -8%"}
+                              />
+                            </div>
+                          );
+                        })()}
 
-                              {/* ── Check Historical Confidence button ── */}
-                              {lp && lp.profile !== 'Not Enough Data' && (
-                                <button disabled={momConfLoading || !lp} onClick={handleMomConfCheck}
-                                  style={{ display:'block', width:'100%', padding:'9px 14px',
-                                    background:momConfLoading?'#1a1a18':'#0f1e08',
-                                    border:'0.5px solid '+(momConfLoading?'#333':'#5a8a20'),
-                                    borderRadius:8, color:momConfLoading?'#555':'#c8f000', fontSize:11, fontWeight:700,
-                                    cursor:momConfLoading?'default':'pointer', marginBottom:8, textAlign:'center' }}>
-                                  {momConfLoading ? 'Checking...' : cr ? 'Refresh Historical Confidence' : 'Check Historical Confidence'}
-                                </button>
-                              )}
-                              {lp && !cr && !momConfLoading && lp.profile !== 'Not Enough Data' && (
-                                <div style={{ background:'#0c0c0a', borderRadius:8, padding:'10px 12px', marginBottom:10, border:'0.5px solid #222' }}>
-                                  <div style={{ fontSize:10, fontWeight:700, color:'#444', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:4 }}>Historical Confidence</div>
-                                  <div style={{ fontSize:11, color:'#444' }}>Not checked yet</div>
-                                  <div style={{ fontSize:9, color:'#333', marginTop:4, lineHeight:1.5 }}>Run Check Historical Confidence to see how this current momentum condition has historically performed for this ticker.</div>
-                                </div>
-                              )}
-
-                              {momConfError && <div style={{ background:'#1a0808', border:'0.5px solid #5a1a1a', borderRadius:8, padding:'10px 14px', marginBottom:10 }}>
-                                <div style={{ fontSize:11, color:'#e05050' }}>{momConfError}</div>
-                              </div>}
-
-                              {/* ── Historical Confidence result card ── */}
-                              {cr && (function(){
-                                var cc=confColor(cr.confidence);
-                                return <div>
-                                  <div style={{ background:'#0c0c0a', border:'0.5px solid #2a2a28', borderRadius:10, padding:'14px 16px', marginBottom:10 }}>
-                                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
-                                      <div>
-                                        <div style={{ fontSize:10, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:3 }}>Historical Confidence</div>
-                                        <div style={{ fontSize:16, fontWeight:800, color:cc }}>{cr.confidence}</div>
-                                        <div style={{ fontSize:10, color:'#7ab8d0', marginTop:3 }}>{'Source: '+cr.source}</div>
-                                        {cr.source==='Momentum Profile' && <div style={{ fontSize:9, color:'#555', marginTop:2, fontStyle:'italic' }}>Exact Profile + Monthly Regime had insufficient samples. Using broader Momentum Profile.</div>}
-                                        {cr.source==='Insufficient Historical Samples' && <div style={{ fontSize:9, color:'#555', marginTop:2, fontStyle:'italic' }}>Not enough samples. Consider running the full Simulator.</div>}
-                                      </div>
-                                      <div style={{ textAlign:'right', paddingLeft:12 }}>
-                                        <div style={{ fontSize:22, fontWeight:800, color:cc }}>{cr.winRate!=null?cr.winRate.toFixed(1)+'%':'—'}</div>
-                                        <div style={{ fontSize:9, color:'#555' }}>Win Rate</div>
-                                        <div style={{ fontSize:11, fontWeight:700, color:cr.medianReturn!=null?(cr.medianReturn>=0?'#7abd00':'#e05050'):'#555', marginTop:4 }}>{cr.medianReturn!=null?(cr.medianReturn>=0?'+':'')+cr.medianReturn.toFixed(2)+'%':'—'}</div>
-                                        <div style={{ fontSize:9, color:'#555' }}>Median</div>
-                                      </div>
-                                    </div>
-                                    <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:5, marginBottom:8 }}>
-                                      {[['Signals',cr.signals,'#f0ede6'],['Avg Return',cr.avgReturn!=null?(cr.avgReturn>=0?'+':'')+cr.avgReturn.toFixed(2)+'%':'—',cr.avgReturn!=null?(cr.avgReturn>=0?'#7abd00':'#e05050'):'#555'],['Best',cr.bestReturn!=null?'+'+cr.bestReturn.toFixed(2)+'%':'—','#7abd00'],['Worst',cr.worstReturn!=null?cr.worstReturn.toFixed(2)+'%':'—','#e05050']].map(function(f){
-                                        return <div key={f[0]} style={{ background:'#111', borderRadius:5, padding:'5px 7px', textAlign:'center' }}>
-                                          <div style={{ fontSize:8, color:'#555', textTransform:'uppercase', marginBottom:1 }}>{f[0]}</div>
-                                          <div style={{ fontSize:10, fontWeight:700, color:f[2] }}>{f[1]}</div>
-                                        </div>;
-                                      })}
-                                    </div>
-                                    <div style={{ fontSize:10, color:'#555', marginBottom:6 }}>{'Holding Period: '+cr.hp+' days · Test Range: Last 2 years ('+cr.totalRows+' signals)'}</div>
-                                    <div style={{ fontSize:10, color:cc, fontStyle:'italic', lineHeight:1.5 }}>{confSentence(cr.confidence)}</div>
-                                  </div>
-                                  <div style={{ marginBottom:10 }}>
-                                    <div style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Historical Momentum Match</div>
-                                    <div style={{ overflowX:'auto' }}>
-                                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:9 }}>
-                                        <thead><tr style={{ borderBottom:'1px solid #2a2a28' }}>
-                                          {['Match Type','Signals','Win Rate','Median','Worst','Confidence'].map(function(h){ return <th key={h} style={{ padding:'4px 8px', fontSize:8, fontWeight:700, color:'#555', textTransform:'uppercase', textAlign:'left', background:'#141412' }}>{h}</th>; })}
-                                        </tr></thead>
-                                        <tbody>
-                                          {[['Profile + Monthly Regime',cr.exactStats],['Momentum Profile only',cr.profileStats]].map(function(row,i){
-                                            var s=row[1], c2=classifyHistoricalConfidence(s,10);
-                                            return <tr key={i} style={{ background:i%2===0?'#181816':'#141412' }}>
-                                              <td style={{ padding:'4px 8px', color:'#aaa' }}>{row[0]}</td>
-                                              <td style={{ padding:'4px 8px', color:'#f0ede6', textAlign:'right' }}>{s.signals||0}</td>
-                                              <td style={{ padding:'4px 8px', color:s.winRate!=null?(s.winRate>=60?'#7abd00':'#EF9F27'):'#555', textAlign:'right', fontWeight:700 }}>{s.winRate!=null?s.winRate.toFixed(1)+'%':'—'}</td>
-                                              <td style={{ padding:'4px 8px', color:s.medianReturn!=null?(s.medianReturn>=0?'#7abd00':'#e05050'):'#555', textAlign:'right' }}>{s.medianReturn!=null?(s.medianReturn>=0?'+':'')+s.medianReturn.toFixed(2)+'%':'—'}</td>
-                                              <td style={{ padding:'4px 8px', color:'#e05050', textAlign:'right' }}>{s.worstReturn!=null?s.worstReturn.toFixed(2)+'%':'—'}</td>
-                                              <td style={{ padding:'4px 8px' }}><span style={{ fontSize:8, fontWeight:700, color:confColor(c2), background:'#111', border:'0.5px solid '+confColor(c2)+'55', borderRadius:3, padding:'1px 5px' }}>{c2}</span></td>
-                                            </tr>;
-                                          })}
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                  </div>
-                                  <div style={{ fontSize:9, color:'#333', lineHeight:1.5 }}>Historical research only. Past profile performance does not guarantee future results. Not financial advice.</div>
-                                </div>;
-                              })()}
+                        {/* ── Monthly Context ────────────────────────────────────── */}
+                        {(function(){
+                          var lp = momLiveSym===sym ? momLiveProfile : null;
+                          if (!lp) return null;
+                          var noData = lp.monthly==='Not Enough Data';
+                          function regBg(r){return r==='Supportive'?'#1e2a1e':r==='Neutral'?'#2a2010':'#2a1a1a';}
+                          function regFg(r){return r==='Supportive'?'#7abd00':r==='Neutral'?'#EF9F27':'#e05050';}
+                          if (noData) return (
+                            <div style={{border:'1px solid #e0dbd0',borderRadius:8,marginBottom:10,padding:'10px 14px'}}>
+                              <div style={{fontSize:11,fontWeight:700,color:'#888',marginBottom:4}}>Monthly Context</div>
+                              <div style={{fontSize:11,color:'#aaa'}}>Not enough historical price data to calculate monthly context.</div>
+                            </div>
+                          );
+                          // Monthly RSI
+                          var mRsi=lp.monthlyRsi,mRsiDir=lp.monthlyRsiDir;
+                          var mRsiScore=mRsi==null?null:mRsi>=65?5:mRsi>=55?4:mRsi>=45?3:mRsi>=35?2:1;
+                          var mRsiCol=mRsiScore==null?'#aaa':mRsiScore>=4?'#1a6a1a':mRsiScore===3?'#b88000':'#c03030';
+                          var mRsiLabel=mRsi==null?null:'RSI '+mRsi.toFixed(1)+(mRsiDir==='up'?' (↑ improving)':mRsiDir==='down'?' (↓ declining)':' (→ stable)');
+                          // Monthly MACD
+                          var mMacdH=lp.monthlyMacdHist,mMacdDir=lp.monthlyMacdDir;
+                          var mMacdArrow=mMacdDir==='Rising'?'up':mMacdDir==='Falling'?'down':'flat';
+                          var mMacdScore=mMacdH==null?null:(mMacdH>0&&mMacdDir==='Rising')?5:mMacdH>0?4:(mMacdH<=0&&mMacdDir==='Rising')?3:mMacdH>-0.5?2:1;
+                          var mMacdCol=mMacdScore==null?'#aaa':mMacdScore>=4?'#1a6a1a':mMacdScore===3?'#b88000':'#c03030';
+                          // Monthly ROC
+                          var mRoc=lp.monthlyRoc;
+                          var mRocScore=mRoc==null?null:mRoc>15?5:mRoc>5?4:mRoc>-5?3:mRoc>-15?2:1;
+                          var mRocCol=mRocScore==null?'#aaa':mRocScore>=4?'#1a6a1a':mRocScore===3?'#b88000':'#c03030';
+                          var mRocLabel=mRoc==null?null:(mRoc>=0?'+':'')+mRoc.toFixed(2)+'%';
+                          return (
+                            <div style={{border:'1px solid #e0dbd0',borderRadius:8,marginBottom:10}}>
+                              <div style={{padding:'6px 14px',background:'#faf8f4',borderBottom:'1px solid #e0dbd0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                                <span style={{fontSize:11,fontWeight:700,color:'#555'}}>Monthly Context</span>
+                                <span style={{fontSize:10,fontWeight:700,color:regFg(lp.monthlyRegime),background:regBg(lp.monthlyRegime),padding:'2px 8px',borderRadius:4,border:'0.5px solid '+regFg(lp.monthlyRegime)+'44'}}>{'Regime: '+lp.monthlyRegime}</span>
+                              </div>
+                              <MRow label={"Monthly RSI (14)"} val={mRsiLabel} valCol={mRsiCol}
+                                score={mRsiScore} dotCol={mRsiCol} weight={30}
+                                desc={mRsi==null?"Data unavailable.":mRsi>=65?"RSI "+mRsi.toFixed(0)+" -- monthly momentum is strong. Broader macro tailwind.":mRsi>=55?"RSI "+mRsi.toFixed(0)+" -- monthly buyers in control.":mRsi>=45?"RSI "+mRsi.toFixed(0)+" -- neutral monthly momentum.":mRsi>=35?"RSI "+mRsi.toFixed(0)+" -- monthly momentum is weak.":"RSI "+mRsi.toFixed(0)+" -- monthly momentum is strongly weak."}
+                                context={mRsi!=null?"Monthly RSI measures momentum over the last 14 monthly bars. Above 55 reflects a healthy longer-term trend; below 45 suggests caution on a macro timeframe.":null}
+                              />
+                              <MRow label={"Monthly MACD Histogram"} val={mMacdH!=null?mMacdH.toFixed(4):null}
+                                valCol={mMacdH==null?'#aaa':mMacdH>0&&mMacdDir==='Rising'?'#1a6a1a':mMacdH>0?'#888':'#c03030'}
+                                dir={mMacdArrow} score={mMacdScore} dotCol={mMacdCol} weight={35}
+                                desc={mMacdH==null?"Data unavailable.":mMacdH>0&&mMacdDir==='Rising'?"Monthly MACD positive and improving -- macro buying pressure is building.":mMacdH>0?"Monthly MACD positive -- longer-term buying bias.":mMacdDir==='Rising'?"Monthly MACD negative but recovering -- macro picture may be turning.":"Monthly MACD negative -- macro selling pressure."}
+                                context={mMacdH!=null?"Monthly MACD histogram shows whether longer-term buying or selling momentum is dominant. It changes slowly and reflects multi-month macro trends.":null}
+                              />
+                              <MRow label={"Monthly 3-month ROC"} val={mRocLabel} valCol={mRocCol}
+                                score={mRocScore} dotCol={mRocCol} weight={15}
+                                desc={mRoc==null?"Data unavailable.":mRoc>15?"Price up "+mRoc.toFixed(1)+"% over 3 months -- strong macro momentum.":mRoc>5?"Price up "+mRoc.toFixed(1)+"% over 3 months -- healthy quarterly trend.":mRoc>-5?"Price near flat over 3 months -- neutral macro context.":mRoc>-15?"Price down "+Math.abs(mRoc).toFixed(1)+"% over 3 months -- weak macro context.":"Price down "+Math.abs(mRoc).toFixed(1)+"% over 3 months -- strong macro headwind."}
+                                context={mRoc!=null?"3-month Rate of Change measures the price change over the last 3 monthly bars. It gives a macro view of whether the broader trend is supportive or not.":null}
+                              />
                             </div>
                           );
                         })()}
