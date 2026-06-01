@@ -4351,9 +4351,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       });
   }, [insightTab]);
 
-  // ── Run 6N: auto-compute current Momentum Profile when Momentum tab opens ──
+  // ── Run 6N: auto-compute current Momentum Profile (runs on stock load) ──────
   useEffect(function() {
-    if (insightTab !== 'momentum') return;
     if (!sym || !massiveInfo) return;
     if (momLiveSym === sym && momLiveProfile) return; // already have it
     setMomLiveLoading(true);
@@ -4395,7 +4394,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         setMomLiveSym(sym);
       })
       .then(function(){ setMomLiveLoading(false); });
-  }, [insightTab, sym]);
+  }, [sym, massiveInfo]);
 
   // -- Insight tab fetch -------------------------------------------------------
   function fetchInsight(tabId) {
@@ -5516,8 +5515,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         var _lp = momLiveSym===sym ? momLiveProfile : null;
                         function _sp(p){if(p==='Momentum Continuation') return 'Continuation';if(p==='Early Recovery Attempt') return 'Recovery';if(p==='Weak Weekly Bounce') return 'Weak Bounce';if(p==='Waiting for Daily Trigger') return 'Waiting';if(p==='Pullback in Larger Momentum') return 'Pullback';if(p==='Bearish Momentum') return 'Bearish';if(p==='No Clear Momentum Profile') return 'Unclear';if(p==='Not Enough Data') return 'No Data';return 'No Data';}
                         function _sc(s){return s==='Strong'||s==='Supportive'?'#7abd00':s==='Building'?'#6090d0':s==='Neutral'?'#b88000':s==='Fading'||s==='Weak'?'#c03030':'#555';}
-                        var _sp2 = _lp ? _sp(_lp.profile) : 'No Data';
-                        var _spc = _sp2==='Continuation'?'#7abd00':_sp2==='Recovery'?'#6090d0':_sp2==='Pullback'?'#6090d0':_sp2==='Waiting'?'#b88000':_sp2==='Weak Bounce'?'#b88000':_sp2==='Bearish'?'#c03030':'#555';
+                        var _sp2 = _lp ? _sp(_lp.profile) : (momLiveLoading ? '...' : 'No Data');
+                        var _spc = _sp2==='Continuation'?'#7abd00':_sp2==='Recovery'?'#6090d0':_sp2==='Pullback'?'#6090d0':_sp2==='Waiting'?'#b88000':_sp2==='Weak Bounce'?'#b88000':_sp2==='Bearish'?'#c03030':'#aaa';
                         var _d = _hasTech && _momLabel && _momLabel!=='--' ? _momLabel : '--';
                         var _w = _lp ? (_lp.weekly==='Not Enough Data'?'No Data':_lp.weekly||'--') : 'No Data';
                         var _m = _lp ? (_lp.monthlyRegime==='Not Enough Data'?'No Data':_lp.monthlyRegime||'--') : 'No Data';
@@ -5526,11 +5525,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             style={{display:'flex',alignItems:'center',padding:'11px 12px',borderBottom:'0.5px solid #242424',cursor:'pointer',minHeight:44}}
                             onMouseEnter={function(e){e.currentTarget.style.background='#252525';}}
                             onMouseLeave={function(e){e.currentTarget.style.background='transparent';}}>
-                            <div style={{flex:1}}>
-                              <div style={{fontSize:11,color:'#666',marginBottom:2}}>Momentum</div>
-                              <div style={{fontSize:13,fontWeight:700,color:_spc,lineHeight:1}}>{_sp2}</div>
-                            </div>
-                            <div style={{textAlign:'right',marginRight:8}}>
+                            <span style={{fontSize:11,color:'#666',width:110,flexShrink:0}}>Momentum</span>
+                            <span style={{fontSize:12,fontWeight:600,color:_spc,flex:1}}>{_sp2}</span>
+                            <div style={{textAlign:'right',marginRight:6,flexShrink:0}}>
                               <div style={{fontSize:9,color:'#555',marginBottom:1}}>D: <span style={{fontWeight:600,color:_sc(_d)}}>{_d}</span></div>
                               <div style={{fontSize:9,color:'#555',marginBottom:1}}>W: <span style={{fontWeight:600,color:_sc(_w)}}>{_w}</span></div>
                               <div style={{fontSize:9,color:'#555'}}>M: <span style={{fontWeight:600,color:_sc(_m)}}>{_m}</span></div>
