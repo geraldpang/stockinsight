@@ -8660,7 +8660,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                     </div>
                                     {/* Italic explanation */}
                                     <div style={{fontSize:10,color:'#666',fontStyle:'italic',lineHeight:1.5,marginBottom:cr?10:0}}>
-                                      {pExpl(lp.profile)}{cr&&(' '+confExpl(cr.confidence))}
+                                      {cr ? confExpl(cr.confidence) : pExpl(lp.profile)}
                                     </div>
                                     {/* Error */}
                                     {momConfError&&<div style={{fontSize:10,color:'#e05050',marginTop:4}}>{momConfError}</div>}
