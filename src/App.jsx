@@ -5017,7 +5017,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.51</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.53</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5071,7 +5071,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.51</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.53</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -8561,74 +8561,31 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     }
                     return (
                       <div>
-                        {/* ══ 1. MOMENTUM PROFILE SUMMARY CARD ══════════════════════ */}
+                        {/* ══ 1. MOMENTUM PROFILE SUMMARY CARD (unified) ═══════ */}
                         {(function(){
-                          var lp = momLiveSym===sym ? momLiveProfile : null;
-                          var cr = momConfResult&&momConfResult.ticker===sym ? momConfResult : null;
+                          var lp=momLiveSym===sym?momLiveProfile:null;
+                          var cr=momConfResult&&momConfResult.ticker===sym?momConfResult:null;
+                          var _ml2=window.__momLabel||'Neutral';
+                          var _msbg=summaryCardDark(_ml2).bg;
+                          var _msbd=summaryCardDark(_ml2).bd;
                           function pColor(p){return p==='Momentum Continuation'?'#7abd00':p==='Early Recovery Attempt'?'#6090d0':p==='Weak Weekly Bounce'?'#EF9F27':p==='Waiting for Daily Trigger'?'#9acd50':p==='Pullback in Larger Momentum'?'#d0a060':p==='Bearish Momentum'?'#e05050':'#888';}
                           function mColor(s){return s==='Strong'?'#7abd00':s==='Building'?'#9acd50':s==='Neutral'?'#EF9F27':s==='Fading'?'#e08050':s==='Weak'?'#e05050':'#555';}
                           function rColor(r){return r==='Supportive'?'#7abd00':r==='Neutral'?'#EF9F27':r==='Weak'?'#e05050':'#555';}
                           function pExpl(p){
-                            if (p==='Momentum Continuation') return 'Daily and weekly momentum are both supportive. Monthly regime provides broader context.';
-                            if (p==='Early Recovery Attempt') return 'Daily momentum is improving while weekly momentum has not fully confirmed.';
-                            if (p==='Weak Weekly Bounce') return 'Daily momentum is improving, but weekly momentum remains weak.';
-                            if (p==='Waiting for Daily Trigger') return 'Weekly momentum is supportive, but daily momentum has not triggered yet.';
-                            if (p==='Pullback in Larger Momentum') return 'Daily momentum is cooling, but weekly momentum remains supportive.';
-                            if (p==='Bearish Momentum') return 'Daily and weekly momentum are both weak. Historical confidence should be checked for this ticker\'s specific behaviour.';
-                            return 'Momentum signals are mixed or unclear.';
+                            if(p==='Momentum Continuation') return 'Daily and weekly momentum are both supportive. This suggests the move is continuing across short and medium timeframes.';
+                            if(p==='Early Recovery Attempt') return 'Daily momentum is improving, but weekly momentum has not fully confirmed. This may reflect an early recovery attempt.';
+                            if(p==='Weak Weekly Bounce') return 'Daily momentum is improving, but weekly momentum remains weak. This may be a short-term bounce rather than a confirmed recovery.';
+                            if(p==='Waiting for Daily Trigger') return 'Weekly momentum is supportive, but daily momentum has not fully strengthened yet. This suggests the broader setup is waiting for short-term confirmation.';
+                            if(p==='Pullback in Larger Momentum') return 'Daily momentum is cooling, but weekly momentum remains supportive. This may reflect a short-term pullback within a larger momentum structure.';
+                            if(p==='Bearish Momentum') return 'Daily and weekly momentum are both weak. This suggests momentum remains under pressure.';
+                            if(p==='Not Enough Data') return 'There is not enough weekly or monthly data to classify the momentum profile reliably.';
+                            return 'Daily and weekly momentum are mixed. There is no clear momentum profile at this point.';
                           }
                           function confLabel(c){if(c==='High Confidence') return 'Strong Historical Support';if(c==='Moderate Confidence') return 'Positive Historical Support';if(c==='Low Confidence'||c==='Unfavourable') return 'Cautious';return 'Not Enough History';}
-                          function confLabelColor(l){return l==='Strong Historical Support'?'#7abd00':l==='Positive Historical Support'?'#6090d0':l==='Cautious'?'#EF9F27':'#555';}
-                          function confExpl(c){if(c==='High Confidence') return 'This condition has historically shown a strong positive profile for this ticker.';if(c==='Moderate Confidence') return 'This condition has historically shown a positive profile, but sample or strength is moderate.';if(c==='Low Confidence') return 'This condition has some positive historical evidence, but confidence is limited.';if(c==='Unfavourable') return 'This condition has not historically performed well for this ticker.';return 'Not enough historical samples are available for this condition.';}
-                          var _ml2=window.__momLabel||'Neutral';
-                          var _msbg=summaryCardDark(_ml2).bg;
-                          var _msbd=summaryCardDark(_ml2).bd;
-                          var crLabel = cr ? confLabel(cr.confidence) : null;
-                          return (
-                            <div style={{background:_msbg,border:'0.5px solid '+_msbd,borderRadius:10,padding:'14px 16px',marginBottom:10}}>
-                              <div style={{fontSize:10,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:6}}>Momentum Profile</div>
-                              {momLiveLoading&&!lp&&(
-                                <div style={{display:'flex',alignItems:'center',gap:8,color:'#555',fontSize:11}}>
-                                  <div style={{width:10,height:10,borderRadius:'50%',border:'1.5px solid #333',borderTop:'1.5px solid #c8f000',animation:'spin 0.8s linear infinite',flexShrink:0}}></div>
-                                  <span>Calculating momentum profile...</span>
-                                </div>
-                              )}
-                              {lp&&lp.profile==='Not Enough Data'&&<div style={{fontSize:11,color:'#444'}}>Not enough historical price data to calculate momentum profile.</div>}
-                              {lp&&lp.profile!=='Not Enough Data'&&(function(){
-                                var pc=pColor(lp.profile);
-                                return <div>
-                                  <div style={{fontSize:18,fontWeight:800,color:pc,marginBottom:10,lineHeight:1.2}}>{lp.profile}</div>
-                                  <div style={{display:'flex',flexWrap:'wrap',gap:'6px 20px',marginBottom:10}}>
-                                    <span style={{fontSize:12,color:'#888'}}>Daily: <span style={{fontWeight:700,color:mColor(lp.daily)}}>{lp.daily}</span></span>
-                                    <span style={{fontSize:12,color:'#888'}}>Weekly: <span style={{fontWeight:700,color:mColor(lp.weekly)}}>{lp.weekly}</span></span>
-                                    <span style={{fontSize:12,color:'#888'}}>Monthly Regime: <span style={{fontWeight:700,color:rColor(lp.monthlyRegime)}}>{lp.monthlyRegime}</span></span>
-                                  </div>
-                                  <div style={{borderTop:'0.5px solid '+_msbd+'55',paddingTop:8,marginBottom:6}}>
-                                    <span style={{fontSize:11,color:'#888'}}>Historical Confidence: </span>
-                                    {crLabel
-                                      ? <span style={{fontSize:11,fontWeight:700,color:confLabelColor(crLabel)}}>{crLabel}</span>
-                                      : momConfLoading
-                                        ? <span style={{fontSize:11,color:'#555'}}>Checking...</span>
-                                        : <span style={{fontSize:11,color:'#444'}}>Not checked yet</span>
-                                    }
-                                  </div>
-                                  <div style={{fontSize:10,color:'#888',lineHeight:1.6,fontStyle:'italic'}}>
-                                    {pExpl(lp.profile)}{cr&&(' '+confExpl(cr.confidence))}
-                                  </div>
-                                </div>;
-                              })()}
-                            </div>
-                          );
-                        })()}
-
-                        {/* ══ 2. HISTORICAL CONFIDENCE DETAIL CARD ══════════════════ */}
-                        {(function(){
-                          var lp=momLiveSym===sym?momLiveProfile:null;
-                          var cr=momConfResult&&momConfResult.ticker===sym?momConfResult:null;
-                          if(!lp||lp.profile==='Not Enough Data') return null;
-                          function confLabel(c){if(c==='High Confidence') return 'Strong Historical Support';if(c==='Moderate Confidence') return 'Positive Historical Support';if(c==='Low Confidence'||c==='Unfavourable') return 'Cautious';return 'Not Enough History';}
                           function cColor(l){return l==='Strong Historical Support'?'#7abd00':l==='Positive Historical Support'?'#6090d0':l==='Cautious'?'#EF9F27':'#555';}
+                          function confExpl(c){if(c==='High Confidence') return 'This condition has historically shown a strong positive profile for this ticker.';if(c==='Moderate Confidence') return 'This condition has historically shown a positive profile, but sample or strength is moderate.';if(c==='Low Confidence') return 'This condition has some positive historical evidence, but confidence is limited.';if(c==='Unfavourable') return 'This condition has not historically performed well for this ticker.';return 'Not enough historical samples are available for this condition.';}
                           function doConfCheck(){
+                            if(!lp) return;
                             setMomConfLoading(true); setMomConfError(null); setMomConfResult(null); setMomConfSym(sym);
                             var curProf=lp.profile,curReg=lp.monthlyRegime;
                             var runBT=function(bars){
@@ -8646,60 +8603,88 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               var MIN_SIG=10,exactR=rows.filter(function(r){return r.momentumProfile.profile===curProf&&r.momentumProfile.monthlyRegime===curReg;}),profR=rows.filter(function(r){return r.momentumProfile.profile===curProf;});
                               var exactS=summarizeRows(exactR),profS=summarizeRows(profR),source,useS;
                               if(exactS.signals>=MIN_SIG){source='Profile + Monthly Regime';useS=exactS;}else if(profS.signals>=MIN_SIG){source='Momentum Profile';useS=profS;}else{source='Insufficient Historical Samples';useS=exactS;}
-                              return{conf:classifyHistoricalConfidence(useS,MIN_SIG),source:source,signals:useS.signals,winRate:useS.winRate,avgReturn:useS.avgReturn,medianReturn:useS.medianReturn,bestReturn:useS.bestReturn,worstReturn:useS.worstReturn,exactStats:exactS,profileStats:profS,hp:HP,totalRows:rows.length};
+                              return{conf:classifyHistoricalConfidence(useS,MIN_SIG),source:source,signals:useS.signals,winRate:useS.winRate,avgReturn:useS.avgReturn,medianReturn:useS.medianReturn,bestReturn:useS.bestReturn,worstReturn:useS.worstReturn,hp:HP,totalRows:rows.length};
                             };
                             var bP=(momYahooBars&&momLiveSym===sym&&momYahooBars.length>=300)?Promise.resolve(momYahooBars):(function(){var eMs=Date.now(),sMs=eMs-2*365*24*3600*1000;var fmt=function(d){var dd=new Date(d);return dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2);};return fetchYahooHistoricalBars(sym,fmt(sMs),fmt(eMs),20);})();
                             bP.then(function(bars){if(!bars||bars.length<120) throw new Error('Not enough historical price data.');var res=runBT(bars);setMomConfResult(Object.assign({},res,{confidence:res.conf,ticker:sym,profile:curProf,monthlyRegime:curReg}));setMomConfSym(sym);})
-                            .catch(function(e){setMomConfError(e.message||'Momentum confidence check could not be completed.');})
+                            .catch(function(e){setMomConfError(e.message||'Check could not be completed.');})
                             .then(function(){setMomConfLoading(false);});
                           }
+                          var crLabel=cr?confLabel(cr.confidence):null;
+                          var crCC=crLabel?cColor(crLabel):'#555';
                           return (
-                            <div style={{border:'1px solid #e0dbd0',borderRadius:8,marginBottom:10}}>
-                              <div style={{padding:'6px 14px',background:'#faf8f4',borderBottom:'1px solid #e0dbd0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                                <span style={{fontSize:11,fontWeight:700,color:'#555'}}>Historical Confidence</span>
-                                {cr&&<span style={{fontSize:10,fontWeight:700,color:cColor(confLabel(cr.confidence)),background:'#111',padding:'2px 8px',borderRadius:4}}>{confLabel(cr.confidence)}</span>}
-                              </div>
-                              {momConfError&&<div style={{padding:'8px 14px',fontSize:10,color:'#e05050'}}>{momConfError}</div>}
-                              {cr&&(function(){
-                                var cl=confLabel(cr.confidence),cc=cColor(cl);
-                                return <div style={{padding:'10px 14px'}}>
+                            <div style={{background:_msbg,border:'0.5px solid '+_msbd,borderRadius:10,padding:'16px 18px',marginBottom:10}}>
+                              {/* Profile label */}
+                              <div style={{fontSize:9,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:'.1em',marginBottom:8}}>Momentum Profile</div>
+                              {/* Loading state */}
+                              {momLiveLoading&&!lp&&(
+                                <div style={{display:'flex',alignItems:'center',gap:8,color:'#555',fontSize:11}}>
+                                  <div style={{width:10,height:10,borderRadius:'50%',border:'1.5px solid #333',borderTop:'1.5px solid #c8f000',animation:'spin 0.8s linear infinite',flexShrink:0}}></div>
+                                  <span>Calculating momentum profile...</span>
+                                </div>
+                              )}
+                              {/* No data */}
+                              {lp&&lp.profile==='Not Enough Data'&&<div style={{fontSize:11,color:'#444'}}>Not enough historical price data to calculate momentum profile.</div>}
+                              {/* Profile content */}
+                              {lp&&lp.profile!=='Not Enough Data'&&(function(){
+                                var pc=pColor(lp.profile);
+                                return <div>
+                                  {/* Row: Profile name + D/W/M */}
                                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
-                                    <div>
-                                      <div style={{fontSize:11,color:'#888',marginBottom:2}}>{'Source: '+cr.source}</div>
-                                      {cr.source==='Momentum Profile'&&<div style={{fontSize:9,color:'#999',fontStyle:'italic'}}>Exact match had insufficient samples. Using broader Momentum Profile.</div>}
-                                      {cr.source==='Insufficient Historical Samples'&&<div style={{fontSize:9,color:'#999',fontStyle:'italic'}}>Not enough samples. Consider running the full Simulator.</div>}
+                                    <div style={{flex:1,paddingRight:24}}>
+                                      <div style={{fontSize:17,fontWeight:800,color:pc,marginBottom:6,lineHeight:1.2}}>{lp.profile}</div>
+                                      <div style={{fontSize:12,color:'#888',lineHeight:1.6}}>{pExpl(lp.profile)}</div>
                                     </div>
-                                    <div style={{textAlign:'right',paddingLeft:12}}>
-                                      <div style={{fontSize:20,fontWeight:800,color:cc}}>{cr.winRate!=null?cr.winRate.toFixed(1)+'%':'—'}</div>
-                                      <div style={{fontSize:8,color:'#aaa'}}>Win Rate</div>
+                                    <div style={{textAlign:'right',flexShrink:0,paddingTop:2}}>
+                                      <div style={{fontSize:11,color:'#888',marginBottom:3}}>Daily: <span style={{fontWeight:700,color:mColor(lp.daily)}}>{lp.daily}</span></div>
+                                      <div style={{fontSize:11,color:'#888',marginBottom:3}}>Weekly: <span style={{fontWeight:700,color:mColor(lp.weekly)}}>{lp.weekly}</span></div>
+                                      <div style={{fontSize:11,color:'#888'}}>Monthly Regime: <span style={{fontWeight:700,color:rColor(lp.monthlyRegime)}}>{lp.monthlyRegime}</span></div>
                                     </div>
                                   </div>
-                                  <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:5,marginBottom:8}}>
-                                    {[['Signals',''+cr.signals,'#333'],['Median',cr.medianReturn!=null?(cr.medianReturn>=0?'+':'')+cr.medianReturn.toFixed(2)+'%':'—',cr.medianReturn!=null?(cr.medianReturn>=0?'#1a6a1a':'#c03030'):'#aaa'],['Avg Return',cr.avgReturn!=null?(cr.avgReturn>=0?'+':'')+cr.avgReturn.toFixed(2)+'%':'—',cr.avgReturn!=null?(cr.avgReturn>=0?'#1a6a1a':'#c03030'):'#aaa']].map(function(f){
-                                      return <div key={f[0]} style={{background:'#f5f3ee',borderRadius:5,padding:'6px 8px',textAlign:'center'}}>
-                                        <div style={{fontSize:8,color:'#aaa',textTransform:'uppercase',marginBottom:1}}>{f[0]}</div>
-                                        <div style={{fontSize:12,fontWeight:700,color:f[2]}}>{f[1]}</div>
+                                  {/* Confidence row */}
+                                  <div style={{borderTop:'0.5px solid '+_msbd+'55',paddingTop:10}}>
+                                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                                      <div>
+                                        <span style={{fontSize:11,color:'#888'}}>Historical Confidence: </span>
+                                        {crLabel
+                                          ? <span style={{fontSize:11,fontWeight:700,color:crCC}}>{crLabel}</span>
+                                          : momConfLoading
+                                            ? <span style={{fontSize:11,color:'#555'}}>Checking...</span>
+                                            : <span style={{fontSize:11,color:'#555'}}>Not checked yet</span>
+                                        }
+                                      </div>
+                                      <button disabled={momConfLoading} onClick={doConfCheck}
+                                        style={{padding:'5px 12px',background:'none',border:'0.5px solid '+(momConfLoading?'#333':'#555'),borderRadius:5,color:momConfLoading?'#444':'#ccc',fontSize:10,fontWeight:600,cursor:momConfLoading?'default':'pointer',whiteSpace:'nowrap',flexShrink:0}}>
+                                        {momConfLoading?'Checking...':cr?'Refresh Historical Confidence':'Check Historical Confidence'}
+                                      </button>
+                                    </div>
+                                    {/* Italic explanation */}
+                                    <div style={{fontSize:10,color:'#666',fontStyle:'italic',lineHeight:1.5,marginBottom:cr?10:0}}>
+                                      {pExpl(lp.profile)}{cr&&(' '+confExpl(cr.confidence))}
+                                    </div>
+                                    {/* Error */}
+                                    {momConfError&&<div style={{fontSize:10,color:'#e05050',marginTop:4}}>{momConfError}</div>}
+                                    {/* Stats row after check */}
+                                    {cr&&(function(){
+                                      var cc=cColor(confLabel(cr.confidence));
+                                      return <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:8}}>
+                                        <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
+                                          {[['SIGNALS',''+cr.signals,'#ccc'],['MEDIAN',cr.medianReturn!=null?(cr.medianReturn>=0?'+':'')+cr.medianReturn.toFixed(2)+'%':'—',cr.medianReturn!=null?(cr.medianReturn>=0?'#7abd00':'#e05050'):'#555'],['AVG RETURN',cr.avgReturn!=null?(cr.avgReturn>=0?'+':'')+cr.avgReturn.toFixed(2)+'%':'—',cr.avgReturn!=null?(cr.avgReturn>=0?'#7abd00':'#e05050'):'#555'],['BEST',cr.bestReturn!=null?'+'+cr.bestReturn.toFixed(2)+'%':'—','#7abd00'],['WORST',cr.worstReturn!=null?cr.worstReturn.toFixed(2)+'%':'—','#e05050']].map(function(f){
+                                            return <div key={f[0]} style={{minWidth:48}}>
+                                              <div style={{fontSize:8,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:2}}>{f[0]}</div>
+                                              <div style={{fontSize:13,fontWeight:700,color:f[2]}}>{f[1]}</div>
+                                            </div>;
+                                          })}
+                                        </div>
+                                        <div style={{textAlign:'right',flexShrink:0}}>
+                                          <div style={{fontSize:22,fontWeight:800,color:cc,lineHeight:1}}>{cr.winRate!=null?cr.winRate.toFixed(1)+'%':'—'}</div>
+                                          <div style={{fontSize:9,color:'#555',marginTop:2}}>Win Rate</div>
+                                        </div>
                                       </div>;
-                                    })}
+                                    })()}
                                   </div>
-                                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5,marginBottom:8}}>
-                                    {[['Best',cr.bestReturn!=null?'+'+cr.bestReturn.toFixed(2)+'%':'—','#1a6a1a'],['Worst',cr.worstReturn!=null?cr.worstReturn.toFixed(2)+'%':'—','#c03030']].map(function(f){
-                                      return <div key={f[0]} style={{background:'#f5f3ee',borderRadius:5,padding:'5px 8px',textAlign:'center'}}>
-                                        <div style={{fontSize:8,color:'#aaa',textTransform:'uppercase',marginBottom:1}}>{f[0]}</div>
-                                        <div style={{fontSize:11,fontWeight:700,color:f[2]}}>{f[1]}</div>
-                                      </div>;
-                                    })}
-                                  </div>
-                                  <div style={{fontSize:9,color:'#aaa',marginBottom:4}}>{'Holding period: '+cr.hp+' trading days · '+cr.totalRows+' signals tested · Research only, not financial advice.'}</div>
                                 </div>;
                               })()}
-                              {!cr&&!momConfLoading&&<div style={{padding:'8px 14px',fontSize:10,color:'#aaa',fontStyle:'italic'}}>Not checked yet. Run the check to see how this momentum condition has historically performed.</div>}
-                              <div style={{padding:'0 10px 10px'}}>
-                                <button disabled={momConfLoading||!lp} onClick={doConfCheck}
-                                  style={{display:'block',width:'100%',padding:'8px',background:momConfLoading?'#f5f3ee':'#f0f8e8',border:'0.5px solid '+(momConfLoading?'#ccc':'#7abd00'),borderRadius:6,color:momConfLoading?'#aaa':'#1a6a1a',fontSize:11,fontWeight:700,cursor:momConfLoading?'default':'pointer',textAlign:'center'}}>
-                                  {momConfLoading?'Checking...':cr?'Refresh Historical Confidence':'Check Historical Confidence'}
-                                </button>
-                              </div>
                             </div>
                           );
                         })()}
@@ -11647,7 +11632,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.51</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.53</span>
           </div>
         </div>
 
