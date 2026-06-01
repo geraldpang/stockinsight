@@ -3210,6 +3210,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [momConfLoading,setMomConfLoading]= useState(false);
   const [momConfError,  setMomConfError]  = useState(null);
   const [momConfSym,    setMomConfSym]    = useState(null);
+  // Run 6N: live current momentum profile (auto-computed on tab open)
+  const [momLiveProfile, setMomLiveProfile] = useState(null);
+  const [momLiveLoading, setMomLiveLoading] = useState(false);
+  const [momLiveSym,     setMomLiveSym]     = useState(null);
+  const [momYahooBars,   setMomYahooBars]   = useState(null); // cached bars shared between live + confidence
   const [insightCache,  setInsightCache]  = useState({});
   const [insightLoading,setInsightLoading]= useState(false);
   const [parsedInsights,setParsedInsights]= useState({});
@@ -4346,6 +4351,46 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       });
   }, [insightTab]);
 
+  // ── Run 6N: auto-compute current Momentum Profile when Momentum tab opens ──
+  useEffect(function() {
+    if (insightTab !== 'momentum') return;
+    if (!sym || !massiveInfo) return;
+    if (momLiveSym === sym && momLiveProfile) return; // already have it
+    setMomLiveLoading(true);
+    var endMs = Date.now();
+    var startMs = endMs - 2 * 365 * 24 * 3600 * 1000;
+    var fmt = function(d){ var dd=new Date(d); return dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2); };
+    fetchYahooHistoricalBars(sym, fmt(startMs), fmt(endMs), 20)
+      .then(function(bars) {
+        if (!bars || bars.length < 70) throw new Error('Not enough data');
+        setMomYahooBars(bars);
+        var wMom = calcWeeklyMomentum(buildWeeklyBars(bars));
+        var mMom = calcMonthlyMomentum(buildMonthlyBars(bars));
+        var daily = window.__momLabel || 'Neutral';
+        var dailyScore = window.__momScore != null ? window.__momScore : 50;
+        var profile = classifyMomentumProfile(daily, wMom.status);
+        var monthlyRegime = classifyMonthlyRegime(mMom.status);
+        setMomLiveProfile({
+          daily: daily, dailyScore: dailyScore,
+          weekly: wMom.status, weeklyScore: wMom.score,
+          weeklyRsi: wMom.rsi14, weeklyMacdHist: wMom.macdHistogram, weeklyRoc: wMom.roc4wPct,
+          monthly: mMom.status, monthlyScore: mMom.score,
+          monthlyRsi: mMom.rsi14, monthlyRoc: mMom.roc3mPct,
+          profile: profile, monthlyRegime: monthlyRegime,
+        });
+        setMomLiveSym(sym);
+      })
+      .catch(function(e) {
+        setMomLiveProfile({
+          daily: window.__momLabel||'Neutral', dailyScore: window.__momScore||50,
+          weekly:'Not Enough Data', monthly:'Not Enough Data',
+          profile:'Not Enough Data', monthlyRegime:'Not Enough Data',
+        });
+        setMomLiveSym(sym);
+      })
+      .then(function(){ setMomLiveLoading(false); });
+  }, [insightTab, sym]);
+
   // -- Insight tab fetch -------------------------------------------------------
   function fetchInsight(tabId) {
     // Guard: don't fetch if already in React state OR window cache
@@ -4966,7 +5011,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.48</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.49</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5020,7 +5065,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.48</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.49</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -8620,15 +8665,98 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {"Momentum signals use Massive.com real-time data. Not financial advice."}
                         </div>
 
-                        {/* ── Run 6M: Momentum Profile + Historical Confidence ── */}
+                        {/* ── Run 6N: Momentum Profile + Historical Confidence ── */}
                         {(function(){
                           var _daily = window.__momLabel || 'Neutral';
-                          // Clear stale result when ticker changes
-                          if (momConfSym && momConfSym !== sym) {
-                            setTimeout(function(){
-                              setMomConfResult(null); setMomConfError(null); setMomConfSym(null);
-                            }, 0);
+                          var lp = (momLiveSym === sym) ? momLiveProfile : null;
+
+                          // Profile label colour
+                          function profileColor(p) {
+                            if (p==='Momentum Continuation') return '#7abd00';
+                            if (p==='Early Recovery Attempt') return '#6090d0';
+                            if (p==='Weak Weekly Bounce') return '#EF9F27';
+                            if (p==='Waiting for Daily Trigger') return '#9acd50';
+                            if (p==='Pullback in Larger Momentum') return '#d0a060';
+                            if (p==='Bearish Momentum') return '#e05050';
+                            return '#888';
                           }
+                          function profileExplanation(p) {
+                            if (p==='Momentum Continuation') return 'Daily and weekly momentum are both supportive. Monthly regime provides broader context.';
+                            if (p==='Early Recovery Attempt') return 'Daily momentum is improving while weekly momentum has not fully confirmed.';
+                            if (p==='Weak Weekly Bounce') return 'Daily momentum is improving, but weekly momentum remains weak.';
+                            if (p==='Waiting for Daily Trigger') return 'Weekly momentum is supportive, but daily momentum has not triggered yet.';
+                            if (p==='Pullback in Larger Momentum') return 'Daily momentum is cooling, but weekly momentum remains supportive.';
+                            if (p==='Bearish Momentum') return 'Daily and weekly momentum are both weak. Historical confidence should be checked for this ticker\'s specific behaviour.';
+                            return 'Momentum signals are mixed or unclear.';
+                          }
+                          function regimeColor(r) {
+                            return r==='Supportive'?'#7abd00':r==='Neutral'?'#EF9F27':r==='Weak'?'#e05050':'#555';
+                          }
+                          function momColor(s) {
+                            return s==='Strong'?'#7abd00':s==='Building'?'#9acd50':s==='Neutral'?'#EF9F27':s==='Fading'?'#e08050':s==='Weak'?'#e05050':'#555';
+                          }
+
+                          // Build confidence check using cached bars when available
+                          function handleMomConfCheck() {
+                            if (!lp) return;
+                            setMomConfLoading(true); setMomConfError(null);
+                            setMomConfResult(null); setMomConfSym(sym);
+                            var curProf = lp.profile;
+                            var curReg  = lp.monthlyRegime;
+                            var runBacktest = function(bars) {
+                              var HP=20, MIN_PRIOR=250, LIMIT=600, rows=[], inRange=0;
+                              for (var bi=0; bi<bars.length; bi++) {
+                                if (bi<MIN_PRIOR||bi+HP>=bars.length) continue;
+                                if (inRange>=LIMIT) break; inRange++;
+                                var bar=bars[bi], slice=bars.slice(0,bi+1);
+                                var closes=slice.map(function(b){return b.close;});
+                                var dMom=calcDailyMomentumApprox(closes);
+                                var wMom2=calcWeeklyMomentum(buildWeeklyBars(slice));
+                                var mMom2=calcMonthlyMomentum(buildMonthlyBars(slice));
+                                var prof2=classifyMomentumProfile(dMom.status, wMom2.status);
+                                var reg2=classifyMonthlyRegime(mMom2.status);
+                                var futRet=((bars[bi+HP].close-bar.close)/bar.close)*100;
+                                rows.push({ futureReturn:futRet, momentumProfile:{ profile:prof2, monthlyRegime:reg2 } });
+                              }
+                              if (!rows.length) throw new Error('Not enough signals to compute confidence.');
+                              var MIN_SIG=10;
+                              var exactR=rows.filter(function(r){return r.momentumProfile.profile===curProf&&r.momentumProfile.monthlyRegime===curReg;});
+                              var profR =rows.filter(function(r){return r.momentumProfile.profile===curProf;});
+                              var exactS=summarizeRows(exactR), profS=summarizeRows(profR);
+                              var source, useSummary;
+                              if (exactS.signals>=MIN_SIG){source='Profile + Monthly Regime';useSummary=exactS;}
+                              else if (profS.signals>=MIN_SIG){source='Momentum Profile';useSummary=profS;}
+                              else {source='Insufficient Historical Samples';useSummary=exactS;}
+                              return { conf:classifyHistoricalConfidence(useSummary,MIN_SIG), source:source,
+                                signals:useSummary.signals, winRate:useSummary.winRate,
+                                avgReturn:useSummary.avgReturn, medianReturn:useSummary.medianReturn,
+                                bestReturn:useSummary.bestReturn, worstReturn:useSummary.worstReturn,
+                                exactStats:exactS, profileStats:profS, hp:HP, totalRows:rows.length };
+                            };
+                            // Use cached bars if available (same ticker), else re-fetch 2 years
+                            var barsPromise = (momYahooBars && momLiveSym===sym && momYahooBars.length >= 300)
+                              ? Promise.resolve(momYahooBars)
+                              : (function(){
+                                  var endMs=Date.now(), startMs=endMs-2*365*24*3600*1000;
+                                  var fmt=function(d){var dd=new Date(d);return dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2);};
+                                  return fetchYahooHistoricalBars(sym,fmt(startMs),fmt(endMs),20);
+                                })();
+                            barsPromise
+                              .then(function(bars){
+                                if (!bars||bars.length<120) throw new Error('Not enough historical price data.');
+                                var res = runBacktest(bars);
+                                setMomConfResult(Object.assign({}, res, {
+                                  confidence:res.conf, ticker:sym,
+                                  daily:curProf, profile:curProf, monthlyRegime:curReg,
+                                }));
+                                setMomConfSym(sym);
+                              })
+                              .catch(function(e){ setMomConfError(e.message||'Momentum confidence check could not be completed.'); })
+                              .then(function(){ setMomConfLoading(false); });
+                          }
+
+                          var cr = momConfResult && momConfResult.ticker===sym ? momConfResult : null;
+
                           function confColor(c) {
                             return c==='High Confidence'?'#7abd00':c==='Moderate Confidence'?'#6090d0':
                                    c==='Low Confidence'?'#EF9F27':c==='Unfavourable'?'#e05050':'#555';
@@ -8641,101 +8769,73 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             return 'Not enough historical samples are available for this condition.';
                           }
 
-                          // Kick off backtest using Promise chain (no async/await in JSX)
-                          function handleMomConfCheck() {
-                            setMomConfLoading(true); setMomConfError(null);
-                            setMomConfResult(null); setMomConfSym(sym);
-                            var endMs = Date.now();
-                            var startMs = endMs - 2*365*24*3600*1000;
-                            var fmt = function(d){ var dd=new Date(d); return dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2); };
-                            fetchYahooHistoricalBars(sym, fmt(startMs), fmt(endMs), 20)
-                              .then(function(bars) {
-                                if (!bars || bars.length < 120) throw new Error('Not enough historical price data.');
-                                var HP=20, MIN_PRIOR=250, LIMIT=600, rows=[], inRange=0;
-                                for (var bi=0; bi<bars.length; bi++) {
-                                  if (bi<MIN_PRIOR||bi+HP>=bars.length) continue;
-                                  if (inRange>=LIMIT) break; inRange++;
-                                  var bar=bars[bi], slice=bars.slice(0,bi+1);
-                                  var closes=slice.map(function(b){return b.close;});
-                                  var dMom=calcDailyMomentumApprox(closes);
-                                  var wMom2=calcWeeklyMomentum(buildWeeklyBars(slice));
-                                  var mMom2=calcMonthlyMomentum(buildMonthlyBars(slice));
-                                  var prof2=classifyMomentumProfile(dMom.status, wMom2.status);
-                                  var reg2=classifyMonthlyRegime(mMom2.status);
-                                  var futRet=((bars[bi+HP].close-bar.close)/bar.close)*100;
-                                  rows.push({ futureReturn:futRet, momentumProfile:{ profile:prof2, monthlyRegime:reg2 } });
-                                }
-                                if (!rows.length) throw new Error('Momentum confidence check could not be completed.');
-                                // Derive current condition from last slice
-                                var lastSlice=bars.slice(-300);
-                                var lc=lastSlice.map(function(b){return b.close;}); 
-                                var curWMom=calcWeeklyMomentum(buildWeeklyBars(lastSlice));
-                                var curMMom=calcMonthlyMomentum(buildMonthlyBars(lastSlice));
-                                var curProf=classifyMomentumProfile(_daily, curWMom.status);
-                                var curReg=classifyMonthlyRegime(curMMom.status);
-                                var MIN_SIG=10;
-                                var exactR=rows.filter(function(r){return r.momentumProfile.profile===curProf&&r.momentumProfile.monthlyRegime===curReg;});
-                                var profR =rows.filter(function(r){return r.momentumProfile.profile===curProf;});
-                                var exactS=summarizeRows(exactR), profS=summarizeRows(profR);
-                                var source, useSummary;
-                                if (exactS.signals>=MIN_SIG){source='Profile + Monthly Regime';useSummary=exactS;}
-                                else if (profS.signals>=MIN_SIG){source='Momentum Profile';useSummary=profS;}
-                                else {source='Insufficient Historical Samples';useSummary=exactS;}
-                                var conf=classifyHistoricalConfidence(useSummary, MIN_SIG);
-                                setMomConfResult({ confidence:conf, source:source,
-                                  daily:_daily, weekly:curWMom.status, monthly:curMMom.status,
-                                  profile:curProf, monthlyRegime:curReg,
-                                  signals:useSummary.signals, winRate:useSummary.winRate,
-                                  avgReturn:useSummary.avgReturn, medianReturn:useSummary.medianReturn,
-                                  bestReturn:useSummary.bestReturn, worstReturn:useSummary.worstReturn,
-                                  exactStats:exactS, profileStats:profS, ticker:sym, hp:HP, totalRows:rows.length });
-                                setMomConfSym(sym);
-                              })
-                              .catch(function(e){ setMomConfError(e.message||'Momentum confidence check could not be completed.'); })
-                              .then(function(){ setMomConfLoading(false); });
-                          }
-
-                          var cr = momConfResult && momConfResult.ticker===sym ? momConfResult : null;
-
                           return (
                             <div>
-                              {/* Live Momentum Profile card */}
+                              {/* ── Momentum Profile card ── */}
                               <div style={{ background:'#0e0e0c', borderRadius:10, padding:'12px 14px', marginBottom:10, border:'0.5px solid #2a2a28' }}>
                                 <div style={{ fontSize:10, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:7 }}>Momentum Profile</div>
-                                {cr ? (function(){
-                                  var pc=cr.profile==='Momentum Continuation'?'#7abd00':cr.profile==='Early Recovery Attempt'?'#6090d0':cr.profile==='Weak Weekly Bounce'?'#EF9F27':cr.profile==='Pullback in Larger Momentum'?'#d0a060':cr.profile==='Bearish Momentum'?'#e05050':'#888';
+                                {momLiveLoading && !lp && (
+                                  <div style={{ display:'flex', alignItems:'center', gap:8, color:'#555', fontSize:11 }}>
+                                    <div style={{ width:10, height:10, borderRadius:'50%', border:'1.5px solid #333', borderTop:'1.5px solid #c8f000', animation:'spin 0.8s linear infinite', flexShrink:0 }}></div>
+                                    <span>Calculating weekly and monthly momentum...</span>
+                                  </div>
+                                )}
+                                {lp && lp.profile !== 'Not Enough Data' && (function(){
+                                  var pc = profileColor(lp.profile);
                                   return <div>
-                                    <div style={{ fontSize:14, fontWeight:700, color:pc, marginBottom:8 }}>{cr.profile}</div>
-                                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6 }}>
-                                      {[['Daily',cr.daily,'#9acd50'],['Weekly',cr.weekly,'#6090d0'],['Monthly Regime',cr.monthlyRegime,'#c890d0']].map(function(f){
-                                        return <div key={f[0]} style={{ background:'#141412', borderRadius:5, padding:'5px 8px' }}>
-                                          <div style={{ fontSize:8, color:'#555', textTransform:'uppercase', marginBottom:1 }}>{f[0]}</div>
+                                    <div style={{ fontSize:14, fontWeight:700, color:pc, marginBottom:8 }}>{lp.profile}</div>
+                                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6, marginBottom:8 }}>
+                                      {[
+                                        ['Daily Momentum', lp.daily, momColor(lp.daily)],
+                                        ['Weekly Momentum', lp.weekly, momColor(lp.weekly)],
+                                        ['Monthly Regime', lp.monthlyRegime, regimeColor(lp.monthlyRegime)],
+                                      ].map(function(f){
+                                        return <div key={f[0]} style={{ background:'#141412', borderRadius:5, padding:'6px 8px' }}>
+                                          <div style={{ fontSize:8, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:2 }}>{f[0]}</div>
                                           <div style={{ fontSize:11, fontWeight:700, color:f[2] }}>{f[1]||'—'}</div>
                                         </div>;
                                       })}
                                     </div>
+                                    {lp.weeklyScore != null && (
+                                      <div style={{ display:'flex', gap:12, fontSize:9, color:'#555', marginBottom:6 }}>
+                                        {lp.weeklyRsi!=null && <span>W.RSI {lp.weeklyRsi.toFixed(1)}</span>}
+                                        {lp.weeklyMacdHist!=null && <span>W.MACD {lp.weeklyMacdHist.toFixed(3)}</span>}
+                                        {lp.weeklyRoc!=null && <span>W.ROC {(lp.weeklyRoc>=0?'+':'')+lp.weeklyRoc.toFixed(1)}%</span>}
+                                        {lp.monthlyRsi!=null && <span>M.RSI {lp.monthlyRsi.toFixed(1)}</span>}
+                                      </div>
+                                    )}
+                                    <div style={{ fontSize:10, color:'#666', lineHeight:1.6, fontStyle:'italic' }}>{profileExplanation(lp.profile)}</div>
                                   </div>;
-                                })() : <div>
-                                  <div style={{ fontSize:13, fontWeight:700, color:'#7abd00', marginBottom:4 }}>{_daily}</div>
-                                  <div style={{ fontSize:10, color:'#444', lineHeight:1.6 }}>Weekly Momentum and Monthly Regime available after running the confidence check below.</div>
-                                </div>}
+                                })()}
+                                {lp && lp.profile === 'Not Enough Data' && (
+                                  <div style={{ fontSize:10, color:'#444' }}>Not enough historical price data to calculate weekly/monthly momentum.</div>
+                                )}
                               </div>
 
-                              {/* Check Historical Confidence button */}
-                              <button disabled={momConfLoading} onClick={handleMomConfCheck}
-                                style={{ display:'block', width:'100%', padding:'9px 14px',
-                                  background:momConfLoading?'#1a1a18':'#0f1e08',
-                                  border:'0.5px solid '+(momConfLoading?'#333':'#5a8a20'),
-                                  borderRadius:8, color:momConfLoading?'#555':'#c8f000', fontSize:11, fontWeight:700,
-                                  cursor:momConfLoading?'default':'pointer', marginBottom:8, textAlign:'center' }}>
-                                {momConfLoading ? 'Checking...' : cr ? 'Refresh Historical Confidence' : 'Check Historical Confidence'}
-                              </button>
-                              {!cr && !momConfLoading && <div style={{ fontSize:10, color:'#444', textAlign:'center', marginBottom:10 }}>Default: last 2 years · 20 trading day forward return</div>}
+                              {/* ── Check Historical Confidence button ── */}
+                              {lp && lp.profile !== 'Not Enough Data' && (
+                                <button disabled={momConfLoading || !lp} onClick={handleMomConfCheck}
+                                  style={{ display:'block', width:'100%', padding:'9px 14px',
+                                    background:momConfLoading?'#1a1a18':'#0f1e08',
+                                    border:'0.5px solid '+(momConfLoading?'#333':'#5a8a20'),
+                                    borderRadius:8, color:momConfLoading?'#555':'#c8f000', fontSize:11, fontWeight:700,
+                                    cursor:momConfLoading?'default':'pointer', marginBottom:8, textAlign:'center' }}>
+                                  {momConfLoading ? 'Checking...' : cr ? 'Refresh Historical Confidence' : 'Check Historical Confidence'}
+                                </button>
+                              )}
+                              {lp && !cr && !momConfLoading && lp.profile !== 'Not Enough Data' && (
+                                <div style={{ background:'#0c0c0a', borderRadius:8, padding:'10px 12px', marginBottom:10, border:'0.5px solid #222' }}>
+                                  <div style={{ fontSize:10, fontWeight:700, color:'#444', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:4 }}>Historical Confidence</div>
+                                  <div style={{ fontSize:11, color:'#444' }}>Not checked yet</div>
+                                  <div style={{ fontSize:9, color:'#333', marginTop:4, lineHeight:1.5 }}>Run Check Historical Confidence to see how this current momentum condition has historically performed for this ticker.</div>
+                                </div>
+                              )}
 
                               {momConfError && <div style={{ background:'#1a0808', border:'0.5px solid #5a1a1a', borderRadius:8, padding:'10px 14px', marginBottom:10 }}>
                                 <div style={{ fontSize:11, color:'#e05050' }}>{momConfError}</div>
                               </div>}
 
+                              {/* ── Historical Confidence result card ── */}
                               {cr && (function(){
                                 var cc=confColor(cr.confidence);
                                 return <div>
@@ -11574,7 +11674,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.48</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.49</span>
           </div>
         </div>
 
