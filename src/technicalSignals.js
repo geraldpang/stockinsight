@@ -494,42 +494,43 @@ export function calcReversalWatch(bars, ind, meta) {
 
   function dirStatus(ss, ts, cs, dir) {
     var s = ss||0, t = ts||0, c = cs||0;
-    // Strict textbook confirmation — all three stages strongly aligned. Unchanged.
+    // A: Confirmed — all three stages strongly aligned.
     if (s >= 60 && t >= 60 && cs !== null && c >= 70) return dir + ' Reversal Confirmed';
-    // Setup-led triggered reversal — textbook sequence with partial confirmation.
+    // B: Confirming — price action has confirmed the reversal even if setup or trigger is not fully strong.
+    //    Key fix: strong confirmation overrides Watch even when trigger < 60.
+    if (cs !== null && c >= 70 && (s >= 40 || t >= 40)) return dir + ' Reversal Confirming';
+    // C: Triggered — setup and trigger aligned, with some confirmation.
     if (s >= 60 && t >= 60 && cs !== null && c >= 40) return dir + ' Reversal Triggered';
-    // Practical confirming — trigger and price action aligning even if setup has faded.
-    // Bullish only in this iteration; bearish equivalent to be added later.
-    if (dir === 'Bullish' && t >= 60 && cs !== null && c >= 40) return 'Bullish Reversal Confirming';
-    // Setup and trigger aligned, confirmation not yet appeared.
+    // D: Confirming via trigger (trigger-led, even if classic setup has faded).
+    if (t >= 60 && cs !== null && c >= 40) return dir + ' Reversal Confirming';
+    // E: Forming — setup and trigger aligned, confirmation not yet appeared.
     if (s >= 60 && t >= 60) return dir + ' Reversal Forming';
-    // Early spark — momentum has started turning before full setup or confirmation is available.
-    // Bullish only in this iteration; bearish equivalent to be added later.
+    // F: Spark — momentum starting to turn before confirmation (Bullish only for now).
     if (dir === 'Bullish' && t >= 60 && c < 40) return 'Bullish Reversal Spark';
-    // Setup-led watch — early conditions appearing but trigger and confirmation still limited.
-    if (s >= 40) return dir + ' Reversal Watch';
+    // G: Watch — early setup conditions, trigger and confirmation still limited.
+    //    Explicit guard: c < 70 prevents strong confirmation from landing here.
+    if (s >= 40 && t < 60 && c < 70) return dir + ' Reversal Watch';
     return 'No Signal';
   }
 
   var bs = bullishScore||0, bes = bearishScore||0;
   var diff = bs - bes;
 
-  // Practical bullish early/confirming stages — bearish equivalents to be added in a future step.
-  // earlyBullSpark: trigger has fired before full setup or confirmation is available,
-  //   and bullish is not clearly dominated by bearish.
+  // bullConfirming: strong confirmation score overrides Watch — key fix per Run 6Q.
   var earlyBullSpark = bTrigger !== null && bTrigger >= 60 && (bConfirm||0) < 40 && bs >= bes - 15;
-  // bullConfirming: trigger is strong and price action is beginning to validate the reversal,
-  //   even if the classic setup has faded.
-  var bullConfirming = bTrigger !== null && bTrigger >= 60 && bConfirm !== null && bConfirm >= 40 && bs >= bes - 10;
+  var bullConfirming = bConfirm !== null && bConfirm >= 70 && ((bSetup||0) >= 40 || (bTrigger||0) >= 40) && bs >= bes - 10;
+  // Bearish equivalent: strong bearish confirmation overrides Watch.
+  var bearConfirming = dConfirm !== null && dConfirm >= 70 && ((dSetup||0) >= 40 || (dTrigger||0) >= 40) && bes >= bs - 10;
 
   var status;
   if (bs < 21 && bes < 21) {
     status = 'No Clear Reversal';
-  } else if (bullConfirming && !earlyBullSpark) {
-    // Note: bullConfirming and earlyBullSpark are mutually exclusive (confirm >= 40 vs < 40)
+  } else if (bullConfirming && bs >= bes - 10) {
     status = 'Bullish Reversal Confirming';
   } else if (earlyBullSpark) {
     status = 'Bullish Reversal Spark';
+  } else if (bearConfirming && bes > bs + 10) {
+    status = 'Bearish Reversal Confirming';
   } else if (bs >= 40 && bes >= 40 && Math.abs(diff) <= 15) {
     status = 'Mixed Reversal Signals';
   } else if (diff > 15) {
@@ -709,26 +710,27 @@ export function calcRWeightedScore(stages) {
 
 export function getReversalDirectionStatus(setupS, trigS, confS, dir) {
   var s = setupS || 0, t = trigS || 0, c = confS || 0;
-  // Confirmed: strict textbook confirmation — all three stages strongly aligned. Unchanged.
+  // A: Confirmed — all three stages strongly aligned.
   if (s >= 60 && t >= 60 && confS !== null && c >= 70)
-    return { label: 'Reversal Confirmed',  expl: dir + ' setup, momentum trigger, and price confirmation are aligned.' };
-  // Triggered: setup-led textbook sequence with partial confirmation.
+    return { label: 'Reversal Confirmed', expl: dir + ' setup, momentum trigger, and price confirmation are aligned.' };
+  // B: Confirming — strong confirmation overrides Watch even when trigger or setup < 60.
+  if (confS !== null && c >= 70 && (s >= 40 || t >= 40))
+    return { label: 'Reversal Confirming', expl: 'Price action is confirming a ' + dir.toLowerCase() + ' reversal attempt, while setup or trigger conditions may still be developing.' };
+  // C: Triggered — setup and trigger aligned, with some confirmation.
   if (s >= 60 && t >= 60 && confS !== null && c >= 40)
-    return { label: 'Reversal Triggered',  expl: dir + ' momentum appears to be turning with some supporting confirmation.' };
-  // Confirming: trigger and price action aligning even if setup has faded.
-  // Bullish only in this iteration; bearish equivalent to be added later.
-  if (dir === 'Bullish' && t >= 60 && confS !== null && c >= 40)
-    return { label: 'Reversal Confirming', expl: 'Price action is beginning to validate the reversal, even though the classic setup may have faded.' };
-  // Forming: setup and trigger aligned, confirmation not yet appeared.
+    return { label: 'Reversal Triggered', expl: dir + ' momentum appears to be turning with some supporting confirmation.' };
+  // D: Confirming via trigger (trigger-led, even if classic setup has faded).
+  if (t >= 60 && confS !== null && c >= 40)
+    return { label: 'Reversal Confirming', expl: 'Price action is confirming a ' + dir.toLowerCase() + ' reversal attempt, while setup or trigger conditions may still be developing.' };
+  // E: Forming — setup and trigger aligned, confirmation not yet appeared.
   if (s >= 60 && t >= 60)
-    return { label: 'Reversal Forming',    expl: dir + ' setup and momentum trigger are positive, but price confirmation is still missing.' };
-  // Early Spark: momentum has started turning before full setup or confirmation is available.
-  // Bullish only in this iteration; bearish equivalent to be added later.
+    return { label: 'Reversal Forming', expl: dir + ' setup and momentum trigger are positive, but price confirmation is still missing.' };
+  // F: Spark — Bullish only for now.
   if (dir === 'Bullish' && t >= 60 && c < 40)
     return { label: 'Reversal Spark', expl: 'Bullish momentum has started turning before full setup or confirmation is available.' };
-  // Watch: early setup conditions appearing but trigger and confirmation still limited.
-  if (s >= 40)
-    return { label: 'Reversal Watch',      expl: 'Early ' + dir.toLowerCase() + ' reversal conditions may be appearing, but trigger and confirmation are still limited.' };
+  // G: Watch — early setup conditions, trigger and confirmation still limited. Explicit c < 70 guard.
+  if (s >= 40 && t < 60 && c < 70)
+    return { label: 'Reversal Watch', expl: 'Early ' + dir.toLowerCase() + ' reversal conditions may be appearing, but trigger and confirmation are still limited.' };
   return { label: 'No Signal', expl: '' };
 }
 
@@ -739,13 +741,15 @@ export function getOverallReversalStatus(bS, beS, bsScore, btScore, bcScore, dsS
   var bullDir = getReversalDirectionStatus(bsScore, btScore, bcScore, 'Bullish');
   var bearDir = getReversalDirectionStatus(dsScore, dtScore, dcScore, 'Bearish');
 
-  // Practical bullish stages — bearish equivalents to be added in a future step.
-  // bullConfirming and earlyBullSpark are mutually exclusive (bcScore >= 40 vs < 40).
+  // bullConfirming: strong confirmation overrides Watch — key fix per Run 6Q.
   var earlyBullSpark = btScore !== null && btScore >= 60 && (bcScore || 0) < 40 && bs >= bes - 15;
-  var bullConfirming = btScore !== null && btScore >= 60 && bcScore !== null && bcScore >= 40 && bs >= bes - 10;
+  var bullConfirming = bcScore !== null && bcScore >= 70 && ((bsScore||0) >= 40 || (btScore||0) >= 40) && bs >= bes - 10;
+  // Bearish equivalent.
+  var bearConfirming = dcScore !== null && dcScore >= 70 && ((dsScore||0) >= 40 || (dtScore||0) >= 40) && bes >= bs - 10;
 
-  if (bullConfirming) return { status: 'Bullish Reversal Confirming',  primaryScore: bs };
-  if (earlyBullSpark) return { status: 'Bullish Reversal Spark', primaryScore: bs };
+  if (bullConfirming && bs >= bes - 10) return { status: 'Bullish Reversal Confirming', primaryScore: bs };
+  if (earlyBullSpark)                   return { status: 'Bullish Reversal Spark',      primaryScore: bs };
+  if (bearConfirming && bes > bs + 10)  return { status: 'Bearish Reversal Confirming', primaryScore: bes };
 
   var diff = bs - bes;
   if (bs >= 40 && bes >= 40 && Math.abs(diff) <= 15) return { status: 'Mixed Reversal Signals', primaryScore: Math.max(bs, bes) };
@@ -1289,42 +1293,142 @@ export function calcMassiveScore(bars, ind, meta) {
   return { score: final, dots: dots, label: label };
 }
 
-// ============================================================
-// Run 4 — Screener helper functions
-// Pure functions only. No API calls, no React state, no window.
-// ============================================================
+// ─── Momentum Profile helpers (Run 6Q: moved from App.jsx) ───────────────────
+// These answer "What is the current technical momentum condition?"
+// Historical confidence/backtest logic remains in App.jsx.
 
-// isPositiveReversal: returns true for positive or early-interest bullish statuses.
-// Includes Bullish Reversal Spark and Bullish Reversal Confirming intentionally.
-// Does NOT include Mixed, Bearish, or No Clear Reversal.
-export function isPositiveReversal(snapshot) {
-  var status = snapshot && snapshot.reversalWatch && snapshot.reversalWatch.status;
-  if (!status) return false;
-  // All Bullish Reversal statuses are positive:
-  // Spark | Watch | Forming | Triggered | Confirming | Confirmed
-  return status.indexOf('Bullish') === 0;
+function _simWeekKey(dateStr) {
+  var d = new Date(dateStr);
+  var jan4 = new Date(d.getFullYear(), 0, 4);
+  var diff = (d - jan4) / 86400000;
+  return d.getFullYear() + '-W' + (Math.floor(diff / 7) + 1);
 }
 
-// isPositiveMoneyFlow: returns true for positive or useful money flow statuses.
-// Constructive but Cooling is included as a moderate/watch signal.
-// Short-Term Spike and No Clear Signal are excluded.
-export function isPositiveMoneyFlow(snapshot) {
-  var status = snapshot && snapshot.smartMoneyFlow && snapshot.smartMoneyFlow.status;
-  if (!status) return false;
-  var POSITIVE = [
-    'Strong Multi-Timeframe Flow',
-    'Accumulation Trend Positive',
-    'Early Accumulation',
-    'Constructive but Cooling',
-  ];
-  return POSITIVE.indexOf(status) !== -1;
+function _simSMA(arr, period) {
+  if (!arr || arr.length < period) return null;
+  var sl = arr.slice(-period);
+  return sl.reduce(function(a, b) { return a + b; }, 0) / period;
 }
 
-// screenPositiveReversalMoneyFlow: filters an array of snapshots to only those
-// where both positive Reversal and positive Money Flow are true.
-export function screenPositiveReversalMoneyFlow(snapshots) {
-  if (!snapshots || !snapshots.length) return [];
-  return snapshots.filter(function(snap) {
-    return isPositiveReversal(snap) && isPositiveMoneyFlow(snap);
+function _simEMAHistory(arr, period) {
+  if (!arr || arr.length < period) return [];
+  var k = 2 / (period + 1);
+  var seed = arr.slice(0, period).reduce(function(a, b) { return a + b; }, 0) / period;
+  var result = [seed];
+  for (var i = period; i < arr.length; i++) {
+    seed = arr[i] * k + seed * (1 - k);
+    result.push(seed);
+  }
+  return result;
+}
+
+export function buildWeeklyBars(dailyBars) {
+  var weekMap = {}, weekOrder = [];
+  dailyBars.forEach(function(b) {
+    var wk = _simWeekKey(b.date);
+    if (!weekMap[wk]) { weekMap[wk] = { open:b.open, high:b.high, low:b.low, close:b.close, volume:b.volume||0, date:b.date }; weekOrder.push(wk); }
+    else { var w = weekMap[wk]; if (b.high > w.high) w.high = b.high; if (b.low < w.low) w.low = b.low; w.close = b.close; w.volume += b.volume||0; }
   });
+  return weekOrder.map(function(wk) { return weekMap[wk]; });
+}
+
+export function buildMonthlyBars(dailyBars) {
+  var mMap = {}, mOrder = [];
+  dailyBars.forEach(function(b) {
+    var d = new Date(b.date);
+    var mk = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+    if (!mMap[mk]) { mMap[mk] = { open:b.open, high:b.high, low:b.low, close:b.close, volume:b.volume||0, date:b.date }; mOrder.push(mk); }
+    else { var m = mMap[mk]; if (b.high > m.high) m.high = b.high; if (b.low < m.low) m.low = b.low; m.close = b.close; m.volume += b.volume||0; }
+  });
+  return mOrder.map(function(mk) { return mMap[mk]; });
+}
+
+export function calcWeeklyMomentum(weeklyBars) {
+  var empty = { status:'Not Enough Data', score:50, rsi14:null, previousRsi14:null, rsiDirection:'—',
+    macdLine:null, macdSignal:null, macdHistogram:null, previousMacdHistogram:null, macdDirection:'—',
+    priceVsSma10Pct:null, roc4wPct:null };
+  if (!weeklyBars || weeklyBars.length < 14) return empty;
+  var closes = weeklyBars.map(function(b) { return b.close; });
+  var wRsi = calcRSI(closes, 14);
+  var prevRsiW = closes.length > 15 ? calcRSI(closes.slice(0, -1), 14) : null;
+  var wE12 = _simEMAHistory(closes, 12), wE26 = _simEMAHistory(closes, 26);
+  var wMacdLine = [], minM = Math.min(wE12.length, wE26.length);
+  for (var i = 0; i < minM; i++) wMacdLine.push(wE12[wE12.length - minM + i] - wE26[wE26.length - minM + i]);
+  var wSigH = _simEMAHistory(wMacdLine, 9);
+  var wHist = wMacdLine.length && wSigH.length ? wMacdLine[wMacdLine.length - 1] - wSigH[wSigH.length - 1] : null;
+  var wPrevHist = wMacdLine.length > 1 && wSigH.length > 1 ? wMacdLine[wMacdLine.length - 2] - wSigH[wSigH.length - 2] : null;
+  var wSma10 = _simSMA(closes, 10);
+  var wVsSma10 = (wSma10 && wSma10 > 0) ? ((closes[closes.length - 1] - wSma10) / wSma10) * 100 : null;
+  var wRoc4 = closes.length >= 5 ? ((closes[closes.length - 1] - closes[closes.length - 5]) / closes[closes.length - 5]) * 100 : null;
+  var rsiS = wRsi == null ? 3 : wRsi >= 65 ? 5 : wRsi >= 55 ? 4 : wRsi >= 45 ? 3 : wRsi >= 35 ? 2 : 1;
+  var improving = wHist != null && wPrevHist != null && wHist > wPrevHist;
+  var macdS = 3;
+  if (wHist != null) { if (wHist > 0 && improving) macdS = 5; else if (wHist > 0) macdS = 4; else if (improving) macdS = 3; else if (wHist > -0.5) macdS = 2; else macdS = 1; }
+  var sma10S = wVsSma10 == null ? 3 : wVsSma10 > 5 ? 5 : wVsSma10 > 2 ? 4 : wVsSma10 > -2 ? 3 : wVsSma10 > -5 ? 2 : 1;
+  var rocS = wRoc4 == null ? 3 : wRoc4 > 8 ? 5 : wRoc4 > 3 ? 4 : wRoc4 > -3 ? 3 : wRoc4 > -8 ? 2 : 1;
+  var score = (rsiS * 0.30 + macdS * 0.35 + sma10S * 0.20 + rocS * 0.15) * 20;
+  var status = score >= 80 ? 'Strong' : score >= 65 ? 'Building' : score >= 50 ? 'Neutral' : score >= 35 ? 'Fading' : 'Weak';
+  return { status:status, score:score, rsi14:wRsi != null ? parseFloat(wRsi.toFixed(1)) : null,
+    previousRsi14:prevRsiW, rsiDirection:prevRsiW != null ? (wRsi > prevRsiW ? 'Rising' : 'Falling') : '—',
+    macdLine:wMacdLine.length ? wMacdLine[wMacdLine.length - 1] : null, macdSignal:wSigH.length ? wSigH[wSigH.length - 1] : null,
+    macdHistogram:wHist != null ? parseFloat(wHist.toFixed(3)) : null,
+    previousMacdHistogram:wPrevHist != null ? parseFloat(wPrevHist.toFixed(3)) : null,
+    macdDirection:improving ? 'Improving' : (wHist != null && wPrevHist != null ? 'Deteriorating' : '—'),
+    priceVsSma10Pct:wVsSma10 != null ? parseFloat(wVsSma10.toFixed(2)) : null,
+    roc4wPct:wRoc4 != null ? parseFloat(wRoc4.toFixed(2)) : null };
+}
+
+export function calcMonthlyMomentum(monthlyBars) {
+  var empty = { status:'Not Enough Data', score:50, rsi14:null, previousRsi14:null, rsiDirection:'—',
+    macdLine:null, macdSignal:null, macdHistogram:null, previousMacdHistogram:null, macdDirection:'—',
+    priceVsSma10Pct:null, roc3mPct:null };
+  if (!monthlyBars || monthlyBars.length < 14) return empty;
+  var closes = monthlyBars.map(function(b) { return b.close; });
+  var mRsi = calcRSI(closes, 14);
+  var prevRsiM = closes.length > 15 ? calcRSI(closes.slice(0, -1), 14) : null;
+  var mE12 = _simEMAHistory(closes, 12), mE26 = _simEMAHistory(closes, 26);
+  var mMacdLine = [], minM2 = Math.min(mE12.length, mE26.length);
+  for (var i = 0; i < minM2; i++) mMacdLine.push(mE12[mE12.length - minM2 + i] - mE26[mE26.length - minM2 + i]);
+  var mSigH = _simEMAHistory(mMacdLine, 9);
+  var mHist = mMacdLine.length && mSigH.length ? mMacdLine[mMacdLine.length - 1] - mSigH[mSigH.length - 1] : null;
+  var mPrevHist = mMacdLine.length > 1 && mSigH.length > 1 ? mMacdLine[mMacdLine.length - 2] - mSigH[mSigH.length - 2] : null;
+  var mSma10 = _simSMA(closes, 10);
+  var mVsSma10 = (mSma10 && mSma10 > 0) ? ((closes[closes.length - 1] - mSma10) / mSma10) * 100 : null;
+  var mRoc3 = closes.length >= 4 ? ((closes[closes.length - 1] - closes[closes.length - 4]) / closes[closes.length - 4]) * 100 : null;
+  var rsiS = mRsi == null ? 3 : mRsi >= 65 ? 5 : mRsi >= 55 ? 4 : mRsi >= 45 ? 3 : mRsi >= 35 ? 2 : 1;
+  var mImproving = mHist != null && mPrevHist != null && mHist > mPrevHist;
+  var macdS = 3;
+  if (mHist != null) { if (mHist > 0 && mImproving) macdS = 5; else if (mHist > 0) macdS = 4; else if (mImproving) macdS = 3; else if (mHist > -0.5) macdS = 2; else macdS = 1; }
+  var sma10S = mVsSma10 == null ? 3 : mVsSma10 > 8 ? 5 : mVsSma10 > 3 ? 4 : mVsSma10 > -3 ? 3 : mVsSma10 > -8 ? 2 : 1;
+  var rocS = mRoc3 == null ? 3 : mRoc3 > 15 ? 5 : mRoc3 > 5 ? 4 : mRoc3 > -5 ? 3 : mRoc3 > -15 ? 2 : 1;
+  var score = (rsiS * 0.30 + macdS * 0.35 + sma10S * 0.20 + rocS * 0.15) * 20;
+  var status = score >= 80 ? 'Strong' : score >= 65 ? 'Building' : score >= 50 ? 'Neutral' : score >= 35 ? 'Fading' : 'Weak';
+  return { status:status, score:score, rsi14:mRsi != null ? parseFloat(mRsi.toFixed(1)) : null,
+    previousRsi14:prevRsiM, rsiDirection:prevRsiM != null ? (mRsi > prevRsiM ? 'Rising' : 'Falling') : '—',
+    macdLine:mMacdLine.length ? mMacdLine[mMacdLine.length - 1] : null, macdSignal:mSigH.length ? mSigH[mSigH.length - 1] : null,
+    macdHistogram:mHist != null ? parseFloat(mHist.toFixed(3)) : null,
+    previousMacdHistogram:mPrevHist != null ? parseFloat(mPrevHist.toFixed(3)) : null,
+    macdDirection:mImproving ? 'Improving' : (mHist != null && mPrevHist != null ? 'Deteriorating' : '—'),
+    priceVsSma10Pct:mVsSma10 != null ? parseFloat(mVsSma10.toFixed(2)) : null,
+    roc3mPct:mRoc3 != null ? parseFloat(mRoc3.toFixed(2)) : null };
+}
+
+export function classifyMomentumProfile(daily, weekly) {
+  if (!weekly || weekly === 'Not Enough Data') return 'Not Enough Data';
+  var dB = daily === 'Strong' || daily === 'Building', dN = daily === 'Neutral', dW = daily === 'Fading' || daily === 'Weak';
+  var wB = weekly === 'Strong' || weekly === 'Building', wN = weekly === 'Neutral', wW = weekly === 'Fading' || weekly === 'Weak';
+  if (dB && wB) return 'Momentum Continuation';
+  if (dB && wN) return 'Early Recovery Attempt';
+  if (dB && wW) return 'Weak Weekly Bounce';
+  if (dN && wB) return 'Waiting for Daily Trigger';
+  if (dW && wB) return 'Pullback in Larger Momentum';
+  if (dW && wW) return 'Bearish Momentum';
+  return 'No Clear Momentum Profile';
+}
+
+export function classifyMonthlyRegime(monthly) {
+  if (!monthly || monthly === 'Not Enough Data') return 'Not Enough Data';
+  if (monthly === 'Strong' || monthly === 'Building') return 'Supportive';
+  if (monthly === 'Neutral') return 'Neutral';
+  return 'Weak';
 }
