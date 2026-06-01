@@ -5017,7 +5017,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.53</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.55</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5071,7 +5071,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.53</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.55</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5512,7 +5512,33 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   return (
                     <div style={{display:"flex",flexDirection:"column"}}>
                       <TechRow label="Trend" value={_hasTech?_trendLabel:"--"} score={_trendDots} dotCol={_trendCol.dot} valCol={_trendCol.fg} caution={_trendCaution} loading={!_hasTech} tab="trend" />
-                      <TechRow label="Momentum" value={_hasTech?_momLabel:"--"} score={_momDots} dotCol={_momCol.dot} valCol={_momCol.fg} caution={_momCaution} loading={!_hasTech} tab="momentum" />
+                      {(function(){
+                        var _lp = momLiveSym===sym ? momLiveProfile : null;
+                        function _sp(p){if(p==='Momentum Continuation') return 'Continuation';if(p==='Early Recovery Attempt') return 'Recovery';if(p==='Weak Weekly Bounce') return 'Weak Bounce';if(p==='Waiting for Daily Trigger') return 'Waiting';if(p==='Pullback in Larger Momentum') return 'Pullback';if(p==='Bearish Momentum') return 'Bearish';if(p==='No Clear Momentum Profile') return 'Unclear';if(p==='Not Enough Data') return 'No Data';return 'No Data';}
+                        function _sc(s){return s==='Strong'||s==='Supportive'?'#7abd00':s==='Building'?'#6090d0':s==='Neutral'?'#b88000':s==='Fading'||s==='Weak'?'#c03030':'#555';}
+                        var _sp2 = _lp ? _sp(_lp.profile) : 'No Data';
+                        var _spc = _sp2==='Continuation'?'#7abd00':_sp2==='Recovery'?'#6090d0':_sp2==='Pullback'?'#6090d0':_sp2==='Waiting'?'#b88000':_sp2==='Weak Bounce'?'#b88000':_sp2==='Bearish'?'#c03030':'#555';
+                        var _d = _hasTech && _momLabel && _momLabel!=='--' ? _momLabel : '--';
+                        var _w = _lp ? (_lp.weekly==='Not Enough Data'?'No Data':_lp.weekly||'--') : 'No Data';
+                        var _m = _lp ? (_lp.monthlyRegime==='Not Enough Data'?'No Data':_lp.monthlyRegime||'--') : 'No Data';
+                        return (
+                          <div onClick={function(){ window.__goToTab && window.__goToTab('momentum'); }}
+                            style={{display:'flex',alignItems:'center',padding:'11px 12px',borderBottom:'0.5px solid #242424',cursor:'pointer',minHeight:44}}
+                            onMouseEnter={function(e){e.currentTarget.style.background='#252525';}}
+                            onMouseLeave={function(e){e.currentTarget.style.background='transparent';}}>
+                            <div style={{flex:1}}>
+                              <div style={{fontSize:11,color:'#666',marginBottom:2}}>Momentum</div>
+                              <div style={{fontSize:13,fontWeight:700,color:_spc,lineHeight:1}}>{_sp2}</div>
+                            </div>
+                            <div style={{textAlign:'right',marginRight:8}}>
+                              <div style={{fontSize:9,color:'#555',marginBottom:1}}>D: <span style={{fontWeight:600,color:_sc(_d)}}>{_d}</span></div>
+                              <div style={{fontSize:9,color:'#555',marginBottom:1}}>W: <span style={{fontWeight:600,color:_sc(_w)}}>{_w}</span></div>
+                              <div style={{fontSize:9,color:'#555'}}>M: <span style={{fontWeight:600,color:_sc(_m)}}>{_m}</span></div>
+                            </div>
+                            <span style={{fontSize:11,color:'#444'}}>{'›'}</span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })()}
@@ -11632,7 +11658,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.53</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.55</span>
           </div>
         </div>
 
