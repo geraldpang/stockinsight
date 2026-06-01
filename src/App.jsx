@@ -5,7 +5,10 @@ import { calculateTechnicalSignalSnapshot, calcRSI,
          validateSmfOHLCV, getSmfScoreLabel, calcSmfVolPriceDivergence,
          calcSmfTodaySignal, calcSmfFiveDaySignal, calcSmfThirtyDaySignal,
          getSmfOverallStatus, calcSmfSummaryCard,
-         isPositiveReversal, isPositiveMoneyFlow } from "./technicalSignals.js";
+         isPositiveReversal, isPositiveMoneyFlow,
+         buildWeeklyBars, buildMonthlyBars,
+         calcWeeklyMomentum, calcMonthlyMomentum,
+         classifyMomentumProfile, classifyMonthlyRegime } from "./technicalSignals.js";
 import { generateRuleBasedAnalytics } from "./ruleBasedAnalytics.js";
 
 // ─── Central signal colour system ─────────────────────────────────────────────
@@ -1489,71 +1492,6 @@ function buildCustomConditionText(trend, momentum, reversal, smartMoney, setup, 
 
 
 // ── Run 6I: Weekly Momentum helpers ───────────────────────────────────────────
-function buildWeeklyBars(dailyBars) {
-  var weekMap = {}, weekOrder = [];
-  dailyBars.forEach(function(b) {
-    var wk = simWeekKey(b.date);
-    if (!weekMap[wk]) { weekMap[wk] = { open:b.open, high:b.high, low:b.low, close:b.close, volume:b.volume||0, date:b.date }; weekOrder.push(wk); }
-    else { var w=weekMap[wk]; if(b.high>w.high)w.high=b.high; if(b.low<w.low)w.low=b.low; w.close=b.close; w.volume+=b.volume||0; }
-  });
-  return weekOrder.map(function(wk){ return weekMap[wk]; });
-}
-function calcWeeklyMomentum(weeklyBars) {
-  var empty = { status:'Not Enough Data', score:50, rsi14:null, previousRsi14:null, rsiDirection:'—',
-    macdLine:null, macdSignal:null, macdHistogram:null, previousMacdHistogram:null, macdDirection:'—',
-    priceVsSma10Pct:null, roc4wPct:null };
-  if (!weeklyBars || weeklyBars.length < 14) return empty;
-  var closes = weeklyBars.map(function(b){ return b.close; });
-  var wRsi = calcRSI(closes, 14);
-  var prevRsiW = closes.length > 15 ? calcRSI(closes.slice(0,-1), 14) : null;
-  var wE12 = simEMAHistory(closes, 12), wE26 = simEMAHistory(closes, 26);
-  var wMacdLine = [];
-  var minM = Math.min(wE12.length, wE26.length);
-  for (var i=0;i<minM;i++) wMacdLine.push(wE12[wE12.length-minM+i]-wE26[wE26.length-minM+i]);
-  var wSigH = simEMAHistory(wMacdLine, 9);
-  var wHist = wMacdLine.length&&wSigH.length ? wMacdLine[wMacdLine.length-1]-wSigH[wSigH.length-1] : null;
-  var wPrevHist = wMacdLine.length>1&&wSigH.length>1 ? wMacdLine[wMacdLine.length-2]-wSigH[wSigH.length-2] : null;
-  var wSma10 = simSMA(closes, 10);
-  var wVsSma10 = (wSma10&&wSma10>0) ? ((closes[closes.length-1]-wSma10)/wSma10)*100 : null;
-  var wRoc4 = closes.length>=5 ? ((closes[closes.length-1]-closes[closes.length-5])/closes[closes.length-5])*100 : null;
-  // Scores
-  var rsiS = wRsi==null?3:wRsi>=65?5:wRsi>=55?4:wRsi>=45?3:wRsi>=35?2:1;
-  var improving = wHist!=null&&wPrevHist!=null&&wHist>wPrevHist;
-  var macdS = 3;
-  if (wHist!=null){ if(wHist>0&&improving)macdS=5; else if(wHist>0)macdS=4; else if(improving)macdS=3; else if(wHist>-0.5)macdS=2; else macdS=1; }
-  var sma10S = wVsSma10==null?3:wVsSma10>5?5:wVsSma10>2?4:wVsSma10>-2?3:wVsSma10>-5?2:1;
-  var rocS   = wRoc4==null?3:wRoc4>8?5:wRoc4>3?4:wRoc4>-3?3:wRoc4>-8?2:1;
-  var score = (rsiS*0.30 + macdS*0.35 + sma10S*0.20 + rocS*0.15) * 20;
-  var status = score>=80?'Strong':score>=65?'Building':score>=50?'Neutral':score>=35?'Fading':'Weak';
-  return { status:status, score:score, rsi14:wRsi!=null?parseFloat(wRsi.toFixed(1)):null,
-    previousRsi14:prevRsiW, rsiDirection:prevRsiW!=null?(wRsi>prevRsiW?'Rising':'Falling'):'—',
-    macdLine:wMacdLine.length?wMacdLine[wMacdLine.length-1]:null, macdSignal:wSigH.length?wSigH[wSigH.length-1]:null,
-    macdHistogram:wHist!=null?parseFloat(wHist.toFixed(3)):null,
-    previousMacdHistogram:wPrevHist!=null?parseFloat(wPrevHist.toFixed(3)):null,
-    macdDirection:improving?'Improving':(wHist!=null&&wPrevHist!=null?'Deteriorating':'—'),
-    priceVsSma10Pct:wVsSma10!=null?parseFloat(wVsSma10.toFixed(2)):null,
-    roc4wPct:wRoc4!=null?parseFloat(wRoc4.toFixed(2)):null };
-}
-function classifyMomentumProfile(daily, weekly) {
-  if (!weekly||weekly==='Not Enough Data') return 'Not Enough Data';
-  var dB=daily==='Strong'||daily==='Building', dN=daily==='Neutral', dW=daily==='Fading'||daily==='Weak';
-  var wB=weekly==='Strong'||weekly==='Building', wN=weekly==='Neutral', wW=weekly==='Fading'||weekly==='Weak';
-  if (dB&&wB) return 'Momentum Continuation';
-  if (dB&&wN) return 'Early Recovery Attempt';
-  if (dB&&wW) return 'Weak Weekly Bounce';
-  if (dN&&wB) return 'Waiting for Daily Trigger';
-  if (dW&&wB) return 'Pullback in Larger Momentum';
-  if (dW&&wW) return 'Bearish Momentum';
-  return 'No Clear Momentum Profile';
-}
-function classifyMonthlyRegime(monthly) {
-  if (!monthly||monthly==='Not Enough Data') return 'Not Enough Data';
-  if (monthly==='Strong'||monthly==='Building') return 'Supportive';
-  if (monthly==='Neutral') return 'Neutral';
-  return 'Weak';
-}
-// classifyMomentumAlignment kept as alias
-function classifyMomentumAlignment(d,w){ return classifyMomentumProfile(d,w); }
 // Shared groupBy for A/B test sections
 function simGroupBy(rows, keyFn) {
   var map = {};
@@ -1580,50 +1518,6 @@ function simAbQuality(r, minSig) {
   return 'Weak';
 }
 
-function buildMonthlyBars(dailyBars) {
-  var mMap = {}, mOrder = [];
-  dailyBars.forEach(function(b) {
-    var d = new Date(b.date);
-    var mk = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2);
-    if (!mMap[mk]) { mMap[mk] = { open:b.open, high:b.high, low:b.low, close:b.close, volume:b.volume||0, date:b.date }; mOrder.push(mk); }
-    else { var m=mMap[mk]; if(b.high>m.high)m.high=b.high; if(b.low<m.low)m.low=b.low; m.close=b.close; m.volume+=b.volume||0; }
-  });
-  return mOrder.map(function(mk){ return mMap[mk]; });
-}
-function calcMonthlyMomentum(monthlyBars) {
-  var empty = { status:'Not Enough Data', score:50, rsi14:null, previousRsi14:null, rsiDirection:'—',
-    macdLine:null, macdSignal:null, macdHistogram:null, previousMacdHistogram:null, macdDirection:'—',
-    priceVsSma10Pct:null, roc3mPct:null };
-  if (!monthlyBars || monthlyBars.length < 14) return empty;
-  var closes = monthlyBars.map(function(b){ return b.close; });
-  var mRsi = calcRSI(closes, 14);
-  var prevRsiM = closes.length > 15 ? calcRSI(closes.slice(0,-1), 14) : null;
-  var mE12 = simEMAHistory(closes, 12), mE26 = simEMAHistory(closes, 26);
-  var mMacdLine = [];
-  var minM2 = Math.min(mE12.length, mE26.length);
-  for (var i=0;i<minM2;i++) mMacdLine.push(mE12[mE12.length-minM2+i]-mE26[mE26.length-minM2+i]);
-  var mSigH = simEMAHistory(mMacdLine, 9);
-  var mHist = mMacdLine.length&&mSigH.length ? mMacdLine[mMacdLine.length-1]-mSigH[mSigH.length-1] : null;
-  var mPrevHist = mMacdLine.length>1&&mSigH.length>1 ? mMacdLine[mMacdLine.length-2]-mSigH[mSigH.length-2] : null;
-  var mSma10 = simSMA(closes, 10);
-  var mVsSma10 = (mSma10&&mSma10>0) ? ((closes[closes.length-1]-mSma10)/mSma10)*100 : null;
-  var mRoc3 = closes.length>=4 ? ((closes[closes.length-1]-closes[closes.length-4])/closes[closes.length-4])*100 : null;
-  // Scores (monthly thresholds)
-  var rsiS = mRsi==null?3:mRsi>=65?5:mRsi>=55?4:mRsi>=45?3:mRsi>=35?2:1;
-  var mImproving = mHist!=null&&mPrevHist!=null&&mHist>mPrevHist;
-  var macdS = 3;
-  if (mHist!=null){ if(mHist>0&&mImproving)macdS=5; else if(mHist>0)macdS=4; else if(mImproving)macdS=3; else if(mHist>-0.5)macdS=2; else macdS=1; }
-  var sma10S = mVsSma10==null?3:mVsSma10>8?5:mVsSma10>3?4:mVsSma10>-3?3:mVsSma10>-8?2:1;
-  var rocS   = mRoc3==null?3:mRoc3>15?5:mRoc3>5?4:mRoc3>-5?3:mRoc3>-15?2:1;
-  var score = (rsiS*0.30 + macdS*0.35 + sma10S*0.20 + rocS*0.15) * 20;
-  var status = score>=80?'Strong':score>=65?'Building':score>=50?'Neutral':score>=35?'Fading':'Weak';
-  return { status:status, score:score, rsi14:mRsi!=null?parseFloat(mRsi.toFixed(1)):null,
-    previousRsi14:prevRsiM, rsiDirection:prevRsiM!=null?(mRsi>prevRsiM?'Rising':'Falling'):'—',
-    macdLine:mMacdLine.length?mMacdLine[mMacdLine.length-1]:null, macdSignal:mSigH.length?mSigH[mSigH.length-1]:null,
-    macdHistogram:mHist!=null?parseFloat(mHist.toFixed(3)):null, previousMacdHistogram:mPrevHist!=null?parseFloat(mPrevHist.toFixed(3)):null,
-    macdDirection:mImproving?'Improving':(mHist!=null&&mPrevHist!=null?'Deteriorating':'—'),
-    priceVsSma10Pct:mVsSma10!=null?parseFloat(mVsSma10.toFixed(2)):null, roc3mPct:mRoc3!=null?parseFloat(mRoc3.toFixed(2)):null };
-}
 
 
 // ── Run 6L: Overall Momentum Result helpers ────────────────────────────────────
@@ -5016,7 +4910,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.55</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.57</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5070,7 +4964,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.55</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.57</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11655,7 +11549,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.55</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.57</span>
           </div>
         </div>
 
