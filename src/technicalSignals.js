@@ -847,6 +847,129 @@ export function getSmfScoreLabel(s) {
   return s >= 86 ? 'Very High' : s >= 71 ? 'High' : s >= 51 ? 'Moderate' : s >= 31 ? 'Mild' : 'Low';
 }
 
+// ─── Smart Money Flow decision engine ─────────────────────────────────────────
+function buildSmfDecision(tScore, fScore, dScore) {
+  // tScore / fScore / dScore can be null (signal not available) or a number.
+  function band(s) { return s == null ? null : s >= 71 ? 'High' : s >= 51 ? 'Moderate' : 'Weak'; }
+
+  var todayBand = band(tScore);
+  var fBand     = band(fScore);
+  var dBand     = band(dScore);
+
+  // Daily activity prefix from Today score
+  var dailyPrefix = tScore == null ? 'No Daily Data'
+    : tScore >= 71 ? 'Daily Spike'
+    : tScore >= 51 ? 'Daily Support'
+    : 'Quiet Day';
+
+  // Base status from 5D + 30D
+  var baseStatus, baseRuleId;
+  if (fScore == null && dScore == null) {
+    baseStatus = 'Not Enough Data'; baseRuleId = 'SMF_BASE_NOT_ENOUGH_DATA';
+  } else if (fScore == null) {
+    baseStatus = dBand === 'High' ? 'Long-Term Accumulation' : dBand === 'Moderate' ? 'Cooling Accumulation' : 'No Sustained Flow';
+    baseRuleId = dBand === 'High' ? 'SMF_BASE_LONG_TERM_ACCUMULATION' : dBand === 'Moderate' ? 'SMF_BASE_COOLING_ACCUMULATION' : 'SMF_BASE_NO_SUSTAINED_FLOW';
+  } else if (dScore == null) {
+    baseStatus = fBand === 'High' ? 'Short-Term Flow Spike' : fBand === 'Moderate' ? 'Short-Term Flow Watch' : 'No Sustained Flow';
+    baseRuleId = fBand === 'High' ? 'SMF_BASE_SHORT_TERM_FLOW_SPIKE' : fBand === 'Moderate' ? 'SMF_BASE_SHORT_TERM_FLOW_WATCH' : 'SMF_BASE_NO_SUSTAINED_FLOW';
+  } else {
+    var m = {
+      'High-High':     ['Strong Accumulation',      'SMF_BASE_STRONG_ACCUMULATION'],
+      'Moderate-High': ['Steady Accumulation',       'SMF_BASE_STEADY_ACCUMULATION'],
+      'Weak-High':     ['Long-Term Accumulation',    'SMF_BASE_LONG_TERM_ACCUMULATION'],
+      'High-Moderate': ['Early Accumulation',        'SMF_BASE_EARLY_ACCUMULATION'],
+      'Moderate-Moderate': ['Mixed Flow',            'SMF_BASE_MIXED_FLOW'],
+      'Weak-Moderate': ['Cooling Accumulation',      'SMF_BASE_COOLING_ACCUMULATION'],
+      'High-Weak':     ['Short-Term Flow Spike',     'SMF_BASE_SHORT_TERM_FLOW_SPIKE'],
+      'Moderate-Weak': ['Short-Term Flow Watch',     'SMF_BASE_SHORT_TERM_FLOW_WATCH'],
+      'Weak-Weak':     ['No Sustained Flow',         'SMF_BASE_NO_SUSTAINED_FLOW']
+    };
+    var entry = m[fBand + '-' + dBand] || ['No Sustained Flow', 'SMF_BASE_NO_SUSTAINED_FLOW'];
+    baseStatus = entry[0]; baseRuleId = entry[1];
+  }
+
+  // Final status = dailyPrefix + base (with special cases for No Sustained Flow)
+  var finalStatus, finalRuleId;
+  if (baseStatus === 'Not Enough Data') {
+    finalStatus = 'Not Enough Data'; finalRuleId = 'SMF_BASE_NOT_ENOUGH_DATA';
+  } else if (baseStatus === 'No Sustained Flow') {
+    if (dailyPrefix === 'Daily Spike') { finalStatus = 'Daily Spike but No Sustained Flow'; finalRuleId = 'SMF_DAILY_SPIKE_NO_SUSTAINED_FLOW'; }
+    else if (dailyPrefix === 'Daily Support') { finalStatus = 'Daily Support but No Sustained Flow'; finalRuleId = 'SMF_DAILY_SUPPORT_NO_SUSTAINED_FLOW'; }
+    else if (dailyPrefix === 'Quiet Day') { finalStatus = 'No Clear Signal'; finalRuleId = 'SMF_NO_CLEAR_SIGNAL'; }
+    else { finalStatus = 'No Sustained Flow'; finalRuleId = 'SMF_NO_SUSTAINED_FLOW'; }
+  } else {
+    finalStatus = dailyPrefix + ' with ' + baseStatus;
+    finalRuleId = baseRuleId;
+  }
+
+  // Human-readable reason
+  var baseDesc = {
+    'Strong Accumulation':    { active:'Both 5-day flow and 30-day accumulation are strong.', quiet:'5-day flow and 30-day accumulation remain strong' },
+    'Steady Accumulation':    { active:'30-day accumulation is strong and 5-day flow remains supportive.', quiet:'30-day accumulation is strong and 5-day flow remains supportive' },
+    'Long-Term Accumulation': { active:'30-day accumulation is strong, although 5-day flow has cooled.', quiet:'30-day accumulation remains strong, even though 5-day flow has cooled' },
+    'Early Accumulation':     { active:'5-day flow is strong, but 30-day accumulation has not yet fully confirmed.', quiet:'5-day flow is strong, though 30-day accumulation has not yet confirmed' },
+    'Mixed Flow':             { active:'5-day flow and 30-day accumulation are both moderate.', quiet:'5-day flow and 30-day accumulation remain moderate' },
+    'Cooling Accumulation':   { active:'5-day flow is cooling while 30-day accumulation is moderate.', quiet:'5-day flow is weak while 30-day accumulation is moderate' },
+    'Short-Term Flow Spike':  { active:'5-day flow is elevated, but 30-day accumulation is not yet supportive.', quiet:'5-day flow remains elevated, but 30-day accumulation is weak' },
+    'Short-Term Flow Watch':  { active:'5-day flow is moderate, but 30-day accumulation remains weak.', quiet:'5-day flow is moderate, but 30-day accumulation remains weak' }
+  };
+  var reason;
+  if (finalStatus === 'Not Enough Data') reason = 'Not enough price and volume data to calculate Smart Money Flow.';
+  else if (finalStatus === 'No Clear Signal') reason = 'Neither 5-day flow nor 30-day accumulation shows meaningful smart money activity.';
+  else if (finalStatus === 'Daily Spike but No Sustained Flow') reason = 'Today shows a Daily Spike, but 5-day flow and 30-day accumulation are not yet supportive.';
+  else if (finalStatus === 'Daily Support but No Sustained Flow') reason = 'Today shows some daily support, but 5-day flow and 30-day accumulation remain weak.';
+  else if (finalStatus === 'No Sustained Flow') reason = 'Neither 5-day flow nor 30-day accumulation shows meaningful smart money activity.';
+  else {
+    var bd = baseDesc[baseStatus] || { active: baseStatus + '.', quiet: baseStatus };
+    if (dailyPrefix === 'Daily Spike')   reason = bd.active + ' Today also shows a Daily Spike.';
+    else if (dailyPrefix === 'Daily Support') reason = bd.active + ' Today also adds daily support.';
+    else if (dailyPrefix === 'Quiet Day') reason = bd.quiet + ', even though today is quiet.';
+    else reason = bd.active;
+  }
+
+  return {
+    outcome: finalStatus, ruleId: finalRuleId,
+    dailyPrefix: dailyPrefix, baseStatus: baseStatus,
+    todayBand: todayBand || 'N/A', fiveDayBand: fBand || 'N/A', thirtyDayBand: dBand || 'N/A',
+    reason: reason,
+    triggeredConditions: [
+      tScore != null ? { condition: tScore >= 71 ? 'todayActivityScore >= 71' : tScore >= 51 ? 'todayActivityScore >= 51' : 'todayActivityScore < 51', actualValue: Math.round(tScore), threshold: tScore >= 71 ? 71 : 51, result: true } : null,
+      fScore != null ? { condition: 'fiveDayFlowScore is ' + (fBand||'N/A'), actualValue: Math.round(fScore), band: fBand, result: true } : null,
+      dScore != null ? { condition: 'thirtyDayAccumulationScore is ' + (dBand||'N/A'), actualValue: Math.round(dScore), band: dBand, result: true } : null
+    ].filter(Boolean),
+    scores: {
+      todayActivityScore: tScore != null ? Math.round(tScore) : null,
+      fiveDayFlowScore: fScore != null ? Math.round(fScore) : null,
+      thirtyDayAccumulationScore: dScore != null ? Math.round(dScore) : null
+    }
+  };
+}
+
+export function getSmfOverallStatus(tScore, fScore, dScore) {
+  // Treat 0 as actual 0 score (not null). tScore/fScore/dScore passed as numbers.
+  return buildSmfDecision(
+    typeof tScore === 'number' ? tScore : null,
+    typeof fScore === 'number' ? fScore : null,
+    typeof dScore === 'number' ? dScore : null
+  ).outcome;
+}
+
+export function calcSmfSummaryCard(tScore, fScore, dScore, tSig, fSig, dSig) {
+  var tN = tSig ? (tScore || 0) : null;
+  var fN = fSig ? (fScore || 0) : null;
+  var dN = dSig ? (dScore || 0) : null;
+  var decision = buildSmfDecision(tN, fN, dN);
+  var primary = dSig ? dScore : fSig ? fScore : tSig ? tScore : null;
+  return {
+    status:            decision.outcome,
+    primaryScore:      primary,
+    todayLabel:        tSig ? getSmfScoreLabel(tScore) : 'N/A',
+    fiveDayLabel:      fSig ? getSmfScoreLabel(fScore) : 'N/A',
+    thirtyDayLabel:    dSig ? getSmfScoreLabel(dScore) : 'N/A',
+    smartMoneyDecision: decision
+  };
+}
+
 export function calcSmfVolPriceDivergence(today, yesterday, avg30v) {
   var vRatio = avg30v > 0 ? today.v / avg30v : 0;
   var pct    = yesterday.c > 0 ? (today.c - yesterday.c) / yesterday.c * 100 : 0;
@@ -994,28 +1117,6 @@ export function calcSmfThirtyDaySignal(bars) {
       { name: 'Strong Close Frequency',   score: Math.round(scScore),    weight: 15,
         explanation: scDays + ' of 30 days closed in upper 40% of daily range (' + (scFreq * 100).toFixed(0) + '%).' }
     ]
-  };
-}
-
-export function getSmfOverallStatus(tScore, fScore, dScore) {
-  var tH = tScore >= 71, fH = fScore >= 71, dH = dScore >= 71;
-  if (tH && fH && dH)  return 'Strong Multi-Timeframe Flow';
-  if (!tH && fH && dH) return 'Accumulation Trend Positive';
-  if (dH && !tH && !fH) return 'Constructive but Cooling';
-  if (tH && fH && !dH) return 'Early Accumulation';
-  if (tH && !fH && !dH) return 'Short-Term Spike';
-  return 'No Clear Signal';
-}
-
-export function calcSmfSummaryCard(tScore, fScore, dScore, tSig, fSig, dSig) {
-  var status  = getSmfOverallStatus(tScore || 0, fScore || 0, dScore || 0);
-  var primary = dSig ? dScore : fSig ? fScore : tSig ? tScore : null;
-  return {
-    status: status,
-    primaryScore: primary,
-    todayLabel:      tSig ? getSmfScoreLabel(tScore) : 'N/A',
-    fiveDayLabel:    fSig ? getSmfScoreLabel(fScore) : 'N/A',
-    thirtyDayLabel:  dSig ? getSmfScoreLabel(dScore) : 'N/A'
   };
 }
 
