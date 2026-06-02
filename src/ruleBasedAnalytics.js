@@ -292,18 +292,23 @@ function _buildSmfLine(smCategory, smDirection, smfStatus) {
 
   switch (smCategory) {
     case 'strongSmartMoney':
-      return 'Smart money flow is strong across multiple timeframes ' + dirPhrase + '.';
+      return 'Smart money flow is strong, with accumulation supported across key timeframes' + (dirPhrase ? ' ' + dirPhrase : '') + '.';
     case 'positiveSmartMoney':
-      if (smfStatus === 'Constructive but Cooling') {
+      if (smfStatus && smfStatus.indexOf('Steady Accumulation') !== -1)
+        return 'Smart money flow remains positive, with steady accumulation support' + (dirPhrase ? ' ' + dirPhrase : '') + '.';
+      if (smfStatus && smfStatus.indexOf('Long-Term Accumulation') !== -1)
+        return 'Smart money flow remains positive on the longer timeframe, although short-term flow has cooled' + (dirPhrase && dirPhrase !== 'though the pace of accumulation is beginning to ease' ? ' ' + dirPhrase : '') + '.';
+      if (smfStatus && smfStatus.indexOf('Cooling Accumulation') !== -1)
+        return 'Smart money flow remains constructive, but recent flow is cooling.';
+      if (smfStatus === 'Constructive but Cooling')
         return 'Smart money flow remains constructive' + (dirPhrase ? ', ' + dirPhrase : '') + '.';
-      }
       return 'Smart money flow is positive ' + dirPhrase + '.';
     case 'earlySmartMoney':
-      return 'Early signs of smart money accumulation are appearing ' + dirPhrase + '.';
+      return 'Smart money flow is showing early accumulation, with recent flow starting to support the setup' + (dirPhrase ? ' ' + dirPhrase : '') + '.';
     case 'temporarySmartMoney':
-      return 'Smart money activity shows a short-term uptick, which may not yet reflect sustained institutional accumulation.';
+      return 'Smart money activity is short-term and has not yet developed into sustained accumulation.';
     case 'neutralSmartMoney':
-      return 'Smart money flow is neutral, with no strong directional signal from institutional activity.';
+      return 'Smart money flow is neutral, with no sustained accumulation signal yet.';
     case 'negativeSmartMoney':
       return 'Smart money flow is showing signs of distribution or reduced institutional interest.';
     default:
