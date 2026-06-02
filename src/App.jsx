@@ -2138,12 +2138,15 @@ export function SimulatorPage() {
           snap = calculateTechnicalSignalSnapshot({ ticker:ticker, date:bar.date, ohlcv:ohlcv, indicators:ind, crossData:null, meta:{ price:bar.close, hi52:hw.hi52, lo52:hw.lo52 } });
         } catch(e){ continue; }
         // Inject smartMoneyDecision so RBA uses the new SMF model
+        // Remap bars to short-name format { c,v,h,l } expected by calcSmf* and calcOBV
         try {
-          var smfBars2 = ohlcv;
+          var smfBars2 = ohlcv.map(function(b) {
+            return { c: b.close, v: b.volume, h: b.high, l: b.low, o: b.open, t: b.date };
+          });
           var smfVal2  = validateSmfOHLCV(smfBars2);
-          var tSig2 = smfVal2.hasMinBars       ? calcSmfTodaySignal(smfBars2)     : null;
-          var fSig2 = smfBars2.length >= 6      ? calcSmfFiveDaySignal(smfBars2)   : null;
-          var dSig2 = smfVal2.hasThirtyDays     ? calcSmfThirtyDaySignal(smfBars2) : null;
+          var tSig2 = smfVal2.canCalculateTodaySignal ? calcSmfTodaySignal(smfBars2)     : null;
+          var fSig2 = smfBars2.length >= 6             ? calcSmfFiveDaySignal(smfBars2)   : null;
+          var dSig2 = smfVal2.hasThirtyDays            ? calcSmfThirtyDaySignal(smfBars2) : null;
           var smCard2 = calcSmfSummaryCard(tSig2?tSig2.score:0, fSig2?fSig2.score:0, dSig2?dSig2.score:0, tSig2, fSig2, dSig2);
           if (smCard2 && smCard2.smartMoneyDecision) {
             snap = Object.assign({}, snap);
@@ -2553,12 +2556,18 @@ export function SimulatorPage() {
             {/* ── RBA 3-Signal Combination Performance ────────────────── */}
             {(function(){
               var minS = parseInt(minSignals)||3;
-              var STATUS_ORDER = ['bullish','neutral','bearish','unknown'];
               var validRows = results.rows.filter(function(r){ return r && r.momentumStatus && r.reversalStatus && r.smartMoneyStatus; });
               var map = {};
               validRows.forEach(function(r){
-                var k = (r.momentumStatus||'?')+'|'+(r.reversalStatus||'?')+'|'+(r.smartMoneyStatus||'?')+'|'+(r.rawResult||'?');
-                if (!map[k]) map[k] = { momentumStatus:r.momentumStatus, reversalStatus:r.reversalStatus, smartMoneyStatus:r.smartMoneyStatus, rawResult:r.rawResult||'—', returns:[], wins:0 };
+                // Include strength in grouping key to distinguish same-status different-conviction rows
+                var k = (r.momentumStatus||'?')+'|'+(r.reversalStatus||'?')+'|'+(r.smartMoneyStatus||'?')
+                      + '|'+(r.momentumStrength||'?')+'|'+(r.reversalStrength||'?')+'|'+(r.smartMoneyStrength||'?')
+                      + '|'+(r.rawResult||'?');
+                if (!map[k]) map[k] = {
+                  momentumStatus:r.momentumStatus, reversalStatus:r.reversalStatus, smartMoneyStatus:r.smartMoneyStatus,
+                  momentumStrength:r.momentumStrength||'—', reversalStrength:r.reversalStrength||'—', smartMoneyStrength:r.smartMoneyStrength||'—',
+                  rawResult:r.rawResult||'—', returns:[], wins:0
+                };
                 if (r.futureReturn != null && !isNaN(r.futureReturn)) {
                   map[k].returns.push(r.futureReturn);
                   if (r.futureReturn >= 0) map[k].wins++;
@@ -2566,22 +2575,24 @@ export function SimulatorPage() {
               });
               var rows6s = Object.keys(map).map(function(k){
                 var g = map[k]; var sigs = g.returns.length; var avg = sigs ? g.returns.reduce(function(a,b){return a+b;},0)/sigs : null;
-                return { momentumStatus:g.momentumStatus, reversalStatus:g.reversalStatus, smartMoneyStatus:g.smartMoneyStatus, rawResult:g.rawResult,
-                  signals:sigs, wins:g.wins, winRate:sigs?(g.wins/sigs*100):null,
+                return { momentumStatus:g.momentumStatus, reversalStatus:g.reversalStatus, smartMoneyStatus:g.smartMoneyStatus,
+                  momentumStrength:g.momentumStrength, reversalStrength:g.reversalStrength, smartMoneyStrength:g.smartMoneyStrength,
+                  rawResult:g.rawResult, signals:sigs, wins:g.wins, winRate:sigs?(g.wins/sigs*100):null,
                   avgReturn:avg, medianReturn:simMedian(g.returns),
                   bestReturn:sigs?Math.max.apply(null,g.returns):null, worstReturn:sigs?Math.min.apply(null,g.returns):null };
               }).filter(function(r){ return r.signals >= minS; });
               rows6s.sort(function(a,b){ return (b.avgReturn||0)-(a.avgReturn||0); });
               function sCol(s){ return s==='bullish'?'#7abd00':s==='bearish'?'#e05050':'#b88000'; }
+              function stCol(s){ return s==='strong'?'#7abd00':s==='normal'?'#9acd50':s==='watch'?'#b88000':s==='weak'?'#e05050':'#555'; }
               return (
                 <div style={card}>
                   <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em', marginBottom:4 }}>{'RBA 3-Signal Combination Performance'}</div>
-                  <div style={{ fontSize:10, color:'#444', marginBottom:10 }}>{'Groups each historical signal by the new Rule Based Analytics statuses: Momentum Status, Reversal Status, and Smart Money Status. Trend is not part of this grouping and is used separately as market context.'}</div>
+                  <div style={{ fontSize:10, color:'#444', marginBottom:10 }}>{'Groups each historical signal by the new Rule Based Analytics statuses and conviction strength. Trend is not part of this grouping and is used separately as market context.'}</div>
                   {validRows.length < results.rows.length && <div style={{ fontSize:9, color:'#555', marginBottom:8 }}>{'Note: ' + (results.rows.length - validRows.length) + ' row(s) without RBA status fields excluded.'}</div>}
                   {!rows6s.length ? <div style={{ fontSize:11, color:'#555' }}>{'No results meet the minimum signals threshold.'}</div> : (
                     <div style={{ overflowX:'auto' }}>
                       <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
-                        <thead><tr>{['Mom Status','Rev Status','SMF Status','Raw Result','Signals','Win Rate','Avg Return','Median','Best','Worst','Quality'].map(function(h){ return <th key={h} style={{ textAlign:'left', color:'#555', fontWeight:700, fontSize:9, padding:'4px 8px', borderBottom:'0.5px solid #222', whiteSpace:'nowrap' }}>{h}</th>; })}</tr></thead>
+                        <thead><tr>{['Mom Status','Rev Status','SMF Status','Mom Str','Rev Str','SMF Str','Raw Result','Signals','Win Rate','Avg Return','Median','Best','Worst','Quality'].map(function(h){ return <th key={h} style={{ textAlign:'left', color:'#555', fontWeight:700, fontSize:9, padding:'4px 8px', borderBottom:'0.5px solid #222', whiteSpace:'nowrap' }}>{h}</th>; })}</tr></thead>
                         <tbody>
                           {rows6s.map(function(r,i){
                             var q = r.winRate>=65&&r.medianReturn>0?'Worked Well':r.winRate>=55&&r.medianReturn>0?'Promising':r.winRate>=50?'Mixed':'Weak';
@@ -2590,6 +2601,9 @@ export function SimulatorPage() {
                               <td style={{ padding:'5px 8px', fontWeight:700, color:sCol(r.momentumStatus) }}>{r.momentumStatus}</td>
                               <td style={{ padding:'5px 8px', fontWeight:700, color:sCol(r.reversalStatus) }}>{r.reversalStatus}</td>
                               <td style={{ padding:'5px 8px', fontWeight:700, color:sCol(r.smartMoneyStatus) }}>{r.smartMoneyStatus}</td>
+                              <td style={{ padding:'5px 8px', fontSize:9, color:stCol(r.momentumStrength) }}>{r.momentumStrength}</td>
+                              <td style={{ padding:'5px 8px', fontSize:9, color:stCol(r.reversalStrength) }}>{r.reversalStrength}</td>
+                              <td style={{ padding:'5px 8px', fontSize:9, color:stCol(r.smartMoneyStrength) }}>{r.smartMoneyStrength}</td>
                               <td style={{ padding:'5px 8px', color:summaryCardDark(r.rawResult).text||'#ccc' }}>{r.rawResult}</td>
                               <td style={{ padding:'5px 8px', color:'#aaa' }}>{r.signals}</td>
                               <td style={{ padding:'5px 8px', color:r.winRate>=50?'#7abd00':'#e05050' }}>{r.winRate!=null?r.winRate.toFixed(1)+'%':'—'}</td>
@@ -5227,7 +5241,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.67</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.68</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5281,7 +5295,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.67</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.68</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11941,7 +11955,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.67</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.68</span>
           </div>
         </div>
 
