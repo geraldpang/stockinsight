@@ -21,25 +21,24 @@ var _CLR = {
 };
 function revStatusColor(status, variant) {
   var v = variant||"main";
-  if (!status) return v==="darkbg"?"#1a1a1a":_CLR.grey[v];
+  if (!status||status==="Not Enough Data"||status==="No Clear Reversal") return v==="darkbg"?"#1a1a1a":_CLR.grey[v];
   if (v==="darkbg") return summaryCardDark(status).bg;
   if (status.startsWith("Bullish")&&(status.includes("Confirmed")||status.includes("Triggered")||status.includes("Forming")||status.includes("Confirming"))) return _CLR.green[v];
-  if (status.startsWith("Bullish")&&(status.includes("Watch")||status.includes("Spark"))) return _CLR.blue[v];
-  if (status.startsWith("Bearish")&&(status.includes("Confirmed")||status.includes("Triggered")||status.includes("Forming"))) return _CLR.red[v];
-  if (status.startsWith("Bearish")&&status.includes("Watch")) return _CLR.amber[v];
+  if (status.startsWith("Bullish")&&(status.includes("Watch")||status.includes("Spark")||status.includes("Setup"))) return _CLR.blue[v];
+  if (status.startsWith("Bearish")&&(status.includes("Confirmed")||status.includes("Triggered")||status.includes("Forming")||status.includes("Confirming"))) return _CLR.red[v];
+  if (status.startsWith("Bearish")&&(status.includes("Watch")||status.includes("Setup"))) return _CLR.amber[v];
   if (status==="Mixed Reversal Signals") return _CLR.amber[v];
   return _CLR.grey[v];
 }
 function revDirLabelColor(lbl, isBullish, variant) {
   var v = variant||"main";
-  if (!lbl||lbl==="N/A"||lbl==="Not enough data"||lbl==="No Signal") return _CLR.grey[v];
+  if (!lbl||lbl==="N/A"||lbl==="Not enough data"||lbl==="Not Enough Data"||lbl==="No Signal") return _CLR.grey[v];
   if (isBullish) {
-    if (lbl==="Watch") return _CLR.blue[v];
+    if (lbl==="Watch"||lbl==="Spark"||lbl==="Setup") return _CLR.blue[v];
     if (lbl==="Forming"||lbl==="Triggered"||lbl==="Confirmed"||lbl==="Confirming") return _CLR.green[v];
-    if (lbl==="Spark") return _CLR.blue[v];
   } else {
-    if (lbl==="Watch") return _CLR.amber[v];
-    if (lbl==="Forming"||lbl==="Triggered"||lbl==="Confirmed") return _CLR.red[v];
+    if (lbl==="Watch"||lbl==="Setup") return _CLR.amber[v];
+    if (lbl==="Forming"||lbl==="Triggered"||lbl==="Confirmed"||lbl==="Confirming") return _CLR.red[v];
   }
   return _CLR.grey[v];
 }
@@ -9329,6 +9328,48 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         <div style={{fontSize:10,color:"#aaa",lineHeight:1.6,padding:"10px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4dc"}}>
                           {"Reversal Watch is based on price and volume analysis only. It does not guarantee a reversal will occur. Not financial advice."}
                         </div>
+                        {/* ── Why this reversal outcome? (Run 6R traceability) ── */}
+                        {(function(){
+                          var rd = _revW && _revW.reversalDecision;
+                          if (!rd) return null;
+                          function rdCol(o){if(!o)return'#777';if(o.indexOf('Bullish')===0&&(o.indexOf('Confirm')>0||o.indexOf('Trigger')>0||o.indexOf('Forming')>0))return'#7abd00';if(o.indexOf('Bullish')===0)return'#6090d0';if(o.indexOf('Bearish')===0&&(o.indexOf('Confirm')>0||o.indexOf('Trigger')>0||o.indexOf('Forming')>0))return'#e05050';if(o.indexOf('Bearish')===0)return'#EF9F27';if(o==='Mixed Reversal Signals')return'#EF9F27';return'#777';}
+                          var oc = rdCol(rd.outcome);
+                          var isFallback = rd.ruleId.indexOf('FALLBACK') > -1 || rd.ruleId === 'REV_NOT_ENOUGH_DATA';
+                          return (
+                            <div style={{border:'0.5px solid #e8e4dc',borderRadius:8,marginTop:12,overflow:'hidden'}}>
+                              <div style={{padding:'8px 14px',background:'#faf8f4',borderBottom:'0.5px solid #e8e4dc',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                                <span style={{fontSize:11,fontWeight:700,color:'#555'}}>{"Why this reversal outcome?"}</span>
+                                <span style={{fontSize:9,fontWeight:700,color:isFallback?'#aaa':oc,background:isFallback?'#f0ede6':'#111',padding:'2px 7px',borderRadius:3}}>{rd.ruleId}</span>
+                              </div>
+                              <div style={{padding:'10px 14px'}}>
+                                <div style={{display:'flex',gap:20,marginBottom:8,flexWrap:'wrap'}}>
+                                  {[['Outcome',rd.outcome,oc],['Stage',rd.stage,'#666'],['Direction',rd.direction,'#666']].map(function(f){
+                                    return <div key={f[0]}>
+                                      <div style={{fontSize:8,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:2}}>{f[0]}</div>
+                                      <div style={{fontSize:11,fontWeight:700,color:f[2]}}>{f[1]}</div>
+                                    </div>;
+                                  })}
+                                </div>
+                                <div style={{fontSize:10,color:'#666',lineHeight:1.6,marginBottom:rd.triggeredConditions&&rd.triggeredConditions.length&&!isFallback?8:0}}>{rd.reason}</div>
+                                {!isFallback&&rd.triggeredConditions&&rd.triggeredConditions.length>0&&(
+                                  <div style={{marginTop:4}}>
+                                    <div style={{fontSize:8,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>{"Key condition(s) that triggered this outcome"}</div>
+                                    {rd.triggeredConditions.map(function(c,i){
+                                      if(!c.threshold&&c.threshold!==0) return null;
+                                      var pass = c.result;
+                                      return <div key={i} style={{fontSize:10,color:'#666',marginBottom:3,display:'flex',gap:6,alignItems:'center'}}>
+                                        <span style={{fontSize:10,color:pass?'#7abd00':'#e05050',fontWeight:700,flexShrink:0}}>{pass?'\u2713':'\u2717'}</span>
+                                        <span>{c.condition.replace('bullishC','Bullish C').replace('bearishC','Bearish C').replace('bullishT','Bullish T').replace('bearishT','Bearish T').replace('bullishS','Bullish S').replace('bearishS','Bearish S')}</span>
+                                        <span style={{fontWeight:700,color:oc}}>{c.actualValue}</span>
+                                        <span style={{color:'#aaa',fontSize:9}}>{'(threshold: '+c.threshold+')'}</span>
+                                      </div>;
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })()}
@@ -10715,10 +10756,11 @@ export function JournalPage() {
 
   function reversalColor(status) {
     if (!status) return "#555";
-    if (status.startsWith("Bullish") && (status.includes("Forming")||status.includes("Triggered")||status.includes("Confirmed"))) return "#7abd00";
-    if (status.startsWith("Bullish") && (status.includes("Watch")||status.includes("Spark"))) return "#6090d0";
-    if (status.startsWith("Bearish") && (status.includes("Forming")||status.includes("Triggered")||status.includes("Confirmed"))) return "#e05050";
-    if (status.startsWith("Bearish") && status.includes("Watch")) return "#EF9F27";
+    if (status === "Not Enough Data" || status === "No Clear Reversal") return "#555";
+    if (status.startsWith("Bullish") && (status.includes("Forming")||status.includes("Triggered")||status.includes("Confirmed")||status.includes("Confirming"))) return "#7abd00";
+    if (status.startsWith("Bullish") && (status.includes("Watch")||status.includes("Spark")||status.includes("Setup"))) return "#6090d0";
+    if (status.startsWith("Bearish") && (status.includes("Forming")||status.includes("Triggered")||status.includes("Confirmed")||status.includes("Confirming"))) return "#e05050";
+    if (status.startsWith("Bearish") && (status.includes("Watch")||status.includes("Setup"))) return "#EF9F27";
     if (status === "Mixed Reversal Signals") return "#EF9F27";
     return "#555";
   }
