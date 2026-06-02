@@ -4141,7 +4141,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       var bLbl  = getReversalDirectionStatus(rw.bullishSetupScore, rw.bullishTriggerScore, rw.bullishConfirmationScore, 'Bullish').label.replace('Reversal ','');
       var beLbl = getReversalDirectionStatus(rw.bearishSetupScore, rw.bearishTriggerScore, rw.bearishConfirmationScore, 'Bearish').label.replace('Reversal ','');
       if (!window.__revWatchStatus) window.__revWatchStatus = {};
-      window.__revWatchStatus[sym] = { status: rw.status, bullScore: rw.bullishScore, bearScore: rw.bearishScore };
+      window.__revWatchStatus[sym] = { status: rw.status, bullScore: rw.bullishScore, bearScore: rw.bearishScore, reversalDecision: rw.reversalDecision || null };
 
       // Legacy reversal signal arrays (supporting detail for sidebar + AI prompt)
       var sa = rw.signalArray || {};
@@ -4184,9 +4184,19 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       }
 
       // ── Rule Based Analytics — computed from enriched snapshot ─────────────
-      // snap already contains ohlcv, indicators, meta from buildTechnicalSnapshotFromMassive
+      // Augment snap with smCard.smartMoneyDecision so RBA uses new SMF model
       try {
-        var rba = generateRuleBasedAnalytics(snap);
+        var rbaSnap = Object.assign({}, snap);
+        if (smCard && smCard.smartMoneyDecision) {
+          rbaSnap.smartMoneyFlow = Object.assign({}, rbaSnap.smartMoneyFlow, {
+            smartMoneyDecision: smCard.smartMoneyDecision,
+            todayLabel:         smCard.todayLabel,
+            fiveDayLabel:       smCard.fiveDayLabel,
+            thirtyDayLabel:     smCard.thirtyDayLabel,
+          });
+        }
+        // momentumProfile will be injected when momLiveProfile loads (separate useEffect)
+        var rba = generateRuleBasedAnalytics(rbaSnap);
         if (rba) setRuleAnalytics(rba);
       } catch(rbaErr) { /* non-fatal */ }
 
@@ -4318,6 +4328,34 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       })
       .then(function(){ setMomLiveLoading(false); });
   }, [sym, massiveInfo]);
+
+  // ── Re-run Rule Based Analytics when Momentum Profile loads ───────────────
+  // momLiveProfile is fetched async; when it arrives, re-run RBA so momentum
+  // classification uses the Momentum Profile rather than daily-only status.
+  useEffect(function() {
+    if (!sym || !momLiveProfile || momLiveSym !== sym) return;
+    var smfCard2  = window.__smfScore && window.__smfScore[sym] ? window.__smfScore[sym] : null;
+    var revGlobal = window.__revWatchStatus && window.__revWatchStatus[sym];
+    var trendLbl  = window.__trendLabel || null;
+    try {
+      var rbaSnap2 = {
+        momentumProfile: momLiveProfile,
+        momentum: { status: window.__momLabel || 'Neutral', score: window.__momScore || 50 },
+        trend: trendLbl ? { status: trendLbl, score: window.__trendScore || 0 } : null,
+        reversalWatch: revGlobal ? {
+          status: revGlobal.status,
+          bullishScore: revGlobal.bullScore || 0,
+          bearishScore: revGlobal.bearScore || 0,
+          reversalDecision: revGlobal.reversalDecision || null,
+        } : null,
+        smartMoneyFlow: smfCard2 ? Object.assign({}, smfCard2, {
+          smartMoneyDecision: smfCard2.smartMoneyDecision || null,
+        }) : null,
+      };
+      var rba2 = generateRuleBasedAnalytics(rbaSnap2);
+      if (rba2) setRuleAnalytics(rba2);
+    } catch(e) { /* non-fatal */ }
+  }, [momLiveProfile, momLiveSym]);
 
   // -- Insight tab fetch -------------------------------------------------------
   function fetchInsight(tabId) {
@@ -4939,7 +4977,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.63</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.64</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4993,7 +5031,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.63</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.64</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -9362,7 +9400,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                     // Store for left panel
                     if (!window.__revWatchStatus) window.__revWatchStatus = {};
-                    window.__revWatchStatus[sym] = { status:revStatus.status, bullScore:bullScore, bearScore:bearScore };
+                    window.__revWatchStatus[sym] = { status:revStatus.status, bullScore:bullScore, bearScore:bearScore, reversalDecision:_revW&&_revW.reversalDecision?_revW.reversalDecision:null };
 
                     return (
                       <div>
@@ -11653,7 +11691,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.63</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.64</span>
           </div>
         </div>
 
