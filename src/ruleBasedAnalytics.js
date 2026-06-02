@@ -582,7 +582,167 @@ function _scenarioContent(scenarioId, ticker, trend, momentum, reversal, smCateg
   }
 }
 
-// ─── 5. generateRuleBasedAnalytics ───────────────────────────────────────────
+// ─── 5. Signal status helpers (transparent classification layer) ──────────────
+
+function getTrendCondition(trendStatus) {
+  var s = trendStatus || '';
+  var condMap = {
+    'Strong Uptrend':   { condition:'Uptrend Conditions',        bias:'bullish' },
+    'Uptrend':          { condition:'Uptrend Conditions',        bias:'bullish' },
+    'Weak Uptrend':     { condition:'Uptrend Conditions',        bias:'bullish' },
+    'Sideways':         { condition:'Sideways Conditions',       bias:'neutral' },
+    'Weak Downtrend':   { condition:'Downtrend Conditions',      bias:'bearish' },
+    'Downtrend':        { condition:'Downtrend Conditions',      bias:'bearish' },
+    'Strong Downtrend': { condition:'Downtrend Conditions',      bias:'bearish' },
+  };
+  var entry = condMap[s] || { condition:'Unclear Trend Conditions', bias:'unknown' };
+  var causeMap = {
+    'Strong Uptrend':'The trend is strongly upward.','Uptrend':'The trend is positive.',
+    'Weak Uptrend':'The trend is mildly positive.','Sideways':'No clear trend direction.',
+    'Weak Downtrend':'The trend is mildly weak.','Downtrend':'The trend is weak.',
+    'Strong Downtrend':'The trend is strongly downward.',
+  };
+  return { condition:entry.condition, bias:entry.bias, label:s||'Unknown', cause:causeMap[s]||'Trend direction is unclear.' };
+}
+
+function getMomentumStatus(momentumLabel, monthlyRegime) {
+  var profileMap = {
+    'Momentum Continuation':      { status:'bullish', strength:'strong',  cause:'Daily and weekly momentum are aligned positively.' },
+    'Early Recovery Attempt':     { status:'bullish', strength:'watch',   cause:'Daily momentum is improving before broader weekly confirmation.' },
+    'Waiting for Daily Trigger':  { status:'bullish', strength:'watch',   cause:'Weekly momentum is supportive, but daily momentum has not fully triggered.' },
+    'Pullback in Larger Momentum':{ status:'neutral', strength:'watch',   cause:'Larger momentum remains supportive, but daily momentum has pulled back.' },
+    'Weak Weekly Bounce':         { status:'neutral', strength:'weak',    cause:'Daily momentum is bouncing, but weekly momentum remains weak.' },
+    'Bearish Momentum':           { status:'bearish', strength:'strong',  cause:'Momentum is weak across key timeframes.' },
+    'No Clear Momentum Profile':  { status:'neutral', strength:'normal',  cause:'Momentum signals are mixed or unclear.' },
+    'Not Enough Data':            { status:'unknown', strength:'unknown', cause:'Not enough data to determine momentum profile.' },
+    'Strong':   { status:'bullish', strength:'strong',  cause:'Daily momentum is strong.' },
+    'Building': { status:'bullish', strength:'normal',  cause:'Daily momentum is building.' },
+    'Neutral':  { status:'neutral', strength:'normal',  cause:'Daily momentum is neutral.' },
+    'Fading':   { status:'bearish', strength:'weak',    cause:'Daily momentum is fading.' },
+    'Weak':     { status:'bearish', strength:'strong',  cause:'Daily momentum is weak.' },
+  };
+  var base = profileMap[momentumLabel] || { status:'unknown', strength:'unknown', cause:'Momentum status is unavailable.' };
+  var regimeAddon = {
+    'Supportive':    ' Larger timeframe is supportive.',
+    'Neutral':       ' Larger timeframe is neutral.',
+    'Weak':          ' Larger timeframe is a headwind.',
+  };
+  var cause = base.cause + (monthlyRegime && regimeAddon[monthlyRegime] ? regimeAddon[monthlyRegime] : '');
+  return { status:base.status, strength:base.strength, label:momentumLabel||'Unknown', cause:cause };
+}
+
+function getReversalStatus(reversalLabel) {
+  var revMap = {
+    'Bullish Reversal Confirmed':  { status:'bullish', strength:'strong',  cause:'Bullish reversal has price confirmation.' },
+    'Bullish Reversal Confirming': { status:'bullish', strength:'strong',  cause:'Price action is validating the bullish reversal.' },
+    'Bullish Reversal Triggered':  { status:'bullish', strength:'normal',  cause:'Bullish reversal trigger is active.' },
+    'Bullish Reversal Forming':    { status:'bullish', strength:'watch',   cause:'Bullish setup and trigger are building, but confirmation is not complete.' },
+    'Bullish Reversal Spark':      { status:'bullish', strength:'watch',   cause:'Early bullish momentum spark is appearing.' },
+    'Bullish Reversal Watch':      { status:'bullish', strength:'watch',   cause:'Early bullish reversal conditions are present.' },
+    'Bullish Reversal Setup':      { status:'bullish', strength:'watch',   cause:'Bullish setup conditions are present.' },
+    'Mixed Reversal Signals':      { status:'neutral', strength:'watch',   cause:'Bullish and bearish reversal evidence conflict.' },
+    'No Clear Reversal':           { status:'neutral', strength:'normal',  cause:'No clear reversal signal is present.' },
+    'Not Enough Data':             { status:'unknown', strength:'unknown', cause:'Not enough data to determine reversal signal.' },
+    'Bearish Reversal Confirmed':  { status:'bearish', strength:'strong',  cause:'Bearish reversal has price confirmation.' },
+    'Bearish Reversal Confirming': { status:'bearish', strength:'strong',  cause:'Price action is validating the bearish reversal.' },
+    'Bearish Reversal Triggered':  { status:'bearish', strength:'strong',  cause:'Bearish reversal trigger is active.' },
+    'Bearish Reversal Forming':    { status:'bearish', strength:'watch',   cause:'Bearish setup and trigger are building.' },
+    'Bearish Reversal Watch':      { status:'bearish', strength:'watch',   cause:'Early bearish warning conditions are present.' },
+    'Bearish Reversal Setup':      { status:'bearish', strength:'watch',   cause:'Bearish setup conditions are present.' },
+  };
+  // Handle generic Bearish* not in map
+  if (!revMap[reversalLabel] && reversalLabel && reversalLabel.indexOf('Bearish') === 0)
+    return { status:'bearish', strength:'watch', label:reversalLabel, cause:'Bearish reversal conditions are present.' };
+  var base = revMap[reversalLabel] || { status:'neutral', strength:'normal', cause:'No clear reversal signal is present.' };
+  return { status:base.status, strength:base.strength, label:reversalLabel||'No Clear Reversal', cause:base.cause };
+}
+
+function getSmartMoneyStatus(baseStatus, outcome, dailyPrefix) {
+  var smMap = {
+    'Strong Accumulation':   { status:'bullish', strength:'strong',  cause:'Strong accumulation is present across key money-flow timeframes.' },
+    'Steady Accumulation':   { status:'bullish', strength:'normal',  cause:'Steady accumulation is present, with longer timeframe support.' },
+    'Long-Term Accumulation':{ status:'bullish', strength:'watch',   cause:'Long-term accumulation remains positive, although short-term flow may have cooled.' },
+    'Early Accumulation':    { status:'bullish', strength:'watch',   cause:'Early accumulation is developing, with recent flow starting to support the setup.' },
+    'Cooling Accumulation':  { status:'neutral', strength:'watch',   cause:'Accumulation exists, but recent flow is cooling.' },
+    'Mixed Flow':            { status:'neutral', strength:'normal',  cause:'Money flow is mixed across timeframes.' },
+    'Short-Term Flow Spike': { status:'neutral', strength:'watch',   cause:'Short-term activity is elevated, but sustained accumulation is not yet confirmed.' },
+    'Short-Term Flow Watch': { status:'neutral', strength:'watch',   cause:'Short-term flow is present, but longer-term confirmation is weak.' },
+    'No Sustained Flow':     { status:'neutral', strength:'weak',    cause:'No sustained 5D/30D accumulation is present.' },
+    'No Clear Signal':       { status:'neutral', strength:'weak',    cause:'No meaningful smart money signal is present.' },
+    'Not Enough Data':       { status:'unknown', strength:'unknown', cause:'Not enough data to determine Smart Money Flow.' },
+    // Legacy
+    'Strong Multi-Timeframe Flow': { status:'bullish', strength:'strong', cause:'Strong accumulation is present across key money-flow timeframes.' },
+    'Accumulation Trend Positive': { status:'bullish', strength:'normal', cause:'Steady accumulation is present, with longer timeframe support.' },
+    'Constructive but Cooling':    { status:'neutral', strength:'watch',  cause:'Accumulation exists, but recent flow is cooling.' },
+    'Short-Term Spike':            { status:'neutral', strength:'watch',  cause:'Short-term activity is elevated, but sustained accumulation is not yet confirmed.' },
+  };
+  var src = baseStatus || outcome || 'No Clear Signal';
+  // Check for distribution/negative/deteriorating
+  if (src.indexOf('Distribution') !== -1 || src.indexOf('Negative') !== -1 || src.indexOf('Deteriorating') !== -1)
+    return { status:'bearish', strength:'normal', label:src, baseStatus:src, dailyPrefix:dailyPrefix||'', cause:'Money flow shows signs of distribution or deterioration.' };
+  // Special: No Sustained Flow with spike prefix
+  if ((src.indexOf('No Sustained Flow') !== -1 || (outcome && outcome.indexOf('No Sustained') !== -1))) {
+    var spikeCause = dailyPrefix === 'Daily Spike' ?
+      'Today shows a strong activity spike, but there is no sustained 5D/30D accumulation yet.' :
+      'No sustained 5D/30D accumulation is present.';
+    return { status:'neutral', strength:'watch', label:src, baseStatus:'No Sustained Flow', dailyPrefix:dailyPrefix||'', cause:spikeCause };
+  }
+  var base = smMap[src] || { status:'neutral', strength:'weak', cause:'No meaningful smart money signal is present.' };
+  // Daily prefix modifies cause only
+  var prefixAddons = {
+    'Daily Spike':   ' Today also shows a strong activity spike.',
+    'Daily Support': ' Today also shows supportive activity.',
+    'Quiet Day':     ' Today is quiet.',
+  };
+  var cause = base.cause + (dailyPrefix && prefixAddons[dailyPrefix] ? prefixAddons[dailyPrefix] : '');
+  return { status:base.status, strength:base.strength, label:outcome||src, baseStatus:src, dailyPrefix:dailyPrefix||'', cause:cause };
+}
+
+// ─── 5b. Matrix-based result determination ────────────────────────────────────
+
+var _MATRIX = {
+  'bullish-bullish-bullish':'Strong Bullish', 'bullish-bullish-neutral':'Bullish',
+  'bullish-bullish-bearish':'Caution',        'bullish-neutral-bullish':'Bullish',
+  'bullish-neutral-neutral':'Bullish Watch',  'bullish-neutral-bearish':'Caution',
+  'bullish-bearish-bullish':'Mixed / Caution','bullish-bearish-neutral':'Caution',
+  'bullish-bearish-bearish':'Bearish Watch',  'neutral-bullish-bullish':'Bullish Watch',
+  'neutral-bullish-neutral':'Bullish Watch',  'neutral-bullish-bearish':'Mixed / Caution',
+  'neutral-neutral-bullish':'Bullish Watch',  'neutral-neutral-neutral':'Neutral',
+  'neutral-neutral-bearish':'Bearish Watch',  'neutral-bearish-bullish':'Mixed / Caution',
+  'neutral-bearish-neutral':'Bearish Watch',  'neutral-bearish-bearish':'Bearish',
+  'bearish-bullish-bullish':'Risky Bounce',   'bearish-bullish-neutral':'Risky Bounce',
+  'bearish-bullish-bearish':'Mixed / Caution','bearish-neutral-bullish':'Mixed / Caution',
+  'bearish-neutral-neutral':'Bearish Watch',  'bearish-neutral-bearish':'Bearish',
+  'bearish-bearish-bullish':'Mixed / Caution','bearish-bearish-neutral':'Bearish',
+  'bearish-bearish-bearish':'Strong Bearish',
+};
+
+var _RESULT_TO_SCENARIO = {
+  'Strong Bullish':  'strong_bullish_alignment',
+  'Bullish':         'healthy_bullish_trend',
+  'Bullish Watch':   'sideways_recovery_setup',
+  'Risky Bounce':    'risky_bounce',
+  'Neutral':         'neutral_no_clear_edge',
+  'Caution':         'uptrend_losing_strength',
+  'Mixed / Caution': 'uptrend_losing_strength',
+  'Bearish Watch':   'bearish_watch',
+  'Bearish':         'bearish_control',
+  'Strong Bearish':  'strong_bearish_alignment',
+};
+
+function determineResultFromSignals(momSig, revSig, smSig) {
+  var m = momSig.status === 'unknown' ? 'neutral' : momSig.status;
+  var r = revSig.status === 'unknown' ? 'neutral' : revSig.status;
+  var s = smSig.status === 'unknown'  ? 'neutral' : smSig.status;
+  var key = m + '-' + r + '-' + s;
+  return _MATRIX[key] || 'Neutral';
+}
+
+function formatResultWithTrend(rawResult, trendObj) {
+  return rawResult + ' in ' + trendObj.condition;
+}
+
+// ─── 6. generateRuleBasedAnalytics ───────────────────────────────────────────
 
 /**
  * Main entry point. Accepts a pre-computed snapshot from
@@ -617,43 +777,52 @@ export function generateRuleBasedAnalytics(snapshot) {
   var price  = _extractPrice(snapshot);
   var close  = price != null ? '$' + price.toFixed(2) : 'N/A';
 
-  // ── Extract status strings using new decision objects where available ──────
-  var trendStatus  = snapshot.trend           && snapshot.trend.status;
+  // ── Extract status strings using decision objects where available ──────────
+  var trendStatus  = snapshot.trend && snapshot.trend.status;
 
-  // Momentum: prefer Momentum Profile, fall back to daily momentum
+  // Momentum: prefer Momentum Profile
   var momSnap = snapshot.momentum || null;
-  var momProfileSnap = (snapshot.momentumProfile) || (momSnap && momSnap.profile ? momSnap : null);
-  var momProfileLabel   = momProfileSnap && momProfileSnap.profile ? momProfileSnap.profile : null;
-  var momMonthlyRegime  = (momProfileSnap && momProfileSnap.monthlyRegime)
-    || (snapshot.momentum && snapshot.momentum.monthlyRegime)
-    || null;
+  var momProfileSnap = snapshot.momentumProfile || (momSnap && momSnap.profile ? momSnap : null);
+  var momProfileLabel  = momProfileSnap && momProfileSnap.profile  ? momProfileSnap.profile  : null;
+  var momMonthlyRegime = (momProfileSnap && momProfileSnap.monthlyRegime)
+    || (momSnap && momSnap.monthlyRegime) || null;
   var momStatus = momProfileLabel || (momSnap && momSnap.status) || null;
 
-  // Reversal: prefer reversalDecision.outcome, fall back to status
-  var revWatch = snapshot.reversalWatch || null;
+  // Reversal: prefer reversalDecision.outcome
+  var revWatch    = snapshot.reversalWatch || null;
   var revDecision = revWatch && revWatch.reversalDecision ? revWatch.reversalDecision : null;
   var revStatus   = (revDecision && revDecision.outcome) || (revWatch && revWatch.status) || null;
 
-  // Smart Money: prefer smartMoneyDecision.outcome, fall back to status
-  var smf = snapshot.smartMoneyFlow || null;
-  var smd = smf && smf.smartMoneyDecision ? smf.smartMoneyDecision : null;
-  var smfStatus = (smd && smd.outcome) || (smf && smf.status) || null;
+  // Smart Money: prefer smartMoneyDecision
+  var smf     = snapshot.smartMoneyFlow || null;
+  var smd     = smf && smf.smartMoneyDecision ? smf.smartMoneyDecision : null;
+  var smfBaseStatus  = (smd && smd.baseStatus)  || null;
+  var smfOutcome     = (smd && smd.outcome)     || (smf && smf.status) || null;
+  var smfDailyPrefix = (smd && smd.dailyPrefix) || null;
+  var smfStatus      = smfOutcome || null;
 
-  // ── Classify ──────────────────────────────────────────────────────────────
-  var trend           = classifyTrend(trendStatus);
-  var momentum        = classifyMomentum(momStatus);
-  var reversal        = classifyReversal(revStatus);
-  var smfClassified   = classifySmartMoney(smfStatus, smf);
-  var smCategory      = smfClassified.category;
-  var smDirection     = smfClassified.direction;
+  // ── New signal status layer ───────────────────────────────────────────────
+  var trendSig  = getTrendCondition(trendStatus);
+  var momSig    = getMomentumStatus(momStatus, momMonthlyRegime);
+  var revSig    = getReversalStatus(revStatus);
+  var smSig     = getSmartMoneyStatus(smfBaseStatus, smfOutcome, smfDailyPrefix);
 
-  // Match scenario
-  var scenarioId = _matchScenario(trend, momentum, reversal, smCategory, smDirection);
+  var rawResult    = determineResultFromSignals(momSig, revSig, smSig);
+  var finalResult  = formatResultWithTrend(rawResult, trendSig);
+  var scenarioId   = _RESULT_TO_SCENARIO[rawResult] || 'neutral_no_clear_edge';
 
-  // Build content
+  // ── Legacy classify (for backward-compat with _scenarioContent) ───────────
+  var trend     = classifyTrend(trendStatus);
+  var momentum  = classifyMomentum(momStatus);
+  var reversal  = classifyReversal(revStatus);
+  var smfCls    = classifySmartMoney(smfStatus, smf);
+  var smCategory = smfCls.category;
+  var smDirection= smfCls.direction;
+
+  // Build content using existing template engine
   var content = _scenarioContent(scenarioId, ticker, trend, momentum, reversal, smCategory, smDirection);
 
-  // Append "Constructive but Cooling" caution to summary when applicable
+  // Append cooling caution where applicable
   if (smCategory === 'positiveSmartMoney' && smDirection === 'cooling') {
     content = Object.assign({}, content, {
       summary: content.summary +
@@ -661,20 +830,41 @@ export function generateRuleBasedAnalytics(snapshot) {
     });
   }
 
-  // Build public-facing lines (no scores)
-  var smartMoneyLine           = _buildSmfLine(smCategory, smDirection, smfStatus);
-  var technicalIndicatorsLine  = _buildTechLine(trend, momentum, reversal);
+  // Override verdict with new format
+  content = Object.assign({}, content, { verdict: finalResult });
 
-  // Calculate key levels with actual price data
+  var smartMoneyLine          = _buildSmfLine(smCategory, smDirection, smfBaseStatus || smfStatus);
+  var technicalIndicatorsLine = _buildTechLine(trend, momentum, reversal);
   var kl = calculateKeyLevels(snapshot, scenarioId);
 
-  return {
-    // Scenario
-    scenarioId:   scenarioId,
-    verdict:      content.verdict,
-    tone:         content.tone,
+  // ── decisionTrace ─────────────────────────────────────────────────────────
+  var hasUnknown = momSig.status === 'unknown' || revSig.status === 'unknown' || smSig.status === 'unknown';
+  var reasonParts = [
+    'Result is ' + rawResult + ' because:',
+    'Momentum is ' + (momSig.status === 'unknown' ? 'unknown (treated as neutral)' : momSig.status) + ' (' + momSig.label + ').',
+    'Reversal is ' + (revSig.status === 'unknown' ? 'unknown (treated as neutral)' : revSig.status) + ' (' + revSig.label + ').',
+    'Smart Money is ' + (smSig.status === 'unknown' ? 'unknown (treated as neutral)' : smSig.status) + ' (' + smSig.label + ').',
+    'Trend is used as context: ' + trendSig.condition + '.',
+  ];
+  if (hasUnknown) reasonParts.push('Note: one or more signals had insufficient data and were treated as neutral.');
 
-    // Public commentary — NO numeric scores
+  var decisionTrace = {
+    trendCondition: { label:trendSig.label, condition:trendSig.condition, bias:trendSig.bias, cause:trendSig.cause },
+    momentum:  { label:momSig.label,  status:momSig.status,  strength:momSig.strength,  cause:momSig.cause },
+    reversal:  { label:revSig.label,  status:revSig.status,  strength:revSig.strength,  cause:revSig.cause },
+    smartMoney:{ label:smSig.label, baseStatus:smSig.baseStatus, dailyPrefix:smSig.dailyPrefix,
+                 status:smSig.status, strength:smSig.strength, cause:smSig.cause },
+    matrixInput:{ momentum:momSig.status, reversal:revSig.status, smartMoney:smSig.status },
+    rawResult:   rawResult,
+    finalResult: finalResult,
+    matchedScenarioId: scenarioId,
+    reason: reasonParts.join(' '),
+  };
+
+  return {
+    scenarioId:   scenarioId,
+    verdict:      finalResult,
+    tone:         content.tone,
     analysis:                content.analysis,
     keyLevels:               kl.keyLevelsText,
     closingPrice:            close,
@@ -683,38 +873,38 @@ export function generateRuleBasedAnalytics(snapshot) {
     smartMoneyLine:          smartMoneyLine,
     technicalIndicatorsLine: technicalIndicatorsLine,
     summary:                 content.summary,
-
-    // Key level details
     supportLevels:      kl.supportLevels,
     resistanceLevels:   kl.resistanceLevels,
     breakoutLevel:      kl.breakoutLevel,
     invalidationLevel:  kl.invalidationLevel,
     potentialEntryZone: kl.potentialEntryZone,
     entryZoneText:      kl.entryZoneText,
-
-    // Classified factor keys
     factorGroups: {
+      // New transparent factors
+      trendCondition:    trendSig.condition,
+      momentumStatus:    momSig.status,
+      reversalStatus:    revSig.status,
+      smartMoneyStatus:  smSig.status,
+      rawResult:         rawResult,
+      finalResult:       finalResult,
+      // Legacy (kept for backward compat with existing Simulator/journal)
       trend:               trend,
       momentum:            momentum,
       reversal:            reversal,
       smartMoney:          smCategory,
       smartMoneyDirection: smDirection,
-      // Extended context
-      monthlyRegime:       momMonthlyRegime  || null,
-      momentumProfile:     momProfileLabel   || null,
-      smartMoneyBaseStatus: smd && smd.baseStatus ? smd.baseStatus : null,
-      smartMoneyDailyPrefix: smd && smd.dailyPrefix ? smd.dailyPrefix : null,
+      monthlyRegime:       momMonthlyRegime   || null,
+      momentumProfile:     momProfileLabel    || null,
+      smartMoneyBaseStatus: smfBaseStatus     || null,
+      smartMoneyDailyPrefix: smfDailyPrefix   || null,
     },
-
-    // Original status strings for display — prefer richer labels
     factorLabels: {
-      trend:      trendStatus || 'N/A',
-      momentum:   momStatus   || 'N/A',
-      reversal:   revStatus   || 'N/A',
-      smartMoney: (smd && smd.outcome) || smfStatus || 'N/A',
+      trend:      trendStatus  || 'N/A',
+      momentum:   momStatus    || 'N/A',
+      reversal:   revStatus    || 'N/A',
+      smartMoney: smfOutcome   || smfStatus || 'N/A',
+      result:     finalResult,
     },
-
-    // Internal scores — developer/debug ONLY, never shown publicly
     debugScores: {
       trendScore:    snapshot.trend         && snapshot.trend.score,
       momentumScore: snapshot.momentum      && snapshot.momentum.score,
@@ -724,6 +914,7 @@ export function generateRuleBasedAnalytics(snapshot) {
       smfFiveDay:    smf && smf.fiveDayFlowScore,
       smfThirtyDay:  smf && smf.thirtyDayAccumulationScore,
     },
+    decisionTrace: decisionTrace,
   };
 }
 
