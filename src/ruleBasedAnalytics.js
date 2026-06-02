@@ -37,12 +37,23 @@ export function classifyTrend(status) {
 
 /**
  * Maps a momentum status string to an internal category key.
- * @param {string|null} status - e.g. "Building"
+ * Supports both Momentum Profile labels and legacy daily momentum labels.
+ * @param {string|null} status - e.g. "Momentum Continuation" or "Building"
  * @returns {string} category key
  */
 export function classifyMomentum(status) {
   if (!status) return 'unknownMomentum';
+  // Momentum Profile labels (priority)
   switch (status) {
+    case 'Momentum Continuation':      return 'strongMomentum';
+    case 'Early Recovery Attempt':     return 'buildingMomentum';
+    case 'Waiting for Daily Trigger':  return 'buildingMomentum';
+    case 'Pullback in Larger Momentum':return 'neutralMomentum';
+    case 'Weak Weekly Bounce':         return 'fadingMomentum';
+    case 'Bearish Momentum':           return 'weakMomentum';
+    case 'No Clear Momentum Profile':  return 'neutralMomentum';
+    case 'Not Enough Data':            return 'unknownMomentum';
+    // Legacy daily momentum labels
     case 'Strong':   return 'strongMomentum';
     case 'Building': return 'buildingMomentum';
     case 'Neutral':  return 'neutralMomentum';
@@ -56,7 +67,8 @@ export function classifyMomentum(status) {
 
 /**
  * Maps a reversal status string to an internal category key.
- * @param {string|null} status - e.g. "Bullish Reversal Watch"
+ * Accepts reversalDecision.outcome or the legacy status string.
+ * @param {string|null} status - e.g. "Bullish Reversal Confirmed"
  * @returns {string} category key
  */
 export function classifyReversal(status) {
@@ -70,12 +82,15 @@ export function classifyReversal(status) {
   if (
     status === 'Bullish Reversal Forming' ||
     status === 'Bullish Reversal Watch'   ||
-    status === 'Bullish Reversal Spark'
+    status === 'Bullish Reversal Spark'   ||
+    status === 'Bullish Reversal Setup'
   ) return 'earlyBullishReversal';
 
   if (status === 'Mixed Reversal Signals') return 'mixedReversal';
 
   if (status.indexOf('Bearish') === 0) return 'bearishReversal';
+
+  if (status === 'No Clear Reversal' || status === 'Not Enough Data') return 'noReversal';
 
   return 'noReversal';
 }
@@ -83,27 +98,67 @@ export function classifyReversal(status) {
 // ─── 4. classifySmartMoney ───────────────────────────────────────────────────
 
 /**
- * Maps smart money status to category + derives direction from sub-scores.
- * @param {string|null} status  - e.g. "Constructive but Cooling"
- * @param {object|null} smf     - snapshot.smartMoneyFlow object (may contain sub-scores)
+ * Maps smart money status to category + derives direction.
+ * Priority: smartMoneyDecision.baseStatus → smartMoneyDecision.outcome → status string.
+ * @param {string|null} status  - snapshot.smartMoneyFlow.status
+ * @param {object|null} smf     - snapshot.smartMoneyFlow object
  * @returns {{ category: string, direction: string }}
  */
 export function classifySmartMoney(status, smf) {
+  var smd = smf && smf.smartMoneyDecision ? smf.smartMoneyDecision : null;
+  var baseStatus  = smd && smd.baseStatus  ? smd.baseStatus  : null;
+  var outcome     = smd && smd.outcome     ? smd.outcome     : null;
+  var dailyPrefix = smd && smd.dailyPrefix ? smd.dailyPrefix : null;
+  // Use baseStatus as primary classification source; fall back through outcome → status
+  var classifyWith = baseStatus || outcome || status;
   return {
-    category:  _smfCategory(status),
-    direction: _smfDirection(status, smf),
+    category:  _smfCategory(classifyWith, baseStatus),
+    direction: _smfDirection(classifyWith, smf, dailyPrefix),
   };
 }
 
-function _smfCategory(status) {
+function _smfCategory(status, baseStatus) {
   if (!status) return 'neutralSmartMoney';
+
+  // ── New base statuses ─────────────────────────────────────────────────────
+  if (status === 'Strong Accumulation')            return 'strongSmartMoney';
+  if (status === 'Steady Accumulation')            return 'positiveSmartMoney';
+  if (status === 'Long-Term Accumulation')         return 'positiveSmartMoney';
+  if (status === 'Early Accumulation')             return 'earlySmartMoney';
+  if (status === 'Mixed Flow')                     return 'neutralSmartMoney';
+  if (status === 'Cooling Accumulation')           return 'positiveSmartMoney';
+  if (status === 'Short-Term Flow Spike')          return 'temporarySmartMoney';
+  if (status === 'Short-Term Flow Watch')          return 'temporarySmartMoney';
+  if (status === 'No Sustained Flow')              return 'neutralSmartMoney';
+
+  // ── Combined final statuses — classify by base, not prefix ────────────────
+  // Strong Accumulation base
+  if (status.indexOf('Strong Accumulation') !== -1)   return 'strongSmartMoney';
+  // Steady Accumulation base
+  if (status.indexOf('Steady Accumulation') !== -1)   return 'positiveSmartMoney';
+  // Long-Term Accumulation base
+  if (status.indexOf('Long-Term Accumulation') !== -1) return 'positiveSmartMoney';
+  // Early Accumulation base
+  if (status.indexOf('Early Accumulation') !== -1)    return 'earlySmartMoney';
+  // Mixed Flow base
+  if (status.indexOf('Mixed Flow') !== -1)            return 'neutralSmartMoney';
+  // Cooling Accumulation base
+  if (status.indexOf('Cooling Accumulation') !== -1)  return 'positiveSmartMoney';
+  // Short-Term Flow base
+  if (status.indexOf('Short-Term Flow Spike') !== -1) return 'temporarySmartMoney';
+  if (status.indexOf('Short-Term Flow Watch') !== -1) return 'temporarySmartMoney';
+  // No Sustained Flow (including "Daily Spike but No Sustained Flow")
+  if (status.indexOf('No Sustained Flow') !== -1)     return 'neutralSmartMoney';
+  if (status === 'No Clear Signal')                    return 'neutralSmartMoney';
+  if (status === 'Not Enough Data')                    return 'neutralSmartMoney';
+
+  // ── Legacy statuses ───────────────────────────────────────────────────────
   if (status === 'Strong Multi-Timeframe Flow')  return 'strongSmartMoney';
   if (status === 'Accumulation Trend Positive')  return 'positiveSmartMoney';
-  if (status === 'Constructive but Cooling')      return 'positiveSmartMoney';
-  if (status === 'Early Accumulation')            return 'earlySmartMoney';
-  if (status === 'Short-Term Spike')              return 'temporarySmartMoney';
-  if (status === 'No Clear Signal' ||
-      status === 'No Clear Flow')                 return 'neutralSmartMoney';
+  if (status === 'Constructive but Cooling')     return 'positiveSmartMoney';
+  if (status === 'Short-Term Spike')             return 'temporarySmartMoney';
+  if (status === 'No Clear Flow')                return 'neutralSmartMoney';
+
   // Negative indicators
   if (status.indexOf('Distribution')   !== -1 ||
       status.indexOf('Negative')        !== -1 ||
@@ -111,24 +166,21 @@ function _smfCategory(status) {
   return 'neutralSmartMoney';
 }
 
-function _smfDirection(status, smf) {
-  // Primary: derive from sub-scores when available
+function _smfDirection(status, smf, dailyPrefix) {
+  // Primary: derive from sub-scores when available (most reliable)
   if (smf) {
-    var today    = smf.todayActivityScore      != null ? smf.todayActivityScore      : null;
-    var fiveDay  = smf.fiveDayFlowScore        != null ? smf.fiveDayFlowScore        : null;
+    var today    = smf.todayActivityScore         != null ? smf.todayActivityScore         : null;
+    var fiveDay  = smf.fiveDayFlowScore           != null ? smf.fiveDayFlowScore           : null;
     var thirtyDay= smf.thirtyDayAccumulationScore != null ? smf.thirtyDayAccumulationScore : null;
 
     if (today !== null && fiveDay !== null && thirtyDay !== null) {
-      // Improving: short-term stronger than medium or medium stronger than long
       if (today > fiveDay || fiveDay > thirtyDay) return 'improving';
-      // Cooling: each timeframe weaker than the longer one, but still positive
       if (today < fiveDay && fiveDay < thirtyDay) {
         if (today < 20 && fiveDay < 30) return 'deteriorating';
         return 'cooling';
       }
       return 'stable';
     }
-
     if (today !== null && fiveDay !== null) {
       if (today > fiveDay)           return 'improving';
       if (today < fiveDay * 0.7)     return 'cooling';
@@ -136,13 +188,29 @@ function _smfDirection(status, smf) {
     }
   }
 
+  // Secondary: use dailyPrefix from smartMoneyDecision
+  if (dailyPrefix) {
+    if (dailyPrefix === 'Daily Spike')   return 'improving';
+    if (dailyPrefix === 'Daily Support') return 'stable';
+    if (dailyPrefix === 'Quiet Day') {
+      // Quiet day + cooling/long-term base = cooling; otherwise stable
+      if (status && (status.indexOf('Cooling Accumulation') !== -1 || status.indexOf('Long-Term Accumulation') !== -1))
+        return 'cooling';
+      return 'stable';
+    }
+    return 'unknown';
+  }
+
   // Fallback: infer from status text
   if (!status) return 'unknown';
   if (status === 'Strong Multi-Timeframe Flow')  return 'stable';
   if (status === 'Accumulation Trend Positive')  return 'stable';
-  if (status === 'Early Accumulation')            return 'improving';
-  if (status === 'Constructive but Cooling')      return 'cooling';
-  if (status === 'Short-Term Spike')              return 'improving';
+  if (status === 'Early Accumulation')           return 'improving';
+  if (status === 'Constructive but Cooling')     return 'cooling';
+  if (status === 'Short-Term Spike')             return 'improving';
+  if (status.indexOf('Daily Spike') === 0)       return 'improving';
+  if (status.indexOf('Daily Support') === 0)     return 'stable';
+  if (status.indexOf('Cooling Accumulation') !== -1) return 'cooling';
   return 'unknown';
 }
 
@@ -544,14 +612,29 @@ export function generateRuleBasedAnalytics(snapshot) {
   var price  = _extractPrice(snapshot);
   var close  = price != null ? '$' + price.toFixed(2) : 'N/A';
 
-  // Extract status strings
+  // ── Extract status strings using new decision objects where available ──────
   var trendStatus  = snapshot.trend           && snapshot.trend.status;
-  var momStatus    = snapshot.momentum        && snapshot.momentum.status;
-  var revStatus    = snapshot.reversalWatch   && snapshot.reversalWatch.status;
-  var smfStatus    = snapshot.smartMoneyFlow  && snapshot.smartMoneyFlow.status;
-  var smf          = snapshot.smartMoneyFlow  || null;
 
-  // Classify
+  // Momentum: prefer Momentum Profile, fall back to daily momentum
+  var momSnap = snapshot.momentum || null;
+  var momProfileSnap = (snapshot.momentumProfile) || (momSnap && momSnap.profile ? momSnap : null);
+  var momProfileLabel   = momProfileSnap && momProfileSnap.profile ? momProfileSnap.profile : null;
+  var momMonthlyRegime  = (momProfileSnap && momProfileSnap.monthlyRegime)
+    || (snapshot.momentum && snapshot.momentum.monthlyRegime)
+    || null;
+  var momStatus = momProfileLabel || (momSnap && momSnap.status) || null;
+
+  // Reversal: prefer reversalDecision.outcome, fall back to status
+  var revWatch = snapshot.reversalWatch || null;
+  var revDecision = revWatch && revWatch.reversalDecision ? revWatch.reversalDecision : null;
+  var revStatus   = (revDecision && revDecision.outcome) || (revWatch && revWatch.status) || null;
+
+  // Smart Money: prefer smartMoneyDecision.outcome, fall back to status
+  var smf = snapshot.smartMoneyFlow || null;
+  var smd = smf && smf.smartMoneyDecision ? smf.smartMoneyDecision : null;
+  var smfStatus = (smd && smd.outcome) || (smf && smf.status) || null;
+
+  // ── Classify ──────────────────────────────────────────────────────────────
   var trend           = classifyTrend(trendStatus);
   var momentum        = classifyMomentum(momStatus);
   var reversal        = classifyReversal(revStatus);
@@ -611,14 +694,19 @@ export function generateRuleBasedAnalytics(snapshot) {
       reversal:            reversal,
       smartMoney:          smCategory,
       smartMoneyDirection: smDirection,
+      // Extended context
+      monthlyRegime:       momMonthlyRegime  || null,
+      momentumProfile:     momProfileLabel   || null,
+      smartMoneyBaseStatus: smd && smd.baseStatus ? smd.baseStatus : null,
+      smartMoneyDailyPrefix: smd && smd.dailyPrefix ? smd.dailyPrefix : null,
     },
 
-    // Original status strings for display
+    // Original status strings for display — prefer richer labels
     factorLabels: {
-      trend:      trendStatus  || 'N/A',
-      momentum:   momStatus    || 'N/A',
-      reversal:   revStatus    || 'N/A',
-      smartMoney: smfStatus    || 'N/A',
+      trend:      trendStatus || 'N/A',
+      momentum:   momStatus   || 'N/A',
+      reversal:   revStatus   || 'N/A',
+      smartMoney: (smd && smd.outcome) || smfStatus || 'N/A',
     },
 
     // Internal scores — developer/debug ONLY, never shown publicly
