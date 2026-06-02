@@ -1043,6 +1043,28 @@ function summaryCardDark(verdict) {
                                                                  return { bg:'#241800', bd:'#b87820', text:'#b87820' };
   if (v.indexOf('bearish watch')!==-1 || v.indexOf('breakdown risk')!==-1)
                                                                  return { bg:'#1e1008', bd:'#c86820', text:'#c86820' };
+  // ── Reversal: Bearish active statuses must return red before generic keyword checks ──
+  if (v.indexOf('bearish reversal')!==-1 &&
+      (v.indexOf('triggered')!==-1||v.indexOf('confirmed')!==-1||v.indexOf('confirming')!==-1||v.indexOf('forming')!==-1))
+                                                                 return { bg:'#200808', bd:'#e05050', text:'#e05050' };
+  // ── Reversal: Bullish early statuses (Setup, Spark) should be blue, not green ──
+  if (v.indexOf('bullish reversal setup')!==-1 || v.indexOf('bullish reversal spark')!==-1)
+                                                                 return { bg:'#0a1828', bd:'#6090d0', text:'#6090d0' };
+  // ── Smart Money Flow: combined status overrides ──────────────────────────────
+  // Green: strong or steady accumulation (with any prefix)
+  if (v.indexOf('strong accumulation')!==-1 || v.indexOf('steady accumulation')!==-1)
+                                                                 return { bg:'#0d200d', bd:'#7abd00', text:'#7abd00' };
+  // Blue: long-term or early accumulation (with any prefix)
+  if (v.indexOf('long-term accumulation')!==-1 || v.indexOf('early accumulation')!==-1)
+                                                                 return { bg:'#0a1828', bd:'#6090d0', text:'#6090d0' };
+  // Amber: cooling, mixed flow, short-term flow, or no-sustained-flow prefix variants
+  if (v.indexOf('cooling accumulation')!==-1 || v.indexOf('mixed flow')!==-1 ||
+      v.indexOf('short-term flow')!==-1 ||
+      v.indexOf('no sustained flow')!==-1 || v.indexOf('but no sustained')!==-1)
+                                                                 return { bg:'#2a1800', bd:'#EF9F27', text:'#EF9F27' };
+  // Grey: no clear signal / not enough data
+  if (v==='no clear signal' || v==='no sustained flow' || v==='not enough data')
+                                                                 return { bg:'#1a1a1a', bd:'#333', text:'#555' };
   // Tier 1 — exceptional / wide / strong uptrend / strong (momentum) / confirmed
   if (v.indexOf('exceptional')!==-1 || v.indexOf('wide')!==-1 ||
       v.indexOf('strong uptrend')!==-1 || v.indexOf('strong multi')!==-1 ||
@@ -4119,7 +4141,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       var bLbl  = getReversalDirectionStatus(rw.bullishSetupScore, rw.bullishTriggerScore, rw.bullishConfirmationScore, 'Bullish').label.replace('Reversal ','');
       var beLbl = getReversalDirectionStatus(rw.bearishSetupScore, rw.bearishTriggerScore, rw.bearishConfirmationScore, 'Bearish').label.replace('Reversal ','');
       if (!window.__revWatchStatus) window.__revWatchStatus = {};
-      window.__revWatchStatus[sym] = { status: rw.status, bLbl: bLbl||'No Signal', beLbl: beLbl||'No Signal', bullScore: rw.bullishScore, bearScore: rw.bearishScore };
+      window.__revWatchStatus[sym] = { status: rw.status, bullScore: rw.bullishScore, bearScore: rw.bearishScore };
 
       // Legacy reversal signal arrays (supporting detail for sidebar + AI prompt)
       var sa = rw.signalArray || {};
@@ -4917,7 +4939,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.62</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.63</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4971,7 +4993,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.62</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.63</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -9340,7 +9362,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                     // Store for left panel
                     if (!window.__revWatchStatus) window.__revWatchStatus = {};
-                    window.__revWatchStatus[sym] = { status:revStatus.status, bLbl:bLbl, beLbl:beLbl, bullScore:bullScore, bearScore:bearScore };
+                    window.__revWatchStatus[sym] = { status:revStatus.status, bullScore:bullScore, bearScore:bearScore };
 
                     return (
                       <div>
@@ -11631,7 +11653,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.62</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.63</span>
           </div>
         </div>
 
