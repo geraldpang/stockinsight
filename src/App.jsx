@@ -3598,7 +3598,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); setRuleAnalytics(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; if(window.__trendSignalWritten)delete window.__trendSignalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); setRuleAnalytics(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; if(window.__trendSignalWritten)delete window.__trendSignalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; if(window.__rbaFullSnap)delete window.__rbaFullSnap[sym]; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -4195,6 +4195,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             thirtyDayLabel:     smCard.thirtyDayLabel,
           });
         }
+        // Store the full enriched snap so the momLiveProfile re-run can augment it
+        window.__rbaFullSnap = window.__rbaFullSnap || {};
+        window.__rbaFullSnap[sym] = rbaSnap;
         // momentumProfile will be injected when momLiveProfile loads (separate useEffect)
         var rba = generateRuleBasedAnalytics(rbaSnap);
         if (rba) setRuleAnalytics(rba);
@@ -4334,24 +4337,29 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   // classification uses the Momentum Profile rather than daily-only status.
   useEffect(function() {
     if (!sym || !momLiveProfile || momLiveSym !== sym) return;
+    // Use the full augmented snap stored by the massiveInfo useEffect, so
+    // calculateKeyLevels has access to ohlcv, indicators, meta, and price.
+    var fullSnap = window.__rbaFullSnap && window.__rbaFullSnap[sym];
+    if (!fullSnap) return; // full snap not yet ready — massiveInfo runs first
     var smfCard2  = window.__smfScore && window.__smfScore[sym] ? window.__smfScore[sym] : null;
     var revGlobal = window.__revWatchStatus && window.__revWatchStatus[sym];
-    var trendLbl  = window.__trendLabel || null;
     try {
-      var rbaSnap2 = {
+      var rbaSnap2 = Object.assign({}, fullSnap, {
         momentumProfile: momLiveProfile,
-        momentum: { status: window.__momLabel || 'Neutral', score: window.__momScore || 50 },
-        trend: trendLbl ? { status: trendLbl, score: window.__trendScore || 0 } : null,
-        reversalWatch: revGlobal ? {
+      });
+      // Patch in latest reversal global (may have updated since massiveInfo ran)
+      if (revGlobal) {
+        rbaSnap2.reversalWatch = Object.assign({}, rbaSnap2.reversalWatch, {
           status: revGlobal.status,
-          bullishScore: revGlobal.bullScore || 0,
-          bearishScore: revGlobal.bearScore || 0,
-          reversalDecision: revGlobal.reversalDecision || null,
-        } : null,
-        smartMoneyFlow: smfCard2 ? Object.assign({}, smfCard2, {
-          smartMoneyDecision: smfCard2.smartMoneyDecision || null,
-        }) : null,
-      };
+          reversalDecision: revGlobal.reversalDecision || rbaSnap2.reversalWatch && rbaSnap2.reversalWatch.reversalDecision || null,
+        });
+      }
+      // Patch in latest smCard
+      if (smfCard2 && smfCard2.smartMoneyDecision) {
+        rbaSnap2.smartMoneyFlow = Object.assign({}, rbaSnap2.smartMoneyFlow, {
+          smartMoneyDecision: smfCard2.smartMoneyDecision,
+        });
+      }
       var rba2 = generateRuleBasedAnalytics(rbaSnap2);
       if (rba2) setRuleAnalytics(rba2);
     } catch(e) { /* non-fatal */ }
@@ -4977,7 +4985,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.64</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.65</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5031,7 +5039,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.64</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.65</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11691,7 +11699,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.64</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.65</span>
           </div>
         </div>
 
