@@ -713,6 +713,7 @@ export function calculateTechnicalSignalSnapshot(input) {
       bearishSetupScore:         reversal.bearishSetupScore,
       bearishTriggerScore:       reversal.bearishTriggerScore,
       bearishConfirmationScore:  reversal.bearishConfirmationScore,
+      reversalDecision:          reversal.reversalDecision,
       signalArray:               revSigArr,
     },
     smartMoneyFlow: {
