@@ -44,8 +44,16 @@ function revDirLabelColor(lbl, isBullish, variant) {
 }
 function smfStatusColor(status, variant) {
   var v = variant||"main";
-  if (!status) return v==="darkbg"?"#1a1a1a":_CLR.grey[v];
+  if (!status||status==="Not Enough Data"||status==="No Clear Signal"||status==="No Sustained Flow") return v==="darkbg"?"#1a1a1a":_CLR.grey[v];
   if (v==="darkbg") return summaryCardDark(status).bg;
+  // Green: Strong Accumulation (all prefixes); Steady Accumulation with Spike or Support prefix
+  if (status.indexOf("Strong Accumulation")>-1) return _CLR.green[v];
+  if ((status.indexOf("Daily Spike")===0||status.indexOf("Daily Support")===0)&&status.indexOf("Steady Accumulation")>-1) return _CLR.green[v];
+  // Blue: Quiet Day + Steady Accumulation, Long-Term Accumulation, Early Accumulation
+  if (status.indexOf("Steady Accumulation")>-1||status.indexOf("Long-Term Accumulation")>-1||status.indexOf("Early Accumulation")>-1) return _CLR.blue[v];
+  // Amber: Mixed Flow, Cooling Accumulation, Short-Term Flow*, No Sustained Flow variants
+  if (status.indexOf("Mixed Flow")>-1||status.indexOf("Cooling Accumulation")>-1||status.indexOf("Short-Term Flow")>-1||status.indexOf("No Sustained Flow")>-1) return _CLR.amber[v];
+  // Legacy statuses (journal / snapshot compat)
   if (status==="Strong Multi-Timeframe Flow"||status==="Accumulation Trend Positive") return _CLR.green[v];
   if (status==="Constructive but Cooling"||status==="Early Accumulation") return _CLR.blue[v];
   if (status==="Short-Term Spike") return _CLR.amber[v];
@@ -4909,7 +4917,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.59</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.60</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4963,7 +4971,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.59</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.60</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5563,7 +5571,23 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             "Constructive but Cooling":"Constructive","Early Accumulation":"Early Flow",
                             "Short-Term Spike":"Spike","No Clear Signal":"No Signal"
                           };
-                          var _smfStatus  = _smf ? (_smfMap[_smf.status]||_smf.status) : "No Data";
+                          // For new long statuses, truncate intelligently
+                          function _smfShort(s) {
+                            if (!s) return "No Data";
+                            if (_smfMap[s]) return _smfMap[s];
+                            if (s.indexOf("Strong Accumulation")>-1) return "Strong Accum.";
+                            if (s.indexOf("Steady Accumulation")>-1) return "Steady Accum.";
+                            if (s.indexOf("Long-Term Accumulation")>-1) return "LT Accumulation";
+                            if (s.indexOf("Early Accumulation")>-1) return "Early Accum.";
+                            if (s.indexOf("Mixed Flow")>-1) return "Mixed Flow";
+                            if (s.indexOf("Cooling Accumulation")>-1) return "Cooling";
+                            if (s.indexOf("Short-Term Flow Spike")>-1) return "ST Flow Spike";
+                            if (s.indexOf("Short-Term Flow Watch")>-1) return "ST Flow Watch";
+                            if (s.indexOf("No Sustained Flow")>-1) return "No Sustained";
+                            if (s.indexOf("No Clear Signal")>-1) return "No Signal";
+                            return s.length > 18 ? s.slice(0, 16) + "\u2026" : s;
+                          }
+                          var _smfStatus  = _smf ? _smfShort(_smf.status) : "No Data";
                           var _smfMainCol = smfStatusColor(_smf ? _smf.status : null, "main");
                           var _tLbl = _smf ? (_smf.todayLabel   ||"N/A") : "N/A";
                           var _fLbl = _smf ? (_smf.fiveDayLabel ||"N/A") : "N/A";
@@ -9510,33 +9534,40 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                     return (
                       <div>
-                        {/* Summary Card — matches screenshot layout */}
+                        {/* Summary Card */}
                         {smCard.primaryScore !== null && (
                           <div style={{ border:"0.5px solid "+_sBd, borderRadius:10, marginBottom:16, background:smfStatusColor(smCard.status,"darkbg"), padding:"14px 16px" }}>
                             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                               <div style={{ flex:1 }}>
                                 <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>Smart Money Flow</div>
                                 <div style={{ fontSize:14, fontWeight:700, color:_sCol, marginBottom:4 }}>{smCard.status}</div>
-                                <div style={{ fontSize:11, color:"#666", lineHeight:1.5 }}>{smCard.explanation}</div>
-                                <div style={{ marginTop:8 }}>
+                                <div style={{ fontSize:11, color:"#666", lineHeight:1.5, marginBottom:8 }}>
+                                  {smCard.smartMoneyDecision ? smCard.smartMoneyDecision.reason : smCard.explanation}
+                                </div>
+                                {smCard.smartMoneyDecision && smCard.smartMoneyDecision.ruleId && (
+                                  <div style={{ fontSize:10, color:"#666", background:"rgba(0,0,0,0.15)", borderRadius:5, padding:"6px 10px", marginBottom:8 }}>
+                                    <div style={{ fontWeight:700, color:"#aaa", marginBottom:3 }}>{"Why this outcome?"}</div>
+                                    <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:3 }}>
+                                      <span style={{ fontSize:9, color:"#999" }}>Rule: <span style={{ fontWeight:700, color:_sCol }}>{smCard.smartMoneyDecision.ruleId}</span></span>
+                                      <span style={{ fontSize:9, color:"#999" }}>Daily: <span style={{ fontWeight:600, color:"#ccc" }}>{smCard.smartMoneyDecision.dailyPrefix}</span></span>
+                                      <span style={{ fontSize:9, color:"#999" }}>Base: <span style={{ fontWeight:600, color:"#ccc" }}>{smCard.smartMoneyDecision.baseStatus}</span></span>
+                                    </div>
+                                    {smCard.smartMoneyDecision.triggeredConditions && smCard.smartMoneyDecision.triggeredConditions.map(function(c,i){
+                                      if(!c) return null;
+                                      return <div key={i} style={{ fontSize:9, color:"#aaa", marginTop:2 }}>
+                                        <span style={{ color:"#7abd00", fontWeight:700, marginRight:4 }}>{"\u2713"}</span>
+                                        {c.condition}: <span style={{ fontWeight:700, color:_sCol }}>{c.actualValue}</span>
+                                        {c.band && <span style={{ color:"#555", marginLeft:4 }}>{" \u2192 "+c.band}</span>}
+                                      </div>;
+                                    })}
+                                  </div>
+                                )}
+                                <div>
                                   <details>
                                     <summary style={{ fontSize:10, color:"#bbb", cursor:"pointer", outline:"none", listStyle:"none", display:"flex", alignItems:"center", gap:4 }}>
                                       <span style={{ fontSize:9, color:"#ccc" }}>{"▶"}</span><span>{"How is this scored?"}</span>
                                     </summary>
-                                    <div style={{ fontSize:10, color:"#666", lineHeight:1.8, padding:"6px 0", whiteSpace:"pre-line" }}>{
-                                      "Three timeframes are scored 0–100 and combined into an overall status.\n\n" +
-                                      "Today Activity (OBV direction 20% + Volume Surge 30% + Vol/Price Divergence 35% + Strong Close 15%)\n" +
-                                      "Short-Term Flow / 5-Day (OBV net 35% + Volume avg 25% + Vol/Price 25% + Strong Close 15%)\n" +
-                                      "30-Day Accumulation (OBV trend 40% + High-vol green days 25% + Price stability 20% + Strong close freq 15%)\n\n" +
-                                      "Score labels: Low (0\u201330) | Mild (31\u201350) | Moderate (51\u201370) | High (71\u201385) | Very High (86\u2013100)\n\n" +
-                                      "Overall status:\n" +
-                                      "  Strong Multi-Timeframe Flow \u2014 Today, 5D, and 30D all High+\n" +
-                                      "  Accumulation Trend Positive \u2014 5D and 30D High+, Today quieter\n" +
-                                      "  Early Accumulation \u2014 Today and 5D High+, 30D not yet confirmed\n" +
-                                      "  Constructive but Cooling \u2014 30D High+, Today and 5D mild\n" +
-                                      "  Short-Term Spike \u2014 Today High+, limited broader support\n" +
-                                      "  No Clear Signal \u2014 no timeframe shows High+ activity"
-                                    }</div>
+                                    <div style={{ fontSize:10, color:"#666", lineHeight:1.8, padding:"6px 0", whiteSpace:"pre-line" }}>{"Smart Money Flow status = Daily Activity Prefix + Base Flow Status\n\nBase status from 5-Day \xd7 30-Day:\n  High \xd7 High \u2192 Strong Accumulation\n  Moderate \xd7 High \u2192 Steady Accumulation\n  Weak \xd7 High \u2192 Long-Term Accumulation\n  High \xd7 Moderate \u2192 Early Accumulation\n  Moderate \xd7 Moderate \u2192 Mixed Flow\n  Weak \xd7 Moderate \u2192 Cooling Accumulation\n  High \xd7 Weak \u2192 Short-Term Flow Spike\n  Moderate \xd7 Weak \u2192 Short-Term Flow Watch\n  Weak \xd7 Weak \u2192 No Sustained Flow\n\nScore bands: High \u2265 71 | Moderate 51\u201370 | Weak < 51\nDaily prefix: \u2265 71 \u2192 Daily Spike | 51\u201370 \u2192 Daily Support | < 51 \u2192 Quiet Day\n\nScore components:\n  Today Activity: OBV direction 20% + Volume Surge 30% + Vol/Price 35% + Strong Close 15%\n  5-Day Flow: OBV net 35% + Volume avg 25% + Vol/Price 25% + Strong Close 15%\n  30-Day Accumulation: OBV trend 40% + HV green days 25% + Price stability 20% + Close freq 15%"}</div>
                                   </details>
                                 </div>
                               </div>
@@ -9553,9 +9584,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             </div>
                           </div>
                         )}
-
                         {SignalCard({ sig:todaySig, title:"Today Activity", subtitle:"Is something unusual happening today?", unavailMsg: validation.errors.join(" ") })}
-                        {SignalCard({ sig:fiveDaySig, title:"Short-Term Flow", subtitle:"Is short-term accumulation starting?", unavailMsg:"Not enough data for Short-Term Flow. At least 6 trading days required." })}
+                        {SignalCard({ sig:fiveDaySig, title:"5-Day Flow", subtitle:"Is short-term accumulation starting?", unavailMsg:"Not enough data for 5-Day Flow. At least 6 trading days required." })}
                         {SignalCard({ sig:thirtyDaySig, title:"30-Day Accumulation Trend", subtitle:"Has accumulation been building over time?", unavailMsg:"Not enough data for 30-Day Accumulation Trend. At least 30 trading days of OHLCV data is required." })}
 
                         {interp && (
@@ -11568,7 +11598,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.59</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.60</span>
           </div>
         </div>
 
@@ -11764,13 +11794,21 @@ export default function App() {
                   function cSmfLbl(status) {
                     if (!status) return String.fromCharCode(0x2014);
                     var sl = status.toLowerCase();
-                    if (sl.indexOf('no clear')!==-1) return String.fromCharCode(0x2014);
-                    if (sl.indexOf('strong multi')!==-1)       return 'Strong Flow';
+                    if (sl.indexOf('no clear')!==-1||sl.indexOf('no sustained')!==-1) return String.fromCharCode(0x2014);
+                    if (sl.indexOf('strong accumulation')!==-1) return 'Strong Accum.';
+                    if (sl.indexOf('steady accumulation')!==-1) return 'Steady Accum.';
+                    if (sl.indexOf('long-term accumulation')!==-1) return 'LT Accum.';
+                    if (sl.indexOf('early accumulation')!==-1) return 'Early Accum.';
+                    if (sl.indexOf('mixed flow')!==-1) return 'Mixed Flow';
+                    if (sl.indexOf('cooling accumulation')!==-1) return 'Cooling';
+                    if (sl.indexOf('short-term flow spike')!==-1) return 'ST Spike';
+                    if (sl.indexOf('short-term flow watch')!==-1) return 'ST Watch';
+                    if (sl.indexOf('strong multi')!==-1) return 'Strong Flow';
                     if (sl.indexOf('accumulation trend')!==-1) return 'Accumulating';
                     if (sl.indexOf('early accumulation')!==-1) return 'Early Accum.';
-                    if (sl.indexOf('constructive')!==-1)       return 'Constructive';
-                    if (sl.indexOf('short-term spike')!==-1)   return 'ST Spike';
-                    return status;
+                    if (sl.indexOf('constructive')!==-1) return 'Constructive';
+                    if (sl.indexOf('short-term spike')!==-1) return 'ST Spike';
+                    return status.length > 16 ? status.slice(0,14) + String.fromCharCode(0x2026) : status;
                   }
                   return tickerSignals.map(function(sig, i) {
                   var price    = sig.price || 0;
