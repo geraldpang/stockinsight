@@ -4917,7 +4917,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.61</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.62</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4971,7 +4971,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.61</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.62</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5411,7 +5411,31 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                   return (
                     <div style={{display:"flex",flexDirection:"column"}}>
-                      <TechRow label="Trend" value={_hasTech?_trendLabel:"--"} score={_trendDots} dotCol={_trendCol.dot} valCol={_trendCol.fg} caution={_trendCaution} loading={!_hasTech} tab="trend" />
+                      {(function(){
+                        var _trendSubMap = {
+                          "Strong Uptrend":"Price trend is strong","Uptrend":"Trend is positive",
+                          "Weak Uptrend":"Trend is mildly positive","Sideways":"No clear trend direction",
+                          "Weak Downtrend":"Trend is mildly weak","Downtrend":"Trend is weak",
+                          "Strong Downtrend":"Strong downward trend","Not Enough Data":"Insufficient data"
+                        };
+                        var _tl = _hasTech ? _trendLabel : "--";
+                        var _tsub = _hasTech ? (_trendSubMap[_trendLabel] || null) : null;
+                        var _tcol = _hasTech ? _trendCol.fg : "#555";
+                        return (
+                          <div onClick={function(){ window.__goToTab && window.__goToTab("trend"); }}
+                            style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
+                            onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
+                            onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
+                            <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>Trend</span>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:12,fontWeight:600,color:_tcol,lineHeight:1.3}}>{_tl}</div>
+                              {_tsub&&<div style={{fontSize:9,color:"#555",marginTop:1}}>{_tsub}</div>}
+                            </div>
+                            {_trendCaution&&<span style={{fontSize:8,fontWeight:700,color:"#b88000",background:"#2a2010",border:"0.5px solid #4a3810",borderRadius:3,padding:"1px 5px",flexShrink:0,marginRight:6}}>{"CAUTION"}</span>}
+                            <span style={{fontSize:11,color:"#444",flexShrink:0}}>{"›"}</span>
+                          </div>
+                        );
+                      })()}
                       {(function(){
                         var _lp = momLiveSym===sym ? momLiveProfile : null;
                         function _sp(p){if(p==='Momentum Continuation') return 'Continuation';if(p==='Early Recovery Attempt') return 'Recovery';if(p==='Weak Weekly Bounce') return 'Weak Bounce';if(p==='Waiting for Daily Trigger') return 'Waiting';if(p==='Pullback in Larger Momentum') return 'Pullback';if(p==='Bearish Momentum') return 'Bearish';if(p==='No Clear Momentum Profile') return 'Unclear';if(p==='Not Enough Data') return 'No Data';return 'No Data';}
@@ -11607,7 +11631,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.61</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.62</span>
           </div>
         </div>
 
