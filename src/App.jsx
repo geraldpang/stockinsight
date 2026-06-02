@@ -4917,7 +4917,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.60</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.61</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4971,7 +4971,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.60</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.61</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5419,21 +5419,23 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         var _sp2 = _lp ? _sp(_lp.profile) : (momLiveLoading ? '...' : 'No Data');
                         var _spc = _sp2==='Continuation'?'#7abd00':_sp2==='Recovery'?'#6090d0':_sp2==='Pullback'?'#6090d0':_sp2==='Waiting'?'#b88000':_sp2==='Weak Bounce'?'#b88000':_sp2==='Bearish'?'#c03030':'#aaa';
                         var _d = _hasTech && _momLabel && _momLabel!=='--' ? _momLabel : '--';
-                        var _w = _lp ? (_lp.weekly==='Not Enough Data'?'No Data':_lp.weekly||'--') : 'No Data';
-                        var _m = _lp ? (_lp.monthlyRegime==='Not Enough Data'?'No Data':_lp.monthlyRegime||'--') : 'No Data';
+                        var _w = _lp ? (_lp.weekly==='Not Enough Data'?'No data':_lp.weekly||'--') : 'No data';
+                        var _m = _lp ? (_lp.monthlyRegime==='Not Enough Data'?'No data':_lp.monthlyRegime||'--') : 'No data';
+                        // Build compact subtitle: "D Strong · W Building · M Neutral"
+                        var _momSub = _lp
+                          ? ('D '+(_d||'--')+((_w&&_w!=='No data')?' \u00b7 W '+_w:'')+((_m&&_m!=='No data')?' \u00b7 M '+_m:''))
+                          : null;
                         return (
                           <div onClick={function(){ window.__goToTab && window.__goToTab('momentum'); }}
                             style={{display:'flex',alignItems:'center',padding:'11px 12px',borderBottom:'0.5px solid #242424',cursor:'pointer',minHeight:44}}
                             onMouseEnter={function(e){e.currentTarget.style.background='#252525';}}
                             onMouseLeave={function(e){e.currentTarget.style.background='transparent';}}>
                             <span style={{fontSize:11,color:'#666',width:110,flexShrink:0}}>Momentum</span>
-                            <span style={{fontSize:12,fontWeight:600,color:_spc,flex:1}}>{_sp2}</span>
-                            <div style={{textAlign:'right',marginRight:6,flexShrink:0}}>
-                              <div style={{fontSize:9,color:'#555',marginBottom:1}}>D: <span style={{fontWeight:600,color:_sc(_d)}}>{_d}</span></div>
-                              <div style={{fontSize:9,color:'#555',marginBottom:1}}>W: <span style={{fontWeight:600,color:_sc(_w)}}>{_w}</span></div>
-                              <div style={{fontSize:9,color:'#555'}}>M: <span style={{fontWeight:600,color:_sc(_m)}}>{_m}</span></div>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:12,fontWeight:600,color:_spc,lineHeight:1.3}}>{_sp2}</div>
+                              {_momSub&&<div style={{fontSize:9,color:'#555',marginTop:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{_momSub}</div>}
                             </div>
-                            <span style={{fontSize:11,color:'#444'}}>{'›'}</span>
+                            <span style={{fontSize:11,color:'#444',flexShrink:0}}>{'›'}</span>
                           </div>
                         );
                       })()}
@@ -5528,90 +5530,97 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     return (
                       <div>
                         {(function(){
-                          // ── Reversal row — matches TechRow layout ──────────────────────────────
+                          // ── Reversal row ──────────────────────────────────────────────────────
                           var _rw = window.__revWatchStatus && window.__revWatchStatus[sym];
-                          var _rwCompact = {
-                            "Bullish Reversal Watch":"Bullish Watch","Bullish Reversal Forming":"Bullish Forming",
-                            "Bullish Reversal Triggered":"Bullish Triggered","Bullish Reversal Confirmed":"Bullish Confirmed",
-                            "Bullish Reversal Confirming":"Bull Confirming","Bullish Reversal Spark":"Spark",
-                            "Bearish Reversal Watch":"Bearish Watch","Bearish Reversal Forming":"Bearish Forming",
-                            "Bearish Reversal Triggered":"Bearish Triggered","Bearish Reversal Confirmed":"Bearish Confirmed",
-                            "Mixed Reversal Signals":"Mixed Signals","No Clear Reversal":"No Signal","Not Enough Data":"No Data"
+                          var _revShortMap = {
+                            "Bullish Reversal Confirmed":"Bullish Confirmed","Bullish Reversal Triggered":"Bullish Triggered",
+                            "Bullish Reversal Setup":"Bullish Setup","Bullish Reversal Watch":"Bullish Watch",
+                            "Bullish Reversal Spark":"Bullish Spark","Bullish Reversal Forming":"Bullish Forming",
+                            "Bullish Reversal Confirming":"Bullish Confirming",
+                            "Bearish Reversal Confirmed":"Bearish Confirmed","Bearish Reversal Triggered":"Bearish Triggered",
+                            "Bearish Reversal Setup":"Bearish Setup","Bearish Reversal Watch":"Bearish Watch",
+                            "Bearish Reversal Forming":"Bearish Forming","Bearish Reversal Confirming":"Bearish Confirming",
+                            "Mixed Reversal Signals":"Mixed Signals","No Clear Reversal":"No Clear Signal","Not Enough Data":"No Data"
                           };
-                          var _rwStatus  = _rw ? (_rwCompact[_rw.status]||_rw.status) : "No Data";
+                          var _revSubMap = {
+                            "Bullish Confirmed":"Price confirmation is strong","Bullish Triggered":"Momentum has turned bullish",
+                            "Bullish Setup":"Early bullish setup forming","Bullish Watch":"Early bullish signal, not confirmed",
+                            "Bullish Spark":"Early bullish momentum spark","Bullish Forming":"Setup and trigger are building",
+                            "Bullish Confirming":"Price action is validating",
+                            "Bearish Confirmed":"Bearish confirmation is strong","Bearish Triggered":"Momentum has turned bearish",
+                            "Bearish Setup":"Early bearish risk forming","Bearish Watch":"Early bearish warning",
+                            "Bearish Forming":"Bearish setup and trigger are building","Bearish Confirming":"Bearish price action is validating",
+                            "Mixed Signals":"Bullish and bearish evidence conflict",
+                            "No Clear Signal":"No clear reversal signal","No Data":"Insufficient data"
+                          };
+                          var _rwStatus  = _rw ? (_revShortMap[_rw.status]||_rw.status) : "No Data";
+                          var _rwSub     = _revSubMap[_rwStatus] || null;
                           var _rwMainCol = revStatusColor(_rw ? _rw.status : null, "main");
-                          var _bLbl  = _rw ? (_rw.bLbl  ||"N/A") : "N/A";
-                          var _beLbl = _rw ? (_rw.beLbl ||"N/A") : "N/A";
                           return (
                             <div onClick={function(){ window.__goToTab&&window.__goToTab("reversal"); }}
                               style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                               onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                               onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
                               <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>Reversal</span>
-                              <span style={{fontSize:12,fontWeight:600,color:_rwMainCol,flex:1,lineHeight:1.2}}>{_rwStatus}</span>
-                              <div style={{textAlign:"right",flexShrink:0,marginRight:8}}>
-                                <div style={{fontSize:9,lineHeight:1.6}}>
-                                  <span style={{color:"#555"}}>{"Bullish "}</span>
-                                  <span style={{color:revDirLabelColor(_bLbl,true,"subtle"),fontWeight:600}}>{_bLbl}</span>
-                                </div>
-                                <div style={{fontSize:9,lineHeight:1.6}}>
-                                  <span style={{color:"#555"}}>{"Bearish "}</span>
-                                  <span style={{color:revDirLabelColor(_beLbl,false,"subtle"),fontWeight:600}}>{_beLbl}</span>
-                                </div>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:12,fontWeight:600,color:_rwMainCol,lineHeight:1.3}}>{_rwStatus}</div>
+                                {_rwSub&&<div style={{fontSize:9,color:"#555",marginTop:1}}>{_rwSub}</div>}
                               </div>
                               <span style={{fontSize:11,color:"#444",flexShrink:0}}>{"›"}</span>
                             </div>
                           );
                         })()}
                         {(function(){
-                          // ── Money Flow row — matches TechRow layout ────────────────────────────
+                          // ── Money Flow row ────────────────────────────────────────────────────
                           var _smf = window.__smfScore && window.__smfScore[sym] ? window.__smfScore[sym] : null;
-                          var _smfMap = {
-                            "Strong Multi-Timeframe Flow":"Strong Flow","Accumulation Trend Positive":"Trend Positive",
-                            "Constructive but Cooling":"Constructive","Early Accumulation":"Early Flow",
-                            "Short-Term Spike":"Spike","No Clear Signal":"No Signal"
-                          };
-                          // For new long statuses, truncate intelligently
-                          function _smfShort(s) {
+                          var _smd = _smf && _smf.smartMoneyDecision ? _smf.smartMoneyDecision : null;
+                          // Main label: use baseStatus if available, else shorten full status
+                          function _smfMain(smf, smd) {
+                            if (!smf) return "No Data";
+                            if (smd && smd.baseStatus && smd.baseStatus !== "Not Enough Data") return smd.baseStatus;
+                            var s = smf.status;
                             if (!s) return "No Data";
-                            if (_smfMap[s]) return _smfMap[s];
-                            if (s.indexOf("Strong Accumulation")>-1) return "Strong Accum.";
-                            if (s.indexOf("Steady Accumulation")>-1) return "Steady Accum.";
-                            if (s.indexOf("Long-Term Accumulation")>-1) return "LT Accumulation";
-                            if (s.indexOf("Early Accumulation")>-1) return "Early Accum.";
+                            if (s.indexOf("Strong Accumulation")>-1) return "Strong Accumulation";
+                            if (s.indexOf("Steady Accumulation")>-1) return "Steady Accumulation";
+                            if (s.indexOf("Long-Term Accumulation")>-1) return "Long-Term Accum.";
+                            if (s.indexOf("Early Accumulation")>-1) return "Early Accumulation";
                             if (s.indexOf("Mixed Flow")>-1) return "Mixed Flow";
-                            if (s.indexOf("Cooling Accumulation")>-1) return "Cooling";
+                            if (s.indexOf("Cooling Accumulation")>-1) return "Cooling Accumulation";
                             if (s.indexOf("Short-Term Flow Spike")>-1) return "ST Flow Spike";
                             if (s.indexOf("Short-Term Flow Watch")>-1) return "ST Flow Watch";
-                            if (s.indexOf("No Sustained Flow")>-1) return "No Sustained";
-                            if (s.indexOf("No Clear Signal")>-1) return "No Signal";
-                            return s.length > 18 ? s.slice(0, 16) + "\u2026" : s;
+                            if (s.indexOf("Daily Spike but")>-1) return "Daily Spike";
+                            if (s.indexOf("Daily Support but")>-1) return "Daily Support";
+                            if (s==="No Clear Signal") return "No Signal";
+                            if (s==="No Sustained Flow") return "No Sustained Flow";
+                            if (s==="Not Enough Data") return "No Data";
+                            return s;
                           }
-                          var _smfStatus  = _smf ? _smfShort(_smf.status) : "No Data";
+                          // Subtitle: "Daily spike · 5D Moderate · 30D Very High"
+                          function _smfSub(smf, smd) {
+                            if (!smf) return null;
+                            var dp = smd ? smd.dailyPrefix : null;
+                            var tLbl = smf.todayLabel || "N/A";
+                            var fLbl = smf.fiveDayLabel || "N/A";
+                            var dLbl = smf.thirtyDayLabel || "N/A";
+                            var parts = [];
+                            if (dp && dp !== "No Daily Data") parts.push(dp);
+                            else if (tLbl && tLbl !== "N/A") parts.push("Today "+tLbl);
+                            if (fLbl && fLbl !== "N/A") parts.push("5D "+fLbl);
+                            if (dLbl && dLbl !== "N/A") parts.push("30D "+dLbl);
+                            return parts.length ? parts.join(" \u00b7 ") : null;
+                          }
+                          var _smfLabel   = _smfMain(_smf, _smd);
+                          var _smfSub2    = _smfSub(_smf, _smd);
                           var _smfMainCol = smfStatusColor(_smf ? _smf.status : null, "main");
-                          var _tLbl = _smf ? (_smf.todayLabel   ||"N/A") : "N/A";
-                          var _fLbl = _smf ? (_smf.fiveDayLabel ||"N/A") : "N/A";
-                          var _dLbl = _smf ? (_smf.thirtyDayLabel||"N/A"): "N/A";
                           return (
                             <div onClick={function(){ window.__goToTab&&window.__goToTab("whale"); }}
                               style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                               onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                               onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
                               <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>Money Flow</span>
-                              <span style={{fontSize:12,fontWeight:600,color:_smfMainCol,flex:1,lineHeight:1.2}}>{_smfStatus}</span>
-                              <div style={{textAlign:"right",flexShrink:0,marginRight:8}}>
-                                <div style={{fontSize:9,lineHeight:1.6}}>
-                                  <span style={{color:"#555"}}>{"1 Month "}</span>
-                                  <span style={{color:smfLabelColor(_dLbl,"subtle"),fontWeight:600}}>{_dLbl}</span>
-                                </div>
-                                <div style={{fontSize:9,lineHeight:1.6}}>
-                                  <span style={{color:"#555"}}>{"1 Week "}</span>
-                                  <span style={{color:smfLabelColor(_fLbl,"subtle"),fontWeight:600}}>{_fLbl}</span>
-                                </div>
-                                <div style={{fontSize:9,lineHeight:1.6}}>
-                                  <span style={{color:"#555"}}>{"Today "}</span>
-                                  <span style={{color:smfLabelColor(_tLbl,"subtle"),fontWeight:600}}>{_tLbl}</span>
-                                </div>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:12,fontWeight:600,color:_smfMainCol,lineHeight:1.3}}>{_smfLabel}</div>
+                                {_smfSub2&&<div style={{fontSize:9,color:"#555",marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{_smfSub2}</div>}
                               </div>
                               <span style={{fontSize:11,color:"#444",flexShrink:0}}>{"›"}</span>
                             </div>
@@ -11598,7 +11607,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.60</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.61</span>
           </div>
         </div>
 
