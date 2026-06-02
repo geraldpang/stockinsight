@@ -543,6 +543,72 @@ export function calcReversalWatch(bars, ind, meta) {
 
   var primaryScore = bs > bes ? bullishScore : bearishScore;
 
+  // ── Run 6R: Stage-precedence override + traceability ──────────────────────
+  var _scores = {
+    bullishSetupScore: bSetup, bullishTriggerScore: bTrigger, bullishConfirmationScore: bConfirm, bullishScore: bullishScore,
+    bearishSetupScore: dSetup, bearishTriggerScore: dTrigger, bearishConfirmationScore: dConfirm, bearishScore: bearishScore
+  };
+  var reversalDecision = (function() {
+    // 1. Not enough data
+    if (bullishScore === null && bearishScore === null) {
+      return { outcome: 'Not Enough Data', ruleId: 'REV_NOT_ENOUGH_DATA', stage: '\u2014', direction: '\u2014',
+        reason: 'Not enough price and volume data to calculate a reliable reversal signal.',
+        triggeredConditions: [], scores: _scores };
+    }
+    var bc = bConfirm||0, dc = dConfirm||0, bt = bTrigger||0, dt = dTrigger||0, bS2 = bSetup||0, dS2 = dSetup||0;
+    var bCS = bConfirm !== null && bc >= 80, dCS = dConfirm !== null && dc >= 80;
+    // 2. Confirmation override >= 80
+    if (bCS || dCS) {
+      if (bCS && !dCS) return { outcome: 'Bullish Reversal Confirmed', ruleId: 'REV_CONFIRM_BULL_80', stage: 'Confirmation', direction: 'Bullish',
+        reason: 'Bullish Confirmation score is ' + bc + ' (>= 80) while Bearish Confirmation score is ' + dc + '. Confirmation takes precedence because setup and trigger may have occurred earlier.',
+        triggeredConditions: [{ condition: 'bullishConfirmationScore >= 80', actualValue: bc, threshold: 80, result: true }, { condition: 'bearishConfirmationScore < 80', actualValue: dc, threshold: 80, result: true }], scores: _scores };
+      if (dCS && !bCS) return { outcome: 'Bearish Reversal Confirmed', ruleId: 'REV_CONFIRM_BEAR_80', stage: 'Confirmation', direction: 'Bearish',
+        reason: 'Bearish Confirmation score is ' + dc + ' (>= 80) while Bullish Confirmation score is ' + bc + '. Confirmation takes precedence because setup and trigger may have occurred earlier.',
+        triggeredConditions: [{ condition: 'bearishConfirmationScore >= 80', actualValue: dc, threshold: 80, result: true }, { condition: 'bullishConfirmationScore < 80', actualValue: bc, threshold: 80, result: true }], scores: _scores };
+      return { outcome: 'Mixed Reversal Signals', ruleId: 'REV_CONFIRM_MIXED_BOTH_80', stage: 'Confirmation', direction: 'Mixed',
+        reason: 'Both Bullish (' + bc + ') and Bearish (' + dc + ') Confirmation scores are >= 80. Signals are conflicting.',
+        triggeredConditions: [{ condition: 'bullishConfirmationScore >= 80', actualValue: bc, threshold: 80, result: true }, { condition: 'bearishConfirmationScore >= 80', actualValue: dc, threshold: 80, result: true }], scores: _scores };
+    }
+    // 3. Trigger override >= 70
+    var bTS = bTrigger !== null && bt >= 70, dTS = dTrigger !== null && dt >= 70;
+    if (bTS || dTS) {
+      if (bTS && !dTS) return { outcome: 'Bullish Reversal Triggered', ruleId: 'REV_TRIGGER_BULL_70', stage: 'Trigger', direction: 'Bullish',
+        reason: 'Bullish Trigger score is ' + bt + ' (>= 70) while Bearish Trigger score is ' + dt + '. Trigger override applies.',
+        triggeredConditions: [{ condition: 'bullishTriggerScore >= 70', actualValue: bt, threshold: 70, result: true }, { condition: 'bearishTriggerScore < 70', actualValue: dt, threshold: 70, result: true }], scores: _scores };
+      if (dTS && !bTS) return { outcome: 'Bearish Reversal Triggered', ruleId: 'REV_TRIGGER_BEAR_70', stage: 'Trigger', direction: 'Bearish',
+        reason: 'Bearish Trigger score is ' + dt + ' (>= 70) while Bullish Trigger score is ' + bt + '. Trigger override applies.',
+        triggeredConditions: [{ condition: 'bearishTriggerScore >= 70', actualValue: dt, threshold: 70, result: true }, { condition: 'bullishTriggerScore < 70', actualValue: bt, threshold: 70, result: true }], scores: _scores };
+      return { outcome: 'Mixed Reversal Signals', ruleId: 'REV_TRIGGER_MIXED_BOTH_70', stage: 'Trigger', direction: 'Mixed',
+        reason: 'Both Bullish (' + bt + ') and Bearish (' + dt + ') Trigger scores are >= 70. Signals are conflicting.',
+        triggeredConditions: [{ condition: 'bullishTriggerScore >= 70', actualValue: bt, threshold: 70, result: true }, { condition: 'bearishTriggerScore >= 70', actualValue: dt, threshold: 70, result: true }], scores: _scores };
+    }
+    // 4. Setup override >= 80
+    var bSS = bSetup !== null && bS2 >= 80, dSS = dSetup !== null && dS2 >= 80;
+    if (bSS || dSS) {
+      if (bSS && !dSS) return { outcome: 'Bullish Reversal Setup', ruleId: 'REV_SETUP_BULL_80', stage: 'Setup', direction: 'Bullish',
+        reason: 'Bullish Setup score is ' + bS2 + ' (>= 80) while Bearish Setup score is ' + dS2 + '. Strong setup conditions suggest a potential bullish reversal is forming.',
+        triggeredConditions: [{ condition: 'bullishSetupScore >= 80', actualValue: bS2, threshold: 80, result: true }, { condition: 'bearishSetupScore < 80', actualValue: dS2, threshold: 80, result: true }], scores: _scores };
+      if (dSS && !bSS) return { outcome: 'Bearish Reversal Setup', ruleId: 'REV_SETUP_BEAR_80', stage: 'Setup', direction: 'Bearish',
+        reason: 'Bearish Setup score is ' + dS2 + ' (>= 80) while Bullish Setup score is ' + bS2 + '. Strong setup conditions suggest a potential bearish reversal is forming.',
+        triggeredConditions: [{ condition: 'bearishSetupScore >= 80', actualValue: dS2, threshold: 80, result: true }, { condition: 'bullishSetupScore < 80', actualValue: bS2, threshold: 80, result: true }], scores: _scores };
+      return { outcome: 'Mixed Reversal Signals', ruleId: 'REV_SETUP_MIXED_BOTH_80', stage: 'Setup', direction: 'Mixed',
+        reason: 'Both Bullish (' + bS2 + ') and Bearish (' + dS2 + ') Setup scores are >= 80. Signals are conflicting.',
+        triggeredConditions: [{ condition: 'bullishSetupScore >= 80', actualValue: bS2, threshold: 80, result: true }, { condition: 'bearishSetupScore >= 80', actualValue: dS2, threshold: 80, result: true }], scores: _scores };
+    }
+    // 5. Existing fallback
+    var rId = status === 'Mixed Reversal Signals' ? 'REV_FALLBACK_MIXED_WEIGHTED'
+            : (status && status.indexOf('Bullish') === 0) ? 'REV_FALLBACK_BULL_WEIGHTED'
+            : (status && status.indexOf('Bearish') === 0) ? 'REV_FALLBACK_BEAR_WEIGHTED'
+            : 'REV_FALLBACK_NO_CLEAR';
+    return { outcome: status || 'No Clear Reversal', ruleId: rId, stage: 'Weighted Fallback',
+      direction: (status && status.indexOf('Bullish') === 0) ? 'Bullish' : (status && status.indexOf('Bearish') === 0) ? 'Bearish' : '\u2014',
+      reason: 'No single stage override applied. The overall score uses a weighted combination: Setup (40%), Trigger (30%), Confirmation (30%).',
+      triggeredConditions: [{ condition: 'Weighted score fallback', actualValue: Math.round(bs), threshold: null, result: true }], scores: _scores };
+  })();
+
+  // Use precedence outcome as the final status
+  status = reversalDecision.outcome;
+
   return {
     status:                    status,
     score:                     primaryScore,
@@ -554,6 +620,7 @@ export function calcReversalWatch(bars, ind, meta) {
     bearishSetupScore:         dSetup,
     bearishTriggerScore:       dTrigger,
     bearishConfirmationScore:  dConfirm,
+    reversalDecision:          reversalDecision,
   };
 }
 
