@@ -4909,7 +4909,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.57</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.59</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4963,7 +4963,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.57</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.59</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -9293,12 +9293,31 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             <div style={{flex:1}}>
                               <div style={{fontSize:10,fontWeight:700,color:"#999",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>Reversal Watch</div>
                               <div style={{fontSize:14,fontWeight:700,color:statusCol,marginBottom:4}}>{revStatus.status}</div>
-                              <div style={{fontSize:11,color:"#666",lineHeight:1.5,marginBottom:8}}>{revStatus.explanation}</div>
-                              <div style={{fontSize:11,color:"#888"}}>
-                                <span>{"Bullish: "}</span><span style={{fontWeight:700,color:revLabelColor(bLbl)}}>{bLbl}</span>
-                                <span style={{margin:"0 8px",color:"#ccc"}}>{"·"}</span>
-                                <span>{"Bearish: "}</span><span style={{fontWeight:700,color:revBearLabelColor(beLbl)}}>{beLbl}</span>
+                              <div style={{fontSize:11,color:"#666",lineHeight:1.5,marginBottom:8}}>
+                                {(_revW&&_revW.reversalDecision)?_revW.reversalDecision.reason:revStatus.explanation}
                               </div>
+                              {_revW&&_revW.reversalDecision&&_revW.reversalDecision.ruleId&&(
+                                <div style={{fontSize:10,color:"#666",background:"rgba(0,0,0,0.15)",borderRadius:5,padding:"6px 10px",marginBottom:0}}>
+                                  <div style={{fontWeight:700,color:"#aaa",marginBottom:3}}>{"Why this outcome?"}</div>
+                                  <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:3}}>
+                                    <span style={{fontSize:9,color:"#999"}}>Rule: <span style={{fontWeight:700,color:statusCol}}>{_revW.reversalDecision.ruleId}</span></span>
+                                    <span style={{fontSize:9,color:"#999"}}>Stage: <span style={{fontWeight:600,color:"#ccc"}}>{_revW.reversalDecision.stage}</span></span>
+                                    <span style={{fontSize:9,color:"#999"}}>Direction: <span style={{fontWeight:600,color:"#ccc"}}>{_revW.reversalDecision.direction}</span></span>
+                                  </div>
+                                  {_revW.reversalDecision.triggeredConditions&&_revW.reversalDecision.triggeredConditions.length>0&&_revW.reversalDecision.ruleId.indexOf("FALLBACK")<0&&_revW.reversalDecision.ruleId!=="REV_NOT_ENOUGH_DATA"&&(
+                                    <div>
+                                      {_revW.reversalDecision.triggeredConditions.map(function(c,i){
+                                        if(!c||c.threshold==null) return null;
+                                        return <div key={i} style={{fontSize:9,color:"#aaa",marginTop:2}}>
+                                          <span style={{color:c.result?"#7abd00":"#e05050",fontWeight:700,marginRight:4}}>{c.result?"\u2713":"\u2717"}</span>
+                                          {c.condition}: <span style={{fontWeight:700,color:statusCol}}>{c.actualValue}</span>
+                                          <span style={{color:"#555",marginLeft:4}}>{"(threshold "+c.threshold+")"}</span>
+                                        </div>;
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             {revStatus.primaryScore!==null&&(
                               <div style={{textAlign:"right",flexShrink:0,paddingLeft:16}}>
@@ -9310,67 +9329,25 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           <div style={{marginTop:8}}>
                             <details>
                               <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4}}>
-                                <span style={{fontSize:9,color:"#ccc"}}>▶</span><span>How is this scored?</span>
+                                <span style={{fontSize:9,color:"#ccc"}}>{"▶"}</span><span>{"How is this scored?"}</span>
                               </summary>
-                              <div style={{fontSize:10,color:"#666",lineHeight:1.8,padding:"4px 0",whiteSpace:"pre-line"}}>{"The overall status compares Bullish and Bearish Reversal scores.\n\nNo Clear Reversal: both scores < 21\nMixed Reversal Signals: both ≥ 40 and within 15 points of each other\nBullish/Bearish Reversal: one side leads by more than 15 points\n\nNew practical stages (checked before score-gap logic):\n  Bullish Reversal Spark: trigger ≥ 60, confirmation < 40, bullish not clearly dominated\n  Bullish Reversal Confirming: trigger ≥ 60, confirmation ≥ 40, even if setup has faded\n\nPrimary score = higher of Bullish or Bearish score.\nBullish ladder: Spark → Watch → Forming → Triggered → Confirming → Confirmed"}</div>
+                              <div style={{fontSize:10,color:"#666",lineHeight:1.8,padding:"4px 0",whiteSpace:"pre-line"}}>{"The app checks reversal stages in this order:\n\n1. Confirmation (highest priority)\n   If Bullish Confirmation >= 80 and Bearish < 80 \u2192 Bullish Reversal Confirmed\n   If Bearish Confirmation >= 80 and Bullish < 80 \u2192 Bearish Reversal Confirmed\n   If both >= 80 \u2192 Mixed Reversal Signals\n\n2. Trigger\n   If Bullish Trigger >= 70 and Bearish < 70 \u2192 Bullish Reversal Triggered\n   If Bearish Trigger >= 70 and Bullish < 70 \u2192 Bearish Reversal Triggered\n\n3. Setup\n   If Bullish Setup >= 80 and Bearish < 80 \u2192 Bullish Reversal Setup\n   If Bearish Setup >= 80 and Bullish < 80 \u2192 Bearish Reversal Setup\n\n4. Score comparison (fallback)\n   Both scores < 21 \u2192 No Clear Reversal\n   Both >= 40 and within 15 points \u2192 Mixed Reversal Signals\n   One side leads by more than 15 points \u2192 that side's detail label\n\nConfirmation takes precedence because setup or trigger may have occurred\nearlier and may no longer be visible in today's conditions.\n\nPrimary score = the higher of Bullish or Bearish score."}</div>
                             </details>
                           </div>
                         </div>
 
-                        {DirectionCard({bull:true, title:"Bullish Reversal Watch", subtitle:"Could a bullish reversal be forming?",
+                        {DirectionCard({bull:true, title:"Bullish Reversal Breakdown", subtitle:"Could a bullish reversal be forming?",
                           score:bullScore, setupScore:bsScore, trigScore:btScore, confScore:bcScore,
                           setupInds:bsInds, trigInds:btInds, confInds:bcInds})}
 
-                        {DirectionCard({bull:false, title:"Bearish Reversal Watch", subtitle:"Could a bearish reversal be forming?",
+                        {DirectionCard({bull:false, title:"Bearish Reversal Breakdown", subtitle:"Could a bearish reversal be forming?",
                           score:bearScore, setupScore:dsScore, trigScore:dtScore, confScore:dcScore,
                           setupInds:dsInds, trigInds:dtInds, confInds:dcInds})}
 
                         <div style={{fontSize:10,color:"#aaa",lineHeight:1.6,padding:"10px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4dc"}}>
                           {"Reversal Watch is based on price and volume analysis only. It does not guarantee a reversal will occur. Not financial advice."}
                         </div>
-                        {/* ── Why this reversal outcome? (Run 6R traceability) ── */}
-                        {(function(){
-                          var rd = _revW && _revW.reversalDecision;
-                          if (!rd) return null;
-                          function rdCol(o){if(!o)return'#777';if(o.indexOf('Bullish')===0&&(o.indexOf('Confirm')>0||o.indexOf('Trigger')>0||o.indexOf('Forming')>0))return'#7abd00';if(o.indexOf('Bullish')===0)return'#6090d0';if(o.indexOf('Bearish')===0&&(o.indexOf('Confirm')>0||o.indexOf('Trigger')>0||o.indexOf('Forming')>0))return'#e05050';if(o.indexOf('Bearish')===0)return'#EF9F27';if(o==='Mixed Reversal Signals')return'#EF9F27';return'#777';}
-                          var oc = rdCol(rd.outcome);
-                          var isFallback = rd.ruleId.indexOf('FALLBACK') > -1 || rd.ruleId === 'REV_NOT_ENOUGH_DATA';
-                          return (
-                            <div style={{border:'0.5px solid #e8e4dc',borderRadius:8,marginTop:12,overflow:'hidden'}}>
-                              <div style={{padding:'8px 14px',background:'#faf8f4',borderBottom:'0.5px solid #e8e4dc',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                                <span style={{fontSize:11,fontWeight:700,color:'#555'}}>{"Why this reversal outcome?"}</span>
-                                <span style={{fontSize:9,fontWeight:700,color:isFallback?'#aaa':oc,background:isFallback?'#f0ede6':'#111',padding:'2px 7px',borderRadius:3}}>{rd.ruleId}</span>
-                              </div>
-                              <div style={{padding:'10px 14px'}}>
-                                <div style={{display:'flex',gap:20,marginBottom:8,flexWrap:'wrap'}}>
-                                  {[['Outcome',rd.outcome,oc],['Stage',rd.stage,'#666'],['Direction',rd.direction,'#666']].map(function(f){
-                                    return <div key={f[0]}>
-                                      <div style={{fontSize:8,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:2}}>{f[0]}</div>
-                                      <div style={{fontSize:11,fontWeight:700,color:f[2]}}>{f[1]}</div>
-                                    </div>;
-                                  })}
-                                </div>
-                                <div style={{fontSize:10,color:'#666',lineHeight:1.6,marginBottom:rd.triggeredConditions&&rd.triggeredConditions.length&&!isFallback?8:0}}>{rd.reason}</div>
-                                {!isFallback&&rd.triggeredConditions&&rd.triggeredConditions.length>0&&(
-                                  <div style={{marginTop:4}}>
-                                    <div style={{fontSize:8,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>{"Key condition(s) that triggered this outcome"}</div>
-                                    {rd.triggeredConditions.map(function(c,i){
-                                      if(!c.threshold&&c.threshold!==0) return null;
-                                      var pass = c.result;
-                                      return <div key={i} style={{fontSize:10,color:'#666',marginBottom:3,display:'flex',gap:6,alignItems:'center'}}>
-                                        <span style={{fontSize:10,color:pass?'#7abd00':'#e05050',fontWeight:700,flexShrink:0}}>{pass?'\u2713':'\u2717'}</span>
-                                        <span>{c.condition.replace('bullishC','Bullish C').replace('bearishC','Bearish C').replace('bullishT','Bullish T').replace('bearishT','Bearish T').replace('bullishS','Bullish S').replace('bearishS','Bearish S')}</span>
-                                        <span style={{fontWeight:700,color:oc}}>{c.actualValue}</span>
-                                        <span style={{color:'#aaa',fontSize:9}}>{'(threshold: '+c.threshold+')'}</span>
-                                      </div>;
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
+                                              </div>
                     );
                   })()}
 
@@ -11591,7 +11568,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.57</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.59</span>
           </div>
         </div>
 
