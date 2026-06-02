@@ -1400,7 +1400,16 @@ function buildSignalDrivers(ctx) {
   var range52 = (hi52 > lo52 && lo52 > 0) ? hi52 - lo52 : 0;
   var pos52   = range52 > 0 ? ((close - lo52) / range52) * 100 : -1;
   var mid52   = lo52 > 0 ? (hi52 + lo52) / 2 : 0;
-  var smfS = snap.smartMoneyFlow ? (snap.smartMoneyFlow.status||'') : '';
+  // ── Smart Money: prefer new decision object, fall back to status string ────
+  var smfS  = snap.smartMoneyFlow ? (snap.smartMoneyFlow.status||'') : '';
+  var smd   = snap.smartMoneyFlow && snap.smartMoneyFlow.smartMoneyDecision ? snap.smartMoneyFlow.smartMoneyDecision : null;
+  var smBase= smd && smd.baseStatus ? smd.baseStatus : smfS;
+  // New SMF driver flags using decision object (handles all combined statuses)
+  var smfBullish = smd ? (smd.baseStatus && (
+    smd.baseStatus.indexOf('Accumulation') !== -1 && smd.baseStatus !== 'Cooling Accumulation' && smd.baseStatus !== 'Short-Term Flow Spike' && smd.baseStatus !== 'Short-Term Flow Watch'
+  )) : (smfS.indexOf('Constructive')!==-1||smfS.indexOf('Accumulation')!==-1||smfS.indexOf('Positive')!==-1||smfS.indexOf('Strong')!==-1);
+  var smfStatus = ctx.rbaDecisionTrace && ctx.rbaDecisionTrace.smartMoney ? ctx.rbaDecisionTrace.smartMoney.status : null;
+  var smfStrength = ctx.rbaDecisionTrace && ctx.rbaDecisionTrace.smartMoney ? ctx.rbaDecisionTrace.smartMoney.strength : null;
   var tS   = snap.trend           ? (snap.trend.status||'')           : '';
   var mS   = snap.momentum        ? (snap.momentum.status||'')        : '';
   var rS   = snap.reversalWatch   ? (snap.reversalWatch.status||'')   : '';
@@ -1419,10 +1428,10 @@ function buildSignalDrivers(ctx) {
     macdHistogramPositive: curHist>0, macdHistogramImproving: curHist>prevHist,
     volumeAbove20dAvg: avg20v>0&&volume>avg20v, volumeAbove50dAvg: avg50v>0&&volume>avg50v,
     volumeRising5d: avgP5>0&&avgL5>avgP5,
-    smartMoneyConstructive: smfS.indexOf('Constructive')!==-1||smfS.indexOf('Accumulation')!==-1,
-    smartMoneyCooling: smfS.indexOf('Cooling')!==-1,
-    smartMoneyPositive: smfS.indexOf('Positive')!==-1||smfS.indexOf('Strong')!==-1,
-    smartMoneyNoClearSignal: smfS.indexOf('No Clear')!==-1,
+    smartMoneyConstructive: smfStatus === 'bullish' || smBase.indexOf('Accumulation') !== -1,
+    smartMoneyCooling: smBase.indexOf('Cooling') !== -1 || smfS.indexOf('Cooling') !== -1,
+    smartMoneyPositive: (smfStatus === 'bullish' && (smfStrength === 'strong' || smfStrength === 'normal')) || smfS.indexOf('Positive') !== -1 || smfS.indexOf('Strong Multi') !== -1,
+    smartMoneyNoClearSignal: smBase === 'No Clear Signal' || smBase === 'No Sustained Flow' || smfS === 'No Clear Signal' || smfS.indexOf('No Clear') !== -1,
     trendStrongUptrend: tS==='Strong Uptrend', trendUptrend: tS==='Uptrend',
     trendSideways: tS==='Sideways', trendDowntrend: tS==='Downtrend'||tS==='Strong Downtrend',
     momentumBuilding: mS==='Building', momentumFading: mS==='Fading'||mS==='Weak',
@@ -1432,10 +1441,10 @@ function buildSignalDrivers(ctx) {
     reversalBullishWatch: rS.indexOf('Watch')!==-1&&rS.indexOf('Bullish')!==-1,
     reversalBearishWatch: rS.indexOf('Bearish')!==-1,
     reversalMixed: rS.indexOf('Mixed')!==-1,
-    smartMoneyConstructiveCooling: smfS.indexOf('Constructive but Cooling')!==-1,
-    smartMoneyAccumulationPositive: smfS.indexOf('Accumulation Trend Positive')!==-1,
-    smartMoneyNoClear: smfS.indexOf('No Clear')!==-1,
-    smartMoneyStrongMultiTimeframe: smfS.indexOf('Strong Multi-Timeframe Flow')!==-1,
+    smartMoneyConstructiveCooling: smBase === 'Cooling Accumulation' || smfS.indexOf('Constructive but Cooling') !== -1,
+    smartMoneyAccumulationPositive: (smfStatus === 'bullish' && smfStrength === 'strong') || smfS.indexOf('Accumulation Trend Positive') !== -1,
+    smartMoneyNoClear: smBase === 'No Clear Signal' || smBase === 'No Sustained Flow' || smfS.indexOf('No Clear') !== -1,
+    smartMoneyStrongMultiTimeframe: smBase === 'Strong Accumulation' || smfS.indexOf('Strong Multi-Timeframe Flow') !== -1,
     // RSI buckets
     rsiBelow30:       rsi14 < 30,
     rsi30To40:        rsi14 >= 30 && rsi14 < 40,
@@ -2128,18 +2137,53 @@ export function SimulatorPage() {
         try {
           snap = calculateTechnicalSignalSnapshot({ ticker:ticker, date:bar.date, ohlcv:ohlcv, indicators:ind, crossData:null, meta:{ price:bar.close, hi52:hw.hi52, lo52:hw.lo52 } });
         } catch(e){ continue; }
+        // Inject smartMoneyDecision so RBA uses the new SMF model
+        try {
+          var smfBars2 = ohlcv;
+          var smfVal2  = validateSmfOHLCV(smfBars2);
+          var tSig2 = smfVal2.hasMinBars       ? calcSmfTodaySignal(smfBars2)     : null;
+          var fSig2 = smfBars2.length >= 6      ? calcSmfFiveDaySignal(smfBars2)   : null;
+          var dSig2 = smfVal2.hasThirtyDays     ? calcSmfThirtyDaySignal(smfBars2) : null;
+          var smCard2 = calcSmfSummaryCard(tSig2?tSig2.score:0, fSig2?fSig2.score:0, dSig2?dSig2.score:0, tSig2, fSig2, dSig2);
+          if (smCard2 && smCard2.smartMoneyDecision) {
+            snap = Object.assign({}, snap);
+            snap.smartMoneyFlow = Object.assign({}, snap.smartMoneyFlow, {
+              smartMoneyDecision: smCard2.smartMoneyDecision,
+              status:             smCard2.status || (snap.smartMoneyFlow && snap.smartMoneyFlow.status),
+              todayLabel:         smCard2.todayLabel,
+              fiveDayLabel:       smCard2.fiveDayLabel,
+              thirtyDayLabel:     smCard2.thirtyDayLabel,
+            });
+          }
+        } catch(e) { /* non-fatal — snap.smartMoneyFlow unchanged */ }
+        // Build full snap for RBA (with ohlcv, indicators, meta for key levels)
+        var rbaFullSnap = Object.assign({}, snap, { ohlcv:ohlcv, indicators:ind, meta:{ price:bar.close, hi52:hw.hi52, lo52:hw.lo52 } });
         var rba;
         try {
-          rba = generateRuleBasedAnalytics(Object.assign({}, snap, { ohlcv:ohlcv, indicators:ind, meta:{ price:bar.close, hi52:hw.hi52, lo52:hw.lo52 } }));
+          rba = generateRuleBasedAnalytics(rbaFullSnap);
         } catch(e){ continue; }
         if (!rba) continue;
         var sv = shortRuleVerdict(rba.verdict);
         if (setupFilter !== 'All' && sv !== setupFilter) continue;
         var ret = simPctReturn(bar.close, futureBar.close);
+        // Multi-period forward returns
+        var ret5d  = (i+5  < bars.length) ? simPctReturn(bar.close, bars[i+5].close)  : null;
+        var ret10d = (i+10 < bars.length) ? simPctReturn(bar.close, bars[i+10].close) : null;
+        var ret20d = (i+20 < bars.length) ? simPctReturn(bar.close, bars[i+20].close) : null;
+        var ret30d = (i+30 < bars.length) ? simPctReturn(bar.close, bars[i+30].close) : null;
+        // Safe RBA field extraction
+        var fg  = (rba && rba.factorGroups)  || {};
+        var dt  = (rba && rba.decisionTrace) || {};
+        var dtM = dt.momentum   || {};
+        var dtR = dt.reversal   || {};
+        var dtS = dt.smartMoney || {};
+        var rwd = snap.reversalWatch && snap.reversalWatch.reversalDecision;
+        var smd = snap.smartMoneyFlow && snap.smartMoneyFlow.smartMoneyDecision;
         var drv = {};
         try { drv = buildSignalDrivers({ barsUpToDate:slice, indicators:ind,
           snapshot:Object.assign({},snap,{meta:{price:bar.close,hi52:hw.hi52,lo52:hw.lo52}}),
-          currentBar:bar }); } catch(e) {}
+          currentBar:bar,
+          rbaDecisionTrace: dt }); } catch(e) {}
         // Raw indicator values for table display
         var drvV = {};
         try {
@@ -2196,12 +2240,41 @@ export function SimulatorPage() {
           smartMoney: snap.smartMoneyFlow ? snap.smartMoneyFlow.status : '—',
           futureClose: futureBar.close,
           futureReturn: ret,
+          futureReturn5d:  ret5d,
+          futureReturn10d: ret10d,
+          futureReturn20d: ret20d,
+          futureReturn30d: ret30d,
           result: ret != null ? (ret >= 0 ? 'Win' : 'Loss') : '—',
           drivers: drv,
           driverValues: drvV,
           oldMomentum:    snap.momentum ? snap.momentum.status : '—',
           momentumProfile: nm,
           momentumDrivers: nmDrv,
+          // ── New RBA fields ──────────────────────────────────────────────────
+          rawResult:         fg.rawResult          || sv    || null,
+          finalResult:       fg.finalResult        || (rba && rba.verdict) || null,
+          trendCondition:    fg.trendCondition     || null,
+          momentumStatus:    fg.momentumStatus     || null,
+          reversalStatus:    fg.reversalStatus     || null,
+          smartMoneyStatus:  fg.smartMoneyStatus   || null,
+          momentumStrength:  dtM.strength          || null,
+          reversalStrength:  dtR.strength          || null,
+          smartMoneyStrength:dtS.strength          || null,
+          momentumCause:     dtM.cause             || null,
+          reversalCause:     dtR.cause             || null,
+          smartMoneyCause:   dtS.cause             || null,
+          reversalDecision:  rwd ? {
+            outcome:   rwd.outcome   || null,
+            ruleId:    rwd.ruleId    || null,
+            stage:     rwd.stage     || null,
+            direction: rwd.direction || null,
+          } : null,
+          smartMoneyDecision: smd ? {
+            outcome:    smd.outcome    || null,
+            baseStatus: smd.baseStatus || null,
+            dailyPrefix:smd.dailyPrefix|| null,
+            ruleId:     smd.ruleId     || null,
+          } : null,
         });
       }
       // Post-process: compute overallResult for each row using full rows array
@@ -4985,7 +5058,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.65</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.66</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5039,7 +5112,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.65</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.66</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11699,7 +11772,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.65</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.66</span>
           </div>
         </div>
 
