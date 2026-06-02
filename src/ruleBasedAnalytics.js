@@ -698,24 +698,7 @@ function getSmartMoneyStatus(baseStatus, outcome, dailyPrefix) {
   return { status:base.status, strength:base.strength, label:outcome||src, baseStatus:src, dailyPrefix:dailyPrefix||'', cause:cause };
 }
 
-// ─── 5b. Matrix-based result determination ────────────────────────────────────
-
-var _MATRIX = {
-  'bullish-bullish-bullish':'Strong Bullish', 'bullish-bullish-neutral':'Bullish',
-  'bullish-bullish-bearish':'Caution',        'bullish-neutral-bullish':'Bullish',
-  'bullish-neutral-neutral':'Bullish Watch',  'bullish-neutral-bearish':'Caution',
-  'bullish-bearish-bullish':'Mixed / Caution','bullish-bearish-neutral':'Caution',
-  'bullish-bearish-bearish':'Bearish Watch',  'neutral-bullish-bullish':'Bullish Watch',
-  'neutral-bullish-neutral':'Bullish Watch',  'neutral-bullish-bearish':'Mixed / Caution',
-  'neutral-neutral-bullish':'Bullish Watch',  'neutral-neutral-neutral':'Neutral',
-  'neutral-neutral-bearish':'Bearish Watch',  'neutral-bearish-bullish':'Mixed / Caution',
-  'neutral-bearish-neutral':'Bearish Watch',  'neutral-bearish-bearish':'Bearish',
-  'bearish-bullish-bullish':'Risky Bounce',   'bearish-bullish-neutral':'Risky Bounce',
-  'bearish-bullish-bearish':'Mixed / Caution','bearish-neutral-bullish':'Mixed / Caution',
-  'bearish-neutral-neutral':'Bearish Watch',  'bearish-neutral-bearish':'Bearish',
-  'bearish-bearish-bullish':'Mixed / Caution','bearish-bearish-neutral':'Bearish',
-  'bearish-bearish-bearish':'Strong Bearish',
-};
+// ─── 5b. Result determination (strength-aware) ────────────────────────────────
 
 var _RESULT_TO_SCENARIO = {
   'Strong Bullish':  'strong_bullish_alignment',
@@ -731,11 +714,110 @@ var _RESULT_TO_SCENARIO = {
 };
 
 function determineResultFromSignals(momSig, revSig, smSig) {
+  var m  = momSig.status  === 'unknown' ? 'neutral' : momSig.status;
+  var r  = revSig.status  === 'unknown' ? 'neutral' : revSig.status;
+  var s  = smSig.status   === 'unknown' ? 'neutral' : smSig.status;
+  var ms = momSig.strength === 'unknown' ? 'watch'  : momSig.strength;
+  var rs = revSig.strength === 'unknown' ? 'watch'  : revSig.strength;
+  var ss = smSig.strength  === 'unknown' ? 'watch'  : smSig.strength;
+
+  // A. Strong Bullish — all three bullish, strong conviction throughout
+  if (m==='bullish' && ms==='strong' &&
+      r==='bullish' && rs==='strong' &&
+      s==='bullish' && (ss==='strong' || ss==='normal'))
+    return 'Strong Bullish';
+
+  // I. Strong Bearish — all three bearish, strong conviction
+  if (m==='bearish' && r==='bearish' && s==='bearish' &&
+      rs==='strong' && (ms==='strong' || ms==='normal'))
+    return 'Strong Bearish';
+
+  // E. Risky Bounce — momentum bearish but reversal/SMF improving
+  if (m==='bearish' && r==='bullish' && (s==='bullish' || s==='neutral'))
+    return 'Risky Bounce';
+
+  // H. Bearish — at least two bearish, remaining neutral or weak
+  if (m==='bearish' && r==='bearish' && s!=='bullish') return 'Bearish';
+  if (m==='neutral' && r==='bearish' && s==='bearish') return 'Bearish';
+  if (m==='bearish' && r==='neutral' && s==='bearish') return 'Bearish';
+
+  // G. Bearish Watch — bearish evidence present, not fully aligned
+  if (m==='neutral' && r==='bearish' && s==='neutral') return 'Bearish Watch';
+  if (m==='bearish' && r==='neutral' && s==='neutral') return 'Bearish Watch';
+  if (m==='bullish' && r==='bearish' && s==='bearish') return 'Bearish Watch';
+  if (m==='bearish' && r==='bearish' && s==='bullish') return 'Mixed / Caution';
+
+  // F. Mixed / Caution — direct bullish/bearish conflict
+  if (m==='bullish' && r==='bearish' && s==='bullish') return 'Mixed / Caution';
+  if (m==='bearish' && r==='neutral' && s==='bullish') return 'Mixed / Caution';
+  if (m==='neutral' && r==='bullish' && s==='bearish') return 'Mixed / Caution';
+  if (m==='bearish' && r==='bullish' && s==='bearish') return 'Mixed / Caution';
+
+  // Caution — one-sided conflict, bearish not fully aligned
+  if (m==='bullish' && r==='bearish' && s==='neutral') return 'Caution';
+  if (m==='bullish' && r==='neutral' && s==='bearish') return 'Caution';
+
+  // B. Bullish — all three bullish but not Strong Bullish
+  if (m==='bullish' && r==='bullish' && s==='bullish') return 'Bullish';
+
+  // C. Bullish — momentum + reversal bullish (strong/normal), SMF neutral
+  if (m==='bullish' && r==='bullish' && s==='neutral' &&
+      (rs==='strong' || rs==='normal')) return 'Bullish';
+
+  // D. Bullish Watch — two bullish one neutral; or reversal watch-level with neutral SMF
+  if (m==='bullish' && r==='neutral' && s==='bullish') return 'Bullish Watch';
+  if (m==='neutral' && r==='bullish' && s==='bullish') return 'Bullish Watch';
+  if (m==='bullish' && r==='bullish' && s==='neutral') return 'Bullish Watch'; // rs=watch falls here (not rule C)
+  if (m==='bullish' && r==='neutral' && s==='neutral') return 'Bullish Watch';
+  if (m==='neutral' && r==='bullish' && s==='neutral') return 'Bullish Watch';
+  if (m==='neutral' && r==='neutral' && s==='bullish') return 'Bullish Watch';
+
+  // J. Neutral — fallback
+  return 'Neutral';
+}
+
+function _resultReason(rawResult, momSig, revSig, smSig) {
+  var base = 'Result is ' + rawResult + ' because ';
   var m = momSig.status === 'unknown' ? 'neutral' : momSig.status;
   var r = revSig.status === 'unknown' ? 'neutral' : revSig.status;
-  var s = smSig.status === 'unknown'  ? 'neutral' : smSig.status;
-  var key = m + '-' + r + '-' + s;
-  return _MATRIX[key] || 'Neutral';
+  var s = smSig.status  === 'unknown' ? 'neutral' : smSig.status;
+
+  if (rawResult === 'Strong Bullish')
+    return base + 'Momentum (' + momSig.label + '), Reversal (' + revSig.label + '), and Smart Money (' + (smSig.baseStatus||smSig.label) + ') are all bullish with strong conviction across all three signals.';
+
+  if (rawResult === 'Bullish') {
+    if (m==='bullish' && r==='bullish' && s==='bullish') {
+      var limiters = [];
+      if (revSig.strength !== 'strong') limiters.push('Reversal is ' + revSig.strength + ' (' + revSig.label + ')');
+      if (smSig.strength === 'watch' || smSig.strength === 'weak') limiters.push('Smart Money is still ' + smSig.strength + ' (' + (smSig.baseStatus||smSig.label) + ')');
+      if (momSig.strength !== 'strong') limiters.push('Momentum strength is ' + momSig.strength + ' (' + momSig.label + ')');
+      return base + 'Momentum, Reversal, and Smart Money are all bullish, but conviction is not strong enough for Strong Bullish. ' + limiters.join(', ') + '.';
+    }
+    return base + 'Momentum and Reversal are bullish. Smart Money is ' + s + '.';
+  }
+
+  if (rawResult === 'Bullish Watch')
+    return base + 'some bullish evidence exists but signals are not fully aligned. Momentum is ' + m + ' (' + momSig.label + '), Reversal is ' + r + ' (' + revSig.label + '), Smart Money is ' + s + ' (' + (smSig.baseStatus||smSig.label) + ').';
+
+  if (rawResult === 'Strong Bearish')
+    return base + 'Momentum (' + momSig.label + '), Reversal (' + revSig.label + '), and Smart Money (' + (smSig.baseStatus||smSig.label) + ') are all bearish with strong conviction.';
+
+  if (rawResult === 'Bearish')
+    return base + 'at least two of Momentum, Reversal, and Smart Money are bearish. Momentum is ' + m + ', Reversal is ' + r + ', Smart Money is ' + s + '.';
+
+  if (rawResult === 'Bearish Watch')
+    return base + 'bearish evidence is building but signals are not fully aligned. Momentum is ' + m + ' (' + momSig.label + '), Reversal is ' + r + ' (' + revSig.label + '), Smart Money is ' + s + '.';
+
+  if (rawResult === 'Risky Bounce')
+    return base + 'Reversal and Smart Money are showing bullish signals, but the underlying Momentum is bearish (' + momSig.label + '). A bounce may be developing but has not been confirmed by broader momentum.';
+
+  if (rawResult === 'Mixed / Caution')
+    return base + 'there is direct conflict between bullish and bearish signals. Momentum is ' + m + ', Reversal is ' + r + ', Smart Money is ' + s + '.';
+
+  if (rawResult === 'Caution')
+    return base + 'bullish and bearish signals are in conflict. Momentum is ' + m + ', Reversal is ' + r + ', Smart Money is ' + s + '.';
+
+  return base + 'no clear directional alignment exists across Momentum, Reversal, and Smart Money.';
 }
 
 function formatResultWithTrend(rawResult, trendObj) {
@@ -839,14 +921,8 @@ export function generateRuleBasedAnalytics(snapshot) {
 
   // ── decisionTrace ─────────────────────────────────────────────────────────
   var hasUnknown = momSig.status === 'unknown' || revSig.status === 'unknown' || smSig.status === 'unknown';
-  var reasonParts = [
-    'Result is ' + rawResult + ' because:',
-    'Momentum is ' + (momSig.status === 'unknown' ? 'unknown (treated as neutral)' : momSig.status) + ' (' + momSig.label + ').',
-    'Reversal is ' + (revSig.status === 'unknown' ? 'unknown (treated as neutral)' : revSig.status) + ' (' + revSig.label + ').',
-    'Smart Money is ' + (smSig.status === 'unknown' ? 'unknown (treated as neutral)' : smSig.status) + ' (' + smSig.label + ').',
-    'Trend is used as context: ' + trendSig.condition + '.',
-  ];
-  if (hasUnknown) reasonParts.push('Note: one or more signals had insufficient data and were treated as neutral.');
+  var reason = _resultReason(rawResult, momSig, revSig, smSig);
+  if (hasUnknown) reason += ' Note: one or more signals had insufficient data and were treated as neutral.';
 
   var decisionTrace = {
     trendCondition: { label:trendSig.label, condition:trendSig.condition, bias:trendSig.bias, cause:trendSig.cause },
@@ -858,7 +934,7 @@ export function generateRuleBasedAnalytics(snapshot) {
     rawResult:   rawResult,
     finalResult: finalResult,
     matchedScenarioId: scenarioId,
-    reason: reasonParts.join(' '),
+    reason: reason + ' Trend is used as context: ' + trendSig.condition + '.',
   };
 
   return {
