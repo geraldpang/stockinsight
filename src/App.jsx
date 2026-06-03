@@ -2818,7 +2818,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [rbaConfError,   setRbaConfError]   = useState(null);
   const [rbaConfSym,     setRbaConfSym]     = useState(null);
   const [rbaConfPeriod,  setRbaConfPeriod]  = useState('20D');
-  const [mobileExpanded, setMobileExpanded] = useState(null);
+  const [expanded, setExpanded] = useState(null);
   const [aiTechRefreshing, setAiTechRefreshing] = useState(false);
   const [aiTechCachedAt,setAiTechCachedAt]= useState(null);
 
@@ -4646,7 +4646,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.81</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.76</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4700,7 +4700,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.81</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.76</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5031,122 +5031,72 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   }
                   return (
                     <div>
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
-                      {/* Fundamental AI pill */}
-                      <div onClick={function(){
-                        if (window.innerWidth<=768) { setMobileExpanded(function(p){return p==='fundamental'?null:'fundamental';}); }
-                        else { window.__goToTab && window.__goToTab("aianalysis"); }
-                      }}
-                        style={{ padding:"9px 12px", background:aiFundResult?fundC.bg:"#222", border:"0.5px solid "+(aiFundResult?fundC.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color:aiFundResult?fundC.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8, display:"flex", justifyContent:"space-between" }}>
-                          <span>Fundamental (Invest)</span>
-                          <span>{mobileExpanded==='fundamental'?'˅':'›'}</span>
-                        </div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                          {aiFundLoading
-                            ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
-                            : <span style={{ fontSize:13, fontWeight:700, color:aiFundResult?fundC.fg:"#555" }}>{aiFundResult?aiFundResult.verdict:"--"}</span>
-                          }
-                        </div>
-                      </div>
-                      {/* Technical (Trade) pill */}
-                      <div onClick={function(){
-                        if (window.innerWidth<=768) { setMobileExpanded(function(p){return p==='technical'?null:'technical';}); }
-                        else { window.__goToTab && window.__goToTab("technical"); }
-                      }}
-                        style={{ padding:"9px 12px", background: ruleAnalytics ? summaryCardDark(ruleAnalytics.verdict).bg : "#222", border:"0.5px solid "+(ruleAnalytics ? summaryCardDark(ruleAnalytics.verdict).bd : "#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                        <div style={{ fontSize:9, color: ruleAnalytics ? summaryCardDark(ruleAnalytics.verdict).text : "#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8, display:"flex", justifyContent:"space-between" }}>
-                          <span>Technical (Trade)</span>
-                          <span>{mobileExpanded==='technical'?'˅':'›'}</span>
-                        </div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flex:1 }}>
-                          {!ruleAnalytics
-                            ? <span style={{ fontSize:10, color:"#555" }}>{"Loading..."}</span>
-                            : <span style={{ fontSize:13, fontWeight:700, color: summaryCardDark(ruleAnalytics.verdict).text }}>
-                                {ruleAnalytics.verdict.split("—")[0].trim()}
-                              </span>
-                          }
-                        </div>
-                      </div>
-                    </div>
-                    {/* Mobile: Fundamental expansion */}
-                    {mobileExpanded==='fundamental' && window.innerWidth<=768 && (function(){
-                      if (!aiFundResult) return <div style={{fontSize:11,color:'#555',padding:'6px 2px'}}>Fundamental analysis not yet available.</div>;
-                      var fc = summaryCardDark(aiFundResult.verdict);
-                      return (
-                        <div style={{borderRadius:8,border:'0.5px solid '+fc.bd,background:fc.bg,padding:'10px 12px',marginBottom:6}}>
-                          <div style={{fontSize:9,fontWeight:700,color:fc.text,textTransform:'uppercase',letterSpacing:'.07em',marginBottom:6}}>Fundamental Summary</div>
-                          {aiFundResult.summary && <div style={{fontSize:11,color:'#c0bdb4',lineHeight:1.6,marginBottom:6}}>{aiFundResult.summary}</div>}
-                          {aiFundResult.strength && <div style={{marginBottom:3}}><span style={{fontSize:9,fontWeight:700,color:'#7abd00',textTransform:'uppercase',marginRight:4}}>Strength</span><span style={{fontSize:11,color:'#aaa'}}>{aiFundResult.strength}</span></div>}
-                          {aiFundResult.risk && <div style={{marginBottom:8}}><span style={{fontSize:9,fontWeight:700,color:'#e05050',textTransform:'uppercase',marginRight:4}}>Risk</span><span style={{fontSize:11,color:'#aaa'}}>{aiFundResult.risk}</span></div>}
-                          <button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab('aianalysis');setMobileExpanded(null);}} style={{fontSize:10,padding:'4px 12px',border:'0.5px solid '+fc.bd,borderRadius:10,background:'none',color:fc.text,cursor:'pointer'}}>Full Analysis ›</button>
-                        </div>
-                      );
-                    })()}
-                    {/* Mobile: Technical expansion */}
-                    {mobileExpanded==='technical' && window.innerWidth<=768 && (function(){
-                      var rba = ruleAnalytics;
-                      if (!rba) return <div style={{fontSize:11,color:'#555',padding:'6px 2px'}}>Technical analysis loading...</div>;
-                      var tc = summaryCardDark(rba.verdict);
-                      function getPR2(row,period){
-                        if(period==='5D')  return row&&row.futureReturn5d  !=null?row.futureReturn5d:null;
-                        if(period==='10D') return row&&row.futureReturn10d !=null?row.futureReturn10d:null;
-                        if(period==='20D') return row&&row.futureReturn20d !=null?row.futureReturn20d:(row&&row.futureReturn!=null?row.futureReturn:null);
-                        if(period==='30D') return row&&row.futureReturn30d !=null?row.futureReturn30d:null;
-                        if(period==='90D') return row&&row.futureReturn90d !=null?row.futureReturn90d:null;
-                        return row&&row.futureReturn!=null?row.futureReturn:null;
-                      }
-                      var curRaw2=rba.factorGroups&&rba.factorGroups.rawResult||null;
-                      var curTrend2=rba.factorGroups&&rba.factorGroups.trendCondition||null;
-                      var confRows2=rbaConfResult&&rbaConfResult.ticker===sym?rbaConfResult.rows:[];
-                      var curMatch2=confRows2.filter(function(r){return r.rawResult===curRaw2&&r.trendCondition===curTrend2;});
-                      var curRets2=curMatch2.map(function(r){return getPR2(r,rbaConfPeriod);}).filter(function(v){return v!=null&&!isNaN(v);});
-                      var cW2=curRets2.filter(function(v){return v>=0;}).length;
-                      var cAvg2=curRets2.length?curRets2.reduce(function(a,b){return a+b;},0)/curRets2.length:null;
-                      var cS2=curRets2.slice().sort(function(a,b){return a-b;});
-                      var cMed2=cS2.length?(cS2.length%2===0?(cS2[cS2.length/2-1]+cS2[cS2.length/2])/2:cS2[Math.floor(cS2.length/2)]):null;
-                      var cConf2=curRets2.length>=50?'Strong':curRets2.length>=25?'Good':curRets2.length>=10?'Medium':curRets2.length>=5?'Low':'Very Low';
-                      var cCC2=curRets2.length>=25?'#7abd00':curRets2.length>=10?'#6090d0':curRets2.length>=5?'#b88000':'#e05050';
-                      return (
-                        <div style={{borderRadius:8,border:'0.5px solid '+tc.bd,background:tc.bg,padding:'10px 12px',marginBottom:6}}>
-                          <div style={{fontSize:9,fontWeight:700,color:tc.text,textTransform:'uppercase',letterSpacing:'.07em',marginBottom:4}}>Technical Analysis</div>
-                          <div style={{fontSize:13,fontWeight:800,color:tc.text,marginBottom:6}}>{rba.verdict}</div>
-                          {rba.analysis && <div style={{fontSize:11,color:'#c0bdb4',lineHeight:1.6,marginBottom:8}}>{rba.analysis}</div>}
-                          {(rba.breakoutLevel||rba.invalidationLevel||(rba.supportLevels&&rba.supportLevels.length)) && (
-                            <div style={{marginBottom:8}}>
-                              <div style={{fontSize:9,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:4}}>Key Levels</div>
-                              <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
-                                {rba.closingPrice&&<span style={{fontSize:10,color:'#aaa',background:'rgba(255,255,255,0.05)',borderRadius:4,padding:'2px 8px'}}>Close {rba.closingPrice}</span>}
-                                {rba.breakoutLevel&&<span style={{fontSize:10,color:'#7abd00',background:'rgba(122,189,0,0.08)',borderRadius:4,padding:'2px 8px'}}>Break {'$'+rba.breakoutLevel.toFixed(2)}</span>}
-                                {rba.invalidationLevel&&<span style={{fontSize:10,color:'#e05050',background:'rgba(224,80,80,0.08)',borderRadius:4,padding:'2px 8px'}}>Stop {'$'+rba.invalidationLevel.toFixed(2)}</span>}
-                                {rba.supportLevels&&rba.supportLevels.slice(0,2).map(function(v,i){return <span key={i} style={{fontSize:10,color:'#e05050',borderRadius:4,padding:'2px 8px',border:'0.5px solid #e0505044'}}>Sup {'$'+v.toFixed(2)}</span>;})}
-                                {rba.resistanceLevels&&rba.resistanceLevels.slice(0,2).map(function(v,i){return <span key={i} style={{fontSize:10,color:'#7abd00',borderRadius:4,padding:'2px 8px',border:'0.5px solid #7abd0044'}}>Res {'$'+v.toFixed(2)}</span>;})}
-                              </div>
-                            </div>
-                          )}
-                          <div style={{borderTop:'0.5px solid '+tc.bd+'33',paddingTop:8}}>
-                            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-                              <div style={{fontSize:9,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:'.06em'}}>Historical Confidence</div>
-                              {!rbaConfResult&&!rbaConfLoading&&<button onClick={function(e){e.stopPropagation();if(window.__doRbaConfCheck)window.__doRbaConfCheck();}} style={{fontSize:9,padding:'3px 10px',border:'0.5px solid #555',borderRadius:8,background:'none',color:'#ccc',cursor:'pointer'}}>Check</button>}
-                              {rbaConfLoading&&<span style={{fontSize:9,color:'#555'}}>Computing...</span>}
-                            </div>
-                            {rbaConfResult&&rbaConfResult.ticker===sym&&(
-                              <div>
-                                <div style={{display:'flex',gap:4,marginBottom:6,flexWrap:'wrap'}}>
-                                  {['5D','10D','20D','30D','90D'].map(function(p){return <button key={p} onClick={function(e){e.stopPropagation();setRbaConfPeriod(p);}} style={{fontSize:9,padding:'2px 8px',borderRadius:8,border:'0.5px solid '+(rbaConfPeriod===p?'#7abd00':'#333'),background:rbaConfPeriod===p?'rgba(122,189,0,0.12)':'transparent',color:rbaConfPeriod===p?'#7abd00':'#555',cursor:'pointer'}}>{p}</button>;})}
-                                </div>
-                                {curRets2.length>=1?(
-                                  <div style={{display:'flex',flexWrap:'wrap',gap:10,padding:'6px 8px',background:'rgba(0,0,0,0.2)',borderRadius:6}}>
-                                    {[['Sigs',''+curRets2.length,'#aaa'],['Win',(cW2&&curRets2.length?(cW2/curRets2.length*100).toFixed(0)+'%':'--'),cW2/curRets2.length>=0.5?'#7abd00':'#e05050'],['Avg',cAvg2!=null?(cAvg2>=0?'+':'')+cAvg2.toFixed(1)+'%':'--',cAvg2!=null&&cAvg2>=0?'#7abd00':'#e05050'],['Med',cMed2!=null?(cMed2>=0?'+':'')+cMed2.toFixed(1)+'%':'--',cMed2!=null&&cMed2>=0?'#7abd00':'#e05050'],['Conf',cConf2,cCC2]].map(function(f){return <div key={f[0]}><div style={{fontSize:8,color:'#555',textTransform:'uppercase'}}>{f[0]}</div><div style={{fontSize:11,fontWeight:700,color:f[2]}}>{f[1]}</div></div>;})}
-                                  </div>
-                                ):<div style={{fontSize:10,color:'#555'}}>No historical data for this signal.</div>}
-                              </div>
-                            )}
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
+                        <div onClick={function(){setExpanded(function(p){return p==="fund"?null:"fund";});}}
+                          style={{ padding:"9px 12px", background:aiFundResult?fundC.bg:"#222", border:"0.5px solid "+(aiFundResult?fundC.border:"#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                          <div style={{ fontSize:9, color:aiFundResult?fundC.fg:"#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Fundamental (Invest)</div>
+                          <div style={{ display:"flex", alignItems:"center", flex:1 }}>
+                            {aiFundLoading ? <div style={{ display:"flex", alignItems:"center", gap:5 }}><div style={{ width:7, height:7, borderRadius:"50%", border:"1.5px solid #333", borderTop:"1.5px solid #c8f000", animation:"spin 0.8s linear infinite" }}></div><span style={{ fontSize:10, color:"#555" }}>Analysing...</span></div>
+                              : <span style={{ fontSize:13, fontWeight:700, color:aiFundResult?fundC.fg:"#555" }}>{aiFundResult?aiFundResult.verdict:"--"}</span>}
                           </div>
-                          <button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab('technical');setMobileExpanded(null);}} style={{fontSize:10,marginTop:8,padding:'4px 12px',border:'0.5px solid '+tc.bd,borderRadius:10,background:'none',color:tc.text,cursor:'pointer'}}>Full Analysis ›</button>
                         </div>
-                      );
-                    })()}
+                        <div onClick={function(){setExpanded(function(p){return p==="tech"?null:"tech";});}}
+                          style={{ padding:"9px 12px", background: ruleAnalytics ? summaryCardDark(ruleAnalytics.verdict).bg : "#222", border:"0.5px solid "+(ruleAnalytics ? summaryCardDark(ruleAnalytics.verdict).bd : "#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
+                          <div style={{ fontSize:9, color: ruleAnalytics ? summaryCardDark(ruleAnalytics.verdict).text : "#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Technical (Trade)</div>
+                          <div style={{ display:"flex", alignItems:"center", flex:1 }}>
+                            {!ruleAnalytics ? <span style={{ fontSize:10, color:"#555" }}>{"Loading..."}</span>
+                              : <span style={{ fontSize:13, fontWeight:700, color: summaryCardDark(ruleAnalytics.verdict).text }}>{ruleAnalytics.verdict.split("—")[0].trim()}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      {expanded==="fund" && !aiFundResult && <div style={{padding:"8px 0",fontSize:11,color:"#555"}}>Analysis not yet available.</div>}
+                      {expanded==="fund" && aiFundResult && (function(){
+                        var fc=summaryCardDark(aiFundResult.verdict);
+                        return(<div style={{borderRadius:8,border:"0.5px solid "+fc.bd,background:fc.bg,padding:"10px 12px",marginTop:6}}>
+                          <div style={{fontSize:9,fontWeight:700,color:fc.text,textTransform:"uppercase",letterSpacing:".07em",marginBottom:6}}>Fundamental Summary</div>
+                          {aiFundResult.summary&&<div style={{fontSize:11,color:"#c0bdb4",lineHeight:1.6,marginBottom:6}}>{aiFundResult.summary}</div>}
+                          {aiFundResult.strength&&<div style={{marginBottom:3}}><span style={{fontSize:9,fontWeight:700,color:"#7abd00",marginRight:4}}>STRENGTH</span><span style={{fontSize:11,color:"#aaa"}}>{aiFundResult.strength}</span></div>}
+                          {aiFundResult.risk&&<div style={{marginBottom:8}}><span style={{fontSize:9,fontWeight:700,color:"#e05050",marginRight:4}}>RISK</span><span style={{fontSize:11,color:"#aaa"}}>{aiFundResult.risk}</span></div>}
+                          <button onClick={function(){window.__goToTab&&window.__goToTab("aianalysis");setExpanded(null);}} style={{fontSize:10,padding:"4px 12px",border:"0.5px solid "+fc.bd,borderRadius:10,background:"none",color:fc.text,cursor:"pointer"}}>Full Analysis</button>
+                        </div>);
+                      })()}
+                      {expanded==="tech" && !ruleAnalytics && <div style={{padding:"8px 0",fontSize:11,color:"#555"}}>Technical analysis not yet available.</div>}
+                      {expanded==="tech" && ruleAnalytics && (function(){
+                        var rba=ruleAnalytics,tc=summaryCardDark(rba.verdict);
+                        var fg=rba.factorGroups||{},cR=fg.rawResult||null,cT=fg.trendCondition||null;
+                        var cRows=rbaConfResult&&rbaConfResult.ticker===sym?rbaConfResult.rows:[];
+                        var PERIODS=["5D","10D","20D","30D","90D"];
+                        var kMap={"5D":"futureReturn5d","10D":"futureReturn10d","20D":"futureReturn20d","30D":"futureReturn30d","90D":"futureReturn90d"};
+                        var cMatch=cRows.filter(function(r){return r.rawResult===cR&&r.trendCondition===cT;});
+                        var cRets=cMatch.map(function(r){var k=kMap[rbaConfPeriod];return k&&r[k]!=null?r[k]:r.futureReturn!=null?r.futureReturn:null;}).filter(function(v){return v!=null&&!isNaN(v);});
+                        var cW=cRets.filter(function(v){return v>=0;}).length;
+                        var cAvg=cRets.length?cRets.reduce(function(a,b){return a+b;},0)/cRets.length:null;
+                        var cS=cRets.slice().sort(function(a,b){return a-b;});
+                        var cMed=cS.length?cS.length%2===0?(cS[cS.length/2-1]+cS[cS.length/2])/2:cS[Math.floor(cS.length/2)]:null;
+                        var cLbl=cRets.length>=50?"Strong":cRets.length>=25?"Good":cRets.length>=10?"Medium":cRets.length>=5?"Low":"Very Low";
+                        var cCol=cRets.length>=25?"#7abd00":cRets.length>=10?"#6090d0":cRets.length>=5?"#b88000":"#e05050";
+                        return(<div style={{borderRadius:8,border:"0.5px solid "+tc.bd,background:tc.bg,padding:"10px 12px",marginTop:6}}>
+                          <div style={{fontSize:9,fontWeight:700,color:tc.text,textTransform:"uppercase",letterSpacing:".07em",marginBottom:4}}>Technical Analysis</div>
+                          <div style={{fontSize:13,fontWeight:800,color:tc.text,marginBottom:6}}>{rba.verdict}</div>
+                          {rba.analysis&&<div style={{fontSize:11,color:"#c0bdb4",lineHeight:1.6,marginBottom:8}}>{rba.analysis}</div>}
+                          <div style={{borderTop:"0.5px solid #2a2a2a",paddingTop:8}}>
+                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                              <span style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase"}}>Historical Confidence</span>
+                              {!rbaConfResult&&!rbaConfLoading&&<button onClick={function(e){e.stopPropagation();if(window.__doRbaConfCheck)window.__doRbaConfCheck();}} style={{fontSize:9,padding:"3px 10px",border:"0.5px solid #555",borderRadius:8,background:"none",color:"#ccc",cursor:"pointer"}}>Check</button>}
+                              {rbaConfLoading&&<span style={{fontSize:9,color:"#555"}}>Computing...</span>}
+                            </div>
+                            {rbaConfResult&&rbaConfResult.ticker===sym&&(<div>
+                              <div style={{display:"flex",gap:4,marginBottom:6,flexWrap:"wrap"}}>
+                                {PERIODS.map(function(p){return <button key={p} onClick={function(e){e.stopPropagation();setRbaConfPeriod(p);}} style={{fontSize:9,padding:"2px 8px",borderRadius:8,border:"0.5px solid "+(rbaConfPeriod===p?"#7abd00":"#333"),background:rbaConfPeriod===p?"rgba(122,189,0,0.12)":"transparent",color:rbaConfPeriod===p?"#7abd00":"#555",cursor:"pointer"}}>{p}</button>;})}
+                              </div>
+                              {cRets.length>=1?(<div style={{display:"flex",flexWrap:"wrap",gap:10,padding:"6px 8px",background:"rgba(0,0,0,0.2)",borderRadius:6}}>
+                                {[["Sigs",""+cRets.length,"#aaa"],["Win",cRets.length?(cW/cRets.length*100).toFixed(0)+"%":"--",cW&&cRets.length&&cW/cRets.length>=0.5?"#7abd00":"#e05050"],["Avg",cAvg!=null?(cAvg>=0?"+":"")+cAvg.toFixed(1)+"%":"--",cAvg!=null&&cAvg>=0?"#7abd00":"#e05050"],["Med",cMed!=null?(cMed>=0?"+":"")+cMed.toFixed(1)+"%":"--",cMed!=null&&cMed>=0?"#7abd00":"#e05050"],["Conf",cLbl,cCol]].map(function(f){return <div key={f[0]}><div style={{fontSize:8,color:"#555",textTransform:"uppercase"}}>{f[0]}</div><div style={{fontSize:11,fontWeight:700,color:f[2]}}>{f[1]}</div></div>;})}
+                              </div>):(<div style={{fontSize:10,color:"#555"}}>No historical data.</div>)}
+                            </div>)}
+                          </div>
+                          <button onClick={function(){window.__goToTab&&window.__goToTab("technical");setExpanded(null);}} style={{fontSize:10,marginTop:8,padding:"4px 12px",border:"0.5px solid "+tc.bd,borderRadius:10,background:"none",color:tc.text,cursor:"pointer"}}>Full Analysis</button>
+                        </div>);
+                      })()}
                     </div>
                   );
                 })()}
@@ -5160,124 +5110,78 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   </div>
                   {(function(){
                     function FRow(p){
+                      // Use classification to determine dot count if provided (e.g. "Wide" = 5 even if score rounds to 4)
                       var dotCount = p.classification ?
                         (p.classification==="Wide"?5:p.classification==="Strong"?4:p.classification==="Moderate"?3:p.classification==="Narrow"?2:1)
                         : (p.score||0);
                       var _d=[]; for(var i=1;i<=5;i++) _d.push(<span key={i} style={{display:"inline-block",width:5,height:5,borderRadius:"50%",background:i<=dotCount?(p.dotCol||"#7abd00"):"#2a2a2a",marginRight:2}}/>);
-                      var isExp = mobileExpanded === p.expandId;
                       return (
-                        <div>
-                          <div onClick={function(){
-                            if (window.innerWidth<=768) { setMobileExpanded(function(prev){return prev===p.expandId?null:p.expandId;}); }
-                            else { window.__goToTab && window.__goToTab(p.tab); }
-                          }}
-                            style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44,background:"transparent"}}
-                            onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
-                            onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
-                            <span style={{fontSize:11,color:"#666",width:115,flexShrink:0}}>{p.label}</span>
-                            <span style={{fontSize:12,fontWeight:600,color:p.loading?"#444":(p.valCol||"#aaa"),flex:1}}>{p.loading?"--":(p.value||"--")}</span>
-                            {!p.loading&&dotCount>0&&<span style={{display:"inline-flex",alignItems:"center",marginRight:8}}>{_d}</span>}
-                            <span style={{fontSize:11,color:"#444"}}>{isExp&&window.innerWidth<=768?"\u02C5":"\u203A"}</span>
-                          </div>
-                          {isExp && window.innerWidth<=768 && p.expandContent && (
-                            <div style={{background:"#1a1a1a",borderBottom:"0.5px solid #2a2a2a",padding:"10px 12px"}}>
-                              {(function(){try{return p.expandContent;}catch(e){return <div style={{fontSize:10,color:'#e05050'}}>{'Error loading details: '+e.message}</div>;}})()}
-                            </div>
-                          )}
+                        <div onClick={function(){ setExpanded(function(prev){return prev===p.tab?null:p.tab;}); }}
+                          style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
+                          onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
+                          onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
+                          <span style={{fontSize:11,color:"#666",width:115,flexShrink:0}}>{p.label}</span>
+                          <span style={{fontSize:12,fontWeight:600,color:p.loading?"#444":(p.valCol||"#aaa"),flex:1}}>{p.loading?"--":(p.value||"--")}</span>
+                          {!p.loading&&dotCount>0&&<span style={{display:"inline-flex",alignItems:"center",marginRight:8}}>{_d}</span>}
+                          <span style={{fontSize:11,color:"#444"}}>{"\u203A"}</span>
                         </div>
                       );
                     }
-                    // Expansion content helpers
-                    function DotRow(label, dotCount, color, detail) {
-                      var dots=[]; for(var i=1;i<=5;i++) dots.push(<span key={i} style={{display:"inline-block",width:5,height:5,borderRadius:"50%",background:i<=dotCount?color:"#2a2a2a",marginRight:2}}/>);
-                      return (
-                        <div key={label} style={{display:"flex",alignItems:"center",padding:"5px 0",borderBottom:"0.5px solid #2a2a2a"}}>
-                          <span style={{fontSize:10,color:"#666",flex:1}}>{label}</span>
-                          <span style={{display:"inline-flex",alignItems:"center",marginRight:8}}>{dots}</span>
-                          <span style={{fontSize:10,fontWeight:600,color:color,minWidth:80,textAlign:"right"}}>{detail}</span>
-                        </div>
-                      );
-                    }
-                    // Moat expansion
-                    var moatExpContent = (function(){try{
-                      var pi = parsedInsights && parsedInsights["moat"];
-                      if (!pi) return <div style={{fontSize:10,color:"#555"}}>No detailed moat drivers available.</div>;
-                      var cls = pi.classification||"";
-                      var clsCol = cls==="Wide"?"#7abd00":cls==="Moderate"?"#EF9F27":cls==="Narrow"?"#6090d0":"#e05050";
-                      var secs = pi.sections ? pi.sections.slice(0,5) : [];
-                      return (
-                        <div>
-                          {pi.explanation && <div style={{fontSize:10,color:"#888",lineHeight:1.5,marginBottom:6}}>{pi.explanation.slice(0,180)}{pi.explanation.length>180?'\u2026':''}</div>}
-                          {secs.length ? secs.map(function(sec,i){
-                            var d = sec.score||0;
-                            var sc=d>=4?"#7abd00":d>=3?"#9acd50":d>=2?"#EF9F27":"#e05050";
-                            return DotRow(sec.label, d, sc, sec.classification||sec.shortLabel||"");
-                          }) : <div style={{fontSize:10,color:"#555"}}>No moat driver detail available.</div>}
-                          <button onClick={function(){window.__goToTab&&window.__goToTab('moat');setMobileExpanded(null);}} style={{fontSize:9,padding:'4px 10px',border:'0.5px solid #333',borderRadius:8,background:'none',color:'#aaa',cursor:'pointer',marginTop:8}}>Full Moat Analysis \u203A</button>
-                        </div>
-                      );
-                    }catch(e_m){return null;}})();
-                    // Financial Strength expansion
-                    var finExpContent = (function(){try{
-                      if (!ov) return <div style={{fontSize:10,color:"#555"}}>No financial metrics available.</div>;
-                      var fmt = function(v,pct){ return v!=null&&!isNaN(v)?(pct?(v>=0?"+":"")+v.toFixed(1)+"%":v.toFixed(2)):"--"; };
-                      var c = window.__mc || function(v,g,w){return v>=g?"#7abd00":v>=w?"#EF9F27":"#e05050";};
-                      var rows3 = [
-                        ov.grossMargin!=null&&["Gross Margin",  ov.grossMargin,  c(ov.grossMargin,60,40,0,false), fmt(ov.grossMargin,true)],
-                        ov.opMargin!=null&&["Op Margin",       ov.opMargin,     c(ov.opMargin,20,10,0,false),    fmt(ov.opMargin,true)],
-                        ov.netMargin!=null&&["Net Margin",     ov.netMargin,    c(ov.netMargin,15,5,0,false),    fmt(ov.netMargin,true)],
-                        ov.de!=null&&["Debt/Equity",           ov.de,           ov.de<=0.3?"#7abd00":ov.de<=1?"#EF9F27":"#e05050", fmt(ov.de,false)+"x"],
-                        ov.currentRatio!=null&&["Current Ratio",ov.currentRatio, ov.currentRatio>=2?"#7abd00":ov.currentRatio>=1?"#EF9F27":"#e05050", fmt(ov.currentRatio,false)+"x"],
-                        ov.roe!=null&&["Return on Equity",     ov.roe,          c(ov.roe,15,8,0,false),          fmt(ov.roe,true)],
-                      ].filter(Boolean);
-                      return (
-                        <div>
-                          {rows3.length ? rows3.map(function(r,i){
-                            var d=r[1]>=20?5:r[1]>=12?4:r[1]>=6?3:r[1]>=2?2:1;
-                            return DotRow(r[0],d,r[2],r[3]);
-                          }) : <div style={{fontSize:10,color:"#555"}}>No detailed financial metrics available.</div>}
-                          <button onClick={function(){window.__goToTab&&window.__goToTab('financial');setMobileExpanded(null);}} style={{fontSize:9,padding:'4px 10px',border:'0.5px solid #333',borderRadius:8,background:'none',color:'#aaa',cursor:'pointer',marginTop:8}}>Full Financials \u203A</button>
-                        </div>
-                      );
-                    }catch(e_f){return null;}})();
-                    // Intrinsic Value expansion
-                    var ivExpContent = (function(){try{
-                      if (!ov || !q) return <div style={{fontSize:10,color:"#555"}}>No valuation model breakdown available.</div>;
-                      var price2 = q.price||0;
-                      var fmt2 = function(v){ return v&&v>0?"$"+v.toFixed(2):"--"; };
-                      var ivStore2 = window.__ivStore && window.__ivStore[sym];
-                      var oracle2 = ivStore2 ? parseFloat(ivStore2.oracle) : null;
-                      var disc2 = oracle2&&price2>0?((oracle2-price2)/price2*100):null;
-                      var models = [
-                        ivStore2&&ivStore2.dcf20&&["Cash Flow Model",   parseFloat(ivStore2.dcf20)],
-                        ivStore2&&ivStore2.dcff20&&["Earnings Model",   parseFloat(ivStore2.dcff20)],
-                        ivStore2&&ivStore2.dni20&&["Net Income Model",  parseFloat(ivStore2.dni20)],
-                        ivStore2&&ivStore2.gg&&["Gordon Growth",        parseFloat(ivStore2.gg)],
-                      ].filter(function(m){return m&&m[1]>0;});
-                      return (
-                        <div>
-                          {models.length ? models.map(function(m,i){
-                            var diff = m[1]-price2; var col = diff>0?"#7abd00":diff<0?"#e05050":"#aaa";
-                            return (
-                              <div key={i} style={{display:"flex",alignItems:"center",padding:"5px 0",borderBottom:"0.5px solid #2a2a2a"}}>
-                                <span style={{fontSize:10,color:"#666",flex:1}}>{m[0]}</span>
-                                <span style={{fontSize:10,fontWeight:600,color:col}}>{fmt2(m[1])}</span>
-                              </div>
-                            );
-                          }) : null}
-                          {oracle2&&<div style={{display:"flex",alignItems:"center",padding:"5px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#aaa",flex:1,fontWeight:700}}>Blended IV</span><span style={{fontSize:11,fontWeight:700,color:disc2>0?"#7abd00":"#e05050"}}>{fmt2(oracle2)}</span></div>}
-                          <div style={{display:"flex",alignItems:"center",padding:"5px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#666",flex:1}}>Current Price</span><span style={{fontSize:10,color:"#aaa"}}>{fmt2(price2)}</span></div>
-                          {disc2!=null&&<div style={{display:"flex",alignItems:"center",padding:"5px 0"}}><span style={{fontSize:10,color:"#666",flex:1}}>Margin of Safety</span><span style={{fontSize:10,fontWeight:700,color:disc2>0?"#7abd00":"#e05050"}}>{disc2>=0?"+":""}{disc2.toFixed(1)}%</span></div>}
-                          <div style={{fontSize:9,color:"#555",marginTop:6,lineHeight:1.5}}>Intrinsic value is an estimate and depends on model assumptions.</div>
-                          <button onClick={function(){window.__goToTab&&window.__goToTab('intrinsic');setMobileExpanded(null);}} style={{fontSize:9,padding:'4px 10px',border:'0.5px solid #333',borderRadius:8,background:'none',color:'#aaa',cursor:'pointer',marginTop:8}}>Full IV Analysis \u203A</button>
-                        </div>
-                      );
-                    }catch(e_i){return null;}})();
                     return (
                       <div>
-                        <FRow label="Economic Moat" value={moatRating} score={moatScore} classification={parsedInsights&&parsedInsights["moat"]?parsedInsights["moat"].classification:null} dotCol={moatColors.dot} valCol={moatColors.fg} loading={!moatRating&&insightLoading} tab="moat" expandId="moat" expandContent={moatExpContent} />
-                        <FRow label="Financial Strength" value={finRating} score={finScore} dotCol={finColors.dot} valCol={finColors.fg} loading={false} tab="financial" expandId="financial" expandContent={finExpContent} />
-                        <FRow label="Intrinsic Value" value={ivSublabel||ivLabel||"--"} score={ivScore} dotCol={ivColors.dot} valCol={ivColors.fg} loading={!ivOracle&&!ov} tab="intrinsic" expandId="intrinsic" expandContent={ivExpContent} />
+                        <FRow label="Economic Moat" value={moatRating} score={moatScore} classification={parsedInsights&&parsedInsights["moat"]?parsedInsights["moat"].classification:null} dotCol={moatColors.dot} valCol={moatColors.fg} loading={!moatRating&&insightLoading} tab="moat" />
+
+                        {expanded==="moat" && (function(){
+                          var pi=parsedInsights&&parsedInsights["moat"];
+                          if(!pi)return(<div style={{padding:"6px 0",fontSize:10,color:"#555"}}>No moat detail available.</div>);
+                          var secs=pi.sections?pi.sections.slice(0,5):[];
+                          return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
+                            <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:4}}>Moat Drivers</div>
+                            {pi.explanation&&<div style={{fontSize:10,color:"#888",lineHeight:1.5,marginBottom:6}}>{pi.explanation.slice(0,200)}</div>}
+                            {secs.map(function(s,i){var d=s.score||0;var sc=d>=4?"#7abd00":d>=3?"#9acd50":d>=2?"#EF9F27":"#e05050";return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#666",flex:1}}>{s.label}</span><span style={{fontSize:10,fontWeight:600,color:sc}}>{s.classification||""}</span></div>);})}
+                            <button onClick={function(){window.__goToTab&&window.__goToTab("moat");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Moat Analysis</button>
+                          </div>);
+                        })()}
+                        <FRow label="Financial Strength" value={finRating} score={finScore} dotCol={finColors.dot} valCol={finColors.fg} loading={false} tab="financial" />
+
+                        {expanded==="financial" && (function(){
+                          if(!ov)return(<div style={{padding:"6px 0",fontSize:10,color:"#555"}}>No financial data yet.</div>);
+                          function fmtp(v){return v!=null&&!isNaN(v)?(v>=0?"+":"")+v.toFixed(1)+"%":"--";}
+                          function fmtx(v){return v!=null&&!isNaN(v)?v.toFixed(2)+"x":"--";}
+                          var rows=[];
+                          if(ov.grossMargin!=null)rows.push({l:"Gross Margin",v:fmtp(ov.grossMargin),c:ov.grossMargin>=60?"#7abd00":ov.grossMargin>=40?"#EF9F27":"#e05050"});
+                          if(ov.opMargin!=null)rows.push({l:"Op Margin",v:fmtp(ov.opMargin),c:ov.opMargin>=20?"#7abd00":ov.opMargin>=10?"#EF9F27":"#e05050"});
+                          if(ov.netMargin!=null)rows.push({l:"Net Margin",v:fmtp(ov.netMargin),c:ov.netMargin>=15?"#7abd00":ov.netMargin>=5?"#EF9F27":"#e05050"});
+                          if(ov.de!=null)rows.push({l:"Debt/Equity",v:fmtx(ov.de),c:ov.de<=0.3?"#7abd00":ov.de<=1?"#EF9F27":"#e05050"});
+                          if(ov.roe!=null)rows.push({l:"Return on Equity",v:fmtp(ov.roe),c:ov.roe>=15?"#7abd00":ov.roe>=8?"#EF9F27":"#e05050"});
+                          if(ov.currentRatio!=null)rows.push({l:"Current Ratio",v:fmtx(ov.currentRatio),c:ov.currentRatio>=2?"#7abd00":ov.currentRatio>=1?"#EF9F27":"#e05050"});
+                          return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
+                            <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:4}}>Financial Metrics</div>
+                            {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#666",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:600,color:r.c}}>{r.v}</span></div>);})}
+                            <button onClick={function(){window.__goToTab&&window.__goToTab("financial");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Financials</button>
+                          </div>);
+                        })()}
+                        <FRow label="Intrinsic Value" value={ivSublabel||ivLabel||"--"} score={ivScore} dotCol={ivColors.dot} valCol={ivColors.fg} loading={!ivOracle&&!ov} tab="intrinsic" />
+
+                        {expanded==="intrinsic" && (function(){
+                          var iSt=window.__ivStore&&window.__ivStore[sym];
+                          var pr=q?q.price:0;
+                          var oracle=iSt?parseFloat(iSt.oracle):null;
+                          var disc=oracle&&pr>0?(oracle-pr)/pr*100:null;
+                          function fmtd(v){return v&&v>0?"$"+v.toFixed(2):"--";}
+                          var models=[];
+                          if(iSt&&iSt.dcf20&&parseFloat(iSt.dcf20)>0)models.push({l:"Cash Flow Model",v:fmtd(parseFloat(iSt.dcf20))});
+                          if(iSt&&iSt.dcff20&&parseFloat(iSt.dcff20)>0)models.push({l:"Earnings Model",v:fmtd(parseFloat(iSt.dcff20))});
+                          if(iSt&&iSt.gg&&parseFloat(iSt.gg)>0)models.push({l:"Gordon Growth",v:fmtd(parseFloat(iSt.gg))});
+                          return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
+                            <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:4}}>Valuation Models</div>
+                            {!iSt&&<div style={{fontSize:10,color:"#555"}}>IV data not yet loaded.</div>}
+                            {models.map(function(m,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#666",flex:1}}>{m.l}</span><span style={{fontSize:10,fontWeight:600,color:"#aaa"}}>{m.v}</span></div>);})}
+                            {oracle&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#aaa",flex:1,fontWeight:700}}>Blended IV</span><span style={{fontSize:11,fontWeight:700,color:disc!=null&&disc>0?"#7abd00":"#e05050"}}>{fmtd(oracle)}</span></div>}
+                            {disc!=null&&<div style={{display:"flex",padding:"4px 0"}}><span style={{fontSize:10,color:"#666",flex:1}}>Margin of Safety</span><span style={{fontSize:10,fontWeight:700,color:disc>0?"#7abd00":"#e05050"}}>{(disc>=0?"+":"")+disc.toFixed(1)+"%"}</span></div>}
+                            <button onClick={function(){window.__goToTab&&window.__goToTab("intrinsic");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full IV Analysis</button>
+                          </div>);
+                        })()}
                       </div>
                     );
                   })()}
@@ -5308,7 +5212,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   function TechRow(p){
                     var _barPct=Math.min((p.score||0)/5*100,100);
                     return (
-                      <div onClick={function(){ window.__goToTab && window.__goToTab(p.tab); }}
+                      <div onClick={function(){ setExpanded(function(prev){return prev===p.tab?null:p.tab;}); }}
                         style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                         onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                         onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
@@ -5336,12 +5240,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         var _tsub = _hasTech ? (_trendSubMap[_trendLabel] || null) : null;
                         var _tcol = _hasTech ? _trendCol.fg : "#555";
                         return (
-                          <div>
-                          <div onClick={function(){
-                            if(window.innerWidth<=768){setMobileExpanded(function(p){return p==='trend'?null:'trend';});}
-                            else{window.__goToTab&&window.__goToTab("trend");}
-                          }}
-                            style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
+                          <div onClick={function(){setExpanded(function(p){return p==="trend"?null:"trend";});}}                            style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                             onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                             onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
                             <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>Trend</span>
@@ -5350,31 +5249,27 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               {_tsub&&<div style={{fontSize:9,color:"#555",marginTop:1}}>{_tsub}</div>}
                             </div>
                             {_trendCaution&&<span style={{fontSize:8,fontWeight:700,color:"#b88000",background:"#2a2010",border:"0.5px solid #4a3810",borderRadius:3,padding:"1px 5px",flexShrink:0,marginRight:6}}>{"CAUTION"}</span>}
-                            <span style={{fontSize:11,color:"#444",flexShrink:0}}>{mobileExpanded==='trend'&&window.innerWidth<=768?"˅":">"}</span>
-                          </div>
-                          {mobileExpanded==='trend'&&window.innerWidth<=768&&(function(){
-                            var _ind4=ind2||{}; var _pr4=q?q.price:0;
-                            var ema20v=_ind4.ema20||0; var sma50v=_ind4.sma50||0; var sma200v=_ind4.sma200||0;
-                            function pDiff(price,base){return base>0?((price-base)/base*100):null;}
-                            var vsEma=pDiff(_pr4,ema20v); var vsSma50=pDiff(_pr4,sma50v); var vsSma200=pDiff(_pr4,sma200v);
-                            function numFmt2(v){return v!=null?((v>=0?'+':'')+v.toFixed(1)+'%'):'--';}
-                            function numCol2(v){return v==null?'#555':v>5?'#7abd00':v>0?'#9acd50':v>-5?'#EF9F27':'#e05050';}
-                            function ndots2(v){return v==null?0:v>10?5:v>5?4:v>0?3:v>-5?2:1;}
-                            var rows4=[];
-                            if(ema20v>0)rows4.push(DotRow('vs 20-day EMA',ndots2(vsEma),numCol2(vsEma),numFmt2(vsEma)));
-                            if(sma50v>0)rows4.push(DotRow('vs 50-day SMA',ndots2(vsSma50),numCol2(vsSma50),numFmt2(vsSma50)));
-                            if(sma200v>0)rows4.push(DotRow('vs 200-day SMA',ndots2(vsSma200),numCol2(vsSma200),numFmt2(vsSma200)));
-                            if(_trendLabel&&_trendLabel!=='--')rows4.push(DotRow('Trend Structure',_trendDots,_trendCol.fg,_trendLabel));
-                            return (
-                              <div style={{background:'#1a1a1a',borderBottom:'0.5px solid #2a2a2a',padding:'10px 12px'}}>
-                                <div style={{fontSize:9,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>Trend Evidence</div>
-                                {rows4.length?rows4:<div style={{fontSize:10,color:'#555'}}>No trend evidence available.</div>}
-                                <button onClick={function(){window.__goToTab&&window.__goToTab('trend');setMobileExpanded(null);}} style={{fontSize:9,padding:'4px 10px',border:'0.5px solid #333',borderRadius:8,background:'none',color:'#aaa',cursor:'pointer',marginTop:8}}>Full Detail ›</button>
-                              </div>
-                            );
-                          })()}
+                            <span style={{fontSize:11,color:"#444",flexShrink:0}}>{"›"}</span>
                           </div>
                         );
+                      })()}
+
+                      {expanded==="trend" && (function(){
+                        var _i=ind2||{},_pr=q?q.price:0,e20=_i.ema20||0,s50=_i.sma50||0,s200=_i.sma200||0;
+                        function pd(p,b){return b>0?(p-b)/b*100:null;}
+                        var vE=pd(_pr,e20),v50=pd(_pr,s50),v200=pd(_pr,s200);
+                        function fmt(v){return v!=null?(v>=0?"+":"")+v.toFixed(1)+"%":"--";}
+                        function nc(v){return v==null?"#555":v>5?"#7abd00":v>0?"#9acd50":v>-5?"#EF9F27":"#e05050";}
+                        var rows=[];
+                        if(e20>0)rows.push({l:"vs 20-day EMA",v:fmt(vE),c:nc(vE)});
+                        if(s50>0)rows.push({l:"vs 50-day SMA",v:fmt(v50),c:nc(v50)});
+                        if(s200>0)rows.push({l:"vs 200-day SMA",v:fmt(v200),c:nc(v200)});
+                        return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
+                          <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:4}}>Trend Evidence</div>
+                          {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#666",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:600,color:r.c}}>{r.v}</span></div>);})}
+                          {!rows.length&&<div style={{fontSize:10,color:"#555"}}>No indicator data yet.</div>}
+                          <button onClick={function(){window.__goToTab&&window.__goToTab("trend");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
+                        </div>);
                       })()}
                       {(function(){
                         var _lp = momLiveSym===sym ? momLiveProfile : null;
@@ -5390,11 +5285,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           ? ('D '+(_d||'--')+((_w&&_w!=='No data')?' \u00b7 W '+_w:'')+((_m&&_m!=='No data')?' \u00b7 M '+_m:''))
                           : null;
                         return (
-                          <div>
-                          <div onClick={function(){
-                            if(window.innerWidth<=768){setMobileExpanded(function(p){return p==='momentum'?null:'momentum';});}
-                            else{window.__goToTab&&window.__goToTab('momentum');}
-                          }}
+                          <div onClick={function(){setExpanded(function(p){return p==="momentum"?null:"momentum";});}}
                             style={{display:'flex',alignItems:'center',padding:'11px 12px',borderBottom:'0.5px solid #242424',cursor:'pointer',minHeight:44}}
                             onMouseEnter={function(e){e.currentTarget.style.background='#252525';}}
                             onMouseLeave={function(e){e.currentTarget.style.background='transparent';}}>
@@ -5403,33 +5294,26 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               <div style={{fontSize:12,fontWeight:600,color:_spc,lineHeight:1.3}}>{_sp2}</div>
                               {_momSub&&<div style={{fontSize:9,color:'#555',marginTop:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{_momSub}</div>}
                             </div>
-                            <span style={{fontSize:11,color:'#444',flexShrink:0}}>{mobileExpanded==='momentum'&&window.innerWidth<=768?'˅':'>'}</span>
-                          </div>
-                          {mobileExpanded==='momentum'&&window.innerWidth<=768&&(function(){
-                            var _ind5=ind2||{}; var rsiV=_ind5.rsi14||0;
-                            var rsiH5=_ind5.rsiHistory||[]; var mH5=_ind5.macdHistory||[];
-                            var curHist5=mH5.length>=1?mH5[mH5.length-1].histogram:null;
-                            var prevHist5=mH5.length>=2?mH5[mH5.length-2].histogram:null;
-                            var histDir=curHist5!=null&&prevHist5!=null?(curHist5>prevHist5?'Expanding':'Contracting'):'--';
-                            var histCol=curHist5!=null?(curHist5>0?'#7abd00':curHist5<0?'#e05050':'#555'):'#555';
-                            function rsiDots(r){return r>=70?5:r>=60?4:r>=50?3:r>=40?2:1;}
-                            function rsiCol(r){return r>=60?'#7abd00':r>=50?'#9acd50':r>=40?'#EF9F27':'#e05050';}
-                            var rows5=[];
-                            if(rsiV>0)rows5.push(DotRow('RSI (14)',rsiDots(rsiV),rsiCol(rsiV),rsiV.toFixed(1)));
-                            if(curHist5!=null)rows5.push(DotRow('MACD Histogram',curHist5>0?3:1,histCol,histDir+(curHist5>0?' (Pos)':curHist5<0?' (Neg)':'')));
-                            if(_d&&_d!=='--')rows5.push(DotRow('Daily Status',_momDots,_momCol.fg,_d));
-                            if(_lp&&_lp.profile&&_lp.profile!=='Not Enough Data')rows5.push(DotRow('Profile',_spc===_spc?3:2,_spc,_lp.profile||'--'));
-                            if(_lp&&_lp.weekly&&_lp.weekly!=='Not Enough Data'&&_lp.weekly!=='No data')rows5.push(DotRow('Weekly',2,_sc(_lp.weekly),_lp.weekly));
-                            return (
-                              <div style={{background:'#1a1a1a',borderBottom:'0.5px solid #2a2a2a',padding:'10px 12px'}}>
-                                <div style={{fontSize:9,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>Momentum Evidence</div>
-                                {rows5.length?rows5:<div style={{fontSize:10,color:'#555'}}>No momentum evidence available.</div>}
-                                <button onClick={function(){window.__goToTab&&window.__goToTab('momentum');setMobileExpanded(null);}} style={{fontSize:9,padding:'4px 10px',border:'0.5px solid #333',borderRadius:8,background:'none',color:'#aaa',cursor:'pointer',marginTop:8}}>Full Detail ›</button>
-                              </div>
-                            );
-                          })()}
+                            <span style={{fontSize:11,color:'#444',flexShrink:0}}>{'›'}</span>
                           </div>
                         );
+                      })()}
+
+                      {expanded==="momentum" && (function(){
+                        var _i=ind2||{},rsi=_i.rsi14||0,mH=_i.macdHistory||[];
+                        var cH=mH.length?mH[mH.length-1].histogram:null;
+                        var pH=mH.length>=2?mH[mH.length-2].histogram:null;
+                        var hTxt=cH!=null&&pH!=null?(cH>pH?"Expanding":"Contracting"):"--";
+                        var hCol=cH==null?"#555":cH>0?"#7abd00":cH<0?"#e05050":"#555";
+                        var rows=[];
+                        if(rsi>0)rows.push({l:"RSI (14)",v:rsi.toFixed(1),c:rsi>=60?"#7abd00":rsi>=50?"#9acd50":rsi>=40?"#EF9F27":"#e05050"});
+                        if(cH!=null)rows.push({l:"MACD Histogram",v:hTxt+(cH>0?" (Pos)":cH<0?" (Neg)":""),c:hCol});
+                        return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
+                          <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:4}}>Momentum Evidence</div>
+                          {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#666",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:600,color:r.c}}>{r.v}</span></div>);})}
+                          {!rows.length&&<div style={{fontSize:10,color:"#555"}}>No momentum data yet.</div>}
+                          <button onClick={function(){window.__goToTab&&window.__goToTab("momentum");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
+                        </div>);
                       })()}
                     </div>
                   );
@@ -5549,51 +5433,34 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var _rwSub     = _revSubMap[_rwStatus] || null;
                           var _rwMainCol = revStatusColor(_rw ? _rw.status : null, "main");
                           return (
-                          <div>
-                          <div onClick={function(){
-                            if(window.innerWidth<=768){setMobileExpanded(function(p){return p==='reversal'?null:'reversal';});}
-                            else{window.__goToTab&&window.__goToTab("reversal");}
-                          }}
-                            style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
-                            onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
-                            onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
-                            <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>Reversal</span>
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontSize:12,fontWeight:600,color:_rwMainCol,lineHeight:1.3}}>{_rwStatus}</div>
-                              {_rwSub&&<div style={{fontSize:9,color:"#555",marginTop:1}}>{_rwSub}</div>}
-                            </div>
-                            <span style={{fontSize:11,color:"#444",flexShrink:0}}>{mobileExpanded==='reversal'&&window.innerWidth<=768?'˅':'>'}</span>
-                          </div>
-                          {mobileExpanded==='reversal'&&window.innerWidth<=768&&(function(){
-                            var _rw2=window.__revWatchStatus&&window.__revWatchStatus[sym];
-                            var rd2=_rw2&&_rw2.reversalDecision?_rw2.reversalDecision:null;
-                            var rOutcome=rd2&&rd2.outcome?rd2.outcome:null;
-                            var rTriggered=rd2&&rd2.triggeredConditions?rd2.triggeredConditions:[];
-                            var isBull=_rw2&&_rw2.status&&_rw2.status.toLowerCase().indexOf('bull')>-1;
-                            var isBear=_rw2&&_rw2.status&&_rw2.status.toLowerCase().indexOf('bear')>-1;
-                            var accentCol=isBull?'#7abd00':isBear?'#e05050':'#b88000';
-                            var hasEvidence=rTriggered&&rTriggered.length>0;
-                            var setupItems=rTriggered.filter(function(c){return c&&c.toLowerCase().indexOf('setup')>-1||c&&c.toLowerCase().indexOf('low')>-1;});
-                            var trigItems=rTriggered.filter(function(c){return c&&(c.toLowerCase().indexOf('macd')>-1||c.toLowerCase().indexOf('close above')>-1||c.toLowerCase().indexOf('close below')>-1||c.toLowerCase().indexOf('trigger')>-1);});
-                            var confItems=rTriggered.filter(function(c){return c&&(c.toLowerCase().indexOf('confirm')>-1||c.toLowerCase().indexOf('higher high')>-1||c.toLowerCase().indexOf('lower low')>-1||c.toLowerCase().indexOf('structure')>-1);});
-                            var otherItems=rTriggered.filter(function(c){return setupItems.indexOf(c)<0&&trigItems.indexOf(c)<0&&confItems.indexOf(c)<0;});
-                            function RevItem(label){return <div key={label} style={{display:'flex',alignItems:'flex-start',gap:6,padding:'4px 0',borderBottom:'0.5px solid #2a2a2a'}}><span style={{color:accentCol,flexShrink:0,marginTop:1}}>{'✓'}</span><span style={{fontSize:10,color:'#aaa',lineHeight:1.4}}>{label}</span></div>;}
-                            return (
-                              <div style={{background:'#1a1a1a',borderBottom:'0.5px solid #2a2a2a',padding:'10px 12px'}}>
-                                <div style={{fontSize:9,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>Reversal Evidence</div>
-                                {!hasEvidence&&<div style={{fontSize:10,color:'#555'}}>No reversal evidence currently detected.</div>}
-                                {setupItems.length>0&&<div style={{marginBottom:4}}><div style={{fontSize:9,color:'#555',textTransform:'uppercase',marginBottom:2}}>Setup</div>{setupItems.map(RevItem)}</div>}
-                                {trigItems.length>0&&<div style={{marginBottom:4}}><div style={{fontSize:9,color:'#555',textTransform:'uppercase',marginBottom:2}}>Trigger</div>{trigItems.map(RevItem)}</div>}
-                                {confItems.length>0&&<div style={{marginBottom:4}}><div style={{fontSize:9,color:'#555',textTransform:'uppercase',marginBottom:2}}>Confirmation</div>{confItems.map(RevItem)}</div>}
-                                {otherItems.map(RevItem)}
-                                {rOutcome&&<div style={{fontSize:10,fontWeight:700,color:accentCol,marginTop:6}}>{rOutcome}</div>}
-                                <button onClick={function(){window.__goToTab&&window.__goToTab('reversal');setMobileExpanded(null);}} style={{fontSize:9,padding:'4px 10px',border:'0.5px solid #333',borderRadius:8,background:'none',color:'#aaa',cursor:'pointer',marginTop:8}}>Full Detail ›</button>
+                            <div onClick={function(){setExpanded(function(p){return p==="reversal"?null:"reversal";});}}
+                              style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
+                              onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
+                              onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
+                              <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>Reversal</span>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:12,fontWeight:600,color:_rwMainCol,lineHeight:1.3}}>{_rwStatus}</div>
+                                {_rwSub&&<div style={{fontSize:9,color:"#555",marginTop:1}}>{_rwSub}</div>}
                               </div>
-                            );
-                          })()}
-                          </div>
-                        );
+                              <span style={{fontSize:11,color:"#444",flexShrink:0}}>{"›"}</span>
+                            </div>
+                          );
                         })()}
+
+                      {expanded==="reversal" && (function(){
+                        var _rw=window.__revWatchStatus&&window.__revWatchStatus[sym];
+                        var rd=_rw&&_rw.reversalDecision?_rw.reversalDecision:null;
+                        var trig=rd&&Array.isArray(rd.triggeredConditions)?rd.triggeredConditions:[];
+                        var rwSt=(_rw&&_rw.status)||"";
+                        var ac=rwSt.toLowerCase().indexOf("bull")>-1?"#7abd00":rwSt.toLowerCase().indexOf("bear")>-1?"#e05050":"#b88000";
+                        return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
+                          <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:4}}>Reversal Evidence</div>
+                          {trig.length===0&&<div style={{fontSize:10,color:"#555"}}>No reversal evidence currently detected.</div>}
+                          {trig.filter(function(c){return typeof c==="string";}).map(function(c,i){return(<div key={i} style={{display:"flex",gap:6,padding:"3px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{color:ac,flexShrink:0}}>+</span><span style={{fontSize:10,color:"#aaa"}}>{c}</span></div>);})}
+                          {rd&&rd.outcome&&<div style={{fontSize:10,fontWeight:700,color:ac,marginTop:4}}>{rd.outcome}</div>}
+                          <button onClick={function(){window.__goToTab&&window.__goToTab("reversal");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
+                        </div>);
+                      })()}
                         {(function(){
                           // ── Money Flow row ────────────────────────────────────────────────────
                           var _smf = window.__smfScore && window.__smfScore[sym] ? window.__smfScore[sym] : null;
@@ -5637,46 +5504,40 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var _smfSub2    = _smfSub(_smf, _smd);
                           var _smfMainCol = smfStatusColor(_smf ? _smf.status : null, "main");
                           return (
-                          <div>
-                          <div onClick={function(){
-                            if(window.innerWidth<=768){setMobileExpanded(function(p){return p==='whale'?null:'whale';});}
-                            else{window.__goToTab&&window.__goToTab("whale");}
-                          }}
-                            style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
-                            onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
-                            onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
-                            <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>Money Flow</span>
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontSize:12,fontWeight:600,color:_smfMainCol,lineHeight:1.3}}>{_smfLabel}</div>
-                              {_smfSub2&&<div style={{fontSize:9,color:"#555",marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{_smfSub2}</div>}
-                            </div>
-                            <span style={{fontSize:11,color:"#444",flexShrink:0}}>{mobileExpanded==='whale'&&window.innerWidth<=768?'˅':'>'}</span>
-                          </div>
-                          {mobileExpanded==='whale'&&window.innerWidth<=768&&(function(){
-                            var _smf2=window.__smfScore&&window.__smfScore[sym]?window.__smfScore[sym]:null;
-                            var _smd2=_smf2&&_smf2.smartMoneyDecision?_smf2.smartMoneyDecision:null;
-                            var tLbl2=_smf2&&_smf2.todayLabel?_smf2.todayLabel:null;
-                            var fLbl2=_smf2&&_smf2.fiveDayLabel?_smf2.fiveDayLabel:null;
-                            var dLbl2=_smf2&&_smf2.thirtyDayLabel?_smf2.thirtyDayLabel:null;
-                            var dpfx=_smd2&&_smd2.dailyPrefix?_smd2.dailyPrefix:null;
-                            var bstat=_smd2&&_smd2.baseStatus?_smd2.baseStatus:null;
-                            function flowCol(lbl){if(!lbl)return'#555';var l=lbl.toLowerCase();return l.indexOf('high')>-1||l.indexOf('strong')>-1||l.indexOf('very')>-1?'#7abd00':l.indexOf('moderate')>-1||l.indexOf('building')>-1?'#9acd50':l.indexOf('low')>-1||l.indexOf('weak')>-1||l.indexOf('quiet')>-1?'#EF9F27':l.indexOf('no signal')>-1||l.indexOf('n/a')>-1?'#555':'#aaa';}
-                            var hasData=tLbl2||fLbl2||dLbl2;
-                            return (
-                              <div style={{background:'#1a1a1a',borderBottom:'0.5px solid #2a2a2a',padding:'10px 12px'}}>
-                                <div style={{fontSize:9,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>Money Flow Evidence</div>
-                                {!hasData&&<div style={{fontSize:10,color:'#555'}}>No money flow evidence currently detected.</div>}
-                                {bstat&&bstat!=='Not Enough Data'&&DotRow('Base Signal',bstat.indexOf('Strong')>-1?5:bstat.indexOf('Steady')>-1?4:bstat.indexOf('Early')>-1||bstat.indexOf('Long')>-1?3:bstat.indexOf('Mixed')>-1||bstat.indexOf('Cooling')>-1?2:1,_smfMainCol,bstat)}
-                                {dpfx&&dpfx!=='No Daily Data'&&<div style={{display:'flex',padding:'4px 0',borderBottom:'0.5px solid #2a2a2a',alignItems:'center',gap:6}}><span style={{fontSize:9,color:'#555',flexShrink:0}}>Today</span><span style={{fontSize:10,color:flowCol(dpfx),flex:1,textAlign:'right'}}>{dpfx}</span></div>}
-                                {fLbl2&&fLbl2!=='N/A'&&<div style={{display:'flex',padding:'4px 0',borderBottom:'0.5px solid #2a2a2a',alignItems:'center',gap:6}}><span style={{fontSize:9,color:'#555',flexShrink:0}}>5D Flow</span><span style={{fontSize:10,color:flowCol(fLbl2),flex:1,textAlign:'right'}}>{fLbl2}</span></div>}
-                                {dLbl2&&dLbl2!=='N/A'&&<div style={{display:'flex',padding:'4px 0',borderBottom:'0.5px solid #2a2a2a',alignItems:'center',gap:6}}><span style={{fontSize:9,color:'#555',flexShrink:0}}>30D Flow</span><span style={{fontSize:10,color:flowCol(dLbl2),flex:1,textAlign:'right'}}>{dLbl2}</span></div>}
-                                <button onClick={function(){window.__goToTab&&window.__goToTab('whale');setMobileExpanded(null);}} style={{fontSize:9,padding:'4px 10px',border:'0.5px solid #333',borderRadius:8,background:'none',color:'#aaa',cursor:'pointer',marginTop:8}}>Full Detail ›</button>
+                            <div onClick={function(){setExpanded(function(p){return p==="whale"?null:"whale";});}}
+                              style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
+                              onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
+                              onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
+                              <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>Money Flow</span>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:12,fontWeight:600,color:_smfMainCol,lineHeight:1.3}}>{_smfLabel}</div>
+                                {_smfSub2&&<div style={{fontSize:9,color:"#555",marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{_smfSub2}</div>}
                               </div>
-                            );
-                          })()}
-                          </div>
-                        );
+                              <span style={{fontSize:11,color:"#444",flexShrink:0}}>{"›"}</span>
+                            </div>
+                          );
                         })()}
+
+                      {expanded==="whale" && (function(){
+                        var _s=window.__smfScore&&window.__smfScore[sym]?window.__smfScore[sym]:null;
+                        var _sd=_s&&_s.smartMoneyDecision?_s.smartMoneyDecision:null;
+                        var bst=_sd&&_sd.baseStatus&&_sd.baseStatus!=="Not Enough Data"?_sd.baseStatus:null;
+                        var dpfx=_sd&&_sd.dailyPrefix&&_sd.dailyPrefix!=="No Daily Data"?_sd.dailyPrefix:null;
+                        var fL=_s&&_s.fiveDayLabel&&_s.fiveDayLabel!=="N/A"?_s.fiveDayLabel:null;
+                        var dL=_s&&_s.thirtyDayLabel&&_s.thirtyDayLabel!=="N/A"?_s.thirtyDayLabel:null;
+                        function fC(l){if(!l)return"#555";var lo=l.toLowerCase();return lo.indexOf("high")>-1||lo.indexOf("strong")>-1?"#7abd00":lo.indexOf("mod")>-1?"#9acd50":lo.indexOf("low")>-1||lo.indexOf("quiet")>-1?"#EF9F27":"#aaa";}
+                        var rows=[];
+                        if(bst)rows.push({l:"Base Signal",v:bst,c:smfStatusColor(_s?_s.status:null,"main")});
+                        if(dpfx)rows.push({l:"Today",v:dpfx,c:fC(dpfx)});
+                        if(fL)rows.push({l:"5D Flow",v:fL,c:fC(fL)});
+                        if(dL)rows.push({l:"30D Flow",v:dL,c:fC(dL)});
+                        return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
+                          <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:4}}>Money Flow Evidence</div>
+                          {!_s&&<div style={{fontSize:10,color:"#555"}}>No money flow data yet.</div>}
+                          {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#666",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:600,color:r.c}}>{r.v}</span></div>);})}
+                          <button onClick={function(){window.__goToTab&&window.__goToTab("whale");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
+                        </div>);
+                      })()}
                       </div>
                     );
                   })()}
@@ -6891,7 +6752,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               function doRbaConfCheck() {
                                 if (rbaConfLoading) return;
                                 window.__doRbaConfCheck = doRbaConfCheck;
-                                window.__doRbaConfCheck = doRbaConfCheck; // expose for mobile expansion
                                 var rbaFg = rba.factorGroups || {};
                                 if (!rbaFg.rawResult) return;
                                 setRbaConfLoading(true); setRbaConfError(null); setRbaConfResult(null); setRbaConfSym(sym);
@@ -6970,11 +6830,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 var map={};
                                 rows3.forEach(function(r){
                                   if (!r.momentumStatus||!r.reversalStatus||!r.smartMoneyStatus) return;
-                                  // Simplify trendCondition to short label
-                                  var tc3=r.trendCondition||r.trend||'?';
-                                  tc3=tc3.replace(' Conditions','').replace('Unclear Trend','Unclear').replace('Strong Uptrend','Uptrend').replace('Strong Downtrend','Downtrend');
-                                  var k=r.momentumStatus+'|'+r.reversalStatus+'|'+r.smartMoneyStatus+'|'+tc3+'|'+(r.rawResult||'?');
-                                  if (!map[k]) map[k]={momentumStatus:r.momentumStatus,reversalStatus:r.reversalStatus,smartMoneyStatus:r.smartMoneyStatus,trendShort:tc3,rawResult:r.rawResult||'—',rets:[]};
+                                  var k=r.momentumStatus+'|'+r.reversalStatus+'|'+r.smartMoneyStatus+'|'+(r.rawResult||'?');
+                                  if (!map[k]) map[k]={momentumStatus:r.momentumStatus,reversalStatus:r.reversalStatus,smartMoneyStatus:r.smartMoneyStatus,rawResult:r.rawResult||'—',rets:[]};
                                   var v=getPeriodReturn(r,period); if(v!=null&&!isNaN(v)){ map[k].rets.push(v); }
                                 });
                                 return Object.values(map).map(function(g){
@@ -6991,8 +6848,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               var rcGroups  = hasConf ? buildRCGroups(confRows)   : [];
                               var sigGroups = hasConf ? build3SigGroups(confRows) : [];
                               var curKeyRC  = curRaw+'|'+curTrend;
-                              var _curTrendShort = curTrend ? curTrend.replace(' Conditions','').replace('Unclear Trend','Unclear') : '?';
-                              var curKey3   = curMom+'|'+curRev+'|'+curSmf+'|'+_curTrendShort+'|'+curRaw;
+                              var curKey3   = curMom+'|'+curRev+'|'+curSmf+'|'+curRaw;
                               function StatRow(props) {
                                 var s=props.stats;
                                 if (!s) return <div style={{fontSize:11,color:'#555'}}>{'No matching data for this period.'}</div>;
@@ -7075,12 +6931,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                         </div>
                                         {/* Top 10 3-Signal table */}
                                         <div>
-                                          <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>{'Top 4-Signal Combinations (incl. Trend · ' + period + ')'}</div>
+                                          <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>{'Top 3-Signal Combinations (' + period + ')'}</div>
                                           {sigGroups.length ? <div style={{overflowX:'auto'}}>
                                             <table style={{width:'100%',borderCollapse:'collapse',fontSize:10}}>
-                                              <thead><tr>{['#','Mom','Rev','SMF','Trend','Result','Sigs','Win%','Avg','Median','Conf','Quality'].map(function(h){ return <th key={h} style={{textAlign:'left',color:'#555',fontWeight:700,fontSize:8,padding:'3px 6px',borderBottom:'0.5px solid #ddd',whiteSpace:'nowrap'}}>{h}</th>; })}</tr></thead>
+                                              <thead><tr>{['#','Mom','Rev','SMF','Result','Sigs','Win%','Avg','Median','Conf','Quality'].map(function(h){ return <th key={h} style={{textAlign:'left',color:'#555',fontWeight:700,fontSize:8,padding:'3px 6px',borderBottom:'0.5px solid #ddd',whiteSpace:'nowrap'}}>{h}</th>; })}</tr></thead>
                                               <tbody>{sigGroups.slice(0,10).map(function(g,i){
-                                                var isCur = (g.momentumStatus+'|'+g.reversalStatus+'|'+g.smartMoneyStatus+'|'+(g.trendShort||'?')+'|'+g.rawResult)===curKey3;
+                                                var isCur = (g.momentumStatus+'|'+g.reversalStatus+'|'+g.smartMoneyStatus+'|'+g.rawResult)===curKey3;
                                                 var ql=qualLabel(g.signals,g.winRate,g.medianReturn,g.avgReturn),qc=qualColor(ql);
                                                 var cl=confLabel(g.signals),cc=confColor(g.signals);
                                                 function sC(s){ return s==='bullish'?'#7abd00':s==='bearish'?'#e05050':'#b88000'; }
@@ -7089,7 +6945,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                                   <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.momentumStatus)}}>{g.momentumStatus}</td>
                                                   <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.reversalStatus)}}>{g.reversalStatus}</td>
                                                   <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.smartMoneyStatus)}}>{g.smartMoneyStatus}</td>
-                                                  <td style={{padding:'4px 6px',fontWeight:700,color:(g.trendShort||'?').indexOf('Uptrend')>-1?'#7abd00':(g.trendShort||'?').indexOf('Down')>-1?'#e05050':'#b88000'}}>{g.trendShort||'--'}</td>
                                                   <td style={{padding:'4px 6px',color:summaryCardDark(g.rawResult).text||'#ccc',fontSize:9}}>{g.rawResult}</td>
                                                   <td style={{padding:'4px 6px',color:'#aaa'}}>{g.signals}</td>
                                                   <td style={{padding:'4px 6px',color:g.winRate>=50?'#7abd00':'#e05050'}}>{g.winRate.toFixed(1)}{'%'}</td>
@@ -11827,7 +11682,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.81</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.76</span>
           </div>
         </div>
 
