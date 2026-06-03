@@ -4646,7 +4646,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.80</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.81</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4700,7 +4700,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.80</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.81</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5181,7 +5181,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           </div>
                           {isExp && window.innerWidth<=768 && p.expandContent && (
                             <div style={{background:"#1a1a1a",borderBottom:"0.5px solid #2a2a2a",padding:"10px 12px"}}>
-                              {p.expandContent}
+                              {(function(){try{return p.expandContent;}catch(e){return <div style={{fontSize:10,color:'#e05050'}}>{'Error loading details: '+e.message}</div>;}})()}
                             </div>
                           )}
                         </div>
@@ -5199,7 +5199,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       );
                     }
                     // Moat expansion
-                    var moatExpContent = (function(){
+                    var moatExpContent = (function(){try{
                       var pi = parsedInsights && parsedInsights["moat"];
                       if (!pi) return <div style={{fontSize:10,color:"#555"}}>No detailed moat drivers available.</div>;
                       var cls = pi.classification||"";
@@ -5216,9 +5216,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           <button onClick={function(){window.__goToTab&&window.__goToTab('moat');setMobileExpanded(null);}} style={{fontSize:9,padding:'4px 10px',border:'0.5px solid #333',borderRadius:8,background:'none',color:'#aaa',cursor:'pointer',marginTop:8}}>Full Moat Analysis \u203A</button>
                         </div>
                       );
-                    })();
+                    }catch(e_m){return null;}})();
                     // Financial Strength expansion
-                    var finExpContent = (function(){
+                    var finExpContent = (function(){try{
                       if (!ov) return <div style={{fontSize:10,color:"#555"}}>No financial metrics available.</div>;
                       var fmt = function(v,pct){ return v!=null&&!isNaN(v)?(pct?(v>=0?"+":"")+v.toFixed(1)+"%":v.toFixed(2)):"--"; };
                       var c = window.__mc || function(v,g,w){return v>=g?"#7abd00":v>=w?"#EF9F27":"#e05050";};
@@ -5239,9 +5239,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           <button onClick={function(){window.__goToTab&&window.__goToTab('financial');setMobileExpanded(null);}} style={{fontSize:9,padding:'4px 10px',border:'0.5px solid #333',borderRadius:8,background:'none',color:'#aaa',cursor:'pointer',marginTop:8}}>Full Financials \u203A</button>
                         </div>
                       );
-                    })();
+                    }catch(e_f){return null;}})();
                     // Intrinsic Value expansion
-                    var ivExpContent = (function(){
+                    var ivExpContent = (function(){try{
                       if (!ov || !q) return <div style={{fontSize:10,color:"#555"}}>No valuation model breakdown available.</div>;
                       var price2 = q.price||0;
                       var fmt2 = function(v){ return v&&v>0?"$"+v.toFixed(2):"--"; };
@@ -5272,7 +5272,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           <button onClick={function(){window.__goToTab&&window.__goToTab('intrinsic');setMobileExpanded(null);}} style={{fontSize:9,padding:'4px 10px',border:'0.5px solid #333',borderRadius:8,background:'none',color:'#aaa',cursor:'pointer',marginTop:8}}>Full IV Analysis \u203A</button>
                         </div>
                       );
-                    })();
+                    }catch(e_i){return null;}})();
                     return (
                       <div>
                         <FRow label="Economic Moat" value={moatRating} score={moatScore} classification={parsedInsights&&parsedInsights["moat"]?parsedInsights["moat"].classification:null} dotCol={moatColors.dot} valCol={moatColors.fg} loading={!moatRating&&insightLoading} tab="moat" expandId="moat" expandContent={moatExpContent} />
@@ -11827,7 +11827,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.80</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.81</span>
           </div>
         </div>
 
