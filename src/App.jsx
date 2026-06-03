@@ -2052,24 +2052,8 @@ export function SimulatorPage() {
   var [combSortBy,  setCombSortBy]  = useState('Avg Return');
   var [mbMinSig,    setMbMinSig]    = useState('10');
   var [mbSortBy,    setMbSortBy]    = useState('Win Rate');
-  // Custom Signal Tester — weekly momentum/alignment filters
-  var [cstWeeklyMom, setCstWeeklyMom] = useState([]);
-  var [cstMomProfile, setCstMomProfile] = useState([]);
-  var [cstMonthlyRegime, setCstMonthlyRegime] = useState([]);
-  var [cstOverallResult, setCstOverallResult] = useState([]);
-  // Custom Signal Tester state
-  var [cstTrend,     setCstTrend]     = useState([]);
-  var [cstMomentum,  setCstMomentum]  = useState([]);
-  var [cstReversal,  setCstReversal]  = useState([]);
-  var [cstSmartMoney,setCstSmartMoney]= useState([]);
-  var [cstSetup,     setCstSetup]     = useState([]);
-  var [cstTrendDrv,  setCstTrendDrv]  = useState([]);
-  var [cstMomDrv,    setCstMomDrv]    = useState([]);
-  var [cstRevDrv,    setCstRevDrv]    = useState([]);
-  var [cstSmfDrv,    setCstSmfDrv]    = useState([]);
-  var [cstDrvOpen,   setCstDrvOpen]   = useState(false);
-  var [cstSubSigOpen,setCstSubSigOpen]= useState(false);
-  var [cstRsiFilter, setCstRsiFilter] = useState([]);
+  // Custom Signal Tester — RBA filters
+  var [cstFilters, setCstFilters] = useState({ rawResult:[], trendCond:[], momStatus:[], revStatus:[], smfStatus:[] });
   var [cstMacdFilter,setCstMacdFilter]= useState([]);
   var [cst52wFilter, setCst52wFilter] = useState([]);
   var [cstMaFilter,  setCstMaFilter]  = useState([]);
@@ -2592,7 +2576,7 @@ export function SimulatorPage() {
                   {!rows6s.length ? <div style={{ fontSize:11, color:'#555' }}>{'No results meet the minimum signals threshold.'}</div> : (
                     <div style={{ overflowX:'auto' }}>
                       <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
-                        <thead><tr>{['Mom Status','Rev Status','SMF Status','Mom Str','Rev Str','SMF Str','Raw Result','Signals','Win Rate','Avg Return','Median','Best','Worst','Quality'].map(function(h){ return <th key={h} style={{ textAlign:'left', color:'#555', fontWeight:700, fontSize:9, padding:'4px 8px', borderBottom:'0.5px solid #222', whiteSpace:'nowrap' }}>{h}</th>; })}</tr></thead>
+                        <thead><tr>{['Mom Status','Rev Status','SMF Status','Raw Result','Signals','Win Rate','Avg Return','Median','Best','Worst','Quality'].map(function(h){ return <th key={h} style={{ textAlign:'left', color:'#555', fontWeight:700, fontSize:9, padding:'4px 8px', borderBottom:'0.5px solid #222', whiteSpace:'nowrap' }}>{h}</th>; })}</tr></thead>
                         <tbody>
                           {rows6s.map(function(r,i){
                             var q = r.winRate>=65&&r.medianReturn>0?'Worked Well':r.winRate>=55&&r.medianReturn>0?'Promising':r.winRate>=50?'Mixed':'Weak';
@@ -2601,9 +2585,6 @@ export function SimulatorPage() {
                               <td style={{ padding:'5px 8px', fontWeight:700, color:sCol(r.momentumStatus) }}>{r.momentumStatus}</td>
                               <td style={{ padding:'5px 8px', fontWeight:700, color:sCol(r.reversalStatus) }}>{r.reversalStatus}</td>
                               <td style={{ padding:'5px 8px', fontWeight:700, color:sCol(r.smartMoneyStatus) }}>{r.smartMoneyStatus}</td>
-                              <td style={{ padding:'5px 8px', fontSize:9, color:stCol(r.momentumStrength) }}>{r.momentumStrength}</td>
-                              <td style={{ padding:'5px 8px', fontSize:9, color:stCol(r.reversalStrength) }}>{r.reversalStrength}</td>
-                              <td style={{ padding:'5px 8px', fontSize:9, color:stCol(r.smartMoneyStrength) }}>{r.smartMoneyStrength}</td>
                               <td style={{ padding:'5px 8px', color:summaryCardDark(r.rawResult).text||'#ccc' }}>{r.rawResult}</td>
                               <td style={{ padding:'5px 8px', color:'#aaa' }}>{r.signals}</td>
                               <td style={{ padding:'5px 8px', color:r.winRate>=50?'#7abd00':'#e05050' }}>{r.winRate!=null?r.winRate.toFixed(1)+'%':'—'}</td>
@@ -2622,720 +2603,137 @@ export function SimulatorPage() {
               );
             })()}
 
-            {/* Combination Performance (Legacy) */}
-            <div style={card}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:10 }}>
-                <div>
-                  <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Legacy Signal Combination Performance'}</div>
-                  <div style={{ fontSize:9, color:'#444', marginTop:3 }}>{'Legacy grouping by exact displayed signal labels. This is useful for detailed investigation, but it is not the primary Rule Based Analytics grouping.'}</div>
-                </div>
-                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                  <button onClick={function(){
-                    var minS2 = parseInt(minSignals)||3;
-                    var exp6c = sortCombinationRows(groupByCombination(results.rows).filter(function(r){ return r.signals>=minS2; }), combSortBy);
-                    if (!exp6c.length) return;
-                    exportRowsToCsv(ticker+'-combination-performance-'+results.hp+'D.csv', exp6c, [
-                      { label:'Trend',        key:'trend' },
-                      { label:'Momentum',     key:'momentum' },
-                      { label:'Reversal',     key:'reversal' },
-                      { label:'Smart Money',  key:'smartMoney' },
-                      { label:'Setup',        key:'setup' },
-                      { label:'Signals',      key:'signals' },
-                      { label:'Win Rate %',   value:function(r){ return r.winRate!=null?r.winRate.toFixed(1):''; } },
-                      { label:'Avg Return %', value:function(r){ return r.avgReturn!=null?r.avgReturn.toFixed(2):''; } },
-                      { label:'Median %',     value:function(r){ return r.medianReturn!=null?r.medianReturn.toFixed(2):''; } },
-                      { label:'Best %',       value:function(r){ return r.bestReturn!=null?r.bestReturn.toFixed(2):''; } },
-                      { label:'Worst %',      value:function(r){ return r.worstReturn!=null?r.worstReturn.toFixed(2):''; } },
-                    ]);
-                  }} style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #333', borderRadius:5, color:'#888', cursor:'pointer' }}>Export CSV</button>
-                  <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-                    <span style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em' }}>{'Min Signals'}</span>
-                    <select value={minSignals} onChange={function(e){setMinSignals(e.target.value);}}
-                      style={{ background:'#111', border:'0.5px solid #333', borderRadius:5, padding:'4px 8px', color:'#f0ede6', fontSize:10, outline:'none', cursor:'pointer' }}>
-                      {['1','3','5','10'].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
-                    </select>
-                  </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-                    <span style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em' }}>{'Sort By'}</span>
-                    <select value={combSortBy} onChange={function(e){setCombSortBy(e.target.value);}}
-                      style={{ background:'#111', border:'0.5px solid #333', borderRadius:5, padding:'4px 8px', color:'#f0ede6', fontSize:10, outline:'none', cursor:'pointer' }}>
-                      {['Avg Return','Signals','Win Rate','Median Return','Worst Return'].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
-                    </select>
-                  </div>
-                </div>
-              </div>
-              <div style={{ fontSize:11, color:'#555', lineHeight:1.6, marginBottom:8 }}>
-                {'Legacy grouping by exact displayed signal labels (Trend, Momentum, Reversal, Smart Money). Useful for detailed investigation but not the primary RBA grouping.'}
-              </div>
-              {(function(){
-                var minS = parseInt(minSignals) || 3;
-                var combRows = groupByCombination(results.rows);
-                var filtered6c = combRows.filter(function(r){ return r.signals >= minS; });
-                var sorted6c   = sortCombinationRows(filtered6c, combSortBy);
-                if (!sorted6c.length) return (
-                  <div style={{ color:'#555', fontSize:11, padding:'16px 0', textAlign:'center' }}>
-                    {'No combinations with ' + minS + '+ signals. Lower the Minimum Signals filter.'}
-                  </div>
-                );
-                return (
-                  <div style={{ overflowX:'auto' }}>
-                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
-                      <thead>
-                        <tr style={{ borderBottom:'1px solid #2a2a28' }}>
-                          {['Trend','Momentum','Reversal','Smart Money','Setup','Signals','Win Rate','Avg Return','Median','Best','Worst',''].map(function(h){
-                            return <th key={h} style={{ padding:'5px 8px', fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>;
-                          })}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sorted6c.map(function(row, i){
-                          var sc   = summaryCardDark(row.setup);
-                          var wr   = row.winRate;
-                          var wrC  = wr==null?'#555':wr>=60?'#7abd00':wr>=45?'#EF9F27':'#e05050';
-                          var avgC = row.avgReturn==null?'#555':row.avgReturn>=0?'#7abd00':'#e05050';
-                          var medC = row.medianReturn==null?'#555':row.medianReturn>=0?'#7abd00':'#e05050';
-                          var qlbl = combinationQualityLabel(row);
-                          var qlblStyle = qlbl==='Worked Well'
-                            ? { fontSize:8, fontWeight:700, color:'#7abd00', background:'#0d200d', border:'0.5px solid #7abd00', borderRadius:3, padding:'1px 5px' }
-                            : qlbl==='Weak'
-                            ? { fontSize:8, fontWeight:700, color:'#e05050', background:'#200808', border:'0.5px solid #e05050', borderRadius:3, padding:'1px 5px' }
-                            : { fontSize:8, color:'#555', background:'#111', border:'0.5px solid #333', borderRadius:3, padding:'1px 5px' };
-                          return (
-                            <tr key={row.key+i} style={{ background:i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
-                              <td style={{ padding:'5px 8px', color:'#aaa', fontSize:9, whiteSpace:'nowrap' }}>{row.trend}</td>
-                              <td style={{ padding:'5px 8px', color:'#aaa', fontSize:9 }}>{row.momentum}</td>
-                              <td style={{ padding:'5px 8px', color:'#aaa', fontSize:9, maxWidth:130, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={row.reversal}>{row.reversal}</td>
-                              <td style={{ padding:'5px 8px', color:'#aaa', fontSize:9, maxWidth:130, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={row.smartMoney}>{row.smartMoney}</td>
-                              <td style={{ padding:'5px 8px', fontWeight:700, color:sc.text, whiteSpace:'nowrap', fontSize:10 }}>{row.setup}</td>
-                              <td style={{ padding:'5px 8px', color:'#f0ede6', fontWeight:600, textAlign:'right' }}>{row.signals}</td>
-                              <td style={{ padding:'5px 8px', fontWeight:700, color:wrC, textAlign:'right' }}>{wr!=null?wr.toFixed(1)+'%':'—'}</td>
-                              <td style={{ padding:'5px 8px', fontWeight:700, color:avgC, textAlign:'right' }}>{simFmtPct(row.avgReturn)}</td>
-                              <td style={{ padding:'5px 8px', color:medC, textAlign:'right' }}>{simFmtPct(row.medianReturn)}</td>
-                              <td style={{ padding:'5px 8px', color:'#7abd00', textAlign:'right' }}>{simFmtPct(row.bestReturn)}</td>
-                              <td style={{ padding:'5px 8px', color:'#e05050', textAlign:'right' }}>{simFmtPct(row.worstReturn)}</td>
-                              <td style={{ padding:'5px 8px' }}>
-                                {qlbl && <span style={qlblStyle}>{qlbl}</span>}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })()}
-              <div style={{ fontSize:9, color:'#444', marginTop:10 }}>{'Small sample sizes can be misleading. Use combinations with higher signal counts for stronger conclusions.'}</div>
-            </div>
-
-
-
-
-
-            {/* Momentum Model A/B Test */}
-            <div style={card}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:8, marginBottom:10 }}>
-                <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Momentum Profile Backtest'}</div>
-                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                  {[['Min Signals',mbMinSig,setMbMinSig,['1','3','5','10','20']],
-                    ['Sort By',mbSortBy,setMbSortBy,['Win Rate','Avg Return','Median Return','Signals','Worst Return']],
-                  ].map(function(ctrl){
-                    return <div key={ctrl[0]} style={{ display:'flex', alignItems:'center', gap:5 }}>
-                      <span style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em' }}>{ctrl[0]}</span>
-                      <select value={ctrl[1]} onChange={function(e){ ctrl[2](e.target.value); }}
-                        style={{ background:'#111', border:'0.5px solid #333', borderRadius:5, padding:'4px 8px', color:'#f0ede6', fontSize:10, outline:'none', cursor:'pointer' }}>
-                        {ctrl[3].map(function(v){ return <option key={v} value={v}>{v}</option>; })}
-                      </select>
-                    </div>;
-                  })}
-                  <button onClick={function(){
-                    if (!results||!results.rows.length) return;
-                    exportRowsToCsv(ticker+'-momentum-ab-test-'+results.hp+'D.csv', results.rows, [
-                      { label:'Date',          key:'date' },
-                      { label:'Old Momentum',  key:'oldMomentum' },
-                      { label:'Daily Momentum',value:function(r){ return r.momentumProfile?r.momentumProfile.daily:''; } },
-                      { label:'Weekly Momentum',value:function(r){ return r.momentumProfile?r.momentumProfile.weekly:''; } },
-                      { label:'Alignment',     value:function(r){ return r.momentumProfile?r.momentumProfile.profile:''; } },
-                      { label:'Weekly RSI',    value:function(r){ return r.momentumDrivers&&r.momentumDrivers.weeklyRsi14!=null?r.momentumDrivers.weeklyRsi14.toFixed(1):''; } },
-                      { label:'Weekly MACD Hist',value:function(r){ return r.momentumDrivers&&r.momentumDrivers.weeklyMacdHistogram!=null?r.momentumDrivers.weeklyMacdHistogram.toFixed(3):''; } },
-                      { label:'Weekly 4W ROC', value:function(r){ return r.momentumDrivers&&r.momentumDrivers.weeklyRoc4wPct!=null?r.momentumDrivers.weeklyRoc4wPct.toFixed(2)+'%':''; } },
-                      { label:'Future Return %',value:function(r){ return r.futureReturn!=null?r.futureReturn.toFixed(2):''; } },
-                      { label:'Result',        key:'result' },
-                    ]);
-                  }} style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #333', borderRadius:5, color:'#888', cursor:'pointer' }}>Export CSV</button>
-                </div>
-              </div>
-              <div style={{ fontSize:11, color:'#555', marginBottom:6, lineHeight:1.6 }}>
-                {'Momentum Profile is based mainly on Daily + Weekly momentum. Monthly Regime is used as ticker-specific historical context. When enough samples exist, Overall Momentum Result uses the exact Momentum Profile + Monthly Regime result. Otherwise, it falls back to the broader Momentum Profile result.'}
-              </div>
-              <div style={{ fontSize:10, color:'#3a3a38', marginBottom:14, lineHeight:1.6, fontStyle:'italic' }}>
-                {'Monthly Regime is not automatically good or bad — it is evaluated based on this ticker\'s own historical behaviour.'}
-              </div>
-              {(function(){
-                var minS = parseInt(mbMinSig)||10;
-                function sortG(groups) {
-                  return groups.filter(function(r){return r.signals>=minS;}).sort(function(a,b){
-                    if (mbSortBy==='Avg Return')    return (b.avgReturn||0)-(a.avgReturn||0);
-                    if (mbSortBy==='Median Return') return (b.medianReturn||0)-(a.medianReturn||0);
-                    if (mbSortBy==='Signals')       return b.signals-a.signals;
-                    if (mbSortBy==='Worst Return')  return (b.worstReturn||-999)-(a.worstReturn||-999);
-                    return (b.winRate||0)-(a.winRate||0);
-                  });
-                }
-                var rows = results.rows;
-                var oldG   = sortG(simGroupBy(rows, function(r){ return r.oldMomentum; }));
-                var weekG  = sortG(simGroupBy(rows, function(r){ return r.momentumProfile&&r.momentumProfile.weekly; }));
-                var profG  = sortG(simGroupBy(rows, function(r){ return r.momentumProfile&&r.momentumProfile.profile; }));
-                var monthG = sortG(simGroupBy(rows, function(r){ return r.momentumProfile&&r.momentumProfile.monthlyRegime; }));
-                var combG  = sortG(simGroupBy(rows, function(r){ return r.momentumProfile?(r.momentumProfile.daily+' / '+r.momentumProfile.weekly+' / '+r.momentumProfile.profile+' / '+r.momentumProfile.monthlyRegime):'—'; }));
-
-                var bestOld   = oldG[0];
-                var bestWeek  = weekG[0];
-                var bestProf  = profG[0];
-                var bestMonth = monthG.filter(function(r){ return r.label!=='Not Enough Data'; })[0];
-                // Best Profile + Monthly combined
-                var combGAll = simGroupBy(rows, function(r){ return r.momentumProfile?(r.momentumProfile.profile+'  ·  '+r.momentumProfile.monthlyRegime):'—'; });
-                var bestCombPM = combGAll.filter(function(r){ return r.signals>=minS && r.label!=='—'; }).sort(function(a,b){ return (b.winRate||0)-(a.winRate||0); })[0];
-                var wDiff = (bestProf&&bestOld&&bestProf.winRate!=null&&bestOld.winRate!=null)?(bestProf.winRate-bestOld.winRate).toFixed(1):null;
-                var mDiff = (bestProf&&bestOld&&bestProf.medianReturn!=null&&bestOld.medianReturn!=null)?(bestProf.medianReturn-bestOld.medianReturn).toFixed(2):null;
-
-                function qlC(q){ return q==='Strong'?'#7abd00':q==='Watch'?'#6090d0':q==='Weak'?'#e05050':q==='Mixed'?'#EF9F27':'#555'; }
-                function ATH(h){ return <th key={h} style={{ padding:'4px 8px', fontSize:8, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>; }
-                function ARow(r, i) {
-                  var q=simAbQuality(r,minS), wrC=(r.winRate||0)>=60?'#7abd00':(r.winRate||0)>=45?'#EF9F27':'#e05050';
-                  return <tr key={r.label+i} style={{ background:i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
-                    <td style={{ padding:'5px 8px', color:'#d0a060', fontSize:10, fontWeight:600, maxWidth:220, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.label}>{r.label}</td>
-                    <td style={{ padding:'5px 8px', color:'#f0ede6', textAlign:'right', fontWeight:600 }}>{r.signals}</td>
-                    <td style={{ padding:'5px 8px', color:wrC, textAlign:'right', fontWeight:700 }}>{r.winRate!=null?r.winRate.toFixed(1)+'%':'—'}</td>
-                    <td style={{ padding:'5px 8px', color:(r.avgReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right', fontWeight:700 }}>{simFmtPct(r.avgReturn)}</td>
-                    <td style={{ padding:'5px 8px', color:(r.medianReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right' }}>{simFmtPct(r.medianReturn)}</td>
-                    <td style={{ padding:'5px 8px', color:'#7abd00', textAlign:'right' }}>{simFmtPct(r.bestReturn)}</td>
-                    <td style={{ padding:'5px 8px', color:'#e05050', textAlign:'right' }}>{simFmtPct(r.worstReturn)}</td>
-                    <td style={{ padding:'5px 8px' }}><span style={{ fontSize:8, fontWeight:700, color:qlC(q), background:'#111', border:'0.5px solid '+qlC(q)+'55', borderRadius:3, padding:'1px 5px' }}>{q}</span></td>
-                  </tr>;
-                }
-                function ATable(groups, col1label) {
-                  if (!groups.length) return <div style={{ color:'#555', fontSize:11, padding:'6px 0' }}>No groups with {minS}+ signals.</div>;
-                  return <div style={{ overflowX:'auto', marginBottom:14 }}>
-                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
-                      <thead><tr style={{ borderBottom:'1px solid #2a2a28' }}>{[col1label,'Signals','Win Rate','Avg Return','Median','Best','Worst','Quality'].map(ATH)}</tr></thead>
-                      <tbody>{groups.map(function(r,i){ return ARow(r,i); })}</tbody>
-                    </table>
-                  </div>;
-                }
-                function CombTable(groups) {
-                  if (!groups.length) return <div style={{ color:'#555', fontSize:11, padding:'6px 0' }}>No groups with {minS}+ signals.</div>;
-                  return <div style={{ overflowX:'auto', marginBottom:14 }}>
-                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
-                      <thead><tr style={{ borderBottom:'1px solid #2a2a28' }}>{['Daily','Weekly','Profile','Monthly Regime','Signals','Win Rate','Avg Return','Median','Best','Worst','Quality'].map(ATH)}</tr></thead>
-                      <tbody>{groups.map(function(r,i){
-                        var pts=r.label.split(' / '), q=simAbQuality(r,minS);
-                        var wrC=(r.winRate||0)>=60?'#7abd00':(r.winRate||0)>=45?'#EF9F27':'#e05050';
-                        return <tr key={r.label+i} style={{ background:i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
-                          <td style={{ padding:'5px 8px', color:'#9acd50', fontSize:9, whiteSpace:'nowrap' }}>{pts[0]||'—'}</td>
-                          <td style={{ padding:'5px 8px', color:'#6090d0', fontSize:9, whiteSpace:'nowrap' }}>{pts[1]||'—'}</td>
-                          <td style={{ padding:'5px 8px', color:'#d0a060', fontSize:9, maxWidth:130, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={pts[2]||''}>{pts[2]||'—'}</td>
-                          <td style={{ padding:'5px 8px', color:'#c890d0', fontSize:9, whiteSpace:'nowrap' }}>{pts[3]||'—'}</td>
-                          <td style={{ padding:'5px 8px', color:'#f0ede6', textAlign:'right', fontWeight:600 }}>{r.signals}</td>
-                          <td style={{ padding:'5px 8px', color:wrC, textAlign:'right', fontWeight:700 }}>{r.winRate!=null?r.winRate.toFixed(1)+'%':'—'}</td>
-                          <td style={{ padding:'5px 8px', color:(r.avgReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right', fontWeight:700 }}>{simFmtPct(r.avgReturn)}</td>
-                          <td style={{ padding:'5px 8px', color:(r.medianReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right' }}>{simFmtPct(r.medianReturn)}</td>
-                          <td style={{ padding:'5px 8px', color:'#7abd00', textAlign:'right' }}>{simFmtPct(r.bestReturn)}</td>
-                          <td style={{ padding:'5px 8px', color:'#e05050', textAlign:'right' }}>{simFmtPct(r.worstReturn)}</td>
-                          <td style={{ padding:'5px 8px' }}><span style={{ fontSize:8, fontWeight:700, color:qlC(q), background:'#111', border:'0.5px solid '+qlC(q)+'55', borderRadius:3, padding:'1px 5px' }}>{q}</span></td>
-                        </tr>;
-                      })}</tbody>
-                    </table>
-                  </div>;
-                }
-                function SCard(label, val, col) {
-                  return <div key={label} style={{ background:'#0e0e0c', borderRadius:7, padding:'10px 12px' }}>
-                    <div style={{ fontSize:8, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 }}>{label}</div>
-                    <div style={{ fontSize:11, fontWeight:800, color:col||'#f0ede6', lineHeight:1.4 }}>{val||'—'}</div>
-                  </div>;
-                }
-                return (
-                  <div>
-                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:18 }}>
-                      {SCard('Best Daily Momentum',   bestOld   ?(bestOld.label  +' ('+bestOld.winRate.toFixed(1)  +'% WR)'):'—', '#9acd50')}
-                      {SCard('Best Weekly Momentum',  bestWeek  ?(bestWeek.label +' ('+bestWeek.winRate.toFixed(1) +'% WR)'):'—', '#6090d0')}
-                      {SCard('Best Momentum Profile', bestProf  ?(bestProf.label +' ('+bestProf.winRate.toFixed(1) +'% WR)'):'—', '#d0a060')}
-                      {SCard('Best Monthly Regime',   bestMonth ?(bestMonth.label+' ('+bestMonth.winRate.toFixed(1)+'% WR)'):'—', '#c890d0')}
-                      {SCard('Best Profile + Monthly',bestCombPM?(bestCombPM.label+' ('+bestCombPM.winRate.toFixed(1)+'% WR)'):'—', '#7ab8d0')}
-                      {SCard('vs Daily Momentum', wDiff!=null?(wDiff>0?'+':'')+wDiff+'% WR '+(mDiff!=null?'/ '+(mDiff>0?'+':'')+mDiff+'% med':''):'—', wDiff!=null&&parseFloat(wDiff)>0?'#7abd00':'#e05050')}
-                    </div>
-                    <div style={{ fontSize:9, color:'#555', lineHeight:1.7, marginBottom:14, background:'#0c0c0a', borderRadius:6, padding:'8px 10px' }}>
-                      {'Overall Momentum Result uses a fallback: (1) checks Profile + Monthly Regime exact combination first; (2) if not enough samples, falls back to Momentum Profile; (3) if still insufficient, shows Low Confidence.'}
-                    </div>
-                    <div style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Daily Momentum Performance</div>
-                    {ATable(oldG, 'Daily Momentum')}
-                    <div style={{ fontSize:9, fontWeight:700, color:'#6090d0', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Weekly Momentum Performance</div>
-                    {ATable(weekG, 'Weekly Momentum')}
-                    <div style={{ fontSize:9, fontWeight:700, color:'#d0a060', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Momentum Profile Performance</div>
-                    {ATable(profG, 'Momentum Profile')}
-                    <div style={{ fontSize:9, fontWeight:700, color:'#c890d0', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Monthly Regime Performance</div>
-                    {ATable(monthG, 'Monthly Regime')}
-                    <div style={{ fontSize:9, fontWeight:700, color:'#EF9F27', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Combined Momentum Profile</div>
-                    {CombTable(combG)}
-                    <div style={{ fontSize:9, fontWeight:700, color:'#7ab8d0', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Overall Momentum Result — Source Breakdown</div>
-                    {(function(){
-                      var srcG = sortG(simGroupBy(rows, function(r){ return r.momentumProfile?(r.momentumProfile.overallResult+' / '+(r.momentumProfile.overallResultSource||'—')):'—'; }));
-                      if (!srcG.length) return <div style={{ color:'#555', fontSize:11, padding:'6px 0' }}>No groups with {minS}+ signals.</div>;
-                      return <div style={{ overflowX:'auto', marginBottom:14 }}>
-                        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
-                          <thead><tr style={{ borderBottom:'1px solid #2a2a28' }}>{['Overall Result','Source','Signals','Win Rate','Avg Return','Median','Best','Worst','Quality'].map(ATH)}</tr></thead>
-                          <tbody>{srcG.map(function(r,i){
-                            var pts=r.label.split(' / '), q=simAbQuality(r,minS);
-                            var wrC=(r.winRate||0)>=60?'#7abd00':(r.winRate||0)>=45?'#EF9F27':'#e05050';
-                            var resC = pts[0]==='Favourable'?'#7abd00':pts[0]==='Watch'?'#6090d0':pts[0]==='Mixed'?'#EF9F27':pts[0]==='Unfavourable'?'#e05050':'#555';
-                            return <tr key={r.label+i} style={{ background:i%2===0?'#181816':'#141412', borderBottom:'1px solid #1a1a16' }}>
-                              <td style={{ padding:'5px 8px', color:resC, fontSize:9, fontWeight:700 }}>{pts[0]||'—'}</td>
-                              <td style={{ padding:'5px 8px', color:'#7ab8d0', fontSize:9 }}>{pts[1]||'—'}</td>
-                              <td style={{ padding:'5px 8px', color:'#f0ede6', textAlign:'right', fontWeight:600 }}>{r.signals}</td>
-                              <td style={{ padding:'5px 8px', color:wrC, textAlign:'right', fontWeight:700 }}>{r.winRate!=null?r.winRate.toFixed(1)+'%':'—'}</td>
-                              <td style={{ padding:'5px 8px', color:(r.avgReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right', fontWeight:700 }}>{simFmtPct(r.avgReturn)}</td>
-                              <td style={{ padding:'5px 8px', color:(r.medianReturn||0)>=0?'#7abd00':'#e05050', textAlign:'right' }}>{simFmtPct(r.medianReturn)}</td>
-                              <td style={{ padding:'5px 8px', color:'#7abd00', textAlign:'right' }}>{simFmtPct(r.bestReturn)}</td>
-                              <td style={{ padding:'5px 8px', color:'#e05050', textAlign:'right' }}>{simFmtPct(r.worstReturn)}</td>
-                              <td style={{ padding:'5px 8px' }}><span style={{ fontSize:8, fontWeight:700, color:qlC(q), background:'#111', border:'0.5px solid '+qlC(q)+'55', borderRadius:3, padding:'1px 5px' }}>{q}</span></td>
-                            </tr>;
-                          })}</tbody>
-                        </table>
-                      </div>;
-                    })()}
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Custom Signal Tester */}
+                        {/* Custom Signal Tester */}
             {(function(){
-              var CST_TREND_OPTS = ['Strong Uptrend','Uptrend','Sideways','Downtrend','Strong Downtrend'];
-              var CST_MOM_OPTS   = ['Strong','Building','Neutral','Fading','Weak'];
-              var CST_REV_OPTS   = ['Bullish Reversal Spark','Bullish Reversal Watch','Bullish Reversal Confirming','Mixed Reversal Signals','Bearish Reversal Watch','Bearish Reversal Forming','No Signal','No Clear Reversal'];
-              var CST_SMF_OPTS   = ['Strong Multi-Timeframe Flow','Accumulation Trend Positive','Constructive but Cooling','No Clear Signal','Early Accumulation','Short-Term Spike'];
-              var CST_SETUP_OPTS = ['Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
-
-              var CST_TREND_DRVS = [['priceAboveSma50','Price above SMA50'],['priceAboveSma200','Price above SMA200'],['sma50AboveSma200','SMA50 above SMA200'],['priceReclaimedSma50','Price reclaimed SMA50'],['priceLostSma50','Price lost SMA50'],['priceAboveEma20','Price above EMA20'],['ema20AboveSma50','EMA20 above SMA50'],['priceNear52wHigh','Near 52W high'],['priceFarBelow52wHigh','Far below 52W high']];
-              var CST_MOM_DRVS   = [['rsiAbove50','RSI above 50'],['rsiBetween45And65','RSI 45–65'],['rsiAbove70','RSI above 70'],['rsiRising','RSI rising'],['rsiFalling','RSI falling'],['macdAboveSignal','MACD above signal'],['macdBelowSignal','MACD below signal'],['macdImproving','MACD improving'],['macdDeteriorating','MACD deteriorating'],['macdHistogramPositive','MACD histogram +'],['macdHistogramImproving','MACD histogram improving']];
-              var CST_REV_DRVS   = [['trendSideways','Trend Sideways'],['trendDowntrend','Trend Downtrend'],['momentumBuilding','Momentum Building'],['reversalBullishSpark','Bull Reversal Spark'],['reversalBullishWatch','Bull Reversal Watch'],['reversalBullishConfirming','Bull Reversal Confirming'],['reversalMixed','Mixed Reversal'],['reversalBearishWatch','Bear Reversal Watch'],['priceReclaimedSma50','Price reclaimed SMA50'],['rsiRising','RSI rising'],['macdImproving','MACD improving'],['volumeAbove20dAvg','Volume above 20D avg']];
-              var CST_SMF_DRVS   = [['volumeAbove20dAvg','Volume above 20D avg'],['volumeAbove50dAvg','Volume above 50D avg'],['volumeRising5d','Volume rising 5D'],['smartMoneyConstructive','SM constructive'],['smartMoneyCooling','SM cooling'],['smartMoneyPositive','SM positive'],['smartMoneyNoClearSignal','No clear signal'],['smartMoneyAccumulationPositive','Accumulation positive'],['smartMoneyStrongMultiTimeframe','Strong multi-TF flow']];
-
-              function toggle(arr, setter, v) { setter(arr.indexOf(v)!==-1 ? arr.filter(function(x){return x!==v;}) : arr.concat([v])); }
-              function pillSel(v, arr, setter, colorFn) {
-                var sel = arr.indexOf(v)!==-1;
-                var ac = colorFn ? colorFn(v) : LIME;
-                return <button key={v} onClick={function(){ toggle(arr, setter, v); }}
-                  style={{ fontSize:9, padding:'3px 9px', borderRadius:10, cursor:'pointer', fontWeight:sel?700:400, outline:'none',
-                    background:sel?'#1a2a0a':'#141412', color:sel?ac:'#666',
-                    border:'0.5px solid '+(sel?ac:'#2a2a28') }}>{v}</button>;
+              var CST_RAW_OPTS = ['All','Strong Bullish','Bullish','Bullish Watch','Risky Bounce','Neutral','Caution','Mixed / Caution','Bearish Watch','Bearish','Strong Bearish'];
+              var CST_TREND_OPTS = ['All','Uptrend Conditions','Sideways Conditions','Downtrend Conditions','Unclear Trend Conditions'];
+              var CST_MOM_STATUS_OPTS = ['All','bullish','neutral','bearish'];
+              var CST_REV_STATUS_OPTS = ['All','bullish','neutral','bearish'];
+              var CST_SMF_STATUS_OPTS = ['All','bullish','neutral','bearish'];
+              var cstRawResult     = cstFilters.rawResult     || [];
+              var cstTrendCond     = cstFilters.trendCond     || [];
+              var cstMomStatus     = cstFilters.momStatus     || [];
+              var cstRevStatus     = cstFilters.revStatus     || [];
+              var cstSmfStatus     = cstFilters.smfStatus     || [];
+              function toggle(arr, val) { return arr.indexOf(val) >= 0 ? arr.filter(function(x){ return x!==val; }) : arr.concat([val]); }
+              function matchRow(r) {
+                if (!r) return false;
+                if (cstRawResult.length && cstRawResult.indexOf(r.rawResult) < 0) return false;
+                if (cstTrendCond.length && cstTrendCond.indexOf(r.trendCondition) < 0) return false;
+                if (cstMomStatus.length && cstMomStatus.indexOf(r.momentumStatus) < 0) return false;
+                if (cstRevStatus.length && cstRevStatus.indexOf(r.reversalStatus) < 0) return false;
+                if (cstSmfStatus.length && cstSmfStatus.indexOf(r.smartMoneyStatus) < 0) return false;
+                return true;
               }
-              function drvChk(key, label, arr, setter) {
-                var sel = arr.indexOf(key)!==-1;
-                return <button key={key} onClick={function(){ toggle(arr, setter, key); }}
-                  style={{ fontSize:9, padding:'2px 8px', borderRadius:4, cursor:'pointer', fontWeight:sel?700:400, outline:'none',
-                    background:sel?'#0f2010':'#111', color:sel?'#9acd50':'#555',
-                    border:'0.5px solid '+(sel?'#9acd50':'#2a2a28'), marginRight:4, marginBottom:4 }}>{label}</button>;
+              var matched = results ? results.rows.filter(matchRow) : [];
+              var matchedRets = matched.map(function(r){ return r.futureReturn; }).filter(function(v){ return v!=null&&!isNaN(v); });
+              var mWins = matchedRets.filter(function(v){ return v>=0; }).length;
+              var mAvg  = matchedRets.length ? matchedRets.reduce(function(a,b){return a+b;},0)/matchedRets.length : null;
+              var mMed  = simMedian(matchedRets);
+              var mBest = matchedRets.length ? Math.max.apply(null,matchedRets) : null;
+              var mWorst= matchedRets.length ? Math.min.apply(null,matchedRets) : null;
+              var hasFilters = cstRawResult.length||cstTrendCond.length||cstMomStatus.length||cstRevStatus.length||cstSmfStatus.length;
+              function FilterChips(props) {
+                return <div style={{ marginBottom:10 }}>
+                  <div style={{ fontSize:9, color:'#555', marginBottom:4, fontWeight:700, textTransform:'uppercase' }}>{props.label}</div>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+                    {props.opts.filter(function(o){ return o!=='All'; }).map(function(o){
+                      var active = props.selected.indexOf(o) >= 0;
+                      return <button key={o} onClick={function(){ props.onToggle(o); }}
+                        style={{ fontSize:9, padding:'2px 8px', borderRadius:10, border:'0.5px solid '+(active?'#7abd00':'#333'),
+                          background:active?'rgba(122,189,0,0.12)':'transparent', color:active?'#7abd00':'#555', cursor:'pointer' }}>
+                        {o}
+                      </button>;
+                    })}
+                  </div>
+                </div>;
               }
-
-              var cstFilters = { trend:cstTrend, momentum:cstMomentum, reversal:cstReversal, smartMoney:cstSmartMoney, setup:cstSetup,
-                weeklyMom:cstWeeklyMom, momProfile:cstMomProfile, monthlyRegime:cstMonthlyRegime, overallResult:cstOverallResult,
-                driverFilters:{ trendDrivers:cstTrendDrv, momentumDrivers:cstMomDrv, reversalDrivers:cstRevDrv, smartMoneyDrivers:cstSmfDrv } };
-              var matchRows = results ? results.rows.filter(function(row){
-                return filterCustomSignalRows([row], { trend:cstFilters.trend, momentum:cstFilters.momentum, reversal:cstFilters.reversal, smartMoney:cstFilters.smartMoney, setup:cstFilters.setup, driverFilters:cstFilters.driverFilters }).length > 0
-                  && matchesSelected(row.momentumProfile ? row.momentumProfile.weekly : 'Not Enough Data', cstFilters.weeklyMom)
-                  && matchesSelected(row.momentumProfile ? row.momentumProfile.profile : 'Not Enough Data', cstFilters.momProfile)
-                  && matchesSelected(row.momentumProfile ? row.momentumProfile.monthlyRegime : 'Not Enough Data', cstFilters.monthlyRegime)
-                  && matchesSelected(row.momentumProfile ? (row.momentumProfile.overallResult||'Low Confidence') : 'Low Confidence', cstFilters.overallResult);
-              }) : [];
-
-              // Sub-signal chip → driver key mappings
-              var SS_RSI  = {'RSI below 30':'rsiBelow30','RSI 30 to 40':'rsi30To40','RSI 40 to 50':'rsi40To50','RSI 50 to 60':'rsi50To60','RSI 60 to 70':'rsi60To70','RSI above 70':'rsiAbove70','RSI rising':'rsiRising','RSI falling':'rsiFalling','RSI between 45 and 65':'rsiBetween45And65'};
-              var SS_MACD = {'MACD above signal':'macdAboveSignal','MACD below signal':'macdBelowSignal','MACD histogram positive':'macdHistogramPositive','MACD histogram negative':'macdHistogramNegative','MACD improving':'macdImproving','MACD deteriorating':'macdDeteriorating'};
-              var SS_52W  = {'52W range 0 to 25%':'price52wRange0To25','52W range 25 to 50%':'price52wRange25To50','52W range 50 to 75%':'price52wRange50To75','52W range 75 to 90%':'price52wRange75To90','52W range 90 to 100%':'price52wRange90To100','Below 52W midpoint':'priceBelow52wMidpoint','Above 52W midpoint':'priceAbove52wMidpoint','Near 52W high':'priceNear52wHigh','Far below 52W high':'priceFarBelow52wHigh'};
-              var SS_MA   = {'Price above SMA50':'priceAboveSma50','Price below SMA50':'priceBelowSma50','Price above SMA200':'priceAboveSma200','Price below SMA200':'priceBelowSma200','Price above EMA20':'priceAboveEma20','Price below EMA20':'priceBelowEma20','SMA50 above SMA200':'sma50AboveSma200','Price reclaimed SMA50':'priceReclaimedSma50','Price lost SMA50':'priceLostSma50'};
-
-              // Apply sub-signal filters (OR within group, AND across groups)
-              function applySubFilter(rows, chips, map) {
-                if (!chips.length) return rows;
-                return rows.filter(function(r){ var d=r.drivers||{}; return chips.some(function(lbl){ return d[map[lbl]]===true; }); });
+              // Condition summary
+              var condParts = [];
+              if (cstRawResult.length)  condParts.push('Raw Result: ' + cstRawResult.join(', '));
+              if (cstTrendCond.length)  condParts.push('Trend: ' + cstTrendCond.join(', '));
+              if (cstMomStatus.length)  condParts.push('Momentum: ' + cstMomStatus.join(', '));
+              if (cstRevStatus.length)  condParts.push('Reversal: ' + cstRevStatus.join(', '));
+              if (cstSmfStatus.length)  condParts.push('Smart Money: ' + cstSmfStatus.join(', '));
+              // CSV export
+              function exportCSV() {
+                var hdr = 'date,close,finalResult,rawResult,trendCondition,momentumStatus,reversalStatus,smartMoneyStatus,momentumStrength,reversalStrength,smartMoneyStrength,futureReturn,result';
+                var rows2 = matched.map(function(r){
+                  return [r.date, r.close, '"'+(r.finalResult||'')+ '"', '"'+(r.rawResult||'')+'"', '"'+(r.trendCondition||'')+'"',
+                    r.momentumStatus||'', r.reversalStatus||'', r.smartMoneyStatus||'',
+                    r.momentumStrength||'', r.reversalStrength||'', r.smartMoneyStrength||'',
+                    r.futureReturn!=null?r.futureReturn.toFixed(2):'', r.result||''].join(',');
+                });
+                var blob = new Blob([[hdr].concat(rows2).join('\n')], {type:'text/csv'});
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a'); a.href=url; a.download='rba_custom_signal.csv'; a.click();
               }
-              if (cstRsiFilter.length||cstMacdFilter.length||cst52wFilter.length||cstMaFilter.length) {
-                matchRows = applySubFilter(matchRows, cstRsiFilter,  SS_RSI);
-                matchRows = applySubFilter(matchRows, cstMacdFilter, SS_MACD);
-                matchRows = applySubFilter(matchRows, cst52wFilter,  SS_52W);
-                matchRows = applySubFilter(matchRows, cstMaFilter,   SS_MA);
-              }
-              var cstStat   = summarizeCustomSignalRows(matchRows);
-              var cstQual   = customSignalQuality(cstStat);
-              var cstCond   = buildCustomConditionText(cstTrend,cstMomentum,cstReversal,cstSmartMoney,cstSetup,cstTrendDrv,cstMomDrv,cstRevDrv,cstSmfDrv);
-              var showTop50 = matchRows.slice(-50).reverse();
-
-              function qualColor(q) {
-                if (q==='Strong')    return '#7abd00';
-                if (q==='Promising') return '#6090d0';
-                if (q==='Weak')      return '#e05050';
-                if (q==='Mixed')     return '#EF9F27';
-                return '#555';
-              }
-              function resetCST() {
-                setCstTrend([]); setCstMomentum([]); setCstReversal([]); setCstSmartMoney([]); setCstSetup([]);
-                setCstTrendDrv([]); setCstMomDrv([]); setCstRevDrv([]); setCstSmfDrv([]);
-                setCstRsiFilter([]); setCstMacdFilter([]); setCst52wFilter([]); setCstMaFilter([]);
-                setCstWeeklyMom([]); setCstMomProfile([]); setCstMonthlyRegime([]); setCstOverallResult([]);
-              }
-
               return (
                 <div style={card}>
-                  <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em', marginBottom:8 }}>{'Custom Signal Tester'}</div>
-                  <div style={{ fontSize:11, color:'#555', lineHeight:1.6, marginBottom:14 }}>
-                    {'Select signal conditions below to see how those combinations performed historically. Within each filter is OR logic; across filters is AND logic.'}
-                  </div>
-
-                  {!results ? (
-                    <div style={{ color:'#555', fontSize:12, padding:'20px 0' }}>{'Run a backtest first, then use Custom Signal Tester to test your own signal combinations.'}</div>
-                  ) : (
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
                     <div>
-                      {/* Main Filters */}
-                      {[
-                        ['Trend',       cstTrend,      setCstTrend,      CST_TREND_OPTS, null],
-                        ['Momentum',    cstMomentum,   setCstMomentum,   CST_MOM_OPTS,   null],
-                        ['Reversal',    cstReversal,   setCstReversal,   CST_REV_OPTS,   null],
-                        ['Smart Money', cstSmartMoney, setCstSmartMoney, CST_SMF_OPTS,   null],
-                        ['Setup',       cstSetup,      setCstSetup,      CST_SETUP_OPTS, function(v){ return summaryCardDark(v).text; }],
-                        ['Weekly Mom',  cstWeeklyMom,  setCstWeeklyMom,  ['Strong','Building','Neutral','Fading','Weak','Not Enough Data'], null],
-                        ['Mom Profile',  cstMomProfile, setCstMomProfile, ['Momentum Continuation','Early Recovery Attempt','Weak Weekly Bounce','Waiting for Daily Trigger','Pullback in Larger Momentum','Bearish Momentum','No Clear Momentum Profile','Not Enough Data'], null],
-                        ['Monthly Regime',cstMonthlyRegime,setCstMonthlyRegime,['Supportive','Neutral','Weak','Not Enough Data'], null],
-                        ['Overall Result',cstOverallResult,setCstOverallResult,['Favourable','Watch','Mixed','Unfavourable','Low Confidence'], null],
-                      ].map(function(row){
-                        return (
-                          <div key={row[0]} style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
-                            <span style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', minWidth:74, paddingTop:3, flexShrink:0 }}>{row[0]}</span>
-                            <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
-                              {row[3].map(function(v){ return pillSel(v, row[1], row[2], row[4]); })}
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {/* Driver Filters collapsible */}
-                      <div style={{ borderTop:'0.5px solid #2a2a28', marginTop:8, paddingTop:8 }}>
-                        <button onClick={function(){ setCstDrvOpen(!cstDrvOpen); }}
-                          style={{ background:'none', border:'none', color:'#888', fontSize:11, cursor:'pointer', padding:0, display:'flex', alignItems:'center', gap:6 }}>
-                          <span style={{ fontSize:10, color:cstDrvOpen?LIME:'#555', fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' }}>{'Driver Filters'}</span>
-                          <span style={{ fontSize:12, color:'#555' }}>{cstDrvOpen?'▲':'▼'}</span>
-                          {(cstTrendDrv.length+cstMomDrv.length+cstRevDrv.length+cstSmfDrv.length)>0 && <span style={{ fontSize:8, color:LIME, background:'#1a2a0a', border:'0.5px solid '+LIME, borderRadius:8, padding:'1px 5px' }}>{cstTrendDrv.length+cstMomDrv.length+cstRevDrv.length+cstSmfDrv.length}</span>}
-                        </button>
-                        {cstDrvOpen && (
-                          <div style={{ marginTop:10 }}>
-                            <div style={{ fontSize:9, color:'#555', marginBottom:10, lineHeight:1.6 }}>
-                              {'Within each driver group: OR logic. Across driver groups: AND logic. Empty group = ignored.'}
-                            </div>
-                            {[
-                              ['Trend Driver',       cstTrendDrv, setCstTrendDrv, CST_TREND_DRVS],
-                              ['Momentum Driver',    cstMomDrv,   setCstMomDrv,   CST_MOM_DRVS],
-                              ['Reversal Driver',    cstRevDrv,   setCstRevDrv,   CST_REV_DRVS],
-                              ['Smart Money Driver', cstSmfDrv,   setCstSmfDrv,   CST_SMF_DRVS],
-                            ].map(function(grp){
-                              return (
-                                <div key={grp[0]} style={{ marginBottom:12 }}>
-                                  <div style={{ fontSize:9, fontWeight:700, color:grp[1].length?'#9acd50':'#444', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>{grp[0]}</div>
-                                  <div style={{ display:'flex', flexWrap:'wrap' }}>
-                                    {grp[3].map(function(d){ return drvChk(d[0], d[1], grp[1], grp[2]); })}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Sub-Signal Filters */}
-                      <div style={{ borderTop:'0.5px solid #2a2a28', marginTop:8, paddingTop:8 }}>
-                        <button onClick={function(){ setCstSubSigOpen(!cstSubSigOpen); }}
-                          style={{ background:'none', border:'none', fontSize:11, cursor:'pointer', padding:0, display:'flex', alignItems:'center', gap:6 }}>
-                          <span style={{ fontSize:10, color:cstSubSigOpen?LIME:'#555', fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' }}>{'Sub-Signal Filters'}</span>
-                          <span style={{ fontSize:12, color:'#555' }}>{cstSubSigOpen?'▲':'▼'}</span>
-                          {(cstRsiFilter.length+cstMacdFilter.length+cst52wFilter.length+cstMaFilter.length)>0 &&
-                            <span style={{ fontSize:8, color:LIME, background:'#1a2a0a', border:'0.5px solid '+LIME, borderRadius:8, padding:'1px 5px' }}>
-                              {cstRsiFilter.length+cstMacdFilter.length+cst52wFilter.length+cstMaFilter.length}
-                            </span>}
-                        </button>
-                        {cstSubSigOpen && (function(){
-                          function ssPill(v, arr, setter) {
-                            var sel = arr.indexOf(v)!==-1;
-                            return <button key={v} onClick={function(){ toggle(arr,setter,v); }}
-                              style={{ fontSize:9, padding:'3px 8px', borderRadius:8, cursor:'pointer', fontWeight:sel?700:400, outline:'none',
-                                background:sel?'#0f2010':'#111', color:sel?'#9acd50':'#666',
-                                border:'0.5px solid '+(sel?'#9acd50':'#2a2a28'), marginRight:4, marginBottom:4 }}>{v}</button>;
-                          }
-                          var SS_GROUPS = [
-                            ['RSI',              cstRsiFilter,  setCstRsiFilter,  ['RSI below 30','RSI 30 to 40','RSI 40 to 50','RSI 50 to 60','RSI 60 to 70','RSI above 70','RSI rising','RSI falling','RSI between 45 and 65']],
-                            ['MACD',             cstMacdFilter, setCstMacdFilter, ['MACD above signal','MACD below signal','MACD histogram positive','MACD histogram negative','MACD improving','MACD deteriorating']],
-                            ['52-Week Range',    cst52wFilter,  setCst52wFilter,  ['52W range 0 to 25%','52W range 25 to 50%','52W range 50 to 75%','52W range 75 to 90%','52W range 90 to 100%','Below 52W midpoint','Above 52W midpoint','Near 52W high','Far below 52W high']],
-                            ['Price / Moving Avg',cstMaFilter,  setCstMaFilter,   ['Price above SMA50','Price below SMA50','Price above SMA200','Price below SMA200','Price above EMA20','Price below EMA20','SMA50 above SMA200','Price reclaimed SMA50','Price lost SMA50']],
-                          ];
-                          return (
-                            <div style={{ marginTop:10 }}>
-                              <div style={{ fontSize:9, color:'#555', marginBottom:10, lineHeight:1.6 }}>{'Within each group: OR logic. Across groups: AND logic. Empty group = ignored.'}</div>
-                              {SS_GROUPS.map(function(grp){
-                                return (
-                                  <div key={grp[0]} style={{ marginBottom:10 }}>
-                                    <div style={{ fontSize:9, fontWeight:700, color:grp[1].length?'#9acd50':'#444', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>{grp[0]}</div>
-                                    <div style={{ display:'flex', flexWrap:'wrap' }}>
-                                      {grp[3].map(function(v){ return ssPill(v, grp[1], grp[2]); })}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      <div style={{ borderTop:'0.5px solid #2a2a28', marginTop:14, paddingTop:14 }}>
-                        <div style={{ display:'grid', gridTemplateColumns:'repeat(9,1fr)', gap:8, marginBottom:14 }}>
-                          {[
-                            ['Matching',  cstStat.signals,                                       '#f0ede6'],
-                            ['Wins',      cstStat.wins,                                          '#7abd00'],
-                            ['Losses',    cstStat.losses,                                        '#e05050'],
-                            ['Win Rate',  cstStat.winRate!=null?cstStat.winRate.toFixed(1)+'%':'—', cstStat.winRate!=null?(cstStat.winRate>=60?'#7abd00':cstStat.winRate>=45?'#EF9F27':'#e05050'):'#555'],
-                            ['Avg Return',simFmtPct(cstStat.avgReturn),                          cstStat.avgReturn!=null?(cstStat.avgReturn>=0?'#7abd00':'#e05050'):'#555'],
-                            ['Median',    simFmtPct(cstStat.medianReturn),                       cstStat.medianReturn!=null?(cstStat.medianReturn>=0?'#7abd00':'#e05050'):'#555'],
-                            ['Best',      simFmtPct(cstStat.bestReturn),                         '#7abd00'],
-                            ['Worst',     simFmtPct(cstStat.worstReturn),                        '#e05050'],
-                            ['Quality',   cstQual,                                               qualColor(cstQual)],
-                          ].map(function(f){ return (
-                            <div key={f[0]} style={{ background:'#0e0e0c', borderRadius:7, padding:'8px 10px', textAlign:'center' }}>
-                              <div style={{ fontSize:8, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:3 }}>{f[0]}</div>
-                              <div style={{ fontSize:12, fontWeight:800, color:f[2] }}>{f[1]}</div>
-                            </div>
-                          ); })}
-                        </div>
-
-                        {/* Overall Momentum Result panel */}
-                        {matchRows.length > 0 && (function(){
-                          var resMap = {};
-                          matchRows.forEach(function(r) {
-                            var mp = r.momentumProfile;
-                            var k = (mp&&mp.overallResult)||'Low Confidence';
-                            var src = (mp&&mp.overallResultSource)||'—';
-                            var key = k+'|'+src;
-                            if (!resMap[key]) resMap[key] = { result:k, source:src, count:0, wr:mp&&mp.overallResultWinRate, med:mp&&mp.overallResultMedian, sigs:mp&&mp.overallResultSignals };
-                            resMap[key].count++;
-                          });
-                          var items = Object.values(resMap).sort(function(a,b){ return b.count-a.count; });
-                          function resColor(r){ return r==='Favourable'?'#7abd00':r==='Watch'?'#6090d0':r==='Mixed'?'#EF9F27':r==='Unfavourable'?'#e05050':'#555'; }
-                          return <div style={{ background:'#0c0c0a', borderRadius:6, padding:'10px 12px', marginBottom:12 }}>
-                            <div style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', fontWeight:700, marginBottom:8 }}>Overall Momentum Result</div>
-                            {items.map(function(g,i){
-                              return <div key={i} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:5 }}>
-                                <span style={{ fontSize:10, fontWeight:800, color:resColor(g.result), minWidth:90 }}>{g.result}</span>
-                                <span style={{ fontSize:9, color:'#7ab8d0' }}>{g.source}</span>
-                                <span style={{ fontSize:9, color:'#555' }}>{'('+g.count+' rows)'}</span>
-                                {g.sigs!=null&&<span style={{ fontSize:9, color:'#666' }}>{'| '+g.sigs+' hist. signals'}</span>}
-                                {g.wr!=null&&<span style={{ fontSize:9, color:(g.wr||0)>=60?'#7abd00':'#EF9F27' }}>{g.wr.toFixed(1)+'% WR'}</span>}
-                                {g.med!=null&&<span style={{ fontSize:9, color:(g.med||0)>=0?'#7abd00':'#e05050' }}>{(g.med>=0?'+':'')+g.med.toFixed(2)+'% med'}</span>}
-                              </div>;
-                            })}
-                          </div>;
-                        })()}
-                        {/* Selected Condition */}
-                        <div style={{ background:'#0e0e0c', borderRadius:7, padding:'10px 12px', marginBottom:12 }}>
-                          <div style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6, fontWeight:700 }}>{'Selected Condition'}</div>
-                          <pre style={{ fontSize:10, color:'#888', lineHeight:1.8, whiteSpace:'pre-wrap', wordBreak:'break-word', margin:0, fontFamily:'monospace' }}>{cstCond}</pre>
-                        </div>
-
-                        {/* Action buttons */}
-                        <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
-                          <button onClick={resetCST}
-                            style={{ fontSize:10, padding:'5px 12px', background:'none', border:'0.5px solid #444', borderRadius:5, color:'#888', cursor:'pointer' }}>Reset Filters</button>
-                          <button onClick={function(){
-                            var txt = cstCond;
-                            if (navigator.clipboard && navigator.clipboard.writeText) {
-                              navigator.clipboard.writeText(txt);
-                            } else {
-                              var el = document.createElement('textarea'); el.value = txt;
-                              document.body.appendChild(el); el.select(); document.execCommand('copy');
-                              document.body.removeChild(el);
-                            }
-                          }} style={{ fontSize:10, padding:'5px 12px', background:'none', border:'0.5px solid #444', borderRadius:5, color:'#888', cursor:'pointer' }}>Copy Condition</button>
-                          <button onClick={function(){
-                            if (!matchRows.length) return;
-                            exportRowsToCsv(ticker+'-custom-signal-matches-'+results.hp+'D.csv', matchRows, [
-                              { label:'Date',            key:'date' },
-                              { label:'Close',           value:function(r){ return '$'+r.close.toFixed(2); } },
-                              { label:'Setup',           key:'setup' },
-                              { label:'Trend',           key:'trend' },
-                              { label:'Momentum',        key:'momentum' },
-                              { label:'Weekly Momentum', value:function(r){ return r.momentumProfile?r.momentumProfile.weekly:''; } },
-                              { label:'Mom Profile',     value:function(r){ return r.momentumProfile?r.momentumProfile.profile:''; } },
-                              { label:'Monthly Regime',  value:function(r){ return r.momentumProfile?r.momentumProfile.monthlyRegime:''; } },
-                              { label:'Overall Result',  value:function(r){ return r.momentumProfile?r.momentumProfile.overallResult||'':''; } },
-                              { label:'Result Source',   value:function(r){ return r.momentumProfile?r.momentumProfile.overallResultSource||'':''; } },
-                              { label:'Result Signals',  value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultSignals!=null?r.momentumProfile.overallResultSignals:''; } },
-                              { label:'Result WR %',     value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultWinRate!=null?r.momentumProfile.overallResultWinRate.toFixed(1):''; } },
-                              { label:'Result Median %', value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultMedian!=null?r.momentumProfile.overallResultMedian.toFixed(2):''; } },
-                      { label:'Weekly Momentum', value:function(r){ return r.momentumProfile?r.momentumProfile.weekly:''; } },
-                      { label:'Mom Profile',     value:function(r){ return r.momentumProfile?r.momentumProfile.profile:''; } },
-                      { label:'Monthly Regime',  value:function(r){ return r.momentumProfile?r.momentumProfile.monthlyRegime:''; } },
-                      { label:'Overall Result',  value:function(r){ return r.momentumProfile?r.momentumProfile.overallResult||'':''; } },
-                      { label:'Result Source',   value:function(r){ return r.momentumProfile?r.momentumProfile.overallResultSource||'':''; } },
-                      { label:'Result Signals',  value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultSignals!=null?r.momentumProfile.overallResultSignals:''; } },
-                      { label:'Result WR %',     value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultWinRate!=null?r.momentumProfile.overallResultWinRate.toFixed(1):''; } },
-                      { label:'Result Median %', value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultMedian!=null?r.momentumProfile.overallResultMedian.toFixed(2):''; } },
-                      { label:'Result Avg %',    value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultAvg!=null?r.momentumProfile.overallResultAvg.toFixed(2):''; } },
-                      { label:'Result Best %',   value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultBest!=null?r.momentumProfile.overallResultBest.toFixed(2):''; } },
-                      { label:'Result Worst %',  value:function(r){ return r.momentumProfile&&r.momentumProfile.overallResultWorst!=null?r.momentumProfile.overallResultWorst.toFixed(2):''; } },
-                              { label:'Reversal',        key:'reversal' },
-                              { label:'Smart Money',     key:'smartMoney' },
-                              { label:'RSI',             value:function(r){ return r.driverValues&&r.driverValues.rsi14!=null?r.driverValues.rsi14.toFixed(1):''; } },
-                              { label:'MACD Hist',       value:function(r){ return r.driverValues&&r.driverValues.macdHistogram!=null?r.driverValues.macdHistogram.toFixed(3):''; } },
-                              { label:'MACD State',      value:function(r){ var dv=r.driverValues; if(!dv) return ''; return (dv.macdAboveSig?'Above Sig':'Below Sig')+(dv.macdImproving!=null?(dv.macdImproving?' Improving':' Deteriorating'):''); } },
-                              { label:'52W %',           value:function(r){ return r.driverValues&&r.driverValues.pos52w!=null?r.driverValues.pos52w.toFixed(1)+'%':''; } },
-                              { label:'52W Bucket',      value:function(r){ return r.driverValues&&r.driverValues.bucket52w||''; } },
-                              { label:'Future Return %', value:function(r){ return r.futureReturn!=null?r.futureReturn.toFixed(2):''; } },
-                              { label:'Result',          key:'result' },
-                            ]);
-                          }} style={{ fontSize:10, padding:'5px 12px', background:'none', border:'0.5px solid #444', borderRadius:5, color:'#888', cursor:'pointer',
-                            opacity: matchRows.length ? 1 : 0.4 }}>Export CSV</button>
-                        </div>
-
-                        {/* Matching Historical Signals */}
-                        <div style={{ fontSize:10, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:8 }}>
-                          {'Matching Historical Signals (' + matchRows.length + ' rows' + (matchRows.length>50?', showing latest 50':'')+')'}
-                        </div>
-                        {matchRows.length === 0
-                          ? <div style={{ color:'#555', fontSize:11, padding:'16px 0', textAlign:'center' }}>{'No rows match the selected conditions.'}</div>
-                          : <div style={{ overflowX:'auto', maxHeight:400, overflowY:'auto' }}>
-                              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
-                                <thead style={{ position:'sticky', top:0, zIndex:1 }}>
-                                  <tr style={{ borderBottom:'1px solid #2a2a28' }}>
-                                    {['Date','Close','Setup','Trend','Daily Mom','Weekly Mom','Mom Profile','Monthly Regime','Overall Result','Src','R.Sigs','R.WR','R.Med','Reversal','Smart Money','RSI','MACD Hist','52W%','W.RSI','W.Hist','W.ROC','M.RSI','M.Hist','M.ROC','Return','Result'].map(function(h){
-                                      return <th key={h} style={{ padding:'4px 7px', fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>;
-                                    })}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {showTop50.map(function(r, i){
-                                    var sc  = summaryCardDark(r.setup);
-                                    var ret = r.futureReturn;
-                                    var retC = ret==null?'#555':ret>=5?'#7abd00':ret>=0?'#5a9a40':ret>-5?'#e08050':'#e05050';
-                                    return (
-                                      <tr key={r.date+i} style={{ background:i%2===0?'#181816':'#141412' }}>
-                                        <td style={{ padding:'4px 7px', color:'#888', whiteSpace:'nowrap' }}>{r.date}</td>
-                                        <td style={{ padding:'4px 7px', color:'#f0ede6', fontWeight:600 }}>{'$'+r.close.toFixed(2)}</td>
-                                        <td style={{ padding:'4px 7px', fontWeight:700, color:sc.text, whiteSpace:'nowrap' }} title={r.fullSetup}>{r.setup}</td>
-                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9 }}>{r.trend}</td>
-                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9 }}>{r.momentum}</td>
-                                        <td style={{ padding:'4px 7px', color: r.momentumProfile&&r.momentumProfile.weekly==='Strong'?'#7abd00':r.momentumProfile&&r.momentumProfile.weekly==='Building'?'#9acd50':r.momentumProfile&&r.momentumProfile.weekly==='Fading'?'#e08050':r.momentumProfile&&r.momentumProfile.weekly==='Weak'?'#e05050':'#666', fontSize:9, whiteSpace:'nowrap' }}>{r.momentumProfile?r.momentumProfile.weekly:'—'}</td>
-                                        <td style={{ padding:'4px 7px', color:'#d0a060', fontSize:8, maxWidth:110, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.momentumProfile?r.momentumProfile.profile:''}>{r.momentumProfile?r.momentumProfile.profile:'—'}</td>
-                                        <td style={{ padding:'4px 7px', color:'#c890d0', fontSize:8, whiteSpace:'nowrap' }}>{r.momentumProfile?r.momentumProfile.monthlyRegime:'—'}</td>
-                                        <td style={{ padding:'4px 7px', fontSize:8, fontWeight:700, whiteSpace:'nowrap', color: r.momentumProfile&&r.momentumProfile.overallResult==='Favourable'?'#7abd00':r.momentumProfile&&r.momentumProfile.overallResult==='Watch'?'#6090d0':r.momentumProfile&&r.momentumProfile.overallResult==='Mixed'?'#EF9F27':r.momentumProfile&&r.momentumProfile.overallResult==='Unfavourable'?'#e05050':'#555' }}>{r.momentumProfile&&r.momentumProfile.overallResult||'—'}</td>
-                                        <td style={{ padding:'4px 7px', color:'#7ab8d0', fontSize:8, maxWidth:80, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.momentumProfile&&r.momentumProfile.overallResultSource||''}>{r.momentumProfile&&r.momentumProfile.overallResultSource||'—'}</td>
-                                        <td style={{ padding:'4px 7px', color:'#666', fontSize:8 }}>{r.momentumProfile&&r.momentumProfile.overallResultSignals!=null?r.momentumProfile.overallResultSignals:'—'}</td>
-                                        <td style={{ padding:'4px 7px', fontSize:8, color:r.momentumProfile&&r.momentumProfile.overallResultWinRate!=null?(r.momentumProfile.overallResultWinRate>=60?'#7abd00':r.momentumProfile.overallResultWinRate>=45?'#EF9F27':'#e05050'):'#555' }}>{r.momentumProfile&&r.momentumProfile.overallResultWinRate!=null?r.momentumProfile.overallResultWinRate.toFixed(1)+'%':'—'}</td>
-                                        <td style={{ padding:'4px 7px', fontSize:8, color:r.momentumProfile&&r.momentumProfile.overallResultMedian!=null?(r.momentumProfile.overallResultMedian>=0?'#7abd00':'#e05050'):'#555' }}>{r.momentumProfile&&r.momentumProfile.overallResultMedian!=null?simFmtPct(r.momentumProfile.overallResultMedian):'—'}</td>
-                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9, maxWidth:110, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.reversal}>{r.reversal}</td>
-                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9, maxWidth:110, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.smartMoney}>{r.smartMoney}</td>
-                                        <td style={{ padding:'4px 7px', color: r.driverValues&&r.driverValues.rsi14!=null?(r.driverValues.rsi14>70?'#e05050':r.driverValues.rsi14<30?'#7abd00':'#aaa'):'#555', fontSize:9, whiteSpace:'nowrap' }}>{r.driverValues&&r.driverValues.rsi14!=null?r.driverValues.rsi14.toFixed(1):'—'}</td>
-                                        <td style={{ padding:'4px 7px', color: r.driverValues&&r.driverValues.macdHistogram!=null?(r.driverValues.macdHistogram>0?'#7abd00':'#e05050'):'#555', fontSize:9, whiteSpace:'nowrap' }}>{r.driverValues&&r.driverValues.macdHistogram!=null?r.driverValues.macdHistogram.toFixed(3):'—'}</td>
-                                        <td style={{ padding:'4px 7px', fontSize:9, whiteSpace:'nowrap' }}>
-                                          {r.driverValues ? (
-                                            <span style={{ color: r.driverValues.macdAboveSig?'#7abd00':'#e05050' }}>
-                                              {(r.driverValues.macdAboveSig?'↑Sig':'↓Sig')+(r.driverValues.macdImproving!=null?(r.driverValues.macdImproving?' ↑':' ↓'):'  ')}
-                                            </span>
-                                          ) : '—'}
-                                        </td>
-                                        <td style={{ padding:'4px 7px', color:'#aaa', fontSize:9 }}>{r.driverValues&&r.driverValues.pos52w!=null?r.driverValues.pos52w.toFixed(1)+'%':'—'}</td>
-                                        <td style={{ padding:'4px 7px', color:'#666', fontSize:9, whiteSpace:'nowrap' }}>{r.driverValues&&r.driverValues.bucket52w||'—'}</td>
-                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9 }}>{r.momentumDrivers&&r.momentumDrivers.weeklyRsi14!=null?r.momentumDrivers.weeklyRsi14.toFixed(1):'—'}</td>
-                                        <td style={{ padding:'4px 7px', color: r.momentumDrivers&&r.momentumDrivers.weeklyMacdHistogram!=null?(r.momentumDrivers.weeklyMacdHistogram>0?'#7abd00':'#e05050'):'#555', fontSize:9 }}>{r.momentumDrivers&&r.momentumDrivers.weeklyMacdHistogram!=null?r.momentumDrivers.weeklyMacdHistogram.toFixed(3):'—'}</td>
-                                        <td style={{ padding:'4px 7px', color: r.momentumDrivers&&r.momentumDrivers.weeklyRoc4wPct!=null?(r.momentumDrivers.weeklyRoc4wPct>=0?'#7abd00':'#e05050'):'#555', fontSize:9 }}>{r.momentumDrivers&&r.momentumDrivers.weeklyRoc4wPct!=null?r.momentumDrivers.weeklyRoc4wPct.toFixed(1)+'%':'—'}</td>
-                                        <td style={{ padding:'4px 7px', color:'#888', fontSize:9 }}>{r.momentumDrivers&&r.momentumDrivers.monthlyRsi14!=null?r.momentumDrivers.monthlyRsi14.toFixed(1):'—'}</td>
-                                        <td style={{ padding:'4px 7px', color: r.momentumDrivers&&r.momentumDrivers.monthlyMacdHistogram!=null?(r.momentumDrivers.monthlyMacdHistogram>0?'#7abd00':'#e05050'):'#555', fontSize:9 }}>{r.momentumDrivers&&r.momentumDrivers.monthlyMacdHistogram!=null?r.momentumDrivers.monthlyMacdHistogram.toFixed(3):'—'}</td>
-                                        <td style={{ padding:'4px 7px', color: r.momentumDrivers&&r.momentumDrivers.monthlyRoc3mPct!=null?(r.momentumDrivers.monthlyRoc3mPct>=0?'#7abd00':'#e05050'):'#555', fontSize:9 }}>{r.momentumDrivers&&r.momentumDrivers.monthlyRoc3mPct!=null?r.momentumDrivers.monthlyRoc3mPct.toFixed(1)+'%':'—'}</td>
-                                        <td style={{ padding:'4px 7px', fontWeight:700, color:retC, whiteSpace:'nowrap' }}>{simFmtPct(ret)}</td>
-                                        <td style={{ padding:'4px 7px' }}>
-                                          <span style={{ fontSize:8, fontWeight:700, color:r.result==='Win'?'#7abd00':r.result==='Loss'?'#e05050':'#555',
-                                            background:r.result==='Win'?'#0d200d':r.result==='Loss'?'#200808':'#111', padding:'1px 5px', borderRadius:3 }}>{r.result}</span>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                        }
-                        <div style={{ fontSize:9, color:'#333', marginTop:10 }}>{'Custom Signal Tester is for historical research only. It does not guarantee future performance and is not financial advice.'}</div>
-                      </div>
+                      <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Custom Signal Tester'}</div>
+                      <div style={{ fontSize:10, color:'#444', marginTop:3 }}>{'Filter historical signals by RBA result, trend, and signal statuses. Matching rows use AND logic across filters, OR within each filter.'}</div>
+                    </div>
+                    {matched.length > 0 && <button onClick={exportCSV}
+                      style={{ fontSize:9, padding:'4px 10px', border:'0.5px solid #333', borderRadius:4, background:'none', color:'#aaa', cursor:'pointer', flexShrink:0, marginLeft:10 }}>
+                      {'Export CSV'}
+                    </button>}
+                  </div>
+                  <FilterChips label="Raw Result" opts={CST_RAW_OPTS} selected={cstRawResult} onToggle={function(v){ setCstFilters(function(p){ return Object.assign({},p,{rawResult:toggle(p.rawResult||[],v)}); }); }} />
+                  <FilterChips label="Trend Condition" opts={CST_TREND_OPTS} selected={cstTrendCond} onToggle={function(v){ setCstFilters(function(p){ return Object.assign({},p,{trendCond:toggle(p.trendCond||[],v)}); }); }} />
+                  <FilterChips label="Momentum Status" opts={CST_MOM_STATUS_OPTS} selected={cstMomStatus} onToggle={function(v){ setCstFilters(function(p){ return Object.assign({},p,{momStatus:toggle(p.momStatus||[],v)}); }); }} />
+                  <FilterChips label="Reversal Status" opts={CST_REV_STATUS_OPTS} selected={cstRevStatus} onToggle={function(v){ setCstFilters(function(p){ return Object.assign({},p,{revStatus:toggle(p.revStatus||[],v)}); }); }} />
+                  <FilterChips label="Smart Money Status" opts={CST_SMF_STATUS_OPTS} selected={cstSmfStatus} onToggle={function(v){ setCstFilters(function(p){ return Object.assign({},p,{smfStatus:toggle(p.smfStatus||[],v)}); }); }} />
+                  {hasFilters && condParts.length > 0 && (
+                    <div style={{ fontSize:9, color:'#888', background:'rgba(0,0,0,0.15)', borderRadius:4, padding:'5px 10px', marginBottom:10 }}>
+                      <span style={{ fontWeight:700, color:'#aaa' }}>{'Selected Condition: '}</span>{condParts.join(' · ')}
                     </div>
                   )}
+                  {hasFilters && (
+                    <div>
+                      {matchedRets.length >= 1 ? (
+                        <div>
+                          <div style={{ display:'flex', gap:16, flexWrap:'wrap', marginBottom:12, padding:'8px 10px', background:'rgba(0,0,0,0.15)', borderRadius:6 }}>
+                            {[['Signals',''+matched.length,'#aaa'],['Win Rate',matchedRets.length?(mWins/matchedRets.length*100).toFixed(1)+'%':'-',mWins/matchedRets.length>=0.5?'#7abd00':'#e05050'],['Avg Return',mAvg!=null?(mAvg>=0?'+':'')+mAvg.toFixed(2)+'%':'—',mAvg!=null?mAvg>=0?'#7abd00':'#e05050':'#555'],['Median',mMed!=null?(mMed>=0?'+':'')+mMed.toFixed(2)+'%':'—',mMed!=null?mMed>=0?'#7abd00':'#e05050':'#555'],['Best',mBest!=null?'+'+mBest.toFixed(2)+'%':'—','#7abd00'],['Worst',mWorst!=null?mWorst.toFixed(2)+'%':'—','#e05050']].map(function(f){
+                              return <div key={f[0]}><div style={{ fontSize:8, color:'#555', textTransform:'uppercase', marginBottom:2 }}>{f[0]}</div><div style={{ fontSize:13, fontWeight:700, color:f[2] }}>{f[1]}</div></div>;
+                            })}
+                          </div>
+                          <div style={{ overflowX:'auto' }}>
+                            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
+                              <thead><tr>{['Date','Close','Final Result','Raw Result','Trend','Mom','Rev','SMF','Return','Win/Loss'].map(function(h){ return <th key={h} style={{ textAlign:'left', color:'#555', fontWeight:700, fontSize:9, padding:'4px 8px', borderBottom:'0.5px solid #222', whiteSpace:'nowrap' }}>{h}</th>; })}</tr></thead>
+                              <tbody>
+                                {matched.slice(0,200).map(function(r,i){
+                                  var rc = r.futureReturn!=null?(r.futureReturn>=0?'#7abd00':'#e05050'):'#555';
+                                  var msc = r.momentumStatus==='bullish'?'#7abd00':r.momentumStatus==='bearish'?'#e05050':'#b88000';
+                                  var rsc = r.reversalStatus==='bullish'?'#7abd00':r.reversalStatus==='bearish'?'#e05050':'#b88000';
+                                  var smc = r.smartMoneyStatus==='bullish'?'#7abd00':r.smartMoneyStatus==='bearish'?'#e05050':'#b88000';
+                                  var tc  = r.trendCondition||'—'; var tcol = tc.indexOf('Uptrend')>-1?'#7abd00':tc.indexOf('Down')>-1?'#e05050':'#b88000';
+                                  return <tr key={i} style={{ borderBottom:'0.5px solid #1a1a1a' }}>
+                                    <td style={{ padding:'4px 8px', color:'#888' }}>{r.date}</td>
+                                    <td style={{ padding:'4px 8px', color:'#aaa' }}>${r.close!=null?r.close.toFixed(2):'—'}</td>
+                                    <td style={{ padding:'4px 8px', fontSize:9, color:summaryCardDark(r.rawResult).text||'#ccc', maxWidth:160, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{r.finalResult||'—'}</td>
+                                    <td style={{ padding:'4px 8px', fontSize:9, color:summaryCardDark(r.rawResult).text||'#ccc' }}>{r.rawResult||'—'}</td>
+                                    <td style={{ padding:'4px 8px', fontSize:9, color:tcol }}>{tc.replace(' Conditions','')}</td>
+                                    <td style={{ padding:'4px 8px', fontSize:9, fontWeight:700, color:msc }}>{r.momentumStatus||'—'}</td>
+                                    <td style={{ padding:'4px 8px', fontSize:9, fontWeight:700, color:rsc }}>{r.reversalStatus||'—'}</td>
+                                    <td style={{ padding:'4px 8px', fontSize:9, fontWeight:700, color:smc }}>{r.smartMoneyStatus||'—'}</td>
+                                    <td style={{ padding:'4px 8px', fontWeight:700, color:rc }}>{r.futureReturn!=null?(r.futureReturn>=0?'+':'')+r.futureReturn.toFixed(2)+'%':'—'}</td>
+                                    <td style={{ padding:'4px 8px', color:r.result==='Win'?'#7abd00':'#e05050' }}>{r.result||'—'}</td>
+                                  </tr>;
+                                })}
+                              </tbody>
+                            </table>
+                            {matched.length > 200 && <div style={{ fontSize:9, color:'#555', marginTop:6 }}>{'Showing first 200 of ' + matched.length + ' rows.'}</div>}
+                          </div>
+                        </div>
+                      ) : <div style={{ fontSize:11, color:'#555' }}>{'No signals match the selected filters.'}</div>}
+                    </div>
+                  )}
+                  {!hasFilters && <div style={{ fontSize:11, color:'#555' }}>{'Select one or more filters above to view matching historical signals.'}</div>}
                 </div>
               );
             })()}
-
-            {/* Historical signal table */}
-            <div style={card}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-                <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.07em' }}>{'Historical Signals ('+results.rows.length+' rows)'}</div>
-                {results.rows.length > 0
-                  ? <button onClick={function(){
-                      exportRowsToCsv(ticker+'-historical-signals-'+results.hp+'D.csv', results.rows, [
-                        { label:'Date',             key:'date' },
-                        { label:'Close',            value:function(r){ return '$'+r.close.toFixed(2); } },
-                        { label:'Setup',            key:'setup' },
-                        { label:'Full Setup',       key:'fullSetup' },
-                        { label:'Trend',            key:'trend' },
-                        { label:'Momentum',         key:'momentum' },
-                        { label:'Reversal',         key:'reversal' },
-                        { label:'Smart Money',      key:'smartMoney' },
-                        { label:'Future Return %',  value:function(r){ return r.futureReturn!=null?r.futureReturn.toFixed(2):''; } },
-                        { label:'Result',           key:'result' },
-                      ]);
-                    }} style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #333', borderRadius:5, color:'#888', cursor:'pointer' }}>Export CSV</button>
-                  : <button disabled style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #2a2a28', borderRadius:5, color:'#444', cursor:'default' }}>No rows to export</button>}
-              </div>
-              <div style={{ overflowX:'auto', maxHeight:480, overflowY:'auto' }}>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
-                  <thead style={{ position:'sticky', top:0, zIndex:1 }}>
-                    <tr style={{ borderBottom:'1px solid #2a2a28' }}>
-                      {['Date','Close','Setup','Trend','Momentum','Reversal','Smart Money','Return','Result'].map(function(h){
-                        return <th key={h} style={{ padding:'5px 8px', fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.05em', textAlign:'left', background:'#1a1a18', whiteSpace:'nowrap' }}>{h}</th>;
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.rows.map(function(r, i){
-                      var sc  = summaryCardDark(r.setup);
-                      var ret = r.futureReturn;
-                      var retCol = ret==null?'#555':ret>=5?'#7abd00':ret>=0?'#5a9a40':ret>-5?'#e08050':'#e05050';
-                      return (
-                        <tr key={r.date+i} style={{ background:i%2===0?'#181816':'#141412' }}>
-                          <td style={{ padding:'4px 8px', color:'#888', whiteSpace:'nowrap' }}>{r.date}</td>
-                          <td style={{ padding:'4px 8px', color:'#f0ede6', fontWeight:600 }}>{'$'+r.close.toFixed(2)}</td>
-                          <td style={{ padding:'4px 8px', fontWeight:700, color:sc.text, whiteSpace:'nowrap' }} title={r.fullSetup}>{r.setup}</td>
-                          <td style={{ padding:'4px 8px', color:'#888', fontSize:9, whiteSpace:'nowrap' }}>{r.trend}</td>
-                          <td style={{ padding:'4px 8px', color:'#888', fontSize:9 }}>{r.momentum}</td>
-                          <td style={{ padding:'4px 8px', color:'#888', fontSize:9, maxWidth:120, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.reversal}</td>
-                          <td style={{ padding:'4px 8px', color:'#888', fontSize:9, maxWidth:120, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.smartMoney}</td>
-                          <td style={{ padding:'4px 8px', fontWeight:700, color:retCol, whiteSpace:'nowrap' }}>{simFmtPct(ret)}</td>
-                          <td style={{ padding:'4px 8px' }}>
-                            <span style={{ fontSize:9, fontWeight:700, color:r.result==='Win'?'#7abd00':r.result==='Loss'?'#e05050':'#555',
-                              background:r.result==='Win'?'#0d200d':r.result==='Loss'?'#200808':'#111',
-                              padding:'2px 6px', borderRadius:4 }}>{r.result}</span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Disclaimer */}
-            <div style={{ fontSize:10, color:'#444', lineHeight:1.7, padding:'0 4px' }}>
-              Backtest uses historical Yahoo daily price data and NervousGeek rule-based technical logic. Results are for research only and are not financial advice. Historical performance does not guarantee future results.
-              <br />Signals are calculated using only data available up to each historical date to reduce look-ahead bias.
-            </div>
           </div>
         );
       })()}
@@ -5241,7 +4639,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.68</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.69</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5295,7 +4693,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.68</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.69</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11955,7 +11353,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.68</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.69</span>
           </div>
         </div>
 
