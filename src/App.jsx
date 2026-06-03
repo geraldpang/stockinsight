@@ -2818,7 +2818,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [rbaConfError,   setRbaConfError]   = useState(null);
   const [rbaConfSym,     setRbaConfSym]     = useState(null);
   const [rbaConfPeriod,  setRbaConfPeriod]  = useState('20D');
-  const [mobileExpanded, setMobileExpanded] = useState(null); // mobile inline expansion
+  const [mobileExpanded, setMobileExpanded] = useState(null);
   const [aiTechRefreshing, setAiTechRefreshing] = useState(false);
   const [aiTechCachedAt,setAiTechCachedAt]= useState(null);
 
@@ -4646,7 +4646,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.79</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.80</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4700,7 +4700,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.79</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.80</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5360,12 +5360,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             function numFmt2(v){return v!=null?((v>=0?'+':'')+v.toFixed(1)+'%'):'--';}
                             function numCol2(v){return v==null?'#555':v>5?'#7abd00':v>0?'#9acd50':v>-5?'#EF9F27':'#e05050';}
                             function ndots2(v){return v==null?0:v>10?5:v>5?4:v>0?3:v>-5?2:1;}
-                            function DR(label,dots,col,detail){var ds=[];for(var i=1;i<=5;i++)ds.push(React.createElement('span',{key:i,style:{display:'inline-block',width:5,height:5,borderRadius:'50%',background:i<=dots?col:'#2a2a2a',marginRight:2}}));return React.createElement('div',{key:label,style:{display:'flex',alignItems:'center',padding:'5px 0',borderBottom:'0.5px solid #2a2a2a'}},React.createElement('span',{style:{fontSize:10,color:'#666',flex:1}},label),React.createElement('span',{style:{display:'inline-flex',alignItems:'center',marginRight:8}},ds),React.createElement('span',{style:{fontSize:10,fontWeight:600,color:col,minWidth:60,textAlign:'right'}},detail));}
                             var rows4=[];
-                            if(ema20v>0)rows4.push(DR('vs 20-day EMA',ndots2(vsEma),numCol2(vsEma),numFmt2(vsEma)));
-                            if(sma50v>0)rows4.push(DR('vs 50-day SMA',ndots2(vsSma50),numCol2(vsSma50),numFmt2(vsSma50)));
-                            if(sma200v>0)rows4.push(DR('vs 200-day SMA',ndots2(vsSma200),numCol2(vsSma200),numFmt2(vsSma200)));
-                            if(_trendLabel&&_trendLabel!=='--')rows4.push(DR('Trend Structure',_trendDots,_trendCol.fg,_trendLabel));
+                            if(ema20v>0)rows4.push(DotRow('vs 20-day EMA',ndots2(vsEma),numCol2(vsEma),numFmt2(vsEma)));
+                            if(sma50v>0)rows4.push(DotRow('vs 50-day SMA',ndots2(vsSma50),numCol2(vsSma50),numFmt2(vsSma50)));
+                            if(sma200v>0)rows4.push(DotRow('vs 200-day SMA',ndots2(vsSma200),numCol2(vsSma200),numFmt2(vsSma200)));
+                            if(_trendLabel&&_trendLabel!=='--')rows4.push(DotRow('Trend Structure',_trendDots,_trendCol.fg,_trendLabel));
                             return (
                               <div style={{background:'#1a1a1a',borderBottom:'0.5px solid #2a2a2a',padding:'10px 12px'}}>
                                 <div style={{fontSize:9,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>Trend Evidence</div>
@@ -5412,16 +5411,15 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             var curHist5=mH5.length>=1?mH5[mH5.length-1].histogram:null;
                             var prevHist5=mH5.length>=2?mH5[mH5.length-2].histogram:null;
                             var histDir=curHist5!=null&&prevHist5!=null?(curHist5>prevHist5?'Expanding':'Contracting'):'--';
-                            function DR(label,dots,col,detail){var ds=[];for(var i=1;i<=5;i++)ds.push(React.createElement('span',{key:i,style:{display:'inline-block',width:5,height:5,borderRadius:'50%',background:i<=dots?col:'#2a2a2a',marginRight:2}}));return React.createElement('div',{key:label,style:{display:'flex',alignItems:'center',padding:'5px 0',borderBottom:'0.5px solid #2a2a2a'}},React.createElement('span',{style:{fontSize:10,color:'#666',flex:1}},label),React.createElement('span',{style:{display:'inline-flex',alignItems:'center',marginRight:8}},ds),React.createElement('span',{style:{fontSize:10,fontWeight:600,color:col,minWidth:60,textAlign:'right'}},detail));}
                             var histCol=curHist5!=null?(curHist5>0?'#7abd00':curHist5<0?'#e05050':'#555'):'#555';
                             function rsiDots(r){return r>=70?5:r>=60?4:r>=50?3:r>=40?2:1;}
                             function rsiCol(r){return r>=60?'#7abd00':r>=50?'#9acd50':r>=40?'#EF9F27':'#e05050';}
                             var rows5=[];
-                            if(rsiV>0)rows5.push(DR('RSI (14)',rsiDots(rsiV),rsiCol(rsiV),rsiV.toFixed(1)));
-                            if(curHist5!=null)rows5.push(DR('MACD Histogram',curHist5>0?3:1,histCol,histDir+(curHist5>0?' (Pos)':curHist5<0?' (Neg)':'')));
-                            if(_d&&_d!=='--')rows5.push(DR('Daily Status',_momDots,_momCol.fg,_d));
-                            if(_lp&&_lp.profile&&_lp.profile!=='Not Enough Data')rows5.push(DR('Profile',_spc===_spc?3:2,_spc,_lp.profile||'--'));
-                            if(_lp&&_lp.weekly&&_lp.weekly!=='Not Enough Data'&&_lp.weekly!=='No data')rows5.push(DR('Weekly',2,_sc(_lp.weekly),_lp.weekly));
+                            if(rsiV>0)rows5.push(DotRow('RSI (14)',rsiDots(rsiV),rsiCol(rsiV),rsiV.toFixed(1)));
+                            if(curHist5!=null)rows5.push(DotRow('MACD Histogram',curHist5>0?3:1,histCol,histDir+(curHist5>0?' (Pos)':curHist5<0?' (Neg)':'')));
+                            if(_d&&_d!=='--')rows5.push(DotRow('Daily Status',_momDots,_momCol.fg,_d));
+                            if(_lp&&_lp.profile&&_lp.profile!=='Not Enough Data')rows5.push(DotRow('Profile',_spc===_spc?3:2,_spc,_lp.profile||'--'));
+                            if(_lp&&_lp.weekly&&_lp.weekly!=='Not Enough Data'&&_lp.weekly!=='No data')rows5.push(DotRow('Weekly',2,_sc(_lp.weekly),_lp.weekly));
                             return (
                               <div style={{background:'#1a1a1a',borderBottom:'0.5px solid #2a2a2a',padding:'10px 12px'}}>
                                 <div style={{fontSize:9,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>Momentum Evidence</div>
@@ -5664,12 +5662,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             var bstat=_smd2&&_smd2.baseStatus?_smd2.baseStatus:null;
                             function flowCol(lbl){if(!lbl)return'#555';var l=lbl.toLowerCase();return l.indexOf('high')>-1||l.indexOf('strong')>-1||l.indexOf('very')>-1?'#7abd00':l.indexOf('moderate')>-1||l.indexOf('building')>-1?'#9acd50':l.indexOf('low')>-1||l.indexOf('weak')>-1||l.indexOf('quiet')>-1?'#EF9F27':l.indexOf('no signal')>-1||l.indexOf('n/a')>-1?'#555':'#aaa';}
                             var hasData=tLbl2||fLbl2||dLbl2;
-                            function DR(label,dots,col,detail){var ds=[];for(var i=1;i<=5;i++)ds.push(React.createElement('span',{key:i,style:{display:'inline-block',width:5,height:5,borderRadius:'50%',background:i<=dots?col:'#2a2a2a',marginRight:2}}));return React.createElement('div',{key:label,style:{display:'flex',alignItems:'center',padding:'5px 0',borderBottom:'0.5px solid #2a2a2a'}},React.createElement('span',{style:{fontSize:10,color:'#666',flex:1}},label),React.createElement('span',{style:{display:'inline-flex',alignItems:'center',marginRight:8}},ds),React.createElement('span',{style:{fontSize:10,fontWeight:600,color:col,minWidth:60,textAlign:'right'}},detail));}
                             return (
                               <div style={{background:'#1a1a1a',borderBottom:'0.5px solid #2a2a2a',padding:'10px 12px'}}>
                                 <div style={{fontSize:9,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>Money Flow Evidence</div>
                                 {!hasData&&<div style={{fontSize:10,color:'#555'}}>No money flow evidence currently detected.</div>}
-                                {bstat&&bstat!=='Not Enough Data'&&DR('Base Signal',bstat.indexOf('Strong')>-1?5:bstat.indexOf('Steady')>-1?4:bstat.indexOf('Early')>-1||bstat.indexOf('Long')>-1?3:bstat.indexOf('Mixed')>-1||bstat.indexOf('Cooling')>-1?2:1,_smfMainCol,bstat)}
+                                {bstat&&bstat!=='Not Enough Data'&&DotRow('Base Signal',bstat.indexOf('Strong')>-1?5:bstat.indexOf('Steady')>-1?4:bstat.indexOf('Early')>-1||bstat.indexOf('Long')>-1?3:bstat.indexOf('Mixed')>-1||bstat.indexOf('Cooling')>-1?2:1,_smfMainCol,bstat)}
                                 {dpfx&&dpfx!=='No Daily Data'&&<div style={{display:'flex',padding:'4px 0',borderBottom:'0.5px solid #2a2a2a',alignItems:'center',gap:6}}><span style={{fontSize:9,color:'#555',flexShrink:0}}>Today</span><span style={{fontSize:10,color:flowCol(dpfx),flex:1,textAlign:'right'}}>{dpfx}</span></div>}
                                 {fLbl2&&fLbl2!=='N/A'&&<div style={{display:'flex',padding:'4px 0',borderBottom:'0.5px solid #2a2a2a',alignItems:'center',gap:6}}><span style={{fontSize:9,color:'#555',flexShrink:0}}>5D Flow</span><span style={{fontSize:10,color:flowCol(fLbl2),flex:1,textAlign:'right'}}>{fLbl2}</span></div>}
                                 {dLbl2&&dLbl2!=='N/A'&&<div style={{display:'flex',padding:'4px 0',borderBottom:'0.5px solid #2a2a2a',alignItems:'center',gap:6}}><span style={{fontSize:9,color:'#555',flexShrink:0}}>30D Flow</span><span style={{fontSize:10,color:flowCol(dLbl2),flex:1,textAlign:'right'}}>{dLbl2}</span></div>}
@@ -6893,6 +6890,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               }
                               function doRbaConfCheck() {
                                 if (rbaConfLoading) return;
+                                window.__doRbaConfCheck = doRbaConfCheck;
                                 window.__doRbaConfCheck = doRbaConfCheck; // expose for mobile expansion
                                 var rbaFg = rba.factorGroups || {};
                                 if (!rbaFg.rawResult) return;
@@ -7086,14 +7084,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                                 var ql=qualLabel(g.signals,g.winRate,g.medianReturn,g.avgReturn),qc=qualColor(ql);
                                                 var cl=confLabel(g.signals),cc=confColor(g.signals);
                                                 function sC(s){ return s==='bullish'?'#7abd00':s==='bearish'?'#e05050':'#b88000'; }
-                                                var tr3=g.trendShort||'—';
-                                                var trCol=tr3==='Uptrend'?'#7abd00':tr3==='Downtrend'?'#e05050':tr3==='Sideways'?'#b88000':'#777';
                                                 return <tr key={i} style={{borderBottom:'0.5px solid #f0ede6',background:isCur?'rgba(122,189,0,0.1)':'transparent'}}>
                                                   <td style={{padding:'4px 6px',color:isCur?'#7abd00':'#555'}}>{isCur?'\u2605':(i+1)}</td>
                                                   <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.momentumStatus)}}>{g.momentumStatus}</td>
                                                   <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.reversalStatus)}}>{g.reversalStatus}</td>
                                                   <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.smartMoneyStatus)}}>{g.smartMoneyStatus}</td>
-                                                  <td style={{padding:'4px 6px',fontWeight:700,color:trCol}}>{tr3}</td>
+                                                  <td style={{padding:'4px 6px',fontWeight:700,color:(g.trendShort||'?').indexOf('Uptrend')>-1?'#7abd00':(g.trendShort||'?').indexOf('Down')>-1?'#e05050':'#b88000'}}>{g.trendShort||'--'}</td>
                                                   <td style={{padding:'4px 6px',color:summaryCardDark(g.rawResult).text||'#ccc',fontSize:9}}>{g.rawResult}</td>
                                                   <td style={{padding:'4px 6px',color:'#aaa'}}>{g.signals}</td>
                                                   <td style={{padding:'4px 6px',color:g.winRate>=50?'#7abd00':'#e05050'}}>{g.winRate.toFixed(1)}{'%'}</td>
@@ -11831,7 +11827,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.79</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.80</span>
           </div>
         </div>
 
