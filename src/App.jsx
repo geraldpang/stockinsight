@@ -4645,7 +4645,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.72</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.74</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4699,7 +4699,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.72</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.74</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6457,7 +6457,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                   ["Smart Money", "smartMoney", rba.factorLabels.smartMoney],
                                 ].map(function(f) {
                                   return (
-                                    <div key={f[0]} style={{ background:"rgba(0,0,0,0.06)", borderRadius:6, padding:"6px 8px" }}>
+                                    <div key={f[0]} style={{ background:"rgba(0,0,0,0.25)", borderRadius:6, padding:"6px 8px" }}>
                                       <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>{f[0]}</div>
                                       <div style={{ fontSize:11, fontWeight:700, color:factorColor(f[1],f[2]), lineHeight:1.3 }}>{f[2]||"—"}</div>
                                     </div>
@@ -6480,11 +6480,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 }
                                 return (
                                   <div>
-                                    <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>{"Analysis"}</div>
-                                    <div style={{ fontSize:13, color:"#333", lineHeight:1.7, marginBottom:10 }}>{bp(rba.analysis)}</div>
-                                    <div style={{ fontSize:13, color:"#333", lineHeight:1.7, marginBottom:10 }}>{bp(rba.keyLevels)}</div>
-                                    <div style={{ fontSize:13, color:"#333", lineHeight:1.7, marginBottom:7 }}>{bp(rba.smartMoneyLine)}</div>
-                                    <div style={{ fontSize:13, color:"#333", lineHeight:1.7 }}>{bp(rba.technicalIndicatorsLine)}</div>
+                                    <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>{"Analysis"}</div>
+                                    <div style={{ fontSize:13, color:"#c0bdb4", lineHeight:1.7, marginBottom:10 }}>{bp(rba.analysis)}</div>
+                                    <div style={{ fontSize:13, color:"#c0bdb4", lineHeight:1.7, marginBottom:10 }}>{bp(rba.keyLevels)}</div>
+                                    <div style={{ fontSize:13, color:"#c0bdb4", lineHeight:1.7, marginBottom:7 }}>{bp(rba.smartMoneyLine)}</div>
+                                    <div style={{ fontSize:13, color:"#c0bdb4", lineHeight:1.7 }}>{bp(rba.technicalIndicatorsLine)}</div>
                                   </div>
                                 );
                               })()}
@@ -6682,7 +6682,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 var s=props.stats;
                                 if (!s) return <div style={{fontSize:11,color:'#555'}}>{'No matching data for this period.'}</div>;
                                 var cl=confLabel(s.signals), cc=confColor(s.signals), ql=qualLabel(s.signals,s.winRate,s.medianReturn,s.avgReturn), qc=qualColor(ql);
-                                return <div style={{display:'flex',flexWrap:'wrap',gap:14,padding:'8px 10px',background:'rgba(0,0,0,0.15)',borderRadius:6,marginTop:8}}>
+                                return <div style={{display:'flex',flexWrap:'wrap',gap:14,padding:'8px 10px',background:'#f5f2ed',borderRadius:6,marginTop:8}}>
                                   {[['Signals',''+s.signals,'#aaa'],['Win Rate',s.winRate.toFixed(1)+'%',s.winRate>=50?'#7abd00':'#e05050'],['Avg',s.avgReturn>=0?'+'+s.avgReturn.toFixed(2)+'%':s.avgReturn.toFixed(2)+'%',s.avgReturn>=0?'#7abd00':'#e05050'],['Median',s.medianReturn>=0?'+'+s.medianReturn.toFixed(2)+'%':s.medianReturn.toFixed(2)+'%',s.medianReturn>=0?'#7abd00':'#e05050'],['Best','+'+s.bestReturn.toFixed(2)+'%','#7abd00'],['Worst',s.worstReturn.toFixed(2)+'%','#e05050'],['Confidence',cl,cc],['Quality',ql,qc]].map(function(f){
                                     return <div key={f[0]}><div style={{fontSize:8,color:'#555',textTransform:'uppercase',marginBottom:2}}>{f[0]}</div><div style={{fontSize:12,fontWeight:700,color:f[2]}}>{f[1]}</div></div>;
                                   })}
@@ -6690,19 +6690,19 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               }
                               return (
                                 <div style={{marginTop:14}}>
-                                  <div style={{background:'#161614',border:'0.5px solid #2a2a28',borderRadius:10,padding:'14px 16px'}}>
+                                  <div style={{border:'0.5px solid #e0dbd0',borderRadius:10,padding:'14px 16px'}}>
                                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
                                       <div style={{fontSize:10,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:'0.08em'}}>{'Historical Confidence'}</div>
                                       {!hasConf && !rbaConfLoading && <button onClick={doRbaConfCheck}
-                                        style={{fontSize:10,padding:'5px 14px',border:'0.5px solid #555',borderRadius:5,background:'none',color:'#ccc',cursor:'pointer'}}>
+                                        style={{fontSize:10,padding:'5px 14px',border:'0.5px solid #aaa',borderRadius:5,background:'none',color:'#444',cursor:'pointer'}}>
                                         {'Check Historical Confidence'}
                                       </button>}
-                                      {rbaConfLoading && <div style={{fontSize:10,color:'#555',display:'flex',alignItems:'center',gap:6}}>
+                                      {rbaConfLoading && <div style={{fontSize:10,color:'#888',display:'flex',alignItems:'center',gap:6}}>
                                         <div style={{width:10,height:10,borderRadius:'50%',border:'1.5px solid #333',borderTop:'1.5px solid #c8f000',animation:'spin 0.8s linear infinite'}}></div>
                                         {'Computing... (this may take 30–60 seconds)'}
                                       </div>}
                                       {hasConf && <button onClick={doRbaConfCheck} disabled={rbaConfLoading}
-                                        style={{fontSize:9,padding:'4px 10px',border:'0.5px solid #333',borderRadius:4,background:'none',color:'#555',cursor:'pointer'}}>
+                                        style={{fontSize:9,padding:'4px 10px',border:'0.5px solid #aaa',borderRadius:4,background:'none',color:'#666',cursor:'pointer'}}>
                                         {'Refresh'}
                                       </button>}
                                     </div>
@@ -6737,13 +6737,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                           <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>{'Top RBA Result + Trend (' + period + ')'}</div>
                                           {rcGroups.length ? <div style={{overflowX:'auto'}}>
                                             <table style={{width:'100%',borderCollapse:'collapse',fontSize:10}}>
-                                              <thead><tr>{['#','Raw Result','Trend','Sigs','Win%','Avg','Median','Conf','Quality'].map(function(h){ return <th key={h} style={{textAlign:'left',color:'#555',fontWeight:700,fontSize:8,padding:'3px 6px',borderBottom:'0.5px solid #222',whiteSpace:'nowrap'}}>{h}</th>; })}</tr></thead>
+                                              <thead><tr>{['#','Raw Result','Trend','Sigs','Win%','Avg','Median','Conf','Quality'].map(function(h){ return <th key={h} style={{textAlign:'left',color:'#555',fontWeight:700,fontSize:8,padding:'3px 6px',borderBottom:'0.5px solid #ddd',whiteSpace:'nowrap'}}>{h}</th>; })}</tr></thead>
                                               <tbody>{rcGroups.slice(0,10).map(function(g,i){
                                                 var isCur = (g.rawResult+'|'+g.trendCondition)===curKeyRC;
                                                 var ql=qualLabel(g.signals,g.winRate,g.medianReturn,g.avgReturn),qc=qualColor(ql);
                                                 var cl=confLabel(g.signals),cc=confColor(g.signals);
                                                 var tc=g.trendCondition||'—'; var tcol=tc.indexOf('Uptrend')>-1?'#7abd00':tc.indexOf('Down')>-1?'#e05050':'#b88000';
-                                                return <tr key={i} style={{borderBottom:'0.5px solid #1a1a1a',background:isCur?'rgba(122,189,0,0.06)':'transparent'}}>
+                                                return <tr key={i} style={{borderBottom:'0.5px solid #f0ede6',background:isCur?'rgba(122,189,0,0.1)':'transparent'}}>
                                                   <td style={{padding:'4px 6px',color:isCur?'#7abd00':'#555'}}>{isCur?'\u2605':(i+1)}</td>
                                                   <td style={{padding:'4px 6px',fontWeight:700,color:summaryCardDark(g.rawResult).text||'#ccc'}}>{g.rawResult}</td>
                                                   <td style={{padding:'4px 6px',color:tcol,fontSize:9}}>{tc.replace(' Conditions','')}</td>
@@ -6763,13 +6763,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                           <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>{'Top 3-Signal Combinations (' + period + ')'}</div>
                                           {sigGroups.length ? <div style={{overflowX:'auto'}}>
                                             <table style={{width:'100%',borderCollapse:'collapse',fontSize:10}}>
-                                              <thead><tr>{['#','Mom','Rev','SMF','Result','Sigs','Win%','Avg','Median','Conf','Quality'].map(function(h){ return <th key={h} style={{textAlign:'left',color:'#555',fontWeight:700,fontSize:8,padding:'3px 6px',borderBottom:'0.5px solid #222',whiteSpace:'nowrap'}}>{h}</th>; })}</tr></thead>
+                                              <thead><tr>{['#','Mom','Rev','SMF','Result','Sigs','Win%','Avg','Median','Conf','Quality'].map(function(h){ return <th key={h} style={{textAlign:'left',color:'#555',fontWeight:700,fontSize:8,padding:'3px 6px',borderBottom:'0.5px solid #ddd',whiteSpace:'nowrap'}}>{h}</th>; })}</tr></thead>
                                               <tbody>{sigGroups.slice(0,10).map(function(g,i){
                                                 var isCur = (g.momentumStatus+'|'+g.reversalStatus+'|'+g.smartMoneyStatus+'|'+g.rawResult)===curKey3;
                                                 var ql=qualLabel(g.signals,g.winRate,g.medianReturn,g.avgReturn),qc=qualColor(ql);
                                                 var cl=confLabel(g.signals),cc=confColor(g.signals);
                                                 function sC(s){ return s==='bullish'?'#7abd00':s==='bearish'?'#e05050':'#b88000'; }
-                                                return <tr key={i} style={{borderBottom:'0.5px solid #1a1a1a',background:isCur?'rgba(122,189,0,0.06)':'transparent'}}>
+                                                return <tr key={i} style={{borderBottom:'0.5px solid #f0ede6',background:isCur?'rgba(122,189,0,0.1)':'transparent'}}>
                                                   <td style={{padding:'4px 6px',color:isCur?'#7abd00':'#555'}}>{isCur?'\u2605':(i+1)}</td>
                                                   <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.momentumStatus)}}>{g.momentumStatus}</td>
                                                   <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.reversalStatus)}}>{g.reversalStatus}</td>
@@ -6789,7 +6789,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                       </div>
                                     )}
                                     {!hasConf && !rbaConfLoading && !rbaConfError && (
-                                      <div style={{fontSize:10,color:'#555'}}>{'Click the button above to check how this RBA signal has historically performed for ' + sym + '.'}</div>
+                                      <div style={{fontSize:10,color:'#888'}}>{'Click the button above to check how this RBA signal has historically performed for ' + sym + '.'}</div>
                                     )}
                                   </div>
                                 </div>
@@ -6906,6 +6906,2169 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   })()}
 
                   {/* VOLUME SPIKE TAB */}
+
+                  {insightTab === "aiinsight" && (function() {
+                    var parsed    = insightCache["aiinsight"] ? parseAiInsight(insightCache["aiinsight"]) : null;
+                    var ov2       = ov || {};
+                    var massInf   = massiveInfo || {};
+                    var ind2      = massInf.indicators || {};
+                    var price2    = q ? q.price : 0;
+                    var aggs2     = massInf.aggs || [];
+                    var news2     = massInf.news || [];
+
+                    // ---- dot renderer ----
+                    function DI(props) {
+                      var map = {5:{c:"#1a6a1a",e:"#c8e8c0"},4:{c:"#2a7a2a",e:"#c8e8c0"},3:{c:"#b88000",e:"#faeeda"},2:{c:"#c03030",e:"#f5c0c0"},1:{c:"#8b0000",e:"#f5c0c0"}};
+                      var s = Math.max(1,Math.min(5,Math.round(parseFloat(props.score)||3)));
+                      var cc = map[s]; var d = [];
+                      for (var i=1;i<=5;i++) d.push(<span key={i} style={{display:"inline-block",width:props.sz||8,height:props.sz||8,borderRadius:"50%",background:i<=s?cc.c:cc.e,marginRight:2}}/>);
+                      return <span style={{display:"inline-flex",alignItems:"center"}}>{d}</span>;
+                    }
+
+                    // ---- verdict colour helpers ----
+                    function vCol(v){
+                      if (!v) return "#b88000";
+                      var vl=(v+"").trim().toLowerCase();
+                      if(vl==="strong buy")   return "#1a6a1a";
+                      if(vl==="buy")          return "#2a7a2a";
+                      if(vl==="hold")         return "#b88000";
+                      if(vl==="avoid")        return "#c03030";
+                      if(vl==="strong avoid") return "#8b0000";
+                      return "#b88000";
+                    }
+                    function vBg(v){
+                      if (!v) return "#FAEEDA";
+                      var vl=(v+"").trim().toLowerCase();
+                      if(vl==="strong buy"||vl==="buy") return "#EAF3DE";
+                      if(vl==="hold")                   return "#FAEEDA";
+                      return "#FCEBEB";
+                    }
+                    function vBd(v){
+                      if (!v) return "#d4a800";
+                      var vl=(v+"").trim().toLowerCase();
+                      if(vl==="strong buy") return "#7abd00";
+                      if(vl==="buy")        return "#97C459";
+                      if(vl==="hold")       return "#d4a800";
+                      if(vl==="avoid")      return "#e08080";
+                      return "#c03030";
+                    }
+
+                    // ---- free data signals ----
+                    // Analyst momentum from upgradeDowngradeHistory
+                    var upgHist = ov2.upgradeDowngradeHistory || [];
+                    var recent90 = upgHist.filter(function(h){ return h.epochGradeDate && (Date.now()/1000 - h.epochGradeDate) < 90*86400; });
+                    var upgrades   = recent90.filter(function(h){ return h.action && h.action.toLowerCase().includes("upgr"); }).length;
+                    var downgrades = recent90.filter(function(h){ return h.action && h.action.toLowerCase().includes("downgr"); }).length;
+                    var analystNet = upgrades - downgrades;
+                    var analystDir = analystNet > 0 ? "Upgrading" : analystNet < 0 ? "Downgrading" : "Neutral";
+                    var analystDots = analystNet > 2 ? 5 : analystNet > 0 ? 4 : analystNet === 0 ? 3 : analystNet > -3 ? 2 : 1;
+
+                    // Insider net direction
+                    var insiderTx = ov2.insiderTx || [];
+                    var iBuys  = insiderTx.filter(function(t){ return t.action && t.action.toLowerCase().includes("buy"); }).length;
+                    var iSells = insiderTx.filter(function(t){ return t.action && !t.action.toLowerCase().includes("buy"); }).length;
+                    var insiderDir = iBuys > iSells ? "Net Buying" : iBuys < iSells ? "Net Selling" : "Neutral";
+                    var insiderDots = iBuys > iSells ? 5 : iBuys === iSells ? 3 : 2;
+                    var insiderVal = insiderTx.reduce(function(s,t){ var v = t.value; return s + (typeof v === "number" ? v : 0); }, 0);
+
+                    // Earnings streak
+                    var earningsQ = ov2.earningsQ || [];
+                    var streak = 0;
+                    for (var ei=0; ei<earningsQ.length; ei++) {
+                      if (earningsQ[ei].actual != null && earningsQ[ei].estimate != null && earningsQ[ei].actual > earningsQ[ei].estimate) streak++;
+                      else break;
+                    }
+
+                    // Short squeeze score (0-100)
+                    var shortPct   = ov2.shortPct   || 0;
+                    var shortRatio = ov2.shortRatio  || 0;
+                    var sqScore    = Math.min(100, Math.round((shortPct * 100 * 0.5) + (shortRatio * 5)));
+
+                    // Institutional trend
+                    var instPct = ov2.institutionPct ? (ov2.institutionPct * 100).toFixed(1) : null;
+
+                    // News sentiment count
+                    var newsPos = 0, newsNeg = 0, newsNeu = 0;
+                    news2.slice(0,10).forEach(function(n) {
+                      var ins = n.insights || [];
+                      ins.forEach(function(i) {
+                        if (i.sentiment === "positive") newsPos++;
+                        else if (i.sentiment === "negative") newsNeg++;
+                        else newsNeu++;
+                      });
+                    });
+                    var totalSent = newsPos + newsNeg + newsNeu;
+                    var newsDir = totalSent > 0 ? (newsPos/totalSent > 0.6 ? "Bullish" : newsNeg/totalSent > 0.5 ? "Bearish" : "Neutral") : "Neutral";
+                    var newsDots = newsDir === "Bullish" ? 4 : newsDir === "Bearish" ? 2 : 3;
+
+                    // Volume ratio
+                    var vol5  = aggs2.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs2.slice(0,5).length,1);
+                    var vol20 = aggs2.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs2.slice(0,20).length,1);
+                    var volRatio2 = vol20 > 0 ? vol5/vol20 : 1;
+
+                    // Bollinger Bands from aggs
+                    var bbPeriod = 20;
+                    var bbData = aggs2.slice(0,bbPeriod).map(function(a){return a.c||0;}).reverse();
+                    var bbMid = bbData.length >= bbPeriod ? bbData.reduce(function(s,v){return s+v;},0)/bbPeriod : 0;
+                    var bbStd = bbData.length >= bbPeriod ? Math.sqrt(bbData.reduce(function(s,v){return s+Math.pow(v-bbMid,2);},0)/bbPeriod) : 0;
+                    var bbUpper = bbMid + 2*bbStd;
+                    var bbLower = bbMid - 2*bbStd;
+
+                    // Fibonacci from 52wk
+                    var hi52 = ov2.hi52 || 0; var lo52 = ov2.lo52 || 0;
+                    var fibRange = hi52 - lo52;
+                    var fib382 = fibRange > 0 ? Math.round(hi52 - fibRange*0.382) : 0;
+                    var fib500 = fibRange > 0 ? Math.round(hi52 - fibRange*0.500) : 0;
+                    var fib618 = fibRange > 0 ? Math.round(hi52 - fibRange*0.618) : 0;
+
+                    return (
+                      <div>
+                        {/* == D: DATA SIGNALS == */}
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{width:20,height:20,borderRadius:"50%",background:"#1a6a1a",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>D</span>
+                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>Data Signals</span>
+                            <span style={{fontSize:9,fontWeight:600,color:"#1a6a1a",background:"#EAF3DE",padding:"1px 7px",borderRadius:7,border:"0.5px solid #7abd0040"}}>Free -- no AI cost</span>
+                          </div>
+                          <span style={{fontSize:10,color:"#bbb"}}>$0.00000/visit</span>
+                        </div>
+
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:8}}>
+                          {[
+                            { label:"Analyst Momentum", val:analystDir, sub:upgrades+" upgrades, "+downgrades+" downgrades (90d)", dots:analystDots, col:analystDots>=4?"#1a6a1a":analystDots===3?"#b88000":"#c03030", bg:analystDots>=4?"#EAF3DE":analystDots===3?"#FAEEDA":"#FCEBEB" },
+                            { label:"Insider Activity",  val:insiderDir, sub:iBuys+" buys, "+iSells+" sells last 90d"+(insiderVal!==0?" | $"+(Math.abs(insiderVal)/1e6).toFixed(1)+"M":""), dots:insiderDots, col:insiderDots>=4?"#1a6a1a":insiderDots===3?"#b88000":"#c03030", bg:insiderDots>=4?"#EAF3DE":insiderDots===3?"#FAEEDA":"#FCEBEB" },
+                            { label:"Earnings Streak",   val:streak+" Consecutive Beats", sub:earningsQ.slice(0,streak).map(function(e,i){return "Q"+(i+1);}).join(", "), dots:streak>=5?5:streak>=3?4:streak>=2?3:streak>=1?2:1, col:streak>=3?"#1a6a1a":streak>=1?"#b88000":"#c03030", bg:streak>=3?"#EAF3DE":streak>=1?"#FAEEDA":"#FCEBEB" },
+                            { label:"Short Squeeze Score", val:(sqScore<30?"Low":sqScore<60?"Medium":"High")+" -- "+sqScore+"/100", sub:"Float "+(shortPct*100).toFixed(1)+"% -- Ratio "+shortRatio.toFixed(1)+" days", dots:sqScore<30?3:sqScore<60?2:1, col:sqScore<30?"#b88000":"#c03030", bg:sqScore<30?"#FAEEDA":"#FCEBEB" },
+                            { label:"News Sentiment",     val:newsDir, sub:newsPos+" positive, "+newsNeu+" neutral, "+newsNeg+" negative", dots:newsDots, col:newsDots>=4?"#1a6a1a":newsDots===3?"#b88000":"#c03030", bg:newsDots>=4?"#EAF3DE":newsDots===3?"#FAEEDA":"#FCEBEB" },
+                            { label:"Institutional Trend", val:instPct?""+instPct+"% held":"No data", sub:"Volume ratio "+volRatio2.toFixed(2)+"x 20-day avg", dots:3, col:"#b88000", bg:"#FAEEDA" },
+                          ].map(function(card,i){
+                            return (
+                              <div key={i} style={{background:"var(--color-background-secondary)",borderRadius:8,padding:"9px 11px"}}>
+                                <div style={{fontSize:9,color:"#999",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>{card.label}</div>
+                                <div style={{fontSize:12,fontWeight:700,color:card.col,marginBottom:3}}>{card.val}</div>
+                                <div style={{fontSize:10,color:"#aaa",marginBottom:4}}>{card.sub}</div>
+                                <DI score={card.dots} sz={7} />
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Analyst consensus */}
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:10}}>
+                          {[
+                            { label:"Analyst Consensus", val:ov2.recKey?ov2.recKey.toUpperCase():"N/A", sub:(ov2.numAnalysts||0)+" analysts -- Target $"+(ov2.targetMean?ov2.targetMean.toFixed(2):"N/A"), dotScore: ov2.recKey&&ov2.recKey.toLowerCase().includes("buy")?4:ov2.recKey&&ov2.recKey.toLowerCase().includes("sell")?2:3 },
+                            { label:"Short Interest",    val:(shortPct*100).toFixed(1)+"% float", sub:"Ratio "+shortRatio.toFixed(1)+" days to cover", dotScore:shortPct>0.15?1:shortPct>0.08?2:3 },
+                            { label:"Dividend / Buyback", val:ov2.divYield&&ov2.divYield>0?((ov2.divYield*100).toFixed(2)+"% yield"):"No Dividend", sub:ov2.payoutRatio&&ov2.payoutRatio>0?"Payout "+(ov2.payoutRatio*100).toFixed(0)+"%":"Capital return via buybacks", dotScore:3 },
+                          ].map(function(card,i){
+                            return (
+                              <div key={i} style={{background:"#EAF3DE",borderRadius:8,padding:"9px 11px",border:"0.5px solid #7abd00"}}>
+                                <div style={{fontSize:9,color:"#27500A",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>{card.label}</div>
+                                <div style={{fontSize:12,fontWeight:700,color:"#1a6a1a",marginBottom:3}}>{card.val}</div>
+                                <div style={{fontSize:10,color:"#3B6D11",marginBottom:4}}>{card.sub}</div>
+                                <DI score={card.dotScore} sz={7} />
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Sector relative performance */}
+                        <div style={{marginBottom:10,padding:"9px 12px",background:"var(--color-background-secondary)",borderRadius:8,fontSize:11,color:"#555"}}>
+                          <div style={{fontSize:9,color:"#999",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Technical indicators</div>
+                          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                            {[
+                              {label:"Bollinger Upper", val:bbUpper>0?"$"+bbUpper.toFixed(2):"-"},
+                              {label:"Bollinger Mid",   val:bbMid>0?"$"+bbMid.toFixed(2):"-"},
+                              {label:"Bollinger Lower", val:bbLower>0?"$"+bbLower.toFixed(2):"-"},
+                              {label:"Fib 38.2%",       val:fib382>0?"$"+fib382:"-"},
+                              {label:"Fib 50.0%",       val:fib500>0?"$"+fib500:"-"},
+                              {label:"Fib 61.8%",       val:fib618>0?"$"+fib618:"-"},
+                              {label:"Vol Ratio 5/20d", val:volRatio2.toFixed(2)+"x"},
+                              {label:"52-wk range",     val:hi52>0?"$"+lo52.toFixed(2)+" - $"+hi52.toFixed(2):"-"},
+                            ].map(function(item,i){
+                              return (
+                                <div key={i} style={{background:"var(--color-background-primary)",borderRadius:6,padding:"6px 8px"}}>
+                                  <div style={{fontSize:9,color:"#aaa",marginBottom:2}}>{item.label}</div>
+                                  <div style={{fontSize:11,fontWeight:700,color:"#111"}}>{item.val}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
+
+                        {/* == 2: EARNINGS QUALITY == */}
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{width:20,height:20,borderRadius:"50%",background:"#3B6D11",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>2</span>
+                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>Earnings Quality</span>
+                            <span style={{fontSize:9,fontWeight:600,color:"#3B6D11",background:"#EAF3DE",padding:"1px 7px",borderRadius:7}}>Auto-generated</span>
+                          </div>
+                          <span style={{fontSize:10,color:"#bbb"}}>$0.00300/visit</span>
+                        </div>
+
+                        {insightCache["aiinsight"] && parsed ? (
+                          <div>
+                            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:8}}>
+                              {(earningsQ||[]).slice(0,4).map(function(eq,i){
+                                var beat = eq.actual != null && eq.estimate != null && eq.actual > eq.estimate;
+                                var pct  = eq.actual && eq.estimate && eq.estimate !== 0 ? ((eq.actual-eq.estimate)/Math.abs(eq.estimate)*100).toFixed(1) : null;
+                                return (
+                                  <div key={i} style={{background:beat?"#EAF3DE":"#FCEBEB",borderRadius:6,padding:"7px 8px",textAlign:"center",border:"0.5px solid "+(beat?"#7abd00":"#e08080")}}>
+                                    <div style={{fontSize:9,color:"#aaa",marginBottom:2}}>{eq.date||("Q"+(i+1))}</div>
+                                    <div style={{fontSize:12,fontWeight:700,color:beat?"#1a6a1a":"#c03030"}}>{eq.actual!=null?"$"+eq.actual.toFixed(2):"-"}</div>
+                                    <div style={{fontSize:9,color:"#aaa"}}>est {eq.estimate!=null?"$"+eq.estimate.toFixed(2):"-"}</div>
+                                    {pct && <div style={{fontSize:11,fontWeight:700,color:beat?"#1a6a1a":"#c03030",marginTop:2}}>{beat?"+":""}{pct}%</div>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : null}
+
+                        <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
+
+                        {/* == 3: MARKET SENTIMENT == */}
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{width:20,height:20,borderRadius:"50%",background:"#185FA5",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>3</span>
+                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>Market Sentiment</span>
+                            <span style={{fontSize:9,fontWeight:600,color:"#185FA5",background:"#E6F1FB",padding:"1px 7px",borderRadius:7}}>Auto-generated</span>
+                          </div>
+                          <span style={{fontSize:10,color:"#bbb"}}>$0.00300/visit</span>
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:8}}>
+                          {[
+                            {label:"News Sentiment",    val:newsDir,   sub:newsPos+" pos / "+newsNeu+" neu / "+newsNeg+" neg", dots:newsDots,    col:newsDots>=4?"#1a6a1a":"#b88000", bg:newsDots>=4?"#EAF3DE":"#FAEEDA", bd:newsDots>=4?"#7abd00":"#d4a800"},
+                            {label:"Analyst Consensus", val:ov2.recKey?ov2.recKey.toUpperCase():"N/A", sub:(ov2.numAnalysts||0)+" analysts -- Target $"+(ov2.targetMean?ov2.targetMean.toFixed(2):"N/A"), dots:ov2.recKey&&ov2.recKey.toLowerCase().includes("buy")?4:3, col:"#1a6a1a",bg:"#EAF3DE",bd:"#7abd00"},
+                            {label:"Short Interest",    val:(shortPct*100).toFixed(1)+"% float", sub:"Ratio "+shortRatio.toFixed(1)+" days", dots:shortPct>0.10?2:3, col:shortPct>0.10?"#c03030":"#b88000", bg:shortPct>0.10?"#FCEBEB":"#FAEEDA", bd:shortPct>0.10?"#e08080":"#d4a800"},
+                          ].map(function(card,i){
+                            return (
+                              <div key={i} style={{background:card.bg,borderRadius:8,padding:"9px 11px",border:"0.5px solid "+card.bd}}>
+                                <div style={{fontSize:9,color:card.col,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>{card.label}</div>
+                                <div style={{fontSize:12,fontWeight:700,color:card.col,marginBottom:2}}>{card.val}</div>
+                                <div style={{fontSize:10,color:card.col,opacity:0.8,marginBottom:4}}>{card.sub}</div>
+                                <DI score={card.dots} sz={7} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {/* Recent news headlines */}
+                        {news2.slice(0,4).map(function(n,i){
+                          var sentArr = n.insights||[];
+                          var sent    = sentArr.length>0 ? sentArr[0].sentiment : "neutral";
+                          var sentCol = sent==="positive"?"#1a6a1a":sent==="negative"?"#c03030":"#b88000";
+                          var sentBg  = sent==="positive"?"#EAF3DE":sent==="negative"?"#FCEBEB":"#FAEEDA";
+                          return (
+                            <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:"var(--color-background-secondary)",borderRadius:6,marginBottom:4}}>
+                              <span style={{fontSize:10,fontWeight:600,color:sentCol,background:sentBg,padding:"1px 6px",borderRadius:5,flexShrink:0,textTransform:"capitalize"}}>{sent}</span>
+                              <div style={{flex:1,fontSize:11,color:"#333",lineHeight:1.4}}>{n.title||n.headline}</div>
+                              <span style={{fontSize:10,color:"#bbb",flexShrink:0}}>{n.published_utc ? new Date(n.published_utc).toLocaleDateString() : ""}</span>
+                            </div>
+                          );
+                        })}
+
+                        <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
+
+                        {/* == 4: ANALYSIS TECHNICAL NOTE == */}
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{width:20,height:20,borderRadius:"50%",background:"#0C447C",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>4</span>
+                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>Analysis Technical Note</span>
+                            <span style={{fontSize:9,fontWeight:600,color:"#0C447C",background:"#E6F1FB",padding:"1px 7px",borderRadius:7}}>Auto-generated</span>
+                          </div>
+                          <span style={{fontSize:10,color:"#bbb"}}>$0.00600/visit</span>
+                        </div>
+                        {insightCache["aiinsight"] && parsed ? (
+                          <div style={{fontSize:12,color:"#333",lineHeight:1.85,padding:"10px 12px",background:"var(--color-background-secondary)",borderRadius:8}}>
+                            {parsed.techScore != null && (
+                              <div style={{marginBottom:8}}>
+                                <strong style={{fontWeight:700}}>Technical Rating: </strong>
+                                <DI score={Math.round(parsed.techScore)} sz={8} />
+                                <span style={{fontSize:11,color:"#555",marginLeft:6}}>{parsed.techScore}/5</span>
+                              </div>
+                            )}
+                            {ind2.sma50&&price2>0&&<span><strong style={{fontWeight:700}}>SMA50:</strong> ${(ind2.sma50).toFixed(2)} ({price2>ind2.sma50?"above":"below"}) {String.fromCharCode(0xA0)}</span>}
+                            {ind2.sma200&&price2>0&&<span><strong style={{fontWeight:700}}>SMA200:</strong> ${(ind2.sma200).toFixed(2)} ({price2>ind2.sma200?"above":"below"}) {String.fromCharCode(0xA0)}</span>}
+                            {ind2.rsi14!=null&&<span><strong style={{fontWeight:700}}>RSI:</strong> {ind2.rsi14!=null?ind2.rsi14.toFixed(1):"-"} {String.fromCharCode(0xA0)}</span>}
+                            {ind2.macd&&ind2.macd.histogram!=null&&<span><strong style={{fontWeight:700}}>MACD Hist:</strong> {ind2.macd&&ind2.macd.histogram!=null?ind2.macd.histogram.toFixed(4):"-"} {String.fromCharCode(0xA0)}</span>}
+                            {bbMid>0&&<span><strong style={{fontWeight:700}}>BB:</strong> {bbMid>0?"$"+bbLower.toFixed(2)+" / $"+bbMid.toFixed(2)+" / $"+bbUpper.toFixed(2):"-"} {String.fromCharCode(0xA0)}</span>}
+                            {fib382>0&&<span><strong style={{fontWeight:700}}>Fib:</strong> 38.2%=${fib382} / 50%=${fib500} / 61.8%=${fib618}</span>}
+                          </div>
+                        ) : <div style={{color:"#aaa",fontSize:12}}>Technical data will appear after AI Insight generates.</div>}
+
+                        <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
+
+                        {/* == 1: 10-K ON-DEMAND == */}
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{width:20,height:20,borderRadius:"50%",background:"#854F0B",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>1</span>
+                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>10-K Analysis + Risk Assessment</span>
+                            <span style={{fontSize:9,fontWeight:600,color:"#633806",background:"#FAEEDA",padding:"1px 7px",borderRadius:7,border:"0.5px solid #EF9F2740"}}>On-demand</span>
+                          </div>
+                          <span style={{fontSize:10,color:"#bbb"}}>$0.02380 when clicked</span>
+                        </div>
+                        {massiveInfo && massiveInfo.tenK && (massiveInfo.tenK.business || massiveInfo.tenK.riskFactors) ? (function() {
+                          var cacheKey = "tenk_full_" + sym;
+                          var cached   = insightCache[cacheKey];
+                          if (!cached) {
+                            return (
+                              <div style={{padding:"14px 16px",background:"var(--color-background-secondary)",borderRadius:8,border:"0.5px solid var(--color-border-tertiary)",textAlign:"center"}}>
+                                <div style={{fontSize:11,color:"#555",marginBottom:10,lineHeight:1.6}}>Reads 10-K Business section + Risk Factors. Business quality, moat evidence, management signals, top 5 risks rated Low/Medium/High, Buffett-style verdict.</div>
+                                <button onClick={function() {
+                                  setInsightCache(function(prev){ var n=Object.assign({},prev); n[cacheKey]="loading"; return n; });
+                                  var bizText  = (massiveInfo.tenK.business||"").slice(0,2000);
+                                  var riskText = (massiveInfo.tenK.riskFactors||"").slice(0,1500);
+                                  fetch("/anthropic",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:1100,messages:[{role:"user",content:"You are a senior investment analyst. For "+sym+", analyse this 10-K filing covering TWO areas:\n\nPART A - 10-K ANALYSIS: Business quality, competitive moat evidence, management quality signals, financial health indicators, Buffett verdict (buy/hold/avoid).\n\nPART B - RISK ASSESSMENT: List top 3-5 risks. For each: name, category (Regulatory/Competitive/Macro/Execution/Financial), severity (Low/Medium/High), one-sentence explanation.\n\nBUSINESS:\n"+bizText+"\n\nRISK FACTORS:\n"+riskText}]})})
+                                    .then(function(r){return r.json();})
+                                    .then(function(d){
+                                      var text=d&&d.content&&d.content[0]&&d.content[0].text;
+                                      setInsightCache(function(prev){var n=Object.assign({},prev);n[cacheKey]=text||"Analysis unavailable.";return n;});
+                                    }).catch(function(){
+                                      setInsightCache(function(prev){var n=Object.assign({},prev);n[cacheKey]="Analysis failed.";return n;});
+                                    });
+                                }} style={{padding:"8px 20px",background:"#111",color:"#c8f000",border:"none",borderRadius:6,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:FONT}}>
+                                  Generate 10-K Analysis + Risk Assessment
+                                </button>
+                                <div style={{fontSize:10,color:"#bbb",marginTop:6}}>Requires 10-K data from Massive.com</div>
+                              </div>
+                            );
+                          }
+                          if (cached === "loading") return (
+                            <div style={{textAlign:"center",padding:"20px 0"}}>
+                              <div style={{fontSize:12,color:"#888",marginBottom:10}}>Generating 10-K analysis...</div>
+                              <div style={{display:"inline-block",width:22,height:22,border:"3px solid #e0dbd0",borderTop:"3px solid "+LIME,borderRadius:"50%",animation:"spin 0.8s linear infinite"}} />
+                            </div>
+                          );
+                          return (
+                            <div style={{fontSize:12,color:"#333",lineHeight:1.85,padding:"12px 14px",background:"#FAEEDA",borderRadius:8,borderLeft:"3px solid #EF9F27"}}>
+                              {cached}
+                            </div>
+                          );
+                        })() : <div style={{color:"#aaa",fontSize:12,padding:"10px 14px",background:"var(--color-background-secondary)",borderRadius:8}}>10-K data unavailable. Requires Massive.com Starter plan.</div>}
+
+                        <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
+
+                        {/* == AI: AI INSIGHT == */}
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{width:20,height:20,borderRadius:"50%",background:"#1a1a14",border:"1px solid #c8f000",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#c8f000",flexShrink:0}}>AI</span>
+                            <span style={{fontSize:13,fontWeight:700,color:"#111"}}>AI Insight</span>
+                            <span style={{fontSize:9,fontWeight:600,color:"#27500A",background:"#EAF3DE",padding:"1px 7px",borderRadius:7}}>Auto-generated</span>
+                          </div>
+                          <span style={{fontSize:10,color:"#bbb"}}>$0.00200/visit</span>
+                        </div>
+
+                        {insightCache["aiinsight"] && parsed ? (
+                          <div>
+                            {/* Overall verdict card */}
+                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:vBg(parsed.verdict),borderRadius:10,border:"0.5px solid "+vBd(parsed.verdict),marginBottom:10}}>
+                              <div>
+                                <div style={{fontSize:10,color:vCol(parsed.verdict),fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:3}}>AI Insight -- {sym}</div>
+                                <div style={{fontSize:20,fontWeight:900,color:vCol(parsed.verdict)}}>{parsed.verdict||"Hold"}</div>
+                                <div style={{fontSize:11,color:vCol(parsed.verdict),opacity:0.8,marginTop:2}}>
+                                  {parsed.confidence&&"Confidence: "+parsed.confidence}
+                                  {parsed.confidence&&parsed.horizon&&" / "}
+                                  {parsed.horizon&&"Horizon: "+parsed.horizon}
+                                </div>
+                              </div>
+                              <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5}}>
+                                <DI score={parsed.dots} sz={11} />
+                                <div style={{fontSize:10,color:vCol(parsed.verdict),opacity:0.7}}>{parsed.dots} of 5</div>
+                              </div>
+                            </div>
+
+                            {/* 3 sub-dimension scores */}
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:10}}>
+                              {[
+                                {label:"Fundamental", score:parsed.fundScore||3},
+                                {label:"Technical",   score:parsed.techScore||3},
+                                {label:"Sentiment",   score:parsed.sentScore||3},
+                              ].map(function(dim,i){
+                                var dc={5:{c:"#1a6a1a",e:"#c8e8c0",l:"Strong"},4:{c:"#2a7a2a",e:"#c8e8c0",l:"Bullish"},3:{c:"#b88000",e:"#faeeda",l:"Neutral"},2:{c:"#c03030",e:"#f5c0c0",l:"Bearish"},1:{c:"#8b0000",e:"#f5c0c0",l:"Weak"}};
+                                var sc=Math.max(1,Math.min(5,Math.round(dim.score)));
+                                return (
+                                  <div key={i} style={{background:sc>=4?"#EAF3DE":sc===3?"#FAEEDA":"#FCEBEB",borderRadius:8,padding:"9px 12px",textAlign:"center",border:"0.5px solid "+(sc>=4?"#7abd00":sc===3?"#d4a800":"#e08080")}}>
+                                    <div style={{fontSize:10,color:dc[sc]?dc[sc].c:"#b88000",opacity:0.8,marginBottom:3}}>{dim.label}</div>
+                                    <div style={{fontSize:13,fontWeight:700,color:dc[sc]?dc[sc].c:"#b88000",marginBottom:5}}>{dc[sc]?dc[sc].l:"Neutral"}</div>
+                                    <DI score={sc} sz={7} />
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Risk / Opportunity */}
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
+                              <div style={{padding:"10px 12px",background:"#FCEBEB",borderRadius:8,border:"0.5px solid #e08080"}}>
+                                <div style={{fontSize:9,color:"#c03030",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Key Risk</div>
+                                <div style={{fontSize:11,color:"#791F1F",lineHeight:1.65}}>{parsed.risk||"See full analysis above."}</div>
+                              </div>
+                              <div style={{padding:"10px 12px",background:"#EAF3DE",borderRadius:8,border:"0.5px solid #7abd00"}}>
+                                <div style={{fontSize:9,color:"#1a6a1a",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Key Opportunity</div>
+                                <div style={{fontSize:11,color:"#173404",lineHeight:1.65}}>{parsed.opportunity||"See full analysis above."}</div>
+                              </div>
+                            </div>
+
+                            {/* Summary narrative */}
+                            <div style={{padding:"12px 14px",background:"#1a1a14",borderRadius:8,borderLeft:"3px solid #c8f000"}}>
+                              <div style={{fontSize:9,color:"#c8f000",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>AI Insight Summary</div>
+                              <div style={{fontSize:12,color:"#aac4e8",lineHeight:1.85}}>{parsed.summary||insightCache["aiinsight"]}</div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{color:"#aaa",fontSize:12,textAlign:"center",padding:"20px 0"}}>AI Insight is generating...</div>
+                        )}
+
+                        <div style={{marginTop:10,fontSize:11,color:"#bbb"}}>
+                          AI analysis by Claude Haiku. Data from Yahoo Finance + Massive.com. Not financial advice.
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Additional Information Tab */}
+                  {insightTab === "addlinfo" && (function() {
+                    function fmtB(v) {
+                      if (v == null) return "-";
+                      var a = Math.abs(v);
+                      var s = a >= 1e12 ? "$" + (a/1e12).toFixed(2) + "T"
+                            : a >= 1e9  ? "$" + (a/1e9).toFixed(1)  + "B"
+                            : a >= 1e6  ? "$" + (a/1e6).toFixed(0)  + "M" : "$" + a.toFixed(0);
+                      return v < 0 ? "-" + s : s;
+                    }
+                    var SectionTitle = function(props) {
+                      return (
+                        <div style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10, marginTop: props.top ? 0 : 20, paddingTop: props.top ? 0 : 16, borderTop: props.top ? "none" : "1px solid #f0ede6", display:"flex", alignItems:"center", gap:6 }}>
+                          <span style={{ display:"inline-block", width:3, height:14, background: props.massive ? "#0066ff" : "#c8f000", borderRadius:2 }} />
+                          {props.children}
+                          <span style={{ fontSize:9, fontWeight:500, background: props.massive ? "#e6f0ff" : "#f0f7e0", color: props.massive ? "#0044cc" : "#3a6000", padding:"1px 6px", borderRadius:10 }}>{props.massive ? "Massive.com" : "Yahoo Finance"}</span>
+                        </div>
+                      );
+                    };
+                    return (
+                      <div style={{ fontSize:13 }}>
+
+                        {/* YAHOO SECTION */}
+                        <SectionTitle top={true}>Analyst Recommendations</SectionTitle>
+                        {ov && (ov.recBuy > 0 || ov.recHold > 0 || ov.recSell > 0) ? (
+                          <div>
+                            <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+                              {[["Buy", ov.recBuy, "#1a6a1a", "#e6f4e6"], ["Hold", ov.recHold, "#b88000", "#fdf8e6"], ["Sell", ov.recSell, "#c03030", "#fff0f0"]].map(function(r) {
+                                return r[1] > 0 ? (
+                                  <div key={r[0]} style={{ flex:1, textAlign:"center", padding:"10px 8px", background:r[3], borderRadius:8 }}>
+                                    <div style={{ fontSize:20, fontWeight:700, color:r[2] }}>{r[1]}</div>
+                                    <div style={{ fontSize:10, color:r[2], fontWeight:600, textTransform:"uppercase" }}>{r[0]}</div>
+                                  </div>
+                                ) : null;
+                              })}
+                            </div>
+                            {ov.recPeriod && <div style={{ fontSize:11, color:"#aaa" }}>Period: {ov.recPeriod}</div>}
+                          </div>
+                        ) : <div style={{ color:"#aaa" }}>No analyst data available.</div>}
+
+                        <SectionTitle>Recent Analyst Actions</SectionTitle>
+                        {ov && ov.upgrades && ov.upgrades.length > 0 ? (
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                            <thead>
+                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
+                                {["Date","Firm","Action","From","To"].map(function(h) {
+                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600 }}>{h}</td>;
+                                })}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {ov.upgrades.map(function(u, i) {
+                                var ac = (u.action||"").toLowerCase();
+                                var col = ac.includes("up") ? "#1a6a1a" : ac.includes("down") ? "#c03030" : "#888";
+                                return (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                    <td style={{ padding:"5px 8px", color:"#888" }}>{u.date}</td>
+                                    <td style={{ padding:"5px 8px", fontWeight:600 }}>{u.firm}</td>
+                                    <td style={{ padding:"5px 8px", color:col, fontWeight:600, textTransform:"capitalize" }}>{u.action}</td>
+                                    <td style={{ padding:"5px 8px", color:"#aaa" }}>{u.from || "-"}</td>
+                                    <td style={{ padding:"5px 8px", color:"#333", fontWeight:600 }}>{u.to || "-"}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        ) : <div style={{ color:"#aaa" }}>No recent analyst actions.</div>}
+
+                        <SectionTitle>Analyst Price Targets</SectionTitle>
+                        {ov && ov.targetMean > 0 ? (
+                          <div>
+                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:7, marginBottom:8 }}>
+                              {[
+                                ["Mean Target",   "$" + ov.targetMean.toFixed(2),   ov.targetMean   > (q ? q.price : 0) ? "#1a6a1a" : "#c03030"],
+                                ["High Target",   "$" + ov.targetHigh.toFixed(2),   "#1a6a1a"],
+                                ["Low Target",    "$" + ov.targetLow.toFixed(2),    "#c03030"],
+                                ["Median Target", "$" + ov.targetMedian.toFixed(2), "#b88000"],
+                              ].map(function(row, i) {
+                                return (
+                                  <div key={i} style={{ background:"#f9f7f4", borderRadius:8, padding:"8px 10px", textAlign:"center" }}>
+                                    <div style={{ fontSize:10, color:"#999", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
+                                    <div style={{ fontSize:15, fontWeight:700, color:row[2] }}>{row[1]}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <div style={{ fontSize:11, color:"#aaa" }}>
+                              {ov.numAnalysts > 0 ? ov.numAnalysts + " analysts" : ""}{ov.recKey ? " | Consensus: " + ov.recKey.toUpperCase() : ""}
+                            </div>
+                          </div>
+                        ) : <div style={{ color:"#aaa" }}>Analyst targets unavailable.</div>}
+
+                        <SectionTitle>Short Interest & Ownership</SectionTitle>
+                        {ov ? (
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:7, marginBottom:8 }}>
+                            {[
+                              ["Short Ratio",       ov.shortRatio   > 0 ? ov.shortRatio.toFixed(2) + " days" : "-"],
+                              ["Short % of Float",  ov.shortPct     > 0 ? (ov.shortPct * 100).toFixed(2) + "%" : "-"],
+                              ["Insider Owned",     ov.insiderPct   > 0 ? (ov.insiderPct * 100).toFixed(2) + "%" : "-"],
+                              ["Institution Owned", ov.institutionPct > 0 ? (ov.institutionPct * 100).toFixed(2) + "%" : "-"],
+                              ["Payout Ratio",      ov.payoutRatio  > 0 ? (ov.payoutRatio * 100).toFixed(2) + "%" : "-"],
+                              ["Book Value / Share", ov.bookValuePS  > 0 ? "$" + ov.bookValuePS.toFixed(2) : "-"],
+                            ].map(function(row, i) {
+                              return (
+                                <div key={i} style={{ background:"#f9f7f4", borderRadius:8, padding:"8px 10px" }}>
+                                  <div style={{ fontSize:10, color:"#999", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
+                                  <div style={{ fontSize:13, fontWeight:700, color:"#111" }}>{row[1]}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : <div style={{ color:"#aaa" }}>Ownership data unavailable.</div>}
+
+                        <SectionTitle>Top Institutional Holders</SectionTitle>
+                        {ov && ov.topHolders && ov.topHolders.length > 0 ? (
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                            <thead>
+                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
+                                {["Institution","% Held","Shares","Value","Date"].map(function(h) {
+                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600 }}>{h}</td>;
+                                })}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {ov.topHolders.map(function(h, i) {
+                                return (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                    <td style={{ padding:"5px 8px", fontWeight:600 }}>{h.name}</td>
+                                    <td style={{ padding:"5px 8px", color:"#1a6a1a", fontWeight:600 }}>{h.pct}</td>
+                                    <td style={{ padding:"5px 8px", color:"#888" }}>{h.shares}</td>
+                                    <td style={{ padding:"5px 8px", color:"#555" }}>{h.value}</td>
+                                    <td style={{ padding:"5px 8px", color:"#aaa" }}>{h.date}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        ) : <div style={{ color:"#aaa" }}>Institutional holder data unavailable.</div>}
+
+                        <SectionTitle>Insider Transactions</SectionTitle>
+                        {ov && ov.insiderTx && ov.insiderTx.length > 0 ? (
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                            <thead>
+                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
+                                {["Date","Name","Title","Transaction","Shares","Value"].map(function(h) {
+                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600 }}>{h}</td>;
+                                })}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {ov.insiderTx.map(function(t, i) {
+                                var isBuy = t.action && t.action.toLowerCase().includes("buy");
+                                return (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                    <td style={{ padding:"5px 8px", color:"#888" }}>{t.date}</td>
+                                    <td style={{ padding:"5px 8px", fontWeight:600 }}>{t.name}</td>
+                                    <td style={{ padding:"5px 8px", color:"#888", fontSize:11 }}>{t.title}</td>
+                                    <td style={{ padding:"5px 8px", color: isBuy ? "#1a6a1a" : "#c03030", fontWeight:600 }}>{t.action}</td>
+                                    <td style={{ padding:"5px 8px", textAlign:"right" }}>{t.shares ? t.shares.toLocaleString() : "-"}</td>
+                                    <td style={{ padding:"5px 8px", textAlign:"right" }}>{t.value ? "$" + (t.value/1e6).toFixed(1) + "M" : "-"}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        ) : <div style={{ color:"#aaa" }}>Insider transaction data unavailable.</div>}
+
+                        <SectionTitle>Recent SEC Filings</SectionTitle>
+                        {ov && ov.secFilings && ov.secFilings.length > 0 ? (
+                          <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                            {ov.secFilings.map(function(f, i) {
+                              return (
+                                <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 10px", background:"#f9f7f4", borderRadius:6 }}>
+                                  <span style={{ background:"#111", color:"#c8f000", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:4, flexShrink:0 }}>{f.type}</span>
+                                  <span style={{ fontSize:12, color:"#555", flex:1 }}>{f.date}</span>
+                                  {f.url ? <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:"#0044cc" }}>View Filing</a> : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : <div style={{ color:"#aaa" }}>SEC filing data unavailable.</div>}
+
+                        <SectionTitle>Earnings Track Record (Last 4 Quarters)</SectionTitle>
+                        {ov && ov.earningsQ && ov.earningsQ.length > 0 ? (
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                            <thead>
+                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
+                                {["Quarter","Actual EPS","Est. EPS","Surprise","Surprise %"].map(function(h) {
+                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600, textAlign: h==="Quarter" ? "left" : "right" }}>{h}</td>;
+                                })}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {ov.earningsQ.map(function(q, i) {
+                                var beat = q.surprise > 0;
+                                return (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                    <td style={{ padding:"5px 8px", fontWeight:600 }}>{q.date}</td>
+                                    <td style={{ padding:"5px 8px", textAlign:"right", fontWeight:700, color: beat ? "#1a6a1a" : "#c03030" }}>{q.actual != null ? "$" + q.actual.toFixed(2) : "-"}</td>
+                                    <td style={{ padding:"5px 8px", textAlign:"right", color:"#888" }}>{q.estimate != null ? "$" + q.estimate.toFixed(2) : "-"}</td>
+                                    <td style={{ padding:"5px 8px", textAlign:"right", color: beat ? "#1a6a1a" : "#c03030" }}>{q.surprise != null ? (beat ? "+" : "") + "$" + q.surprise.toFixed(2) : "-"}</td>
+                                    <td style={{ padding:"5px 8px", textAlign:"right", fontWeight:600, color: beat ? "#1a6a1a" : "#c03030" }}>{q.surprisePct != null ? (beat ? "+" : "") + q.surprisePct.toFixed(1) + "%" : "-"}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        ) : <div style={{ color:"#aaa" }}>Earnings history unavailable.</div>}
+
+                        <SectionTitle>Key Financial Metrics</SectionTitle>
+                        {ov ? (
+                          <div>
+                            {[
+                              { group: "Valuation", rows: [
+                                ["P/E Ratio (TTM)",          ov.pe        > 0  ? ov.pe.toFixed(2)        : "-"],
+                                ["Forward P/E",              ov.fpe       > 0  ? ov.fpe.toFixed(2)       : "-"],
+                                ["PEG Ratio",                ov.peg       > 0  ? ov.peg.toFixed(2)       : "-"],
+                                ["Price / Sales (TTM)",      ov.ps        > 0  ? ov.ps.toFixed(2)        : "-"],
+                                ["Price / Book",             ov.pb        > 0  ? ov.pb.toFixed(2)        : "-"],
+                                ["EV / EBITDA",              ov.evEbitda  > 0  ? ov.evEbitda.toFixed(2)  : "-"],
+                                ["Price / FCF",              ov.pFcf      > 0  ? ov.pFcf.toFixed(2)      : "-"],
+                                ["Dividend Yield",           ov.divY      > 0  ? ov.divY.toFixed(2) + "%" : "-"],
+                              ]},
+                              { group: "Profitability", rows: [
+                                ["Gross Margin",             ov.grossMargin  ? ov.grossMargin.toFixed(2)  + "%" : "-"],
+                                ["Operating Margin",         ov.opMargin     ? ov.opMargin.toFixed(2)     + "%" : "-"],
+                                ["Net Profit Margin",        ov.netMargin    ? ov.netMargin.toFixed(2)    + "%" : "-"],
+                                ["Return on Equity (ROE)",   ov.roe          ? ov.roe.toFixed(2)          + "%" : "-"],
+                                ["Return on Assets (ROA)",   ov.roic         ? ov.roic.toFixed(2)         + "%" : "-"],
+                              ]},
+                              { group: "Growth", rows: [
+                                ["EPS Growth (TTM)",         ov.epsG      ? ov.epsG.toFixed(2)      + "%" : "-"],
+                                ["Revenue Growth YoY",       ov.revGrowth ? ov.revGrowth.toFixed(2) + "%" : "-"],
+                                ["LT EPS Growth (5yr Est.)", ov.ltG       ? ov.ltG.toFixed(2)       + "%" : "-"],
+                              ]},
+                              { group: "Financial Health", rows: [
+                                ["Current Ratio",            ov.currentRatio > 0 ? ov.currentRatio.toFixed(2) : "-"],
+                                ["Quick Ratio",              ov.quickRatio   > 0 ? ov.quickRatio.toFixed(2)   : "-"],
+                                ["Debt / Equity",            ov.de           > 0 ? ov.de.toFixed(2)           : "-"],
+                                ["Free Cash Flow",           ov.fcf          || "-"],
+                                ["Net Income (TTM)",         ov.netIncome    || "-"],
+                                ["Revenue (TTM)",            ov.revenue      || "-"],
+                              ]},
+                              { group: "Market Data", rows: [
+                                ["Market Cap",               ov.marketCap || "-"],
+                                ["Beta",                     ov.beta > 0 ? ov.beta.toFixed(2) : "-"],
+                                ["52-Week High",             ov.hi52 > 0 ? "$" + ov.hi52.toFixed(2) : "-"],
+                                ["52-Week Low",              ov.lo52 > 0 ? "$" + ov.lo52.toFixed(2) : "-"],
+                                ["Shares Outstanding",       ov.sharesOut > 0 ? (ov.sharesOut / 1e9).toFixed(3) + "B" : "-"],
+                              ]},
+                            ].map(function(section, si) {
+                              return (
+                                <div key={si} style={{ marginBottom:16 }}>
+                                  <div style={{ fontSize:10, fontWeight:700, color:"#c8f000", background:"#1a1a14", padding:"3px 8px", borderRadius:4, display:"inline-block", marginBottom:8, letterSpacing:"0.06em" }}>{section.group}</div>
+                                  <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                                    <tbody>
+                                      {section.rows.map(function(row, ri) {
+                                        return (
+                                          <tr key={ri} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                            <td style={{ padding:"5px 8px", fontSize:12, color:"#888", width:"55%" }}>{row[0]}</td>
+                                            <td style={{ padding:"5px 8px", fontSize:13, fontWeight:600, color:"#111", textAlign:"right" }}>{row[1]}</td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : <div style={{ color:"#aaa" }}>Financial data loading...</div>}
+
+                        {/* MASSIVE SECTION */}
+                        <SectionTitle massive={true}>Market Snapshot</SectionTitle>
+                        {addlLoading ? (
+                          <div style={{ color:"#aaa", fontSize:12 }}>Loading...</div>
+                        ) : massiveInfo && massiveInfo.snapshot ? (function() {
+                          var s = massiveInfo.snapshot;
+                          var up = s.change >= 0;
+                          return (
+                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:7, marginBottom:4 }}>
+                              {[
+                                ["Open",       s.open      != null ? "$" + s.open.toFixed(2)      : "-"],
+                                ["High",       s.high      != null ? "$" + s.high.toFixed(2)      : "-"],
+                                ["Low",        s.low       != null ? "$" + s.low.toFixed(2)       : "-"],
+                                ["Close",      s.close     != null ? "$" + s.close.toFixed(2)     : "-"],
+                                ["VWAP",       s.vwap      != null ? "$" + s.vwap.toFixed(2)      : "-"],
+                                ["Volume",     s.volume    != null ? s.volume.toLocaleString()     : "-"],
+                                ["Prev Close", s.prevClose != null ? "$" + s.prevClose.toFixed(2) : "-"],
+                                ["Change %",   s.change    != null ? (up ? "+" : "") + s.change.toFixed(2) + "%" : "-"],
+                              ].map(function(row, i) {
+                                var isChange = row[0] === "Change %";
+                                return (
+                                  <div key={i} style={{ background:"#f0f3ff", borderRadius:8, padding:"8px 10px" }}>
+                                    <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
+                                    <div style={{ fontSize:13, fontWeight:700, color: isChange ? (up ? "#1a6a1a" : "#c03030") : "#111" }}>{row[1]}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })() : <div style={{ color:"#aaa" }}>Snapshot unavailable.</div>}
+
+                        <SectionTitle massive={true}>Technical Indicators</SectionTitle>
+                        {addlLoading ? (
+                          <div style={{ color:"#aaa", fontSize:12 }}>Loading...</div>
+                        ) : massiveInfo && massiveInfo.indicators ? (function() {
+                          var ind = massiveInfo.indicators;
+                          var price = q ? q.price : 0;
+                          function vsPrice(v) {
+                            if (!v || !price) return "";
+                            return price > v ? " (price above)" : " (price below)";
+                          }
+                          var macd = ind.macd;
+                          return (
+                            <div>
+                              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7, marginBottom:8 }}>
+                                {[
+                                  ["SMA 50-day",    ind.sma50   != null ? "$" + ind.sma50.toFixed(2)   + vsPrice(ind.sma50)   : "-"],
+                                  ["SMA 200-day",   ind.sma200  != null ? "$" + ind.sma200.toFixed(2)  + vsPrice(ind.sma200)  : "-"],
+                                  ["EMA 20-day",    ind.ema20   != null ? "$" + ind.ema20.toFixed(2)   + vsPrice(ind.ema20)   : "-"],
+                                  ["Weekly SMA 10", ind.wsma10  != null ? "$" + ind.wsma10.toFixed(2)  + vsPrice(ind.wsma10)  : "-"],
+                                  ["Weekly SMA 40", ind.wsma40  != null ? "$" + ind.wsma40.toFixed(2)  + vsPrice(ind.wsma40)  : "-"],
+                                  ["RSI (14)",      ind.rsi14   != null ? ind.rsi14.toFixed(2) + (ind.rsi14 > 70 ? " -- Overbought" : ind.rsi14 < 30 ? " -- Oversold" : " -- Neutral") : "-"],
+                                ].map(function(row, i) {
+                                  var isRsi = row[0].includes("RSI");
+                                  var rsiColor = isRsi && ind.rsi14 != null ? (ind.rsi14 > 70 ? "#c03030" : ind.rsi14 < 30 ? "#1a6a1a" : "#b88000") : "#111";
+                                  return (
+                                    <div key={i} style={{ background:"#f0f3ff", borderRadius:8, padding:"8px 10px" }}>
+                                      <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
+                                      <div style={{ fontSize:12, fontWeight:700, color: isRsi ? rsiColor : "#111" }}>{row[1]}</div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              {macd && (
+                                <div style={{ background:"#f0f3ff", borderRadius:8, padding:"10px 12px" }}>
+                                  <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:6 }}>MACD (12/26/9)</div>
+                                  <div style={{ display:"flex", gap:8 }}>
+                                    {[
+                                      ["MACD Line",  macd.macd      != null ? macd.macd.toFixed(4)      : "-"],
+                                      ["Signal",     macd.signal    != null ? macd.signal.toFixed(4)    : "-"],
+                                      ["Histogram",  macd.histogram != null ? macd.histogram.toFixed(4) : "-"],
+                                    ].map(function(r, i) {
+                                      var isHist = r[0] === "Histogram";
+                                      var histColor = isHist && macd.histogram != null ? (macd.histogram > 0 ? "#1a6a1a" : "#c03030") : "#111";
+                                      return (
+                                        <div key={i}>
+                                          <div style={{ fontSize:10, color:"#888" }}>{r[0]}</div>
+                                          <div style={{ fontSize:13, fontWeight:700, color: isHist ? histColor : "#111" }}>{r[1]}</div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })() : <div style={{ color:"#aaa" }}>Technical indicators unavailable.</div>}
+
+                        <SectionTitle massive={true}>Last Trade</SectionTitle>
+                        {massiveInfo && massiveInfo.lastTrade ? (function() {
+                          var lt = massiveInfo.lastTrade;
+                          var tradeTime = lt.time ? new Date(lt.time).toLocaleTimeString() : "-";
+                          return (
+                            <div style={{ display:"flex", gap:10 }}>
+                              {[
+                                ["Price",  lt.price != null ? "$" + lt.price.toFixed(2) : "-"],
+                                ["Size",   lt.size  != null ? lt.size.toLocaleString() + " shares" : "-"],
+                                ["Time",   tradeTime],
+                              ].map(function(row, i) {
+                                return (
+                                  <div key={i} style={{ flex:1, background:"#f0f3ff", borderRadius:8, padding:"8px 10px" }}>
+                                    <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
+                                    <div style={{ fontSize:13, fontWeight:700, color:"#111" }}>{row[1]}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })() : addlLoading ? null : <div style={{ color:"#aaa" }}>Last trade unavailable.</div>}
+
+                        <SectionTitle massive={true}>Price History (Last 30 Days)</SectionTitle>
+                        {massiveInfo && massiveInfo.aggs && massiveInfo.aggs.length > 0 ? (
+                          <div style={{ overflowX:"auto" }}>
+                            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                              <thead>
+                                <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
+                                  {["Date","Open","High","Low","Close","Volume","VWAP"].map(function(h) {
+                                    return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600, textAlign: h==="Date" ? "left" : "right" }}>{h}</td>;
+                                  })}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {massiveInfo.aggs.map(function(bar, i) {
+                                  var date = new Date(bar.t).toISOString().slice(0,10);
+                                  var up   = bar.c >= bar.o;
+                                  return (
+                                    <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                      <td style={{ padding:"4px 8px", fontWeight:600 }}>{date}</td>
+                                      <td style={{ padding:"4px 8px", textAlign:"right", color:"#888" }}>${bar.o.toFixed(2)}</td>
+                                      <td style={{ padding:"4px 8px", textAlign:"right", color:"#1a6a1a" }}>${bar.h.toFixed(2)}</td>
+                                      <td style={{ padding:"4px 8px", textAlign:"right", color:"#c03030" }}>${bar.l.toFixed(2)}</td>
+                                      <td style={{ padding:"4px 8px", textAlign:"right", fontWeight:700, color: up ? "#1a6a1a" : "#c03030" }}>${bar.c.toFixed(2)}</td>
+                                      <td style={{ padding:"4px 8px", textAlign:"right", color:"#888" }}>{(bar.v / 1e6).toFixed(1)}M</td>
+                                      <td style={{ padding:"4px 8px", textAlign:"right", color:"#555" }}>{bar.vw ? "$" + bar.vw.toFixed(2) : "-"}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : addlLoading ? <div style={{ color:"#aaa", fontSize:12 }}>Loading price history...</div> : <div style={{ color:"#aaa" }}>Price history unavailable.</div>}
+
+                        <SectionTitle massive={true}>Company News</SectionTitle>
+                        {addlLoading ? (
+                          <div style={{ color:"#aaa", fontSize:12 }}>Loading Massive.com data...</div>
+                        ) : massiveInfo && massiveInfo.news && massiveInfo.news.length > 0 ? (
+                          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                            {massiveInfo.news.map(function(article, i) {
+                              var daysAgo = article.published_utc ? Math.floor((Date.now() - new Date(article.published_utc).getTime()) / 86400000) : null;
+                              return (
+                                <div key={i} style={{ padding:"10px 12px", background:"#f9f7f4", borderRadius:8, borderLeft:"3px solid #0066ff" }}>
+                                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
+                                    <a href={article.article_url} target="_blank" rel="noopener noreferrer" style={{ fontSize:13, fontWeight:600, color:"#111", textDecoration:"none", lineHeight:1.4, flex:1 }}>
+                                      {article.title}
+                                    </a>
+                                    {article.image_url && (
+                                      <img src={article.image_url} alt="" style={{ width:60, height:40, objectFit:"cover", borderRadius:4, flexShrink:0 }} />
+                                    )}
+                                  </div>
+                                  <div style={{ display:"flex", gap:8, marginTop:5, fontSize:10, color:"#aaa" }}>
+                                    <span style={{ fontWeight:600, color:"#0044cc" }}>{article.publisher && article.publisher.name}</span>
+                                    <span>{daysAgo === 0 ? "Today" : daysAgo === 1 ? "Yesterday" : daysAgo + "d ago"}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : <div style={{ color:"#aaa" }}>News unavailable. Check MASSIVE_KEY in Cloudflare.</div>}
+
+                        <SectionTitle massive={true}>Company Reference</SectionTitle>
+                        {massiveInfo && massiveInfo.ticker ? (function() {
+                          var t = massiveInfo.ticker;
+                          return (
+                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                              {[
+                                ["Listed",         t.list_date || "-"],
+                                ["SIC Industry",   t.sic_description || "-"],
+                                ["Shares Outstanding", t.share_class_shares_outstanding ? (t.share_class_shares_outstanding / 1e6).toFixed(0) + "M" : "-"],
+                                ["Primary Exchange", t.primary_exchange || "-"],
+                              ].map(function(row, i) {
+                                return (
+                                  <div key={i} style={{ background:"#f0f3ff", borderRadius:8, padding:"8px 12px" }}>
+                                    <div style={{ fontSize:10, color:"#0044cc", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{row[0]}</div>
+                                    <div style={{ fontSize:13, fontWeight:600, color:"#111" }}>{row[1]}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })() : addlLoading ? null : <div style={{ color:"#aaa" }}>Company reference unavailable.</div>}
+
+                        <SectionTitle massive={true}>Dividends</SectionTitle>
+                        {massiveInfo && massiveInfo.dividends && massiveInfo.dividends.length > 0 ? (
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                            <thead>
+                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
+                                {["Ex-Date","Pay Date","Amount","Frequency"].map(function(h) {
+                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600 }}>{h}</td>;
+                                })}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {massiveInfo.dividends.slice(0,6).map(function(d, i) {
+                                return (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                    <td style={{ padding:"5px 8px" }}>{d.ex_dividend_date || "-"}</td>
+                                    <td style={{ padding:"5px 8px", color:"#888" }}>{d.pay_date || "-"}</td>
+                                    <td style={{ padding:"5px 8px", fontWeight:700, color:"#1a6a1a" }}>${d.cash_amount ? d.cash_amount.toFixed(4) : "-"}</td>
+                                    <td style={{ padding:"5px 8px", color:"#888", textTransform:"capitalize" }}>{d.frequency === 4 ? "Quarterly" : d.frequency === 2 ? "Semi-annual" : d.frequency === 1 ? "Annual" : "-"}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        ) : addlLoading ? null : <div style={{ color:"#aaa" }}>No dividend history found.</div>}
+
+                        <SectionTitle massive={true}>10-K Risk Factors (Latest Filing)</SectionTitle>
+                        {addlLoading ? (
+                          <div style={{ color:"#aaa", fontSize:12 }}>Loading...</div>
+                        ) : massiveInfo && massiveInfo.tenK && massiveInfo.tenK.riskFactors ? (
+                          <div>
+                            {massiveInfo.tenK.filingDate && <div style={{ fontSize:11, color:"#aaa", marginBottom:8 }}>Filing date: {massiveInfo.tenK.filingDate}</div>}
+                            <div style={{ fontSize:12, color:"#333", lineHeight:1.8, maxHeight:400, overflowY:"auto", padding:"10px 12px", background:"#f9f7f4", borderRadius:8, whiteSpace:"pre-wrap" }}>
+                              {massiveInfo.tenK.riskFactors.slice(0, 3000)}{massiveInfo.tenK.riskFactors.length > 3000 ? "..." : ""}
+                            </div>
+                          </div>
+                        ) : <div style={{ color:"#aaa" }}>Risk factors unavailable. Requires Massive.com Stocks Starter plan.</div>}
+
+                        <SectionTitle massive={true}>10-K Buffett Analysis (AI Summary)</SectionTitle>
+                        {addlLoading ? (
+                          <div style={{ color:"#aaa", fontSize:12 }}>Loading...</div>
+                        ) : massiveInfo && massiveInfo.tenK && (massiveInfo.tenK.business || massiveInfo.tenK.riskFactors) ? (function() {
+                          var [buffettSummary, setBuffettSummary] = [null, null];
+                          // Use insightCache for buffett summary
+                          var cacheKey = "buffett_" + sym;
+                          var cached = insightCache[cacheKey];
+                          if (!cached) {
+                            return (
+                              <div>
+                                <div style={{ fontSize:12, color:"#555", marginBottom:10 }}>Analyse this 10-K filing from a Warren Buffett perspective -- looking for durable competitive advantages, predictable earnings, strong management, and fair value.</div>
+                                <button onClick={function() {
+                                  setInsightCache(function(prev) {
+                                    var next = Object.assign({}, prev);
+                                    next[cacheKey] = "loading";
+                                    return next;
+                                  });
+                                  var bizText   = (massiveInfo.tenK.business    || "").slice(0, 2000);
+                                  var riskText  = (massiveInfo.tenK.riskFactors || "").slice(0, 1500);
+                                  fetch("/anthropic", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      model: "claude-haiku-4-5-20251001",
+                                      max_tokens: 900,
+                                      messages: [{ role: "user", content: "You are Warren Buffett analysing a 10-K. For " + sym + ", analyse: 1. Business Quality 2. Competitive Moat 3. Management Quality 4. Financial Strength 5. Key Risks 6. Buffett Verdict (buy/hold/avoid and why). Be concise.\n\nBUSINESS SECTION:\n" + bizText + "\n\nRISK FACTORS:\n" + riskText }]
+                                    })
+                                  }).then(function(r) { return r.json(); })
+                                    .then(function(d) {
+                                      var text = d && d.content && d.content[0] && d.content[0].text;
+                                      setInsightCache(function(prev) {
+                                        var next = Object.assign({}, prev);
+                                        next[cacheKey] = text || "Analysis unavailable.";
+                                        return next;
+                                      });
+                                    }).catch(function() {
+                                      setInsightCache(function(prev) {
+                                        var next = Object.assign({}, prev);
+                                        next[cacheKey] = "Analysis failed. Please try again.";
+                                        return next;
+                                      });
+                                    });
+                                }} style={{ padding:"8px 18px", background:"#111", color:"#c8f000", border:"none", borderRadius:6, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
+                                  Generate Buffett Analysis
+                                </button>
+                              </div>
+                            );
+                          }
+                          if (cached === "loading") {
+                            return (
+                              <div style={{ textAlign:"center", padding:"20px 0" }}>
+                                <div style={{ fontSize:12, color:"#888", marginBottom:10 }}>Generating Buffett-style analysis...</div>
+                                <div style={{ display:"inline-block", width:22, height:22, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
+                              </div>
+                            );
+                          }
+                          return (
+                            <div style={{ fontSize:13, color:"#333", lineHeight:1.85, padding:"12px 14px", background:"#f9f7f4", borderRadius:8, borderLeft:"3px solid #c8f000" }}>
+                              {cached}
+                            </div>
+                          );
+                        })() : <div style={{ color:"#aaa" }}>10-K data required. Available with Massive.com Stocks Starter plan.</div>}
+
+                        <SectionTitle massive={true}>Stock Splits</SectionTitle>
+                        {massiveInfo && massiveInfo.splits && massiveInfo.splits.length > 0 ? (
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                            <thead>
+                              <tr style={{ borderBottom:"1px solid #e0dbd0" }}>
+                                {["Date","Split Ratio"].map(function(h) {
+                                  return <td key={h} style={{ padding:"4px 8px", color:"#888", fontWeight:600 }}>{h}</td>;
+                                })}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {massiveInfo.splits.map(function(s, i) {
+                                return (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f5f2ec" }}>
+                                    <td style={{ padding:"5px 8px", fontWeight:600 }}>{s.execution_date}</td>
+                                    <td style={{ padding:"5px 8px" }}>{s.split_to} for {s.split_from}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        ) : addlLoading ? null : <div style={{ color:"#aaa" }}>No stock split history found.</div>}
+
+                        {/* SimFin Data Explorer */}
+                        {(function() {
+                        if (!window.__simfinData) window.__simfinData = {};
+                        if (!window.__simfinLoading) window.__simfinLoading = {};
+                        var sfKey = sym;
+                        var sfData    = window.__simfinData[sfKey];
+                        var sfLoading = window.__simfinLoading[sfKey];
+
+                        // Data is prefetched on ticker load - no need to re-fetch here
+                        // Just trigger a re-render check if still loading
+                        if (!sfData && !sfLoading) {
+                          // Fallback: fetch if prefetch somehow missed
+                          window.__simfinLoading[sfKey] = true;
+                          fetch("/simfin?sym=" + sym)
+                            .then(function(r) { return r.text(); })
+                            .then(function(txt) {
+                              var d;
+                              try { d = JSON.parse(txt); }
+                              catch(e) { d = { error: "Worker returned non-JSON. First 300 chars: " + txt.slice(0, 300) }; }
+                              window.__simfinData[sfKey]    = d;
+                              window.__simfinLoading[sfKey] = false;
+                              // Log SimFin result to Debug tab
+                              // Log raw structure for debugging
+          setDebugLog(function(prev) { return prev.concat([{
+            time:  new Date().toISOString(),
+            label: "SimFin raw structure check",
+            data:  {
+              balanceType:      typeof d.balance,
+              balanceIsArray:   Array.isArray(d.balance),
+              balanceLen:       Array.isArray(d.balance) ? d.balance.length : "n/a",
+              balance0keys:     d.balance && d.balance[0] ? Object.keys(d.balance[0]).join(",") : "n/a",
+              hasStatements:    d.balance && d.balance[0] && d.balance[0].statements ? "YES len=" + d.balance[0].statements.length : "NO",
+              incomeType:       typeof d.income,
+              incomeIsArray:    Array.isArray(d.income),
+              rawBalPreview:    JSON.stringify(d.balance).slice(0, 300),
+              diag_url_bs:      d.diag ? d.diag.url_bs : "no diag",
+              diag_status_bs:   d.diag ? d.diag.status_bs : "no diag",
+              diag_rawPreview_bs: d.diag ? d.diag.rawPreview_bs : "no diag",
+              diag_rawLen_bs:   d.diag ? d.diag.rawLen_bs : "no diag",
+              diag_url_pl:      d.diag ? d.diag.url_pl : "no diag",
+              diag_rawPreview_pl: d.diag ? d.diag.rawPreview_pl : "no diag",
+            }
+          }]); });
+          var sfBsCols = d.balance && Array.isArray(d.balance) && d.balance[0] && d.balance[0].statements ? d.balance[0].statements[0].columns : [];
+                              var sfPlCols = d.income  && Array.isArray(d.income)  && d.income[0]  && d.income[0].statements  ? d.income[0].statements[0].columns   : [];
+                              setDebugLog(function(prev) { return prev.concat([
+                                {
+                                  time:  new Date().toISOString(),
+                                  label: "SimFin fetch complete -- " + (d.ok ? "OK" : "ERROR: " + (d.error || "unknown")),
+                                  data:  {
+                                    status_pl: d.diag ? d.diag.status_pl : null,
+                                    status_bs: d.diag ? d.diag.status_bs : null,
+                                    incomeRows:  sfPlCols.length > 0 ? d.income[0].statements[0].data.length + " rows" : (d.income && d.income.error ? "ERROR: " + (d.income.error || d.income.message) : "no data"),
+                                    balanceRows: sfBsCols.length > 0 ? d.balance[0].statements[0].data.length + " rows" : (d.balance && d.balance.error ? "ERROR: " + d.balance.error : "no data"),
+                                  }
+                                },
+                                {
+                                  time:  new Date().toISOString(),
+                                  label: "SimFin BS columns (" + sfBsCols.length + " total)",
+                                  data:  sfBsCols
+                                },
+                                {
+                                  time:  new Date().toISOString(),
+                                  label: "SimFin PL columns (" + sfPlCols.length + " total)",
+                                  data:  sfPlCols
+                                },
+                                {
+                                  time:  new Date().toISOString(),
+                                  label: "SimFin BS latest row (most recent year)",
+                                  data:  sfBsCols.length > 0 ? (function() {
+                                    var rows = d.balance[0].statements[0].data;
+                                    // SimFin returns oldest first - take last row for most recent
+                                    var row = rows[rows.length - 1];
+                                    var obj = {};
+                                    sfBsCols.forEach(function(k, i) { obj[k] = row[i]; });
+                                    return obj;
+                                  })() : "no data"
+                                }
+                              ]); });
+                              setInsightTab("addlinfo");
+                            })
+                            .catch(function(e) {
+                              var errMsg = "Fetch failed: " + String(e);
+                              window.__simfinData[sfKey]    = { error: errMsg };
+                              window.__simfinLoading[sfKey] = false;
+                              setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "SimFin fetch FAILED", data: { error: errMsg } }]); });
+                              setInsightTab("addlinfo");
+                            });
+                        }
+
+                        return (
+                          <div style={{ marginTop:24, borderTop:"2px solid #e0dbd0", paddingTop:16 }}>
+                            <div style={{ fontSize:13, fontWeight:700, color:"#111", marginBottom:12 }}>SimFin Data Explorer</div>
+                            {sfLoading && !sfData && (
+                              <div style={{ display:"flex", alignItems:"center", gap:8, color:"#aaa", fontSize:12 }}>
+                                <div style={{ width:14, height:14, border:"2px solid #e0dbd0", borderTop:"2px solid #c8f000", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}></div>
+                                Loading SimFin data...
+                              </div>
+                            )}
+                            {sfData && sfData.error && (
+                              <div style={{ fontSize:12, color:"#c03030", background:"#fff0f0", padding:"8px 12px", borderRadius:6, border:"0.5px solid #e08080" }}>
+                                SimFin error: {sfData.error}
+                              </div>
+                            )}
+                            {sfData && sfData.ok && (function() {
+                              function parseCompact(stmt) {
+                                if (!stmt || typeof stmt !== "object") return null;
+                                if (!Array.isArray(stmt)) return null; // error object
+                                if (stmt.length === 0) return null;
+                                var company = stmt[0];
+                                if (!company) return null;
+                                var stmtArr = company.statements;
+                                var s = (stmtArr && stmtArr.length > 0) ? stmtArr[0] : company;
+                                if (!s || !s.columns || !s.data) return null;
+                                var cols = s.columns;
+                                return s.data.map(function(row) {
+                                  var obj = {};
+                                  cols.forEach(function(col, ci) { obj[col] = row[ci]; });
+                                  return obj;
+                                }).filter(function(row) {
+                                  // Exclude TTM rows; accept FY or Q4 (SimFin uses Q4 for fiscal year-end companies)
+                                  if (row["TTM"] === 1 || row["TTM"] === true) return false;
+                                  var p = row["Fiscal Period"];
+                                  return p === "FY" || p === "Q4" || !p;
+                                }).sort(function(a, b) {
+                                  return (b["Fiscal Year"] || 0) - (a["Fiscal Year"] || 0);
+                                });
+                              }
+
+                              function fmtV(v) {
+                                if (v == null || v === "") return "-";
+                                if (typeof v === "number") {
+                                  var a = Math.abs(v);
+                                  if (a >= 1e9)  return (v < 0 ? "-" : "") + "$" + (a/1e9).toFixed(2) + "B";
+                                  if (a >= 1e6)  return (v < 0 ? "-" : "") + "$" + (a/1e6).toFixed(0) + "M";
+                                  if (a >= 1000) return (v < 0 ? "-" : "") + "$" + (a/1000).toFixed(0) + "K";
+                                  return String(parseFloat(v.toFixed(3)));
+                                }
+                                return String(v);
+                              }
+
+                              var income  = parseCompact(sfData.income);
+                              var balance = parseCompact(sfData.balance);
+
+                              var SKIP = { "Fiscal Year":1, "Fiscal Period":1, "Report Date":1, "Publish Date":1, "Restated":1, "Source":1, "TTM":1, "Value Check":1, "Data Model":1, "Currency":1, "SimFinId":1 };
+
+                              // Key income fields to highlight
+                              var incomeKey = ["Revenue", "Gross Profit", "Operating Income (Loss)", "Net Income", "Earnings Per Share, Diluted", "Earnings Per Share, Basic"];
+                              var incomeFields = (income && income.length > 0 && income[0]) ? incomeKey.filter(function(k) { return income[0][k] !== undefined; }) : [];
+                              // All remaining income fields
+                              var incomeAll = (income && income.length > 0 && income[0]) ? Object.keys(income[0]).filter(function(k) { return !SKIP[k] && incomeKey.indexOf(k) === -1; }) : [];
+
+                              // Key balance fields
+                              var balanceKey = ["Cash, Cash Equivalents & Short Term Investments", "Total Assets", "Long Term Debt", "Short Term Debt", "Total Liabilities", "Total Equity", "Shares (Common)"];
+                              var balanceFields = (balance && balance.length > 0 && balance[0]) ? balanceKey.filter(function(k) { return balance[0][k] !== undefined; }) : [];
+                              var balanceAll = (balance && balance.length > 0 && balance[0]) ? Object.keys(balance[0]).filter(function(k) { return !SKIP[k] && balanceKey.indexOf(k) === -1; }) : [];
+
+                              function SfTable(props) {
+                                if (!props.rows || props.rows.length === 0 || props.fields.length === 0) return null;
+                                var years = props.rows.slice(0, 8); // show up to 8 years
+                                return (
+                                  <div style={{ marginBottom:20 }}>
+                                    <div style={{ fontSize:11, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6 }}>{props.title}</div>
+                                    <div style={{ overflowX:"auto" }}>
+                                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                                        <thead>
+                                          <tr style={{ background:"#f0ede8" }}>
+                                            <th style={{ padding:"5px 10px", textAlign:"left", color:"#555", fontWeight:600, borderBottom:"1px solid #e0dbd0", minWidth:200, whiteSpace:"nowrap" }}>Field</th>
+                                            {years.map(function(r, ri) {
+                                              return <th key={ri} style={{ padding:"5px 8px", textAlign:"right", color:"#555", fontWeight:600, borderBottom:"1px solid #e0dbd0", whiteSpace:"nowrap" }}>{r["Fiscal Year"] || ("Y" + ri)}</th>;
+                                            })}
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {props.fields.map(function(field, fi) {
+                                            return (
+                                              <tr key={fi} style={{ borderBottom:"0.5px solid #f0ede8", background: fi % 2 === 0 ? "#fff" : "#faf8f5" }}>
+                                                <td style={{ padding:"4px 10px", color: props.highlight && props.highlight[field] ? "#111" : "#666", fontWeight: props.highlight && props.highlight[field] ? 600 : 400, whiteSpace:"nowrap" }}>{field}</td>
+                                                {years.map(function(r, ri) {
+                                                  return <td key={ri} style={{ padding:"4px 8px", textAlign:"right", color:"#333", fontWeight: props.highlight && props.highlight[field] ? 600 : 400 }}>{fmtV(r[field])}</td>;
+                                                })}
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              var incHighlight = {};
+                              incomeKey.forEach(function(k){ incHighlight[k] = true; });
+                              var balHighlight = {};
+                              balanceKey.forEach(function(k){ balHighlight[k] = true; });
+
+                              return (
+                                <div>
+                                  {income && income.error && (
+                                    <div style={{ fontSize:12, color:"#c03030", background:"#fff0f0", padding:"8px 12px", borderRadius:6, border:"0.5px solid #e08080", marginBottom:8 }}>
+                                      SimFin Income: {income.error}{income.status === "429" ? " -- quota resets daily" : ""}
+                                    </div>
+                                  )}
+                                  {balance && balance.error && (
+                                    <div style={{ fontSize:12, color:"#c03030", background:"#fff0f0", padding:"8px 12px", borderRadius:6, border:"0.5px solid #e08080", marginBottom:8 }}>
+                                      SimFin Balance: {balance.error}{balance.status === "429" ? " -- quota resets daily" : ""}
+                                    </div>
+                                  )}
+                                  <SfTable title="Income Statement" rows={income} fields={incomeFields.concat(incomeAll)} highlight={incHighlight} />
+                                  <SfTable title="Balance Sheet" rows={balance} fields={balanceFields.concat(balanceAll)} highlight={balHighlight} />
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        );
+                        })()}
+
+                      </div>
+                    );
+                  })()}
+
+
+                  {/* Market Signal Tab */}
+                  {/* TREND TAB */}
+                  
+
+                  {insightTab === "trend" && (function() {
+                    var ind=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
+                    var price=q?q.price:0;
+                    var hi52=ov?ov.hi52:0; var lo52=ov?ov.lo52:0;
+                    var pos52=(hi52>lo52&&hi52>0)?(price-lo52)/(hi52-lo52):0.5;
+                    if (!ind||!price) return <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>Trend data requires Massive.com feed.</div>;
+                    var wsmaG=ind.wsma10&&ind.wsma40?(ind.wsma10-ind.wsma40)/ind.wsma40*100:null;
+                    var s200g=ind.sma200?(price-ind.sma200)/ind.sma200*100:null;
+                    var s50g=ind.sma50?(price-ind.sma50)/ind.sma50*100:null;
+                    var crsG=ind.sma50&&ind.sma200?(ind.sma50-ind.sma200)/ind.sma200*100:null;
+                    var pos52pct=Math.round(pos52*100);
+                    // Direction arrows using historical data
+                    var wsmaH=ind.wsmaHistory||[]; // if available
+                    var prevS200g=ind.sma200&&aggs&&aggs[1]?(aggs[1].c-ind.sma200)/ind.sma200*100:null;
+                    var prevS50g=ind.sma50&&aggs&&aggs[1]?(aggs[1].c-ind.sma50)/ind.sma50*100:null;
+                    function tDir(cur,prev){ if(cur===null||prev===null) return null; return cur>prev+0.2?"up":cur<prev-0.2?"down":"flat"; }
+                    var d200=tDir(s200g,prevS200g); var d50=tDir(s50g,prevS50g);
+                    // pos52 direction: compare to yesterday
+                    var prevPos52=hi52>lo52&&aggs&&aggs[1]?(aggs[1].c-lo52)/(hi52-lo52):null;
+                    var dPos=tDir(pos52,prevPos52);
+                    function Arrow(dir,col){ if(!dir) return null; var sym=dir==="up"?String.fromCharCode(0x25B2):dir==="down"?String.fromCharCode(0x25BC):String.fromCharCode(0x25A0); var c=dir==="up"?"#1a6a1a":dir==="down"?"#c03030":"#888"; return <span style={{fontSize:9,color:col||c,marginLeft:5,verticalAlign:"middle"}}>{sym}</span>; }
+                    function tColor(val,goodUp){ if(val===null) return "#111"; if(goodUp) return val>2?"#1a6a1a":val>-2?"#888":"#c03030"; return val<-2?"#c03030":val<2?"#888":"#1a6a1a"; }
+                    function TDots(score,col){ var d=[]; for(var i=1;i<=5;i++) d.push(<span key={i} style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:i<=score?(col||"#1a6a1a"):"#e0dbd0",marginRight:2}}/>); return <span style={{display:"inline-flex",alignItems:"center",marginLeft:6}}>{d}</span>; }
+                    function TRow(p){ return (
+                      <div style={{padding:"10px 14px",borderBottom:"1px solid #f0ede6"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                          <span style={{fontSize:12,fontWeight:600,color:"#333"}}>{p.label}</span>
+                          <span style={{display:"flex",alignItems:"center",gap:6}}>
+                            {p.score!=null && TDots(p.score, p.dotCol)}
+                            {p.score!=null && p.weight!=null && (
+                              <span style={{fontSize:10,color:p.dotCol||"#888",fontWeight:700,minWidth:36,textAlign:"right"}}>
+                                {Math.round((p.score/5)*p.weight)+"/"+(p.weight)}
+                              </span>
+                            )}
+                            <span style={{fontSize:13,fontWeight:700,color:p.valCol||"#111",marginLeft:4}}>{p.val===null?"N/A":p.val}</span>
+                            {p.dir && Arrow(p.dir)}
+                          </span>
+                        </div>
+                        {p.badge && <div style={{display:"inline-block",fontSize:9,fontWeight:700,color:p.badge.col,background:p.badge.bg,border:"0.5px solid "+p.badge.col,borderRadius:4,padding:"1px 6px",marginBottom:4}}>{p.badge.text}</div>}
+                        <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{p.desc}</div>
+                        {p.context && <div style={{fontSize:10,color:"#666",marginTop:4,padding:"4px 8px",background:"#f5f2ec",borderRadius:4,borderLeft:"2px solid #c8c0b0"}}>{p.context}</div>}
+                        {p.watch && <div style={{fontSize:10,color:"#b88000",marginTop:4,fontStyle:"italic"}}>{"Watch: "+p.watch}</div>}
+                        {p.scoring && (
+                          <details style={{marginTop:6}}>
+                            <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",userSelect:"none",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4}}>
+                              <span style={{fontSize:9,color:"#ccc"}}>{"▶"}</span>
+                              <span>How is this scored?</span>
+                            </summary>
+                            <div style={{padding:"6px 8px",background:"#f9f7f4",borderRadius:4,marginTop:3,fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line"}}>{p.scoring}</div>
+                          </details>
+                        )}
+                      </div>
+                    ); }
+                    var aggs=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
+                    return (
+                      <div>
+                        {(function(){
+                          // Read from window (computed by pill) -- single source of truth
+                          var _ts2=window.__trendScore||0;
+                          var _tl2=window.__trendLabel||"--";
+                          var _td2=window.__trendDots||0;
+                          var _tsc=_ts2>=70?"#1a6a1a":_ts2>=55?"#2a7a2a":_ts2>=40?"#b88000":"#c03030";
+                          var _tsbg=_ts2>=70?"#e6f4e6":_ts2>=55?"#f0f7e6":_ts2>=40?"#fdf8e6":"#fff0f0";
+                          var _tsbd=_ts2>=70?"#7abd00":_ts2>=55?"#9ab800":_ts2>=40?"#d4a800":"#e08080";
+                          var _tsLong=_ts2>=70?"The overall price trend is strong and bullish. The stock is well-positioned above its key moving averages.":_ts2>=55?"The trend is positive. Price is holding above key averages with momentum on its side.":_ts2>=40?"The trend is mixed or sideways. No clear directional bias from moving averages.":_ts2>=25?"The trend is weak. Price is struggling below key averages.":"The trend is strongly bearish. Price is well below key averages across multiple timeframes.";
+                          return (
+                            <div style={{padding:"12px 14px",background:_tsbg,borderRadius:8,marginBottom:14,border:"0.5px solid "+_tsbd}}>
+                              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                                <div>
+                                  <div style={{fontSize:10,color:"#888",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Trend / Price Action</div>
+                                  <div style={{fontSize:15,fontWeight:700,color:_tsc}}>{_tl2}</div>
+                                </div>
+                                <div style={{textAlign:"right"}}>
+                                  <div style={{fontSize:10,color:"#888",marginBottom:3}}>{_ts2 + " / 100"}</div>
+                                  <div style={{display:"flex",gap:3}}>{[1,2,3,4,5].map(function(i){return (<span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:i<=_td2?_tsc:"#ddd"}}/>);})}</div>
+                                </div>
+                              </div>
+                              <div style={{fontSize:11,color:"#555",lineHeight:1.5}}>{_tsLong}</div>
+                            </div>
+                          );
+                        })()}
+                        {/* TREND SIGNALS - unified, no short/medium/long dividers */}
+                        <div style={{border:"1px solid #e8e4dc",borderRadius:8,marginBottom:10,overflow:"hidden"}}>
+                          {(function(){
+                            var ema20g=ind.ema20?(price-ind.ema20)/ind.ema20*100:null;
+                            var prevEma20g=ind.ema20&&aggs[1]?(aggs[1].c-ind.ema20)/ind.ema20*100:null;
+                            var emaDir=ema20g!=null&&prevEma20g!=null?(ema20g>prevEma20g+0.2?"up":ema20g<prevEma20g-0.2?"down":"flat"):null;
+                            var _es=ema20g===null?3:ema20g>5?5:ema20g>1?4:ema20g>-5?3:2;
+                            var _ec=_es>=4?"#1a6a1a":_es===3?"#b88000":"#c03030";
+                            var _emaBadge=ema20g!=null&&ema20g>10?{text:"\u26A0 EXTENDED",col:"#b88000",bg:"#fdf8e6"}:null;
+                            function Arrow2(dir){ if(!dir||dir==="flat") return <span style={{fontSize:9,color:"#999",marginLeft:4}}>{String.fromCharCode(0x25A0)}</span>; return <span style={{fontSize:9,color:dir==="up"?"#1a6a1a":"#c03030",marginLeft:4}}>{dir==="up"?String.fromCharCode(0x25B2):String.fromCharCode(0x25BC)}</span>; }
+                            return <TRow label="Price vs 20-day EMA (short-term trend)"
+                              val={ema20g!=null?(ema20g>0?"+":"")+ema20g.toFixed(2)+"%":null}
+                              valCol={ema20g===null?"#aaa":ema20g>1?"#1a6a1a":ema20g>-5?"#888":"#c03030"}
+                              dir={emaDir} score={_es} dotCol={_ec} weight={10} badge={_emaBadge}
+                              scoring={"●●●●●  5/5: Price > +5% above EMA20\n●●●●○  4/5: Price +1% to +5%\n●●●○○  3/5: Price -5% to +1%\n●●○○○  2/5: Price -10% to -5%\n●○○○○  1/5: Price below -10%"}
+                              context={ema20g!=null?("The 20-day EMA is a short-term trend line. The stock is "+(ema20g>0?ema20g.toFixed(1)+"% above":Math.abs(ema20g).toFixed(1)+"% below")+" it at $"+(ind.ema20?ind.ema20.toFixed(2):"N/A")+"."+(ema20g>10?"":"")):null}
+                              desc={ema20g===null?"Data unavailable.":ema20g>5?"Well above 20-day average -- strong short-term trend.":ema20g>1?"Above 20-day average -- short-term uptrend intact.":ema20g>-5?"Near 20-day average -- trend is flat.":ema20g>-10?"Below 20-day average -- short-term trend is weak.":"Well below 20-day average -- significant short-term weakness."}
+                              watch={ema20g!=null&&Math.abs(ema20g)<1?"Price is right at its 20-day average -- a key short-term support/resistance to watch.":null} />;
+                          })()}
+
+                          {(function(){
+                            var _s5s=s50g===null?3:s50g>5?5:s50g>1?4:s50g>-5?3:2;
+                            var _s5c=_s5s>=4?"#1a6a1a":_s5s===3?"#b88000":"#c03030";
+                            return <TRow label="Price vs 50-day Average"
+                              val={s50g!==null?(s50g>0?"+":"")+s50g.toFixed(2)+"%":null}
+                              valCol={s50g===null?"#aaa":s50g>1?"#1a6a1a":s50g>-5?"#888":"#c03030"}
+                              dir={d50} score={_s5s} dotCol={_s5c} weight={10}
+                              scoring={"●●●●●  5/5: Price > +5% above SMA50\n●●●●○  4/5: Price +1% to +5%\n●●●○○  3/5: Price -5% to +1%\n●●○○○  2/5: Price -10% to -5%\n●○○○○  1/5: Price below -10%"}
+                              context={s50g!==null?"The stock is "+(s50g>0?s50g.toFixed(1)+"% above":Math.abs(s50g).toFixed(1)+"% below")+" its 50-day average of $"+(ind.sma50?ind.sma50.toFixed(2):"N/A")+". The 50-day average tracks the medium-term price trend over roughly 10 trading weeks.":null}
+                              desc={s50g===null?"Data unavailable.":s50g>5?"Well above 50-day average -- medium-term trend is strong.":s50g>1?"Above 50-day average -- medium-term uptrend intact.":s50g>-5?"Near 50-day average -- consolidating.":s50g>-10?"Below 50-day average -- medium-term trend is weak.":"Well below 50-day average -- significant medium-term weakness."}
+                              watch={s50g!==null&&Math.abs(s50g)<2?"Price is testing its 50-day average -- a key support/resistance level to watch.":null} />;
+                          })()}
+
+                          {(function(){
+                            var _ws=wsmaG===null?3:wsmaG>5?5:wsmaG>1?4:wsmaG>-1?3:wsmaG>-5?2:1;
+                            var _wdc=_ws>=4?"#1a6a1a":_ws===3?"#b88000":"#c03030";
+                            return <TRow label="Weekly Trend (10-week vs 40-week MA)"
+                              val={wsmaG!==null?(wsmaG>0?"+":"")+wsmaG.toFixed(2)+"%":null}
+                              valCol={wsmaG===null?"#aaa":wsmaG>1?"#1a6a1a":wsmaG>-1?"#888":"#c03030"}
+                              score={_ws} dotCol={_wdc} weight={30}
+                              scoring={"●●●●●  5/5: Gap > +5% (strong uptrend)\n●●●●○  4/5: Gap +1% to +5%\n●●●○○  3/5: Gap -1% to +1% (neutral)\n●●○○○  2/5: Gap -5% to -1%\n●○○○○  1/5: Gap < -5% (strong downtrend)"}
+                              context={wsmaG!==null?"The 10-week MA is currently "+(wsmaG>0?"+":"")+wsmaG.toFixed(1)+"% "+(wsmaG>0?"above":"below")+" the 40-week MA. Think of these like a fast and slow speedometer -- when the fast line is above the slow line, the weekly trend is up. The gap is "+(Math.abs(wsmaG)>5?"large":"small")+", meaning the trend is "+(Math.abs(wsmaG)>5?"well established":"just beginning or fading")+".":null}
+                              desc={wsmaG===null?"Data unavailable.":wsmaG>5?"10-week average is well above 40-week -- medium-term uptrend is strong and intact.":wsmaG>1?"10-week is above 40-week -- uptrend in place.":wsmaG>-1?"Both averages are flat -- stock is trending sideways.":wsmaG>-5?"10-week is below 40-week -- downtrend developing.":"10-week well below 40-week -- sustained downtrend."}
+                              watch={wsmaG!==null&&wsmaG>0?"Watch for 10-week crossing below 40-week -- that would signal trend reversal.":wsmaG!==null&&wsmaG<0?"Watch for 10-week crossing above 40-week -- that would signal a bullish recovery.":null} />;
+                          })()}
+                          {(function(){
+                            var _cd200 = crossData && crossData.sym === sym ? crossData : null;
+                            var _s200gdir = _cd200 ? _cd200.sma200GapDir : null;
+                            var _ss = s200g===null?3: (function(){
+                              if (s200g > 10) return 5;
+                              if (s200g > 2)  return 4;
+                              if (s200g > -10) return 3;
+                              if (s200g > -20) return _s200gdir==="improving"?3:2;
+                              return _s200gdir==="improving"?2:1;
+                            })();
+                            var _sdc=_ss>=4?"#1a6a1a":_ss===3?"#b88000":"#c03030";
+                            var _s200badge=s200g!==null&&s200g>25?{text:"\u26A0 EXTENDED",col:"#b88000",bg:"#fdf8e6"}:null;
+                            var _s200desc = s200g===null?"Data unavailable.":
+                              s200g>10?"Stock is well above its long-term average -- strong bullish trend.":
+                              s200g>2?"Stock is above its long-term average -- healthy uptrend.":
+                              s200g>-10?"Stock is near its long-term average -- no clear direction.":
+                              s200g>-20?(_s200gdir==="improving"?"Stock is below its long-term average but the gap is narrowing -- signs of recovery.":"Stock is below its long-term average -- downtrend in place."):
+                              (_s200gdir==="improving"?"Stock is well below its long-term average, but the gap is narrowing -- early signs of flattening.":_s200gdir==="worsening"?"Stock is well below its long-term average and the gap is widening -- downtrend accelerating.":"Stock is well below its long-term average -- strong downtrend.");
+                            var _s200ctx = s200g!==null?"The stock is trading "+Math.abs(s200g).toFixed(1)+"% "+(s200g>0?"above":"below")+" its 200-day average of $"+(ind.sma200?ind.sma200.toFixed(2):"N/A")+"."+(_s200gdir?" The gap is "+_s200gdir+" compared to 10 days ago.":"")+" Being above the 200-day average is generally healthy; below it is a warning sign.":null;
+                            return <TRow label="Price vs 200-day Average (long-term trend)"
+                              val={s200g!==null?(s200g>0?"+":"")+s200g.toFixed(2)+"%":null}
+                              valCol={s200g===null?"#aaa":s200g>2?"#1a6a1a":s200g>-10?"#888":"#c03030"}
+                              dir={d200} score={_ss} dotCol={_sdc} weight={30} badge={_s200badge}
+                              scoring={"●●●●●  5/5: Price > +10% above SMA200\n●●●●○  4/5: Price +2% to +10%\n●●●○○  3/5: Price -10% to +2%, OR -20% to -10% but improving\n●●○○○  2/5: Price -20% to -10% (stable/worsening), OR below -20% but improving\n●○○○○  1/5: Price < -20% (stable or worsening)"}
+                              context={_s200ctx}
+                              desc={_s200desc}
+                              watch={s200g!==null&&Math.abs(s200g)<5?"Price is very close to its 200-day average -- a break above or below here is a significant signal.":null} />;
+                          })()}
+                          {(function(){
+                            var _cd = crossData && crossData.sym === sym ? crossData : null;
+                            var _cs = (function(){
+                              if (!_cd || _cd.type === "unknown") return crsG===null?3:crsG>10?5:crsG>1?4:crsG>-1?3:crsG>-10?2:1;
+                              if (_cd.type === "golden") return _cd.gapDir==="worsening"?5:4;
+                              if (_cd.type === "death")  return _cd.gapDir==="improving"?3:_cd.gapDir==="stable"?2:1;
+                              return 3;
+                            })();
+                            var _cc = _cs>=4?"#1a6a1a":_cs===3?"#b88000":"#c03030";
+                            var _ageStr = _cd && _cd.ageDays ? _cd.ageDays + " trading days ago" : "before our 1-year data window";
+                            var _gapDirStr = _cd && _cd.gapDir === "improving" ? "the gap is improving (SMA50 recovering toward SMA200)"
+                                           : _cd && _cd.gapDir === "worsening" ? "the gap is worsening (SMA50 moving further from SMA200)"
+                                           : _cd && _cd.gapDir === "stable"    ? "the gap is stable (no significant change in last 10 days)"
+                                           : null;
+                            var _crossSentence = (_cd && _cd.type && _cd.type !== "none" && _cd.type !== "unknown" && _gapDirStr)
+                              ? "The " + (_cd.type === "death" ? "Death" : "Golden") + " cross occurred " + _ageStr + " and " + _gapDirStr + "."
+                              : null;
+                            var _crossAgeCtx = _crossSentence ? "  " + _crossSentence : "";
+                            return <TRow label="Golden/Death Cross (50-day vs 200-day MA)"
+                              val={crsG!==null?(crsG>0?"Golden Cross +"+crsG.toFixed(1)+"%":"Death Cross -"+Math.abs(crsG).toFixed(1)+"%"):null}
+                              valCol={crsG===null?"#aaa":crsG>0?"#1a6a1a":"#c03030"}
+                              score={_cs} dotCol={_cc} weight={20}
+                              scoring={"●●●●●  5/5: Golden cross, gap widening\n●●●●○  4/5: Golden cross\n●●●○○  3/5: Death cross with narrowing gap (recovering)\n●●○○○  2/5: Death cross, gap stable\n●○○○○  1/5: Death cross, gap worsening"}
+                              context={crsG!==null?"The 50-day average is currently "+(crsG>0?crsG.toFixed(1)+"% above":Math.abs(crsG).toFixed(1)+"% below")+" the 200-day average."+_crossAgeCtx+" When the 50-day crosses above the 200-day it is called a Golden Cross (bullish), and when it crosses below it is called a Death Cross (bearish).":null}
+                              desc={_crossSentence || (crsG===null?"Data unavailable.":crsG>5?"50-day is well above 200-day (Golden Cross) -- long-term bullish signal.":crsG>0?"50-day is above 200-day -- mild Golden Cross, long-term trend positive.":crsG>-5?"50-day has crossed below 200-day (Death Cross) -- long-term bearish signal.":"50-day is well below 200-day (Death Cross) -- sustained bearish long-term signal.")}
+                              watch={crsG!==null&&Math.abs(crsG)<3?"The 50-day and 200-day are very close -- a cross may be imminent. This would be a major signal.":null} />;
+                          })()}
+                        </div>
+                        <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de"}}>
+                          {"Trend signals use Massive.com data. Longer timeframe = more reliable signal. Not financial advice."}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* MOMENTUM TAB */}
+                  {insightTab === "momentum" && (function() {
+                    var ind=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
+                    var aggs=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
+                    var price=q?q.price:0;
+                    if (!ind||!price) return <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>Momentum data requires Massive.com feed.</div>;
+                    var rsi=ind.rsi14!=null?parseFloat(ind.rsi14):null;
+                    var rsiH=ind.rsiHistory||[];
+                    var prevRsi=rsiH.length>=2?rsiH[1]:null;
+                    var rsiDir=rsi!=null&&prevRsi!=null?(rsi>prevRsi+0.5?"up":rsi<prevRsi-0.5?"down":"flat"):null;
+                    var macdHArr=ind.macdHistory||[];
+                    var macdH=macdHArr.length>0&&macdHArr[0]?parseFloat(macdHArr[0].histogram):null;
+                    var prevMacdH=macdHArr.length>1&&macdHArr[1]?parseFloat(macdHArr[1].histogram):null;
+                    var macdDir=macdH!=null&&prevMacdH!=null?(macdH>prevMacdH?"Rising":"Falling"):"Unknown";
+                    var macdArrow=macdH!=null&&prevMacdH!=null?(macdH>prevMacdH+0.001?"up":macdH<prevMacdH-0.001?"down":"flat"):null;
+                    var ema20g=ind.ema20?(price-ind.ema20)/ind.ema20*100:null;
+                    var prevEma20g=ind.ema20&&aggs[1]?(aggs[1].c-ind.ema20)/ind.ema20*100:null;
+                    var emaDir=ema20g!=null&&prevEma20g!=null?(ema20g>prevEma20g+0.2?"up":ema20g<prevEma20g-0.2?"down":"flat"):null;
+                    var vol5=aggs.slice(0,5).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs.slice(0,5).length,1);
+                    var vol20=aggs.slice(0,20).reduce(function(s,a){return s+(a.v||0);},0)/Math.max(aggs.slice(0,20).length,1);
+                    var volRatio=vol20>0?vol5/vol20:1;
+                    var vol1=aggs[0]?aggs[0].v:0; var vol2=aggs[1]?aggs[1].v:0;
+                    var volDir=vol1>0&&vol2>0?(vol1>vol2*1.1?"up":vol1<vol2*0.9?"down":"flat"):null;
+                    // VWAP
+                    var snap=massiveInfo&&massiveInfo.snapshot?massiveInfo.snapshot:{};
+                    var vwap=snap.vwap||0;
+                    var vwapDiff=vwap>0&&price>0?((price-vwap)/vwap*100).toFixed(2):null;
+                    // Volume spike: today vs 20d avg
+                    var isSpike=vol1>0&&vol20>0&&vol1>vol20*2.5;
+                    // Price direction today
+                    var priceUp=aggs[0]&&aggs[1]?aggs[0].c>aggs[1].c:null;
+                    var volPriceSignal=null;
+                    if(priceUp!==null&&volDir){
+                      if(priceUp&&vol1>vol20*1.1) volPriceSignal={text:"Up day + above average volume -- bullish confirmation",col:"#1a6a1a"};
+                      else if(priceUp&&vol1<vol20*0.9) volPriceSignal={text:"Up day + low volume -- weak rally, not well supported",col:"#b88000"};
+                      else if(!priceUp&&vol1>vol20*1.1) volPriceSignal={text:"Down day + high volume -- bearish distribution, watch closely",col:"#c03030"};
+                      else if(!priceUp&&vol1<vol20*0.9) volPriceSignal={text:"Down day + low volume -- weak selloff, sellers not committed",col:"#888"};
+                    }
+                    // Arrow component
+                    function Arrow(dir){ if(!dir||dir==="flat") return <span style={{fontSize:9,color:"#999",marginLeft:4}}>{String.fromCharCode(0x25A0)}</span>; return <span style={{fontSize:9,color:dir==="up"?"#1a6a1a":"#c03030",marginLeft:4}}>{dir==="up"?String.fromCharCode(0x25B2):String.fromCharCode(0x25BC)}</span>; }
+                    function MDots(score,col){ var d=[]; for(var i=1;i<=5;i++) d.push(<span key={i} style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:i<=score?(col||"#1a6a1a"):"#e0dbd0",marginRight:2}}/>); return <span style={{display:"inline-flex",alignItems:"center",marginLeft:6}}>{d}</span>; }
+                    function MRow(p){ return (
+                      <div style={{padding:"10px 14px",borderBottom:"1px solid #f0ede6"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                          <span style={{fontSize:12,fontWeight:600,color:"#333"}}>{p.label}</span>
+                          <span style={{display:"flex",alignItems:"center",gap:6}}>
+                            {p.score!=null && MDots(p.score, p.dotCol)}
+                            {p.score!=null && p.weight!=null && <span style={{fontSize:10,color:p.dotCol||"#888",fontWeight:700,minWidth:36,textAlign:"right"}}>{Math.round((p.score/5)*p.weight)+"/"+(p.weight)}</span>}
+                            <span style={{fontSize:13,fontWeight:700,color:p.valCol||"#111",marginLeft:4}}>{p.val===null?"N/A":p.val}</span>
+                            {p.dir && Arrow(p.dir)}
+                          </span>
+                        </div>
+                        {p.badge && <div style={{display:"inline-block",fontSize:9,fontWeight:700,color:p.badge.col,background:p.badge.bg,border:"0.5px solid "+p.badge.col,borderRadius:4,padding:"1px 6px",marginBottom:4}}>{p.badge.text}</div>}
+                        <div style={{fontSize:11,color:"#888",lineHeight:1.5}}>{p.desc}</div>
+                        {p.context && <div style={{fontSize:10,color:"#666",marginTop:4,padding:"4px 8px",background:"#f5f2ec",borderRadius:4,borderLeft:"2px solid #c8c0b0"}}>{p.context}</div>}
+                        {p.watch && <div style={{fontSize:10,color:"#b88000",marginTop:4,fontStyle:"italic"}}>{"Watch: "+p.watch}</div>}
+                        {p.scoring && (
+                          <details style={{marginTop:6}}>
+                            <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",userSelect:"none",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4}}>
+                              <span style={{fontSize:9,color:"#ccc"}}>{"▶"}</span>
+                              <span>How is this scored?</span>
+                            </summary>
+                            <div style={{padding:"6px 8px",background:"#f9f7f4",borderRadius:4,marginTop:3,fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line"}}>{p.scoring}</div>
+                          </details>
+                        )}
+                      </div>
+                    ); }
+                    // RSI overbought/oversold badge
+                    var rsiBadge=null;
+                    if(rsi!=null){
+                      if(rsi>80) rsiBadge={text:"\u26A0 OVERBOUGHT -- EXTREME",col:"#b88000",bg:"#fdf8e6"};
+                      else if(rsi>75) rsiBadge={text:"\u26A0 OVERBOUGHT",col:"#b88000",bg:"#fdf8e6"};
+                      else if(rsi<20) rsiBadge={text:"\u26A0 OVERSOLD -- EXTREME",col:"#b88000",bg:"#fdf8e6"};
+                      else if(rsi<35) rsiBadge={text:"\u26A0 OVERSOLD",col:"#b88000",bg:"#fdf8e6"};
+                    }
+                    return (
+                      <div>
+                        {(function(){
+                          // Momentum score from pre-compute useEffect via technicalSignals.js
+                          var _ms2 = (window.__momScore!=null && window.__momScoreSym===sym) ? window.__momScore : 0;
+                          var _ml2 = window.__momLabel || 'Neutral';
+                          var _md2 = _ms2>=80?5:_ms2>=65?4:_ms2>=50?3:_ms2>=35?2:1;
+                          var _msc=_ms2>=65?"#1a6a1a":_ms2>=50?"#b88000":"#c03030";
+                          var _msbg=_ms2>=65?"#e6f4e6":_ms2>=50?"#fdf8e6":"#fff0f0";
+                          var _msbd=_ms2>=65?"#7abd00":_ms2>=50?"#d4a800":"#e08080";
+                          var _msLong=_ms2>=80?"Momentum is strong. Buying pressure is dominant across RSI, MACD and rate of change.":_ms2>=65?"Momentum is building. More signals are bullish than bearish.":_ms2>=50?"Momentum is neutral. Mixed signals -- no clear buying or selling dominance.":_ms2>=35?"Momentum is fading. Selling pressure is outweighing buying across most signals.":"Momentum is weak. Bearish signals dominate -- buyers are not in control.";
+                          return (
+                            <div style={{padding:"12px 14px",background:_msbg,borderRadius:8,marginBottom:14,border:"0.5px solid "+_msbd}}>
+                              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                                <div>
+                                  <div style={{fontSize:10,color:"#888",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Momentum</div>
+                                  <div style={{fontSize:15,fontWeight:700,color:_msc}}>{_ml2}</div>
+                                </div>
+                                <div style={{textAlign:"right"}}>
+                                  <div style={{fontSize:10,color:"#888",marginBottom:3}}>{_ms2 + " / 100"}</div>
+                                  <div style={{display:"flex",gap:3}}>{[1,2,3,4,5].map(function(i){return (<span key={i} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:i<=_md2?_msc:"#ddd"}}/>);})}</div>
+                                </div>
+                              </div>
+                              <div style={{fontSize:11,color:"#555",lineHeight:1.5}}>{_msLong}</div>
+                            </div>
+                          );
+                        })()}
+                        <div style={{border:"1px solid #e0dbd0",borderRadius:8,marginBottom:10}}>
+                          {(function(){
+                            // Direction: avg(T-0,T-1) vs avg(T-2..T-6)
+                            var _rsiHist = ind.rsiHistory || [];
+                            var _rsiDirDisp = (_rsiHist.length>=7)
+                              ? ((parseFloat(_rsiHist[0])+parseFloat(_rsiHist[1]))/2) -
+                                ((parseFloat(_rsiHist[2])+parseFloat(_rsiHist[3])+parseFloat(_rsiHist[4])+parseFloat(_rsiHist[5])+parseFloat(_rsiHist[6]))/5)
+                              : 0;
+                            var _dirLabel = _rsiDirDisp>3?"↑ improving":_rsiDirDisp<-3?"↓ declining":"→ stable";
+                            // Direction-aware RSI score
+                            var _rs=(function(){
+                              if(rsi==null) return 3;
+                              if(rsi>70) return _rsiDirDisp<-3?4:4; // overbought capped at 4
+                              if(rsi>=65) return _rsiDirDisp<-3?4:5;
+                              if(rsi>=55) return _rsiDirDisp<-3?3:4;
+                              if(rsi>=45) return _rsiDirDisp>3?4:_rsiDirDisp<-3?2:3;
+                              if(rsi>=35) return _rsiDirDisp>0?3:2;
+                              return 1;
+                            })();
+                            var _rc=_rs>=4?"#1a6a1a":_rs===3?"#b88000":"#c03030";
+                            return <MRow label={"RSI (Relative Strength Index)"}
+                              val={rsi!=null?"RSI "+rsi.toFixed(1)+" ("+_dirLabel+")":null}
+                              valCol={_rc}
+                              score={_rs} dotCol={_rc} weight={40} badge={rsiBadge}
+                              scoring={"●●●●●  5/5: RSI ≥65, not declining\n●●●●○  4/5: RSI ≥55 not declining, OR RSI ≥65 declining, OR RSI >70 (overbought cap)\n●●●○○  3/5: RSI ≥45 stable, OR RSI ≥55 declining, OR RSI ≥35 improving\n●●○○○  2/5: RSI ≥35 declining, OR RSI ≥45 declining\n●○○○○  1/5: RSI < 35\n\nDirection = avg(T-0,T-1) minus avg(T-2 to T-6)\nImproving: > +3 pts  |  Stable: -3 to +3  |  Declining: < -3 pts"}
+                              context={rsi!=null?"RSI "+rsi.toFixed(1)+" with 5-day direction "+(_rsiDirDisp>0?"+":"")+_rsiDirDisp.toFixed(1)+" pts ("+_dirLabel+"). RSI above 50 means buyers are in control; below 50 sellers have the edge. Above 70 is overbought (capped at 4/5). Below 35 is oversold.":null}
+                              desc={rsi===null?"Data unavailable.":rsi>75?"RSI "+rsi.toFixed(0)+" -- overbought. Momentum strong but risk of pullback. Capped at 4/5.":rsi>=65?"RSI "+rsi.toFixed(0)+" -- strong momentum. "+(_rsiDirDisp<-3?"Declining -- watch for continuation.":"Buyers firmly in control."):rsi>=55?"RSI "+rsi.toFixed(0)+" -- good momentum. "+(_rsiDirDisp<-3?"Weakening -- momentum may be fading.":"Trending positively."):rsi>=45?"RSI "+rsi.toFixed(0)+" -- neutral zone. "+(_rsiDirDisp>3?"Improving -- recovering momentum.":_rsiDirDisp<-3?"Declining -- losing momentum.":"No clear edge for buyers or sellers."):rsi>=35?"RSI "+rsi.toFixed(0)+" -- weak. "+(_rsiDirDisp>0?"Slightly improving -- watch for recovery.":"Sellers have the edge."):"RSI "+rsi.toFixed(0)+" -- oversold. Stock has been heavily sold down."}
+                              watch={rsi!=null&&rsi>75?"Watch for RSI to drop below 70 -- often signals overbought move is fading.":rsi!=null&&rsi<35?"Watch for RSI to recover above 45 -- signals selling pressure easing.":rsi!=null&&rsi>45&&rsi<55?"RSI near 50 -- move above 55 turns bullish, below 45 turns bearish.":null} />;
+                          })()}
+
+                          {(function(){
+                            // ROC = (price - SMA5) / SMA5 × 100  — 1-week momentum vs average
+                            var _sma5 = aggs&&aggs.length>=5 ? (aggs[0].c+aggs[1].c+aggs[2].c+aggs[3].c+aggs[4].c)/5 : null;
+                            var _roc10 = _sma5&&_sma5>0 ? ((price>0?price:aggs[0].c) - _sma5)/_sma5*100 : null;
+                            var _rocScore=_roc10===null?3:_roc10>5?5:_roc10>2?4:_roc10>-2?3:_roc10>-5?2:1;
+                            var _rocCol=_rocScore>=4?"#1a6a1a":_rocScore===3?"#b88000":"#c03030";
+                            return <MRow label={"Price vs SMA5 (1-week momentum)"}
+                              val={_roc10!=null?("ROC "+(_roc10>0?"+":"")+_roc10.toFixed(2)+"%"):null}
+                              valCol={_rocCol}
+                              score={_rocScore} dotCol={_rocCol} weight={20}
+                              scoring={"●●●●●  5/5: ROC > +5% (price well above 1-week average)\n●●●●○  4/5: ROC +2% to +5%\n●●●○○  3/5: ROC -2% to +2% (flat)\n●●○○○  2/5: ROC -5% to -2%\n●○○○○  1/5: ROC < -5% (price well below 1-week average)\n\nROC = (price - SMA5) / SMA5 × 100\nSMA5 = average closing price of last 5 days (1 week)"}
+                              context={_roc10!=null?"Price is "+(_roc10>0?"+":"")+_roc10.toFixed(1)+"% "+(Math.abs(_roc10)<0.5?"at":"relative to")+" its 5-day average of $"+(_sma5?_sma5.toFixed(2):"N/A")+". A positive reading means price is above its recent average -- short-term buyers in control. Negative means below -- sellers have the edge this week.":null}
+                              desc={_roc10===null?"Data unavailable.":_roc10>5?"Price well above its 1-week average -- strong short-term buying momentum.":_roc10>2?"Price above its 1-week average -- mild bullish momentum.":_roc10>-2?"Price near its 1-week average -- no clear short-term direction.":_roc10>-5?"Price below its 1-week average -- mild selling pressure.":"Price well below its 1-week average -- strong short-term selling pressure."}
+                              watch={_roc10!=null&&Math.abs(_roc10)>10?"Extreme reading -- price is very extended from its 1-week average. A mean reversion is likely.":null} />;
+                          })()}
+                          {(function(){
+                            var _ms=macdH===null?3:macdH>0&&macdDir==="Rising"?5:macdH>0&&macdDir!=="Falling"?4:macdH>0?3:macdDir==="Rising"?3:macdH>-0.5?2:1;
+                            var _mc=_ms>=4?"#1a6a1a":_ms===3?"#b88000":"#c03030";
+                            var _macdBadge=macdH!=null&&macdH>0&&parseFloat(prevMacdH)>0&&macdH>parseFloat(prevMacdH)*3?{text:"\u26A0 MOMENTUM SPIKE",col:"#b88000",bg:"#fdf8e6"}:null;
+                            return <MRow label={"MACD Histogram"}
+                              val={macdH!=null?macdH.toFixed(4):null}
+                              valCol={macdH===null?"#aaa":macdH>0&&macdDir==="Rising"?"#1a6a1a":macdH>0?"#888":macdDir==="Rising"?"#b88000":"#c03030"}
+                              dir={macdArrow} score={_ms} dotCol={_mc} badge={_macdBadge}
+                              context={macdH!=null?"MACD (Moving Average Convergence Divergence) measures the difference between two price averages to show momentum. The histogram value of "+macdH.toFixed(4)+" represents buying pressure (positive) vs selling pressure (negative). The exact number matters less than whether it is positive or negative and whether it is getting bigger or smaller. Currently it is "+(macdH>0?"positive (buyers winning)":"negative (sellers winning)")+" and "+(macdDir==="Rising"?"improving":"weakening")+".":null}
+                              desc={macdH===null?"Data unavailable.":macdH>0&&macdDir==="Rising"?"MACD positive and rising -- buying momentum is accelerating. Strong bullish signal.":macdH>0&&macdDir==="Falling"?"MACD positive but weakening -- upward momentum is slowing. Watch for a crossover.":macdH<0&&macdDir==="Rising"?"MACD negative but improving -- selling pressure is easing. Early recovery signal.":"MACD negative and falling -- selling momentum is accelerating. Bearish signal."}
+                              watch={macdH!=null&&Math.abs(macdH)<0.01?"MACD histogram is near zero -- a crossover (positive or negative) may be imminent.":null} />;
+                          })()}
+                          {(function(){
+                            var _es=ema20g===null?3:ema20g>5?5:ema20g>1?4:ema20g>-5?3:2;
+                            var _ec=_es>=4?"#1a6a1a":_es===3?"#b88000":"#c03030";
+                            var _emaBadge=ema20g!=null&&ema20g>10?{text:"\u26A0 EXTENDED",col:"#b88000",bg:"#fdf8e6"}:null;
+                            return <MRow label={"Price vs 20-day EMA (short-term)"}
+                              val={ema20g!=null?(ema20g>0?"+":"")+ema20g.toFixed(2)+"%":null}
+                              valCol={ema20g===null?"#aaa":ema20g>1?"#1a6a1a":ema20g>-5?"#888":"#c03030"}
+                              dir={emaDir} score={_es} dotCol={_ec} weight={10} badge={_emaBadge}
+                              context={ema20g!=null?("The 20-day EMA is a short-term trend line. The stock is "+(ema20g>0?ema20g.toFixed(1)+"% above":Math.abs(ema20g).toFixed(1)+"% below")+" it at $"+(ind.ema20?ind.ema20.toFixed(2):"N/A")+"."+(ema20g>10?" At "+ema20g.toFixed(0)+"% above it is stretched -- a pullback is normal.":"")):null}
+                              desc={ema20g===null?"Data unavailable.":ema20g>5?"Well above 20-day average -- strong short-term momentum.":ema20g>1?"Above 20-day average -- short-term uptrend intact.":ema20g>-5?"Near 20-day average -- momentum is flat, could go either way.":"Below 20-day average -- short-term momentum is weak."}
+                              watch={ema20g!=null&&Math.abs(ema20g)<1?"Price is right at its 20-day average -- a key short-term support/resistance to watch.":null} />;
+                          })()}
+                        </div>
+                        <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de"}}>
+                          {"Momentum signals use Massive.com real-time data. Not financial advice."}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* REVERSAL TAB */}
+                  {insightTab === "reversal" && (function() {
+                    var ind  = massiveInfo && massiveInfo.indicators ? massiveInfo.indicators : null;
+                    var rawAggs = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
+                    var price = q ? q.price : 0;
+                    var hi52 = ov ? ov.hi52 : 0, lo52 = ov ? ov.lo52 : 0;
+
+                    // bars = oldest-first
+                    var bars = rawAggs.filter(function(b){ return b&&b.c>0&&b.h>0&&b.l>0&&b.v>=0; }).slice().reverse();
+                    var n = bars.length;
+
+                    // --- Helper functions ---
+                    function revLabelColor(lbl) { return revDirLabelColor(lbl, true, "main"); }
+                    function revBearLabelColor(lbl) { return revDirLabelColor(lbl, false, "main"); }
+                    function getReversalLabel(score) {
+                      if (score === null || score === undefined) return "Not enough data";
+                      if (score <= 20) return "No Signal";
+                      if (score <= 40) return "Watch";
+                      if (score <= 60) return "Forming";
+                      if (score <= 80) return "Triggered";
+                      return "Confirmed";
+                    }
+
+                    function revLabelColor(lbl) {
+                      if (lbl==="Confirmed")   return "#1a6a1a";
+                      if (lbl==="Triggered")   return "#2a8a2a";
+                      if (lbl==="Confirming")  return "#2a8a2a";
+                      if (lbl==="Forming")     return "#5a8a00";
+                      if (lbl==="Watch")       return "#b88000";
+                      if (lbl==="Spark") return "#1a6080";
+                      return "#888";
+                    }
+                    function revBearLabelColor(lbl) {
+                      if (lbl==="Confirmed")   return "#a02020";
+                      if (lbl==="Triggered")   return "#c03030";
+                      if (lbl==="Confirming")  return "#c03030";
+                      if (lbl==="Forming")     return "#c05030";
+                      if (lbl==="Watch")       return "#b88000";
+                      return "#888";
+                    }
+                    function stageSummaryLabel(score) {
+                      if (score===null||score===undefined) return "No Data";
+                      if (score>=70) return "Strong";
+                      if (score>=40) return "Moderate";
+                      if (score>=10) return "Weak";
+                      return "Missing";
+                    }
+                    function stageSummaryColor(score, bull) {
+                      if (score===null) return "#aaa";
+                      if (score>=70) return bull?"#2a8a00":"#c03030";
+                      if (score>=40) return "#b88000";
+                      return "#aaa";
+                    }
+                    // Direction-aware bg/border based on label strength
+                    function dirColors(label, bull) {
+                      if (label==="Confirmed")   return { bg: bull?"#e6f4e6":"#fde8e8", bd: bull?"#7abd00":"#e08080" };
+                      if (label==="Triggered")   return { bg: bull?"#eef9ee":"#fff0f0", bd: bull?"#9acd50":"#f0a0a0" };
+                      if (label==="Confirming")  return { bg: bull?"#eef9ee":"#fff0f0", bd: bull?"#9acd50":"#f0a0a0" };
+                      if (label==="Forming")     return { bg: bull?"#f5faf0":"#fff4f4", bd: bull?"#c8e0a0":"#f8c8c8" };
+                      if (label==="Watch")       return { bg:"#fdf8e6",               bd:"#d4c870"                  };
+                      if (label==="Spark") return { bg:"#eaf2ff",               bd:"#90b8e0"                  };
+                      return                            { bg:"#f5f5f5",               bd:"#e0e0e0"                  };
+                    }
+
+                    // --- Shared computed values ---
+                    var avg30v = n>=30 ? bars.slice(n-30).reduce(function(s,b){ return s+b.v; },0)/30 : null;
+                    var sma50  = n>=50 ? bars.slice(n-50).reduce(function(s,b){ return s+b.c; },0)/50 : null;
+                    var recentHigh20 = n>=21 ? (function(){ var h=-Infinity; for(var i=n-21;i<n-1;i++) if(bars[i].h>h) h=bars[i].h; return h; })() : null;
+                    var recentLow20  = n>=21 ? (function(){ var l=Infinity; for(var i=n-21;i<n-1;i++) if(bars[i].l<l) l=bars[i].l; return l; })() : null;
+                    var cur5Hi  = n>=5  ? (function(){ var h=-Infinity; for(var i=n-5;i<n;i++)   if(bars[i].h>h)h=bars[i].h; return h; })() : null;
+                    var prev5Hi = n>=10 ? (function(){ var h=-Infinity; for(var i=n-10;i<n-5;i++) if(bars[i].h>h)h=bars[i].h; return h; })() : null;
+                    var cur5Lo  = n>=5  ? (function(){ var l=Infinity; for(var i=n-5;i<n;i++)    if(bars[i].l<l)l=bars[i].l; return l; })() : null;
+                    var prev5Lo = n>=10 ? (function(){ var l=Infinity; for(var i=n-10;i<n-5;i++) if(bars[i].l<l)l=bars[i].l; return l; })() : null;
+
+                    var todayBar  = n > 0 ? bars[n-1] : null;
+                    var rsi       = ind && ind.rsi14 != null ? parseFloat(ind.rsi14) : null;
+                    var rsiH      = ind && ind.rsiHistory ? ind.rsiHistory.map(function(v){ return parseFloat(v); }) : [];
+                    var macdHist  = ind && ind.macd && ind.macd.histogram != null ? parseFloat(ind.macd.histogram) : null;
+                    var macdHArr  = ind && ind.macdHistory ? ind.macdHistory : [];
+                    var ema20     = ind && ind.ema20 != null ? parseFloat(ind.ema20) : null;
+                    var sma50m    = ind && ind.sma50 != null ? parseFloat(ind.sma50) : null;
+                    var volumeRatio = avg30v && todayBar ? todayBar.v / avg30v : null;
+
+                    // RSI direction (recent avg vs older avg)
+                    var rsiDir = rsiH.length >= 7 ?
+                      ((rsiH[0]+rsiH[1])/2) - ((rsiH[2]+rsiH[3]+rsiH[4]+rsiH[5]+rsiH[6])/5) : null;
+
+                    // --- Bullish indicators ---
+                    function bullSetupInds() {
+                      var inds = [];
+                      // 1. RSI base forming (RSI 30-50, stabilising)
+                      if (rsi !== null && rsiDir !== null) {
+                        var det = rsi >= 30 && rsi <= 50 && rsiDir > -3;
+                        inds.push({ name:"RSI base forming", score:det?100:0,
+                          status: det?"detected":"not_detected",
+                          explanation: det ? "RSI is in the 30–50 base zone and stabilising — early bottoming behaviour." : "RSI is not in the base zone or is still declining." });
+                      } else {
+                        inds.push({ name:"RSI base forming", score:null, status:"unavailable", explanation:"RSI data unavailable." });
+                      }
+                      // 2. RSI bullish divergence (price lower, RSI higher)
+                      if (rsi !== null && rsiH.length >= 5 && n >= 5) {
+                        var priceLow = Math.min(bars[n-1].l, bars[n-2].l, bars[n-3].l);
+                        var prevLow  = Math.min(bars[n-4].l, bars[n-5].l);
+                        var rsiNow   = (rsiH[0]+rsiH[1])/2;
+                        var rsiPrev  = (rsiH[3]+rsiH[4])/2;
+                        var det2 = priceLow < prevLow && rsiNow > rsiPrev + 2;
+                        inds.push({ name:"RSI bullish divergence", score:det2?100:0,
+                          status: det2?"detected":"not_detected",
+                          explanation: det2 ? "Price made a lower low while RSI made a higher low — possible bullish divergence." : "No clear RSI bullish divergence detected." });
+                      } else {
+                        inds.push({ name:"RSI bullish divergence", score:null, status:"unavailable", explanation:"Insufficient RSI history for divergence calculation." });
+                      }
+                      // 3. Near 52-week low with RSI recovery
+                      if (rsi !== null && hi52 > 0 && lo52 > 0 && price > 0) {
+                        var pos = (price - lo52) / (hi52 - lo52);
+                        var det3 = pos < 0.2 && rsiDir !== null && rsiDir > 0;
+                        inds.push({ name:"Near 52-week low with RSI recovery", score:det3?100:0,
+                          status: det3?"detected":"not_detected",
+                          explanation: det3 ? "Price is near its 52-week low and RSI is beginning to recover — possible bottoming." : "Not near 52-week low or RSI not recovering." });
+                      } else {
+                        inds.push({ name:"Near 52-week low with RSI recovery", score:null, status:"unavailable", explanation:"52-week range or RSI data unavailable." });
+                      }
+                      // 4. Price forming higher low (5-day windows)
+                      if (cur5Lo !== null && prev5Lo !== null) {
+                        var det4 = cur5Lo > prev5Lo;
+                        inds.push({ name:"Price forming higher low", score:det4?100:0,
+                          status: det4?"detected":"not_detected",
+                          explanation: det4 ? "The latest 5-day low ($"+cur5Lo.toFixed(2)+") is above the prior 5-day low ($"+prev5Lo.toFixed(2)+") — higher low forming." : "No higher low detected in the latest 5-day windows." });
+                      } else {
+                        inds.push({ name:"Price forming higher low", score:null, status:"unavailable", explanation:"Insufficient data for 5-day window comparison." });
+                      }
+                      // 5. Selling volume weakening (volume on down days decreasing)
+                      if (n >= 10) {
+                        var dnVol5   = bars.slice(n-5).filter(function(b,i){ return i>0&&b.c<bars[n-5+i-1].c; }).reduce(function(s,b){return s+b.v;},0);
+                        var dnVol10  = bars.slice(n-10,n-5).filter(function(b,i){ return i>0&&b.c<bars[n-10+i-1].c; }).reduce(function(s,b){return s+b.v;},0);
+                        var det5 = dnVol5 < dnVol10 * 0.8;
+                        inds.push({ name:"Selling volume pressure weakening", score:det5?100:0,
+                          status: det5?"detected":"not_detected",
+                          explanation: det5 ? "Volume on down days this week is lower than last week — selling pressure may be easing." : "Selling volume pressure not clearly weakening." });
+                      } else {
+                        inds.push({ name:"Selling volume pressure weakening", score:null, status:"unavailable", explanation:"Insufficient data (need 10+ days)." });
+                      }
+                      return inds;
+                    }
+
+                    function bullTriggerInds() {
+                      var inds = [];
+                      // 1. MACD histogram turning up
+                      if (macdHist !== null && macdHArr.length >= 2) {
+                        var prev = macdHArr[1] && macdHArr[1].histogram != null ? parseFloat(macdHArr[1].histogram) : null;
+                        var det = prev !== null && macdHist > prev;
+                        inds.push({ name:"MACD histogram turning up", score:det?100:0,
+                          status: det?"detected":"not_detected",
+                          explanation: det ? "MACD histogram rose from "+prev.toFixed(3)+" to "+macdHist.toFixed(3)+" — upward momentum may be building." : "MACD histogram is not turning up." });
+                      } else {
+                        inds.push({ name:"MACD histogram turning up", score:null, status:"unavailable", explanation:"MACD history unavailable." });
+                      }
+                      // 2. RSI crosses above 40 or 50
+                      if (rsi !== null && rsiH.length >= 2) {
+                        var prevRsi = rsiH[1];
+                        var det2 = (rsi >= 40 && prevRsi < 40) || (rsi >= 50 && prevRsi < 50);
+                        var nearCross = !det2 && rsi >= 38 && rsi < 52;
+                        inds.push({ name:"RSI crosses above 40 or 50", score:det2?100:nearCross?50:0,
+                          status: det2?"detected":"not_detected",
+                          explanation: det2 ? "RSI crossed above a key level (40 or 50) — momentum turning up." : nearCross ? "RSI is approaching a key level — watch for crossover." : "No RSI crossover above 40 or 50 detected." });
+                      } else {
+                        inds.push({ name:"RSI crosses above 40 or 50", score:null, status:"unavailable", explanation:"RSI data unavailable." });
+                      }
+                      // 3. Close above 20-day MA (EMA20)
+                      if (ema20 !== null && todayBar) {
+                        var det3 = todayBar.c > ema20;
+                        inds.push({ name:"Close above 20-day average", score:det3?100:0,
+                          status: det3?"detected":"not_detected",
+                          explanation: det3 ? "Price closed above the 20-day EMA ($"+ema20.toFixed(2)+") — short-term trend may be turning." : "Price remains below the 20-day EMA ($"+ema20.toFixed(2)+")." });
+                      } else {
+                        inds.push({ name:"Close above 20-day average", score:null, status:"unavailable", explanation:"EMA20 data unavailable." });
+                      }
+                      // 4. Short-term MA turning up
+                      if (ema20 !== null && ind.rsiHistory && n >= 2) {
+                        var det4 = todayBar && bars[n-2] && todayBar.c > bars[n-2].c && ema20 > (bars.slice(Math.max(0,n-3),n-1).reduce(function(s,b){return s+b.c;},0)/2);
+                        inds.push({ name:"Short-term average turning up", score:det4?100:0,
+                          status: det4?"detected":"not_detected",
+                          explanation: det4 ? "Price and short-term average are moving higher — momentum improving." : "Short-term average not yet clearly turning up." });
+                      } else {
+                        inds.push({ name:"Short-term average turning up", score:null, status:"unavailable", explanation:"Insufficient data." });
+                      }
+                      return inds;
+                    }
+
+                    function bullConfirmInds() {
+                      var inds = [];
+                      // 1. Break above recent 20-day resistance
+                      if (recentHigh20 !== null && todayBar) {
+                        var det = todayBar.c > recentHigh20;
+                        inds.push({ name:"Price breaks above recent resistance", score:det?100:0,
+                          status: det?"detected":"not_detected",
+                          explanation: det ? "Price closed above the 20-day resistance level ($"+recentHigh20.toFixed(2)+") — bullish breakout." : "Price has not closed above the recent 20-day resistance ($"+recentHigh20.toFixed(2)+")." });
+                      } else {
+                        inds.push({ name:"Price breaks above recent resistance", score:null, status:"unavailable", explanation:"Not enough data (need 21+ trading days)." });
+                      }
+                      // 2. Close above SMA50
+                      if (sma50 !== null && todayBar) {
+                        var det2 = todayBar.c > sma50;
+                        inds.push({ name:"Close above 50-day moving average", score:det2?100:0,
+                          status: det2?"detected":"not_detected",
+                          explanation: det2 ? "Price closed above the 50-day average ($"+sma50.toFixed(2)+") — long-term bullish signal." : "Price has not closed above the 50-day average ($"+sma50.toFixed(2)+")." });
+                      } else {
+                        inds.push({ name:"Close above 50-day moving average", score:null, status:"unavailable", explanation:"Not enough data (need 50+ trading days)." });
+                      }
+                      // 3. Breakout with volume ≥ 1.5x
+                      if (recentHigh20 !== null && avg30v !== null && todayBar) {
+                        var det3 = todayBar.c > recentHigh20 && volumeRatio >= 1.5;
+                        inds.push({ name:"Breakout with above-average volume", score:det3?100:0,
+                          status: det3?"detected":"not_detected",
+                          explanation: det3 ? "Breakout above resistance confirmed with volume at "+volumeRatio.toFixed(1)+"x the 30-day average." : "No confirmed breakout with high volume (volume at "+(volumeRatio?volumeRatio.toFixed(1)+"x":"N/A")+" vs 1.5x required)." });
+                      } else {
+                        inds.push({ name:"Breakout with above-average volume", score:null, status:"unavailable", explanation:"Need 21+ trading days and 30-day avg volume." });
+                      }
+                      // 4. Higher high and higher low
+                      if (cur5Hi !== null && prev5Hi !== null && cur5Lo !== null && prev5Lo !== null) {
+                        var det4 = cur5Hi > prev5Hi && cur5Lo > prev5Lo;
+                        inds.push({ name:"Higher high and higher low structure", score:det4?100:0,
+                          status: det4?"detected":"not_detected",
+                          explanation: det4 ? "Latest 5-day range (H:$"+cur5Hi.toFixed(2)+" L:$"+cur5Lo.toFixed(2)+") is above prior 5-day range (H:$"+prev5Hi.toFixed(2)+" L:$"+prev5Lo.toFixed(2)+")." : "The latest 5-day range is not yet forming both a higher high and higher low." });
+                      } else {
+                        inds.push({ name:"Higher high and higher low structure", score:null, status:"unavailable", explanation:"Need 10+ trading days." });
+                      }
+                      return inds;
+                    }
+
+                    function bearSetupInds() {
+                      var inds = [];
+                      // 1. RSI overbought stalling
+                      if (rsi !== null && rsiDir !== null) {
+                        var det = rsi >= 65 && rsiDir < 0;
+                        inds.push({ name:"RSI overbought and stalling", score:det?100:0,
+                          status: det?"detected":"not_detected",
+                          explanation: det ? "RSI is in overbought territory and declining — momentum may be stalling." : "RSI is not overbought or is still rising." });
+                      } else {
+                        inds.push({ name:"RSI overbought and stalling", score:null, status:"unavailable", explanation:"RSI data unavailable." });
+                      }
+                      // 2. RSI bearish divergence (price higher, RSI lower)
+                      if (rsi !== null && rsiH.length >= 5 && n >= 5) {
+                        var priceHigh = Math.max(bars[n-1].h, bars[n-2].h, bars[n-3].h);
+                        var prevHigh  = Math.max(bars[n-4].h, bars[n-5].h);
+                        var rsiNow    = (rsiH[0]+rsiH[1])/2;
+                        var rsiPrev   = (rsiH[3]+rsiH[4])/2;
+                        var det2 = priceHigh > prevHigh && rsiNow < rsiPrev - 2;
+                        inds.push({ name:"RSI bearish divergence", score:det2?100:0,
+                          status: det2?"detected":"not_detected",
+                          explanation: det2 ? "Price made a higher high while RSI made a lower high — possible bearish divergence." : "No clear RSI bearish divergence detected." });
+                      } else {
+                        inds.push({ name:"RSI bearish divergence", score:null, status:"unavailable", explanation:"Insufficient RSI history." });
+                      }
+                      // 3. Near 52-week high with RSI declining
+                      if (rsi !== null && hi52 > 0 && lo52 > 0 && price > 0) {
+                        var pos3 = (price - lo52) / (hi52 - lo52);
+                        var det3 = pos3 > 0.85 && rsiDir !== null && rsiDir < 0;
+                        inds.push({ name:"Near 52-week high with RSI declining", score:det3?100:0,
+                          status: det3?"detected":"not_detected",
+                          explanation: det3 ? "Price is near its 52-week high and RSI is declining — possible topping." : "Not near 52-week high or RSI not declining." });
+                      } else {
+                        inds.push({ name:"Near 52-week high with RSI declining", score:null, status:"unavailable", explanation:"52-week range or RSI data unavailable." });
+                      }
+                      // 4. Price forming lower high
+                      if (cur5Hi !== null && prev5Hi !== null) {
+                        var det4 = cur5Hi < prev5Hi;
+                        inds.push({ name:"Price forming lower high", score:det4?100:0,
+                          status: det4?"detected":"not_detected",
+                          explanation: det4 ? "The latest 5-day high ($"+cur5Hi.toFixed(2)+") is below the prior 5-day high ($"+prev5Hi.toFixed(2)+") — lower high forming." : "No lower high detected." });
+                      } else {
+                        inds.push({ name:"Price forming lower high", score:null, status:"unavailable", explanation:"Insufficient data for 5-day window comparison." });
+                      }
+                      // 5. Buying volume weakening
+                      if (n >= 10) {
+                        var upVol5  = bars.slice(n-5).filter(function(b,i){ return i>0&&b.c>bars[n-5+i-1].c; }).reduce(function(s,b){return s+b.v;},0);
+                        var upVol10 = bars.slice(n-10,n-5).filter(function(b,i){ return i>0&&b.c>bars[n-10+i-1].c; }).reduce(function(s,b){return s+b.v;},0);
+                        var det5 = upVol5 < upVol10 * 0.8;
+                        inds.push({ name:"Buying volume pressure weakening", score:det5?100:0,
+                          status: det5?"detected":"not_detected",
+                          explanation: det5 ? "Volume on up days this week is lower than last week — buying pressure may be easing." : "Buying volume pressure not clearly weakening." });
+                      } else {
+                        inds.push({ name:"Buying volume pressure weakening", score:null, status:"unavailable", explanation:"Insufficient data (need 10+ days)." });
+                      }
+                      return inds;
+                    }
+
+                    function bearTriggerInds() {
+                      var inds = [];
+                      // 1. MACD histogram turning down
+                      if (macdHist !== null && macdHArr.length >= 2) {
+                        var prev = macdHArr[1] && macdHArr[1].histogram != null ? parseFloat(macdHArr[1].histogram) : null;
+                        var det = prev !== null && macdHist < prev;
+                        inds.push({ name:"MACD histogram turning down", score:det?100:0,
+                          status: det?"detected":"not_detected",
+                          explanation: det ? "MACD histogram fell from "+prev.toFixed(3)+" to "+macdHist.toFixed(3)+" — downward momentum may be building." : "MACD histogram is not turning down." });
+                      } else {
+                        inds.push({ name:"MACD histogram turning down", score:null, status:"unavailable", explanation:"MACD history unavailable." });
+                      }
+                      // 2. RSI drops below 60 or 50
+                      if (rsi !== null && rsiH.length >= 2) {
+                        var prevRsi2 = rsiH[1];
+                        var det2 = (rsi < 60 && prevRsi2 >= 60) || (rsi < 50 && prevRsi2 >= 50);
+                        var nearCross = !det2 && rsi >= 48 && rsi < 62;
+                        inds.push({ name:"RSI drops below 60 or 50", score:det2?100:nearCross?50:0,
+                          status: det2?"detected":"not_detected",
+                          explanation: det2 ? "RSI crossed below a key level (60 or 50) — momentum turning down." : nearCross ? "RSI is approaching a key level from above — watch for crossover." : "No RSI crossover below 60 or 50 detected." });
+                      } else {
+                        inds.push({ name:"RSI drops below 60 or 50", score:null, status:"unavailable", explanation:"RSI data unavailable." });
+                      }
+                      // 3. Close below 20-day MA
+                      if (ema20 !== null && todayBar) {
+                        var det3 = todayBar.c < ema20;
+                        inds.push({ name:"Close below 20-day average", score:det3?100:0,
+                          status: det3?"detected":"not_detected",
+                          explanation: det3 ? "Price closed below the 20-day EMA ($"+ema20.toFixed(2)+") — short-term trend may be turning down." : "Price remains above the 20-day EMA ($"+ema20.toFixed(2)+")." });
+                      } else {
+                        inds.push({ name:"Close below 20-day average", score:null, status:"unavailable", explanation:"EMA20 data unavailable." });
+                      }
+                      // 4. Short-term MA turning down
+                      if (ema20 !== null && n >= 2) {
+                        var det4 = todayBar && bars[n-2] && todayBar.c < bars[n-2].c;
+                        inds.push({ name:"Short-term average turning down", score:det4?100:0,
+                          status: det4?"detected":"not_detected",
+                          explanation: det4 ? "Price is moving lower — short-term average may be turning down." : "Short-term average not clearly turning down." });
+                      } else {
+                        inds.push({ name:"Short-term average turning down", score:null, status:"unavailable", explanation:"Insufficient data." });
+                      }
+                      return inds;
+                    }
+
+                    function bearConfirmInds() {
+                      var inds = [];
+                      // 1. Break below recent 20-day support
+                      if (recentLow20 !== null && todayBar) {
+                        var det = todayBar.c < recentLow20;
+                        inds.push({ name:"Price breaks below recent support", score:det?100:0,
+                          status: det?"detected":"not_detected",
+                          explanation: det ? "Price closed below the 20-day support level ($"+recentLow20.toFixed(2)+") — bearish breakdown." : "Price has not closed below the recent 20-day support ($"+recentLow20.toFixed(2)+")." });
+                      } else {
+                        inds.push({ name:"Price breaks below recent support", score:null, status:"unavailable", explanation:"Not enough data (need 21+ trading days)." });
+                      }
+                      // 2. Close below SMA50
+                      if (sma50 !== null && todayBar) {
+                        var det2 = todayBar.c < sma50;
+                        inds.push({ name:"Close below 50-day moving average", score:det2?100:0,
+                          status: det2?"detected":"not_detected",
+                          explanation: det2 ? "Price closed below the 50-day average ($"+sma50.toFixed(2)+") — long-term bearish signal." : "Price has not closed below the 50-day average ($"+sma50.toFixed(2)+")." });
+                      } else {
+                        inds.push({ name:"Close below 50-day moving average", score:null, status:"unavailable", explanation:"Not enough data (need 50+ trading days)." });
+                      }
+                      // 3. Breakdown with volume ≥ 1.5x
+                      if (recentLow20 !== null && avg30v !== null && todayBar) {
+                        var det3 = todayBar.c < recentLow20 && volumeRatio >= 1.5;
+                        inds.push({ name:"Breakdown with above-average volume", score:det3?100:0,
+                          status: det3?"detected":"not_detected",
+                          explanation: det3 ? "Breakdown below support confirmed with volume at "+volumeRatio.toFixed(1)+"x the 30-day average." : "No confirmed breakdown with high volume (volume at "+(volumeRatio?volumeRatio.toFixed(1)+"x":"N/A")+" vs 1.5x required)." });
+                      } else {
+                        inds.push({ name:"Breakdown with above-average volume", score:null, status:"unavailable", explanation:"Need 21+ trading days and 30-day avg volume." });
+                      }
+                      // 4. Lower high and lower low
+                      if (cur5Hi !== null && prev5Hi !== null && cur5Lo !== null && prev5Lo !== null) {
+                        var det4 = cur5Hi < prev5Hi && cur5Lo < prev5Lo;
+                        inds.push({ name:"Lower high and lower low structure", score:det4?100:0,
+                          status: det4?"detected":"not_detected",
+                          explanation: det4 ? "Latest 5-day range (H:$"+cur5Hi.toFixed(2)+" L:$"+cur5Lo.toFixed(2)+") is below prior 5-day range (H:$"+prev5Hi.toFixed(2)+" L:$"+prev5Lo.toFixed(2)+")." : "The latest 5-day range is not yet forming both a lower high and lower low." });
+                      } else {
+                        inds.push({ name:"Lower high and lower low structure", score:null, status:"unavailable", explanation:"Need 10+ trading days." });
+                      }
+                      return inds;
+                    }
+
+                    // --- Calculate scores from calcReversalWatch (single source of truth) ---
+                    // Indicator arrays kept for UI detail rows; all scores come from technicalSignals.js
+                    var bsInds = bullSetupInds(),   btInds = bullTriggerInds(),   bcInds = bullConfirmInds();
+                    var dsInds = bearSetupInds(),   dtInds = bearTriggerInds(),   dcInds = bearConfirmInds();
+                    var _revW = calcReversalWatch(bars, ind, { hi52: ov?ov.hi52:0, lo52: ov?ov.lo52:0, price: (q&&q.price)||0 });
+                    var bsScore = _revW.bullishSetupScore,    btScore = _revW.bullishTriggerScore,    bcScore = _revW.bullishConfirmationScore;
+                    var dsScore = _revW.bearishSetupScore,    dtScore = _revW.bearishTriggerScore,    dcScore = _revW.bearishConfirmationScore;
+                    var bullScore = _revW.bullishScore, bearScore = _revW.bearishScore;
+
+                    // --- Overall status (consistent with sidebar pre-compute) ---
+                    var getDirectionStatus = getReversalDirectionStatus;
+                    var revStatus = { status: _revW.status, primaryScore: _revW.score };
+                    // Restore explanation (getOverallReversalStatus returns {status,primaryScore} only)
+                    var _revExplMap = {
+                      "Bullish Reversal Spark":  "Bullish momentum has started turning before full setup or confirmation is available. Watch for confirmation to strengthen.",
+                      "Bullish Reversal Confirming":   "Price action is beginning to validate the bullish reversal. Trigger is strong and confirmation is improving.",
+                      "Bullish Reversal Forming":      "Bullish setup and momentum trigger are positive, but price confirmation is still missing.",
+                      "Bullish Reversal Triggered":    "Bullish momentum appears to be turning with some supporting price confirmation.",
+                      "Bullish Reversal Confirmed":    "Bullish setup, momentum trigger, and price confirmation are all aligned.",
+                      "Bullish Reversal Watch":        "Early bullish reversal conditions may be appearing, but trigger and confirmation are still limited.",
+                      "Bearish Reversal Forming":      "Bearish setup and momentum trigger are positive, but price confirmation is still missing.",
+                      "Bearish Reversal Triggered":    "Bearish momentum appears to be turning with some supporting price confirmation.",
+                      "Bearish Reversal Confirmed":    "Bearish setup, momentum trigger, and price confirmation are all aligned.",
+                      "Bearish Reversal Watch":        "Early bearish reversal conditions may be appearing, but trigger and confirmation are still limited.",
+                      "Mixed Reversal Signals":        "Both bullish and bearish reversal signals are present. Price action is unclear and confirmation is needed.",
+                      "No Clear Reversal":             "No meaningful bullish or bearish reversal setup is currently detected.",
+                      "Not Enough Data":               "Not enough price and volume data is available to calculate a reliable reversal watch signal."
+                    };
+                    revStatus.explanation = _revExplMap[revStatus.status] || "";
+                    var bLbl  = getDirectionStatus(bsScore, btScore, bcScore, "Bullish").label.replace("Reversal ","") || getReversalLabel(bullScore);
+                    var beLbl = getDirectionStatus(dsScore, dtScore, dcScore, "Bearish").label.replace("Reversal ","") || getReversalLabel(bearScore);
+                    var statusCol = revStatusColor(revStatus.status, "main");
+                    var statusBg  = revStatusColor(revStatus.status, "bg");
+                    var statusBd  = revStatusColor(revStatus.status, "bd");
+
+                    // --- UI Components ---
+                    function IndicatorRow(ind) {
+                      var icon = ind.status==="detected"?"✓":ind.status==="not_detected"?"✗":"—";
+                      var col  = ind.status==="detected"?"#1a6a1a":ind.status==="not_detected"?"#c03030":"#aaa";
+                      return (
+                        <div style={{padding:"8px 14px",borderBottom:"0.5px solid #f5f2ec",display:"flex",gap:10,alignItems:"flex-start"}}>
+                          <span style={{fontSize:13,color:col,fontWeight:700,flexShrink:0,marginTop:1}}>{icon}</span>
+                          <div>
+                            <div style={{fontSize:11,fontWeight:600,color:"#333"}}>{ind.name}
+                              <span style={{fontSize:9,color:col,marginLeft:6,fontWeight:700}}>{ind.status==="detected"?"Detected":ind.status==="not_detected"?"Not detected":"Not enough data"}</span>
+                            </div>
+                            <div style={{fontSize:10,color:"#888",marginTop:2,lineHeight:1.5}}>{ind.explanation}</div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    function StageCard(props) {
+                      var score=props.score, label=getReversalLabel(score), inds=props.inds;
+                      var col = score===null?"#aaa":label==="Confirmed"||label==="Triggered"?"#2a8a2a":label==="Forming"||label==="Watch"?"#b88000":"#888";
+                      var det = inds.filter(function(i){return i.status==="detected";}).length;
+                      var avail = inds.filter(function(i){return i.score!==null;}).length;
+                      return (
+                        <div style={{border:"0.5px solid #e8e4dc",borderRadius:8,marginBottom:8,overflow:"hidden"}}>
+                          <div style={{padding:"10px 14px",background:"#faf8f4",borderBottom:"0.5px solid #e8e4dc",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                            <div>
+                              <span style={{fontSize:12,fontWeight:700,color:"#333"}}>{props.title}</span>
+                              <span style={{fontSize:10,color:"#aaa",marginLeft:8}}>{props.subtitle}</span>
+                            </div>
+                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                              {score!==null&&<span style={{fontSize:13,fontWeight:700,color:col}}>{score}</span>}
+                              <span style={{fontSize:11,fontWeight:600,color:col}}>{label}</span>
+                            </div>
+                          </div>
+                          <div style={{fontSize:10,color:"#888",padding:"6px 14px",background:"#faf8f4",borderBottom:"0.5px solid #f0ede6"}}>{det+" of "+avail+" available indicators detected."}</div>
+                          {inds.map(function(ind,i){ return <div key={i}>{IndicatorRow(ind)}</div>; })}
+                          <div style={{padding:"6px 14px"}}>
+                            <details>
+                              <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4}}>
+                                <span style={{fontSize:9,color:"#ccc"}}>▶</span><span>How is this scored?</span>
+                              </summary>
+                              <div style={{fontSize:10,color:"#666",lineHeight:1.8,padding:"4px 0",whiteSpace:"pre-line"}}>{"Detected = 100 | Not detected = 0 | Unavailable = excluded\n\nStage score = average of available indicators only.\nIf all indicators unavailable, stage shows Not enough data."}</div>
+                            </details>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    function DirectionCard(props) {
+                      // Use stage-aware label (not raw score label)
+                      var dirResult = getDirectionStatus(props.setupScore, props.trigScore, props.confScore, props.bull?"Bullish":"Bearish");
+                      var label = dirResult.label.replace("Reversal ","") || "No Signal";
+                      var score = props.score;
+                      var col   = props.bull ? revLabelColor(label) : revBearLabelColor(label);
+                      var dc    = dirColors(label, props.bull);
+                      // Header label color - weaken bearish when low
+                      var hdrCol = props.bull ? revStatusColor("Bullish "+label, "subtle") : revStatusColor("Bearish "+label, "subtle");
+                      // Stage summary labels
+                      var ssLbl = stageSummaryLabel(props.setupScore);
+                      var stLbl = stageSummaryLabel(props.trigScore);
+                      var scLbl = stageSummaryLabel(props.confScore);
+                      return (
+                        <div style={{border:"0.5px solid "+dc.bd,borderRadius:10,marginBottom:16,overflow:"hidden"}}>
+                          <div style={{background:dc.bg,padding:"12px 16px",borderBottom:"0.5px solid "+dc.bd}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                              <div>
+                                <div style={{fontSize:10,fontWeight:700,color:props.bull?"#2a6a2a":"#888",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:2}}>{props.title}</div>
+                                <div style={{fontSize:11,color:"#888",marginBottom:6}}>{props.subtitle}</div>
+                                {/* Compact stage summary */}
+                                <div style={{fontSize:10,color:"#999"}}>
+                                  {"Setup "}<span style={{fontWeight:700,color:stageSummaryColor(props.setupScore,props.bull)}}>{ssLbl}</span>
+                                  <span style={{margin:"0 5px",color:"#ccc"}}>{"·"}</span>
+                                  {"Trigger "}<span style={{fontWeight:700,color:stageSummaryColor(props.trigScore,props.bull)}}>{stLbl}</span>
+                                  <span style={{margin:"0 5px",color:"#ccc"}}>{"·"}</span>
+                                  {"Confirmation "}<span style={{fontWeight:700,color:stageSummaryColor(props.confScore,props.bull)}}>{scLbl}</span>
+                                </div>
+                              </div>
+                              <div style={{textAlign:"right",flexShrink:0,paddingLeft:12}}>
+                                {score!==null&&<div style={{fontSize:20,fontWeight:800,color:col,lineHeight:1}}>{score}</div>}
+                                <div style={{fontSize:11,color:"#aaa",marginBottom:2}}>{"/ 100"}</div>
+                                <div style={{fontSize:12,fontWeight:700,color:col}}>{label}</div>
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{padding:"0 14px 4px 14px",background:dc.bg,borderBottom:"0.5px solid "+dc.bd}}>
+                            <details>
+                              <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4,padding:"6px 0"}}>
+                                <span style={{fontSize:9,color:"#ccc"}}>▶</span><span>How is this scored?</span>
+                              </summary>
+                              <div style={{fontSize:10,color:"#666",lineHeight:1.8,whiteSpace:"pre-line",paddingBottom:4}}>{"Overall Score = Setup × 40% + Trigger × 30% + Confirmation × 30%\n\nLabel is stage-aware — not just the weighted score:\n  Confirmed:   Setup ≥ 60, Trigger ≥ 60, Confirmation ≥ 70\n  Triggered:   Setup ≥ 60, Trigger ≥ 60, Confirmation ≥ 40\n  Confirming:  Trigger ≥ 60, Confirmation ≥ 40 (setup may have faded)\n  Forming:     Setup ≥ 60, Trigger ≥ 60, Confirmation < 40\n  Spark:       Trigger ≥ 60, Confirmation < 40 (momentum turning early)\n  Watch:       Setup ≥ 40, Trigger < 60\n\nIf a stage is unavailable, remaining stages are reweighted."}</div>
+                            </details>
+                          </div>
+                          <div style={{padding:"10px 14px 0 14px"}}>
+                            {StageCard({title:"Setup", subtitle:"Early conditions forming?", score:props.setupScore, inds:props.setupInds})}
+                            {StageCard({title:"Trigger", subtitle:"Momentum starting to turn?", score:props.trigScore, inds:props.trigInds})}
+                            {StageCard({title:"Confirmation", subtitle:"Price action confirmed?", score:props.confScore, inds:props.confInds})}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Store for left panel
+                    if (!window.__revWatchStatus) window.__revWatchStatus = {};
+                    window.__revWatchStatus[sym] = { status:revStatus.status, bLbl:bLbl, beLbl:beLbl, bullScore:bullScore, bearScore:bearScore };
+
+                    return (
+                      <div>
+                        {/* Summary Card */}
+                        <div style={{border:"0.5px solid "+statusBd,borderRadius:10,background:statusBg,padding:"14px 16px",marginBottom:16}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                            <div style={{flex:1}}>
+                              <div style={{fontSize:10,fontWeight:700,color:"#999",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>Reversal Watch</div>
+                              <div style={{fontSize:14,fontWeight:700,color:statusCol,marginBottom:4}}>{revStatus.status}</div>
+                              <div style={{fontSize:11,color:"#666",lineHeight:1.5,marginBottom:8}}>{revStatus.explanation}</div>
+                              <div style={{fontSize:11,color:"#888"}}>
+                                <span>{"Bullish: "}</span><span style={{fontWeight:700,color:revLabelColor(bLbl)}}>{bLbl}</span>
+                                <span style={{margin:"0 8px",color:"#ccc"}}>{"·"}</span>
+                                <span>{"Bearish: "}</span><span style={{fontWeight:700,color:revBearLabelColor(beLbl)}}>{beLbl}</span>
+                              </div>
+                            </div>
+                            {revStatus.primaryScore!==null&&(
+                              <div style={{textAlign:"right",flexShrink:0,paddingLeft:16}}>
+                                <div style={{fontSize:32,fontWeight:800,color:statusCol,lineHeight:1}}>{revStatus.primaryScore}</div>
+                                <div style={{fontSize:11,color:"#aaa",marginTop:2}}>{"/ 100"}</div>
+                              </div>
+                            )}
+                          </div>
+                          <div style={{marginTop:8}}>
+                            <details>
+                              <summary style={{fontSize:10,color:"#bbb",cursor:"pointer",outline:"none",listStyle:"none",display:"flex",alignItems:"center",gap:4}}>
+                                <span style={{fontSize:9,color:"#ccc"}}>▶</span><span>How is this scored?</span>
+                              </summary>
+                              <div style={{fontSize:10,color:"#666",lineHeight:1.8,padding:"4px 0",whiteSpace:"pre-line"}}>{"The overall status compares Bullish and Bearish Reversal scores.\n\nNo Clear Reversal: both scores < 21\nMixed Reversal Signals: both ≥ 40 and within 15 points of each other\nBullish/Bearish Reversal: one side leads by more than 15 points\n\nNew practical stages (checked before score-gap logic):\n  Bullish Reversal Spark: trigger ≥ 60, confirmation < 40, bullish not clearly dominated\n  Bullish Reversal Confirming: trigger ≥ 60, confirmation ≥ 40, even if setup has faded\n\nPrimary score = higher of Bullish or Bearish score.\nBullish ladder: Spark → Watch → Forming → Triggered → Confirming → Confirmed"}</div>
+                            </details>
+                          </div>
+                        </div>
+
+                        {DirectionCard({bull:true, title:"Bullish Reversal Watch", subtitle:"Could a bullish reversal be forming?",
+                          score:bullScore, setupScore:bsScore, trigScore:btScore, confScore:bcScore,
+                          setupInds:bsInds, trigInds:btInds, confInds:bcInds})}
+
+                        {DirectionCard({bull:false, title:"Bearish Reversal Watch", subtitle:"Could a bearish reversal be forming?",
+                          score:bearScore, setupScore:dsScore, trigScore:dtScore, confScore:dcScore,
+                          setupInds:dsInds, trigInds:dtInds, confInds:dcInds})}
+
+                        <div style={{fontSize:10,color:"#aaa",lineHeight:1.6,padding:"10px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4dc"}}>
+                          {"Reversal Watch is based on price and volume analysis only. It does not guarantee a reversal will occur. Not financial advice."}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* VOLUME SPIKE TAB */}
+
+                  
 
                   {insightTab === "whale" && (function() {
                     var rawAggs = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
@@ -9128,7 +11291,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.72</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.74</span>
           </div>
         </div>
 
