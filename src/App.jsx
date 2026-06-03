@@ -3156,8 +3156,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
     var adminTabs = ["addlinfo", "debug", "admin"];
     if (adminTabs.indexOf(id) !== -1) return;
     setInsightTab(id);
-    setChartCollapsed(true);
-    if (window.innerWidth <= 768) setMobilePanel("right");
+    // Only collapse chart on mobile — on desktop the chart stays visible
+    if (window.innerWidth <= 768) { setChartCollapsed(true); setMobilePanel("right"); }
   };
 
   // Mount Clerk UserButton when signed in
@@ -4645,7 +4645,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.75</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.76</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4699,7 +4699,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.75</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.76</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6819,89 +6819,85 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         </div>
                       );
                     }
-                    function fmtSnap(v, suffix) { return v !== null && v !== undefined ? (typeof v === "number" ? v.toFixed(2) + (suffix||"") : v) : "N/A"; }
-                    function SnapRow(props) {
-                      return (
-                        <div style={{ display:"flex", justifyContent:"space-between", padding:"3px 0", borderBottom:"1px solid #f5f2ec", fontSize:11 }}>
-                          <span style={{ color:"#aaa" }}>{props.label}</span>
-                          <span style={{ color:"#555", fontWeight:600 }}>{props.val}</span>
-                        </div>
-                      );
-                    }
-                    function VerdictBanner(props) {
-                      var vl = (props.verdict||"").toLowerCase().replace(/\*/g,"").trim();
-                      var isGood = vl.includes("exceptional")||vl.includes("good")||vl.includes("buy")||vl.includes("bull");
-                      var isBad  = vl.includes("avoid")||vl.includes("strong bear");
-                      var bg     = isGood?"#EAF3DE":isBad?"#FCEBEB":"#FAEEDA";
-                      var border = isGood?"#7abd00":isBad?"#e08080":"#d4a800";
-                      var fg     = isGood?"#1a6a1a":isBad?"#c03030":"#b88000";
-                      var score  = vl.includes("exceptional")?5:vl.includes("good")?4:vl.includes("fair")?3:vl.includes("stretched")?2:vl.includes("avoid")?1:vl.includes("strong buy")||vl.includes("strong bull")?5:vl.includes("buy")||vl.includes("bull")?4:vl.includes("hold")||vl.includes("neutral")?3:vl.includes("caution")||vl.includes("bear")?2:1;
-                      return (
-                        <div style={{ padding:"12px 14px", background:bg, borderRadius:8, marginBottom:12, border:"0.5px solid "+border }}>
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
-                            <div>
-                              <div style={{ fontSize:10, color:fg, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2, opacity:0.8 }}>{props.title}</div>
-                              <div style={{ fontSize:16, fontWeight:700, color:fg }}>{props.verdict||"--"}</div>
-                            </div>
-                            <div style={{ display:"flex", gap:3 }}>
-                              {[1,2,3,4,5].map(function(d){ return <span key={d} style={{ display:"inline-block", width:9, height:9, borderRadius:"50%", background:d<=score?fg:"#ddd" }}></span>; })}
-                            </div>
-                          </div>
-                          {props.sub && <div style={{ fontSize:11, color:fg, opacity:0.85 }}>{props.sub}</div>}
-                        </div>
-                      );
-                    }
                     var cachedAtFundStr = aiFundCachedAt ? new Date(aiFundCachedAt).toLocaleDateString() : null;
+                    // Derive verdict card colours using same system as Moat/Financial
+                    var _faCard = aiFundResult ? summaryCardDark(aiFundResult.verdict) : { bg:"#1a1a1a", bd:"#333", text:"#666" };
+                    var _faScore = (function(v){
+                      if (!v) return 0;
+                      var vl = (v+"").toLowerCase().replace(/\*/g,"").trim();
+                      if (vl.includes("exceptional")) return 5;
+                      if (vl.includes("good"))        return 4;
+                      if (vl.includes("fair"))        return 3;
+                      if (vl.includes("stretched"))   return 2;
+                      if (vl.includes("avoid"))       return 1;
+                      if (vl.includes("strong buy")||vl.includes("strong bull")) return 5;
+                      if (vl.includes("buy")||vl.includes("bull"))               return 4;
+                      if (vl.includes("hold")||vl.includes("neutral"))           return 3;
+                      if (vl.includes("caution")||vl.includes("bear"))           return 2;
+                      return 0;
+                    })(aiFundResult && aiFundResult.verdict);
                     return (
                       <div>
-                        {/* Fundamental AI Card */}
-                        <div style={{ marginBottom:24 }}>
-                          <div style={{ borderBottom:"2px solid #e0dbd0", marginBottom:12 }}>
-                            <span style={{ fontSize:12, fontWeight:700, color:"#111", paddingBottom:6, borderBottom:"2px solid #111", display:"inline-block", marginBottom:"-2px" }}>Fundamental AI</span>
-                            {isAdmin && cachedAtFundStr && <span style={{ fontSize:10, color:"#aaa", marginLeft:8 }}>{"cached " + cachedAtFundStr + " (30d TTL)"}</span>}
+                        {/* ── Verdict card — matches Moat/Financial pattern ─────────────── */}
+                        {aiFundLoading && (
+                          <div style={{ textAlign:"center", padding:"20px 0" }}>
+                            <div style={{ width:20, height:20, border:"3px solid #e0dbd0", borderTop:"3px solid #c8f000", borderRadius:"50%", animation:"spin 0.8s linear infinite", margin:"0 auto 8px" }}></div>
+                            <div style={{ fontSize:12, color:"#aaa" }}>Analysing fundamentals...</div>
                           </div>
-                          {aiFundLoading && (
-                            <div style={{ textAlign:"center", padding:"20px 0" }}>
-                              <div style={{ width:20, height:20, border:"3px solid #e0dbd0", borderTop:"3px solid #c8f000", borderRadius:"50%", animation:"spin 0.8s linear infinite", margin:"0 auto 8px" }}></div>
-                              <div style={{ fontSize:12, color:"#aaa" }}>Analysing fundamentals...</div>
+                        )}
+                        {!aiFundLoading && aiFundResult && (
+                          <div>
+                            {/* Verdict card — same structure as Moat classification card */}
+                            <div style={{ background:_faCard.bg, border:"0.5px solid "+_faCard.bd, borderRadius:10, padding:"14px 16px", marginBottom:16 }}>
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                                <div>
+                                  <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>Fundamental Analysis</div>
+                                  <div style={{ fontSize:15, fontWeight:700, color:_faCard.text }}>{aiFundResult.verdict}</div>
+                                </div>
+                                <div style={{ flexShrink:0, paddingLeft:16, textAlign:"right" }}>
+                                  <div style={{ display:"flex", gap:3, justifyContent:"flex-end" }}>
+                                    {[1,2,3,4,5].map(function(d){ return <span key={d} style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:d<=_faScore?_faCard.text:"#333", marginRight:2 }} />; })}
+                                  </div>
+                                </div>
+                              </div>
+                              {aiFundResult.confidence && (
+                                <div style={{ fontSize:11, color:"#aaa", lineHeight:1.5, marginBottom:8 }}>{aiFundResult.confidence}</div>
+                              )}
+                              {isAdmin && cachedAtFundStr && (
+                                <div style={{ borderTop:"0.5px solid "+_faCard.bd+"44", paddingTop:6, marginTop:4 }}>
+                                  <span style={{ fontSize:9, color:"#555" }}>{"Cached " + cachedAtFundStr + " (30d TTL)"}</span>
+                                </div>
+                              )}
                             </div>
-                          )}
-                          {!aiFundLoading && aiFundResult && (
-                            <div>
-                              <VerdictBanner title="Fundamental Verdict" verdict={aiFundResult.verdict} confidence={aiFundResult.confidence} />
-                              {aiFundResult.strength && (
-                                <div style={{ marginBottom:8, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
-                                  <div style={{ fontSize:10, color:"#1a6a1a", fontWeight:700, marginBottom:2 }}>KEY STRENGTH</div>
-                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.5 }}>{aiFundResult.strength}</div>
-                                </div>
-                              )}
-                              {aiFundResult.risk && (
-                                <div style={{ marginBottom:8, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
-                                  <div style={{ fontSize:10, color:"#c03030", fontWeight:700, marginBottom:2 }}>KEY RISK</div>
-                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.5 }}>{aiFundResult.risk}</div>
-                                </div>
-                              )}
-                              {aiFundResult.summary && (
-                                <div style={{ marginBottom:12, padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #e0dbd0" }}>
-                                  <div style={{ fontSize:10, color:"#111", fontWeight:700, marginBottom:4 }}>SUMMARY</div>
-                                  <div style={{ fontSize:12, color:"#111", lineHeight:1.7 }}>{aiFundResult.summary}</div>
-                                </div>
-                              )}
-                              {isAdmin && <div style={{ marginTop:12 }}>
-                                <div style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Exact prompt sent to AI</div>
-                                {aiFundResult.promptSent
-                                  ? <pre style={{ padding:"10px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:10, color:"#555", lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word", margin:0, fontFamily:"monospace" }}>{aiFundResult.promptSent}</pre>
-                                  : <div style={{ padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:11, color:"#aaa", fontStyle:"italic" }}>{"Prompt not available for cached results. Clear cache and reload to see the full prompt."}</div>
-                                }
-                              </div>}
-                            </div>
-                          )}
-                          {!aiFundLoading && !aiFundResult && (
-                            <div style={{ textAlign:"center", padding:"20px 0", color:"#aaa", fontSize:12 }}>Fundamental AI data not yet available.</div>
-                          )}
-                        </div>
 
-                                              </div>
+                            {/* ── Sections — same borderBottom pattern as Moat ───────────── */}
+                            {[
+                              { key:"strength", label:"Key Strength",  accent:"#1a6a1a" },
+                              { key:"risk",     label:"Key Risk",       accent:"#c03030" },
+                              { key:"summary",  label:"Summary",        accent:"#444"    },
+                            ].filter(function(s){ return aiFundResult[s.key]; }).map(function(s, idx, arr) {
+                              return (
+                                <div key={s.key} style={{ marginBottom:12, paddingBottom:12, borderBottom: idx < arr.length-1 ? "1px solid #f0ede6" : "none" }}>
+                                  <div style={{ fontSize:10, fontWeight:700, color:s.accent, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4 }}>{s.label}</div>
+                                  <div style={{ fontSize:12, color:"#444", lineHeight:1.65 }}>{aiFundResult[s.key]}</div>
+                                </div>
+                              );
+                            })}
+
+                            {/* ── Admin: prompt ───────────────────────────────────────────── */}
+                            {isAdmin && <div style={{ marginTop:12, paddingTop:10, borderTop:"1px solid #f0ede6" }}>
+                              <div style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Exact prompt sent to AI</div>
+                              {aiFundResult.promptSent
+                                ? <pre style={{ padding:"10px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:10, color:"#555", lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word", margin:0, fontFamily:"monospace" }}>{aiFundResult.promptSent}</pre>
+                                : <div style={{ padding:"8px 12px", background:"#faf8f4", borderRadius:6, border:"0.5px solid #ede9e0", fontSize:11, color:"#aaa", fontStyle:"italic" }}>{"Prompt not available for cached results."}</div>
+                              }
+                            </div>}
+                          </div>
+                        )}
+                        {!aiFundLoading && !aiFundResult && (
+                          <div style={{ paddingTop:20, textAlign:"center", color:"#888", fontSize:12 }}>Fundamental AI data not yet available.</div>
+                        )}
+                      </div>
                     );
                   })()}
 
@@ -11515,7 +11511,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.75</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.76</span>
           </div>
         </div>
 
