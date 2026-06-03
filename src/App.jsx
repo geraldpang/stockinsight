@@ -3156,7 +3156,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
     var adminTabs = ["addlinfo", "debug", "admin"];
     if (adminTabs.indexOf(id) !== -1) return;
     setInsightTab(id);
-    // Note: chart/trend bar is intentionally not collapsed — keep it visible
+    setChartCollapsed(true);
     if (window.innerWidth <= 768) setMobilePanel("right");
   };
 
@@ -4645,7 +4645,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.71</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.72</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4699,7 +4699,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.71</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.72</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6437,14 +6437,16 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         }
 
                         var tc = toneColor(rba.tone);
+                        // Use summaryCardDark for the verdict card so colour matches the pill box
+                        var rbaCard = summaryCardDark(rba.verdict);
 
                         return (
                           <div style={{ padding:"4px 0" }}>
 
                             {/* ── Verdict + Analysis card ─────────────────── */}
-                            <div style={{ background: summaryCardDark(rba.verdict).bg, border:"0.5px solid "+tc, borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
+                            <div style={{ background: rbaCard.bg, border:"0.5px solid "+rbaCard.bd, borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
                               <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>{"Rule Based Analytics"}</div>
-                              <div style={{ fontSize:16, fontWeight:800, color:tc, marginBottom:12 }}>{rba.verdict}</div>
+                              <div style={{ fontSize:16, fontWeight:800, color:rbaCard.text, marginBottom:12 }}>{rba.verdict}</div>
 
                               {/* Four-factor row — labels only, no scores */}
                               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:8, marginBottom:14 }}>
@@ -6455,7 +6457,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                   ["Smart Money", "smartMoney", rba.factorLabels.smartMoney],
                                 ].map(function(f) {
                                   return (
-                                    <div key={f[0]} style={{ background:"#0e0e0c", borderRadius:6, padding:"6px 8px" }}>
+                                    <div key={f[0]} style={{ background:"rgba(0,0,0,0.06)", borderRadius:6, padding:"6px 8px" }}>
                                       <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>{f[0]}</div>
                                       <div style={{ fontSize:11, fontWeight:700, color:factorColor(f[1],f[2]), lineHeight:1.3 }}>{f[2]||"—"}</div>
                                     </div>
@@ -6479,18 +6481,18 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 return (
                                   <div>
                                     <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>{"Analysis"}</div>
-                                    <div style={{ fontSize:14, color:"#c0bdb4", lineHeight:1.7, marginBottom:10 }}>{bp(rba.analysis)}</div>
-                                    <div style={{ fontSize:14, color:"#c0bdb4", lineHeight:1.7, marginBottom:10 }}>{bp(rba.keyLevels)}</div>
-                                    <div style={{ fontSize:14, color:"#c0bdb4", lineHeight:1.7, marginBottom:7 }}>{bp(rba.smartMoneyLine)}</div>
-                                    <div style={{ fontSize:14, color:"#c0bdb4", lineHeight:1.7 }}>{bp(rba.technicalIndicatorsLine)}</div>
+                                    <div style={{ fontSize:13, color:"#333", lineHeight:1.7, marginBottom:10 }}>{bp(rba.analysis)}</div>
+                                    <div style={{ fontSize:13, color:"#333", lineHeight:1.7, marginBottom:10 }}>{bp(rba.keyLevels)}</div>
+                                    <div style={{ fontSize:13, color:"#333", lineHeight:1.7, marginBottom:7 }}>{bp(rba.smartMoneyLine)}</div>
+                                    <div style={{ fontSize:13, color:"#333", lineHeight:1.7 }}>{bp(rba.technicalIndicatorsLine)}</div>
                                   </div>
                                 );
                               })()}
                             </div>
 
                             {/* ── Key Levels card — factual prices only ────── */}
-                            <div style={{ background:"#161614", border:"0.5px solid #2a2a28", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
-                              <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>{"Key Levels"}</div>
+                            <div style={{ marginBottom:14, borderBottom:"1px solid #f0ede6", paddingBottom:14 }}>
+                              <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>{"Key Levels"}</div>
 
                               {/* Close / Breakout / Invalidation */}
                               <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
@@ -6499,7 +6501,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                   ["Breakout",     rba.breakoutLevel     ? "$"+rba.breakoutLevel.toFixed(2)     : null, "#7abd00"],
                                   ["Invalidation", rba.invalidationLevel ? "$"+rba.invalidationLevel.toFixed(2) : null, "#e05050"],
                                 ].filter(function(r){ return r[1]; }).map(function(r,i){
-                                  return <div key={i} style={{ background:"#0e0e0c", borderRadius:6, padding:"6px 12px" }}>
+                                  return <div key={i} style={{ background:"#f5f2ed", borderRadius:6, padding:"6px 12px" }}>
                                     <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>{r[0]}</div>
                                     <div style={{ fontSize:13, fontWeight:700, color:r[2] }}>{r[1]}</div>
                                   </div>;
@@ -6511,7 +6513,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 <div style={{ marginBottom:10 }}>
                                   <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>{"Support"}</div>
                                   <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-                                    {rba.supportLevels.map(function(v,i){ return <span key={i} style={{ background:"#200808", border:"0.5px solid #e05050", borderRadius:4, padding:"3px 9px", fontSize:12, fontWeight:600, color:"#e05050" }}>{"$"+v.toFixed(2)}</span>; })}
+                                    {rba.supportLevels.map(function(v,i){ return <span key={i} style={{ background:"#fff0f0", border:"0.5px solid #e05050", borderRadius:4, padding:"3px 9px", fontSize:12, fontWeight:600, color:"#c03030" }}>{"$"+v.toFixed(2)}</span>; })}
                                   </div>
                                 </div>
                               )}
@@ -6521,25 +6523,25 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 <div>
                                   <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>{"Resistance"}</div>
                                   <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-                                    {rba.resistanceLevels.map(function(v,i){ return <span key={i} style={{ background:"#0d200d", border:"0.5px solid #7abd00", borderRadius:4, padding:"3px 9px", fontSize:12, fontWeight:600, color:"#7abd00" }}>{"$"+v.toFixed(2)}</span>; })}
+                                    {rba.resistanceLevels.map(function(v,i){ return <span key={i} style={{ background:"#e6f4e6", border:"0.5px solid #7abd00", borderRadius:4, padding:"3px 9px", fontSize:12, fontWeight:600, color:"#1a6a1a" }}>{"$"+v.toFixed(2)}</span>; })}
                                   </div>
                                 </div>
                               )}
                             </div>
 
                             {/* ── Watch Zone card ──────────────────────────── */}
-                            <div style={{ background:"#161614", border:"0.5px solid #2a2a28", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
+                            <div style={{ marginBottom:14, borderBottom:"1px solid #f0ede6", paddingBottom:14 }}>
                               <div style={{ fontSize:10, fontWeight:700, color:"#6090d0", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>{"Watch Zone"}</div>
                               {rba.potentialEntryZone && (
                                 <div style={{ fontSize:14, fontWeight:800, color:"#6090d0", marginBottom:8 }}>{rba.potentialEntryZone}</div>
                               )}
-                              <div style={{ fontSize:12, color:"#7090a8", lineHeight:1.7 }}>{rba.entryZoneText}</div>
+                              <div style={{ fontSize:12, color:"#555", lineHeight:1.7 }}>{rba.entryZoneText}</div>
                             </div>
 
                             {/* ── Summary card ─────────────────────────────── */}
-                            <div style={{ background:"#161614", border:"0.5px solid #2a2a28", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
-                              <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>{"Summary"}</div>
-                              <div style={{ fontSize:13, color:"#aaa", lineHeight:1.8 }}>{rba.summary}</div>
+                            <div style={{ marginBottom:14 }}>
+                              <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>{"Summary"}</div>
+                              <div style={{ fontSize:13, color:"#444", lineHeight:1.8 }}>{rba.summary}</div>
                             </div>
 
                             {/* ── Historical Confidence ─────────────────────── */}
@@ -9126,7 +9128,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.71</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.72</span>
           </div>
         </div>
 
