@@ -2231,6 +2231,7 @@ export function SimulatorPage() {
           futureReturn10d: ret10d,
           futureReturn20d: ret20d,
           futureReturn30d: ret30d,
+          futureReturn90d: (i+90 < bars.length) ? simPctReturn(bar.close, bars[i+90].close) : null,
           result: ret != null ? (ret >= 0 ? 'Win' : 'Loss') : '—',
           drivers: drv,
           driverValues: drvV,
@@ -2812,6 +2813,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [aiTechResult,  setAiTechResult]  = useState(null); // { verdict, stVerdict, confidence, keyLevel, summary, dataSnapshot }
   const [aiTechLoading, setAiTechLoading] = useState(false);
   const [ruleAnalytics, setRuleAnalytics] = useState(null); // Rule Based Analytics output
+  const [rbaConfResult,  setRbaConfResult]  = useState(null);
+  const [rbaConfLoading, setRbaConfLoading] = useState(false);
+  const [rbaConfError,   setRbaConfError]   = useState(null);
+  const [rbaConfSym,     setRbaConfSym]     = useState(null);
+  const [rbaConfPeriod,  setRbaConfPeriod]  = useState('20D');
   const [aiTechRefreshing, setAiTechRefreshing] = useState(false);
   const [aiTechCachedAt,setAiTechCachedAt]= useState(null);
 
@@ -3252,7 +3258,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); setRuleAnalytics(null); window.__aiFundRunning=null; window.__aiTechRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; if(window.__trendSignalWritten)delete window.__trendSignalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; if(window.__rbaFullSnap)delete window.__rbaFullSnap[sym]; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); setRuleAnalytics(null); setRbaConfResult(null); setRbaConfLoading(false); setRbaConfError(null); setRbaConfSym(null); window.__aiFundRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; if(window.__trendSignalWritten)delete window.__trendSignalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; if(window.__rbaFullSnap)delete window.__rbaFullSnap[sym]; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -4639,7 +4645,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.69</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.70</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4693,7 +4699,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.69</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.70</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6530,10 +6536,262 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             </div>
 
                             {/* ── Summary card ─────────────────────────────── */}
-                            <div style={{ background:"#161614", border:"0.5px solid #2a2a28", borderRadius:10, padding:"14px 16px" }}>
+                            <div style={{ background:"#161614", border:"0.5px solid #2a2a28", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
                               <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>{"Summary"}</div>
                               <div style={{ fontSize:13, color:"#aaa", lineHeight:1.8 }}>{rba.summary}</div>
                             </div>
+
+                            {/* ── Historical Confidence ─────────────────────── */}
+                            {(function(){
+                              // Helper: get return for selected period
+                              function getPeriodReturn(row, period) {
+                                if (period==='5D')  return row.futureReturn5d  != null ? row.futureReturn5d  : null;
+                                if (period==='10D') return row.futureReturn10d != null ? row.futureReturn10d : null;
+                                if (period==='20D') return row.futureReturn20d != null ? row.futureReturn20d : (row.futureReturn != null ? row.futureReturn : null);
+                                if (period==='30D') return row.futureReturn30d != null ? row.futureReturn30d : null;
+                                if (period==='90D') return row.futureReturn90d != null ? row.futureReturn90d : null;
+                                return row.futureReturn != null ? row.futureReturn : null;
+                              }
+                              function confLabel(n) {
+                                return n>=50?'Strong Sample':n>=25?'Good Sample':n>=10?'Medium Sample':n>=5?'Low Sample':'Very Low Sample';
+                              }
+                              function confColor(n) { return n>=25?'#7abd00':n>=10?'#6090d0':n>=5?'#b88000':'#e05050'; }
+                              function qualLabel(sigs, wr, med, avg) {
+                                if (sigs<5) return 'Very Low Sample';
+                                if (sigs>=25&&wr>=55&&med>0&&avg>0) return 'Worked Well';
+                                if (sigs>=10&&wr>=55&&med>0) return 'Promising';
+                                if (sigs<10&&wr>=55&&med>0) return 'Interesting';
+                                if (sigs>=10&&wr>=45&&wr<55) return 'Mixed';
+                                if (med<0||wr<45) return 'Weak';
+                                return 'Mixed';
+                              }
+                              function qualColor(q) { return q==='Worked Well'?'#7abd00':q==='Promising'?'#6090d0':q==='Interesting'?'#6090d0':q==='Mixed'?'#b88000':'#e05050'; }
+                              function summariseRows(rows2, period) {
+                                var rets = rows2.map(function(r){ return getPeriodReturn(r, period); }).filter(function(v){ return v!=null&&!isNaN(v); });
+                                if (!rets.length) return null;
+                                var wins = rets.filter(function(v){ return v>=0; }).length;
+                                var avg  = rets.reduce(function(a,b){return a+b;},0)/rets.length;
+                                var sorted = rets.slice().sort(function(a,b){return a-b;});
+                                var med  = sorted.length%2===0 ? (sorted[sorted.length/2-1]+sorted[sorted.length/2])/2 : sorted[Math.floor(sorted.length/2)];
+                                return { signals:rets.length, winRate:wins/rets.length*100, avgReturn:avg, medianReturn:med,
+                                  bestReturn:Math.max.apply(null,rets), worstReturn:Math.min.apply(null,rets) };
+                              }
+                              function doRbaConfCheck() {
+                                if (rbaConfLoading) return;
+                                var rbaFg = rba.factorGroups || {};
+                                if (!rbaFg.rawResult) return;
+                                setRbaConfLoading(true); setRbaConfError(null); setRbaConfResult(null); setRbaConfSym(sym);
+                                var endMs = Date.now(), startMs = endMs - 2.5*365*24*3600*1000;
+                                var fmt = function(d){ var dd=new Date(d); return dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2); };
+                                fetchYahooHistoricalBars(sym, fmt(startMs), fmt(endMs), 20)
+                                  .then(function(bars){
+                                    if (!bars||bars.length<300) throw new Error('Not enough historical data.');
+                                    var MIN_PRIOR=250, MAX_ROWS=600, rows2=[];
+                                    for (var i=MIN_PRIOR; i<bars.length&&rows2.length<MAX_ROWS; i++) {
+                                      var bar=bars[i];
+                                      var slice=bars.slice(0,i+1);
+                                      var ind=buildHistoricalIndicators(slice);
+                                      var hw=simRolling52(slice);
+                                      var ohlcv2=slice.map(function(b){ return {date:b.date,open:b.open,high:b.high,low:b.low,close:b.close,volume:b.volume}; });
+                                      var snap2; try{ snap2=calculateTechnicalSignalSnapshot({ticker:sym,date:bar.date,ohlcv:ohlcv2,indicators:ind,crossData:null,meta:{price:bar.close,hi52:hw.hi52,lo52:hw.lo52}}); }catch(e){ continue; }
+                                      try {
+                                        var smfB=ohlcv2.map(function(b){ return {c:b.close,v:b.volume,h:b.high,l:b.low,o:b.open,t:b.date}; });
+                                        var smfV=validateSmfOHLCV(smfB);
+                                        var tS2=smfV.canCalculateTodaySignal?calcSmfTodaySignal(smfB):null;
+                                        var fS2=smfB.length>=6?calcSmfFiveDaySignal(smfB):null;
+                                        var dS2=smfV.hasThirtyDays?calcSmfThirtyDaySignal(smfB):null;
+                                        var sc2=calcSmfSummaryCard(tS2?tS2.score:0,fS2?fS2.score:0,dS2?dS2.score:0,tS2,fS2,dS2);
+                                        if (sc2&&sc2.smartMoneyDecision){ snap2=Object.assign({},snap2); snap2.smartMoneyFlow=Object.assign({},snap2.smartMoneyFlow,{smartMoneyDecision:sc2.smartMoneyDecision,status:sc2.status||(snap2.smartMoneyFlow&&snap2.smartMoneyFlow.status)}); }
+                                      } catch(e){}
+                                      var rba2; try{ rba2=generateRuleBasedAnalytics(Object.assign({},snap2,{ohlcv:ohlcv2,indicators:ind,meta:{price:bar.close,hi52:hw.hi52,lo52:hw.lo52}})); }catch(e){ continue; }
+                                      if (!rba2) continue;
+                                      var fg2=rba2.factorGroups||{};
+                                      rows2.push({ date:bar.date, close:bar.close,
+                                        rawResult:fg2.rawResult||null, finalResult:fg2.finalResult||null, trendCondition:fg2.trendCondition||null,
+                                        momentumStatus:fg2.momentumStatus||null, reversalStatus:fg2.reversalStatus||null, smartMoneyStatus:fg2.smartMoneyStatus||null,
+                                        futureReturn5d:  i+5  <bars.length?simPctReturn(bar.close,bars[i+5].close):null,
+                                        futureReturn10d: i+10 <bars.length?simPctReturn(bar.close,bars[i+10].close):null,
+                                        futureReturn20d: i+20 <bars.length?simPctReturn(bar.close,bars[i+20].close):null,
+                                        futureReturn30d: i+30 <bars.length?simPctReturn(bar.close,bars[i+30].close):null,
+                                        futureReturn90d: i+90 <bars.length?simPctReturn(bar.close,bars[i+90].close):null,
+                                      });
+                                    }
+                                    if (!rows2.length) throw new Error('No signals generated from historical data.');
+                                    setRbaConfResult({ rows:rows2, ticker:sym });
+                                  })
+                                  .catch(function(e){ setRbaConfError(e.message||'Check could not be completed.'); })
+                                  .then(function(){ setRbaConfLoading(false); });
+                              }
+                              var rbaFg = rba.factorGroups || {};
+                              var curRaw  = rbaFg.rawResult || null;
+                              var curTrend= rbaFg.trendCondition || null;
+                              var curMom  = rbaFg.momentumStatus || null;
+                              var curRev  = rbaFg.reversalStatus || null;
+                              var curSmf  = rbaFg.smartMoneyStatus || null;
+                              var hasConf = rbaConfResult && rbaConfResult.ticker === sym;
+                              var confRows= hasConf ? rbaConfResult.rows : [];
+                              var period  = rbaConfPeriod;
+                              // Current signal card data
+                              var curMatchRC = hasConf ? confRows.filter(function(r){ return r.rawResult===curRaw && r.trendCondition===curTrend; }) : [];
+                              var curSummRC  = summariseRows(curMatchRC, period);
+                              var cur3sig    = hasConf ? confRows.filter(function(r){ return r.momentumStatus===curMom && r.reversalStatus===curRev && r.smartMoneyStatus===curSmf && r.rawResult===curRaw; }) : [];
+                              var cur3Sum    = summariseRows(cur3sig, period);
+                              // Top 10 tables
+                              function buildRCGroups(rows3) {
+                                var map={};
+                                rows3.forEach(function(r){
+                                  if (!r.rawResult||!r.trendCondition) return;
+                                  var k=r.rawResult+'|'+r.trendCondition;
+                                  if (!map[k]) map[k]={rawResult:r.rawResult,trendCondition:r.trendCondition,rets:[]};
+                                  var v=getPeriodReturn(r,period); if(v!=null&&!isNaN(v)){ map[k].rets.push(v); }
+                                });
+                                return Object.values(map).map(function(g){
+                                  var s=summariseRows(g.rets.map(function(v){ return {futureReturn:v,futureReturn20d:v}; }), '20D') ||
+                                        {signals:0,winRate:0,avgReturn:0,medianReturn:0,bestReturn:0,worstReturn:0};
+                                  return Object.assign({},g,s);
+                                }).filter(function(g){ return g.signals>=5; })
+                                  .sort(function(a,b){ return b.medianReturn-a.medianReturn || b.winRate-a.winRate; });
+                              }
+                              function build3SigGroups(rows3) {
+                                var map={};
+                                rows3.forEach(function(r){
+                                  if (!r.momentumStatus||!r.reversalStatus||!r.smartMoneyStatus) return;
+                                  var k=r.momentumStatus+'|'+r.reversalStatus+'|'+r.smartMoneyStatus+'|'+(r.rawResult||'?');
+                                  if (!map[k]) map[k]={momentumStatus:r.momentumStatus,reversalStatus:r.reversalStatus,smartMoneyStatus:r.smartMoneyStatus,rawResult:r.rawResult||'—',rets:[]};
+                                  var v=getPeriodReturn(r,period); if(v!=null&&!isNaN(v)){ map[k].rets.push(v); }
+                                });
+                                return Object.values(map).map(function(g){
+                                  var rets=g.rets, n=rets.length;
+                                  if (!n) return null;
+                                  var wins=rets.filter(function(v){return v>=0;}).length;
+                                  var avg=rets.reduce(function(a,b){return a+b;},0)/n;
+                                  var sorted=rets.slice().sort(function(a,b){return a-b;});
+                                  var med=sorted.length%2===0?(sorted[n/2-1]+sorted[n/2])/2:sorted[Math.floor(n/2)];
+                                  return Object.assign({},g,{signals:n,winRate:wins/n*100,avgReturn:avg,medianReturn:med,bestReturn:Math.max.apply(null,rets),worstReturn:Math.min.apply(null,rets)});
+                                }).filter(Boolean).filter(function(g){ return g.signals>=5; })
+                                  .sort(function(a,b){ return b.medianReturn-a.medianReturn || b.winRate-a.winRate; });
+                              }
+                              var rcGroups  = hasConf ? buildRCGroups(confRows)   : [];
+                              var sigGroups = hasConf ? build3SigGroups(confRows) : [];
+                              var curKeyRC  = curRaw+'|'+curTrend;
+                              var curKey3   = curMom+'|'+curRev+'|'+curSmf+'|'+curRaw;
+                              function StatRow(props) {
+                                var s=props.stats;
+                                if (!s) return <div style={{fontSize:11,color:'#555'}}>{'No matching data for this period.'}</div>;
+                                var cl=confLabel(s.signals), cc=confColor(s.signals), ql=qualLabel(s.signals,s.winRate,s.medianReturn,s.avgReturn), qc=qualColor(ql);
+                                return <div style={{display:'flex',flexWrap:'wrap',gap:14,padding:'8px 10px',background:'rgba(0,0,0,0.15)',borderRadius:6,marginTop:8}}>
+                                  {[['Signals',''+s.signals,'#aaa'],['Win Rate',s.winRate.toFixed(1)+'%',s.winRate>=50?'#7abd00':'#e05050'],['Avg',s.avgReturn>=0?'+'+s.avgReturn.toFixed(2)+'%':s.avgReturn.toFixed(2)+'%',s.avgReturn>=0?'#7abd00':'#e05050'],['Median',s.medianReturn>=0?'+'+s.medianReturn.toFixed(2)+'%':s.medianReturn.toFixed(2)+'%',s.medianReturn>=0?'#7abd00':'#e05050'],['Best','+'+s.bestReturn.toFixed(2)+'%','#7abd00'],['Worst',s.worstReturn.toFixed(2)+'%','#e05050'],['Confidence',cl,cc],['Quality',ql,qc]].map(function(f){
+                                    return <div key={f[0]}><div style={{fontSize:8,color:'#555',textTransform:'uppercase',marginBottom:2}}>{f[0]}</div><div style={{fontSize:12,fontWeight:700,color:f[2]}}>{f[1]}</div></div>;
+                                  })}
+                                </div>;
+                              }
+                              return (
+                                <div style={{marginTop:14}}>
+                                  <div style={{background:'#161614',border:'0.5px solid #2a2a28',borderRadius:10,padding:'14px 16px'}}>
+                                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                                      <div style={{fontSize:10,fontWeight:700,color:'#666',textTransform:'uppercase',letterSpacing:'0.08em'}}>{'Historical Confidence'}</div>
+                                      {!hasConf && !rbaConfLoading && <button onClick={doRbaConfCheck}
+                                        style={{fontSize:10,padding:'5px 14px',border:'0.5px solid #555',borderRadius:5,background:'none',color:'#ccc',cursor:'pointer'}}>
+                                        {'Check Historical Confidence'}
+                                      </button>}
+                                      {rbaConfLoading && <div style={{fontSize:10,color:'#555',display:'flex',alignItems:'center',gap:6}}>
+                                        <div style={{width:10,height:10,borderRadius:'50%',border:'1.5px solid #333',borderTop:'1.5px solid #c8f000',animation:'spin 0.8s linear infinite'}}></div>
+                                        {'Computing... (this may take 30–60 seconds)'}
+                                      </div>}
+                                      {hasConf && <button onClick={doRbaConfCheck} disabled={rbaConfLoading}
+                                        style={{fontSize:9,padding:'4px 10px',border:'0.5px solid #333',borderRadius:4,background:'none',color:'#555',cursor:'pointer'}}>
+                                        {'Refresh'}
+                                      </button>}
+                                    </div>
+                                    {rbaConfError && <div style={{fontSize:10,color:'#e05050',marginBottom:8}}>{rbaConfError}</div>}
+                                    {hasConf && (
+                                      <div>
+                                        {/* Holding period selector */}
+                                        <div style={{display:'flex',gap:6,marginBottom:14}}>
+                                          {['5D','10D','20D','30D','90D'].map(function(p){
+                                            return <button key={p} onClick={function(){ setRbaConfPeriod(p); }}
+                                              style={{fontSize:10,padding:'3px 10px',borderRadius:10,border:'0.5px solid '+(period===p?'#7abd00':'#333'),background:period===p?'rgba(122,189,0,0.12)':'transparent',color:period===p?'#7abd00':'#555',cursor:'pointer'}}>
+                                              {p}
+                                            </button>;
+                                          })}
+                                        </div>
+                                        {/* Current Signal (rawResult + trendCondition) */}
+                                        <div style={{marginBottom:14}}>
+                                          <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:4}}>{'Current Signal: ' + (curRaw||'—') + ' · ' + (curTrend||'—')}</div>
+                                          {curMatchRC.length >= 1 ? <StatRow stats={curSummRC} /> :
+                                            <div style={{fontSize:10,color:'#555',padding:'8px'}}>{'No historical matches for this signal.'}</div>}
+                                          {curMatchRC.length < 5 && curMatchRC.length >= 1 && <div style={{fontSize:9,color:'#b88000',marginTop:4}}>{'Low sample size. Treat this as directional only.'}</div>}
+                                        </div>
+                                        {/* Current 3-signal combination */}
+                                        <div style={{marginBottom:14}}>
+                                          <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:4}}>{'3-Signal Combination: ' + (curMom||'—') + ' · ' + (curRev||'—') + ' · ' + (curSmf||'—')}</div>
+                                          {cur3sig.length >= 1 ? <StatRow stats={cur3Sum} /> :
+                                            <div style={{fontSize:10,color:'#555',padding:'8px'}}>{'No historical matches for this combination.'}</div>}
+                                          {cur3sig.length < 5 && cur3sig.length >= 1 && <div style={{fontSize:9,color:'#b88000',marginTop:4}}>{'Low sample size. Treat this as directional only.'}</div>}
+                                        </div>
+                                        {/* Top 10 RC table */}
+                                        <div style={{marginBottom:14}}>
+                                          <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>{'Top RBA Result + Trend (' + period + ')'}</div>
+                                          {rcGroups.length ? <div style={{overflowX:'auto'}}>
+                                            <table style={{width:'100%',borderCollapse:'collapse',fontSize:10}}>
+                                              <thead><tr>{['#','Raw Result','Trend','Sigs','Win%','Avg','Median','Conf','Quality'].map(function(h){ return <th key={h} style={{textAlign:'left',color:'#555',fontWeight:700,fontSize:8,padding:'3px 6px',borderBottom:'0.5px solid #222',whiteSpace:'nowrap'}}>{h}</th>; })}</tr></thead>
+                                              <tbody>{rcGroups.slice(0,10).map(function(g,i){
+                                                var isCur = (g.rawResult+'|'+g.trendCondition)===curKeyRC;
+                                                var ql=qualLabel(g.signals,g.winRate,g.medianReturn,g.avgReturn),qc=qualColor(ql);
+                                                var cl=confLabel(g.signals),cc=confColor(g.signals);
+                                                var tc=g.trendCondition||'—'; var tcol=tc.indexOf('Uptrend')>-1?'#7abd00':tc.indexOf('Down')>-1?'#e05050':'#b88000';
+                                                return <tr key={i} style={{borderBottom:'0.5px solid #1a1a1a',background:isCur?'rgba(122,189,0,0.06)':'transparent'}}>
+                                                  <td style={{padding:'4px 6px',color:isCur?'#7abd00':'#555'}}>{isCur?'\u2605':(i+1)}</td>
+                                                  <td style={{padding:'4px 6px',fontWeight:700,color:summaryCardDark(g.rawResult).text||'#ccc'}}>{g.rawResult}</td>
+                                                  <td style={{padding:'4px 6px',color:tcol,fontSize:9}}>{tc.replace(' Conditions','')}</td>
+                                                  <td style={{padding:'4px 6px',color:'#aaa'}}>{g.signals}</td>
+                                                  <td style={{padding:'4px 6px',color:g.winRate>=50?'#7abd00':'#e05050'}}>{g.winRate.toFixed(1)}{'%'}</td>
+                                                  <td style={{padding:'4px 6px',color:g.avgReturn>=0?'#7abd00':'#e05050'}}>{(g.avgReturn>=0?'+':'')+g.avgReturn.toFixed(1)}{'%'}</td>
+                                                  <td style={{padding:'4px 6px',color:g.medianReturn>=0?'#7abd00':'#e05050'}}>{(g.medianReturn>=0?'+':'')+g.medianReturn.toFixed(1)}{'%'}</td>
+                                                  <td style={{padding:'4px 6px',fontSize:9,color:cc}}>{cl.replace(' Sample','')}</td>
+                                                  <td style={{padding:'4px 6px',fontWeight:700,color:qc}}>{ql}</td>
+                                                </tr>;
+                                              })}</tbody>
+                                            </table>
+                                          </div> : <div style={{fontSize:10,color:'#555'}}>{'Not enough data for this period.'}</div>}
+                                        </div>
+                                        {/* Top 10 3-Signal table */}
+                                        <div>
+                                          <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>{'Top 3-Signal Combinations (' + period + ')'}</div>
+                                          {sigGroups.length ? <div style={{overflowX:'auto'}}>
+                                            <table style={{width:'100%',borderCollapse:'collapse',fontSize:10}}>
+                                              <thead><tr>{['#','Mom','Rev','SMF','Result','Sigs','Win%','Avg','Median','Conf','Quality'].map(function(h){ return <th key={h} style={{textAlign:'left',color:'#555',fontWeight:700,fontSize:8,padding:'3px 6px',borderBottom:'0.5px solid #222',whiteSpace:'nowrap'}}>{h}</th>; })}</tr></thead>
+                                              <tbody>{sigGroups.slice(0,10).map(function(g,i){
+                                                var isCur = (g.momentumStatus+'|'+g.reversalStatus+'|'+g.smartMoneyStatus+'|'+g.rawResult)===curKey3;
+                                                var ql=qualLabel(g.signals,g.winRate,g.medianReturn,g.avgReturn),qc=qualColor(ql);
+                                                var cl=confLabel(g.signals),cc=confColor(g.signals);
+                                                function sC(s){ return s==='bullish'?'#7abd00':s==='bearish'?'#e05050':'#b88000'; }
+                                                return <tr key={i} style={{borderBottom:'0.5px solid #1a1a1a',background:isCur?'rgba(122,189,0,0.06)':'transparent'}}>
+                                                  <td style={{padding:'4px 6px',color:isCur?'#7abd00':'#555'}}>{isCur?'\u2605':(i+1)}</td>
+                                                  <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.momentumStatus)}}>{g.momentumStatus}</td>
+                                                  <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.reversalStatus)}}>{g.reversalStatus}</td>
+                                                  <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.smartMoneyStatus)}}>{g.smartMoneyStatus}</td>
+                                                  <td style={{padding:'4px 6px',color:summaryCardDark(g.rawResult).text||'#ccc',fontSize:9}}>{g.rawResult}</td>
+                                                  <td style={{padding:'4px 6px',color:'#aaa'}}>{g.signals}</td>
+                                                  <td style={{padding:'4px 6px',color:g.winRate>=50?'#7abd00':'#e05050'}}>{g.winRate.toFixed(1)}{'%'}</td>
+                                                  <td style={{padding:'4px 6px',color:g.avgReturn>=0?'#7abd00':'#e05050'}}>{(g.avgReturn>=0?'+':'')+g.avgReturn.toFixed(1)}{'%'}</td>
+                                                  <td style={{padding:'4px 6px',color:g.medianReturn>=0?'#7abd00':'#e05050'}}>{(g.medianReturn>=0?'+':'')+g.medianReturn.toFixed(1)}{'%'}</td>
+                                                  <td style={{padding:'4px 6px',fontSize:9,color:cc}}>{cl.replace(' Sample','')}</td>
+                                                  <td style={{padding:'4px 6px',fontWeight:700,color:qc}}>{ql}</td>
+                                                </tr>;
+                                              })}</tbody>
+                                            </table>
+                                          </div> : <div style={{fontSize:10,color:'#555'}}>{'Not enough data for this period.'}</div>}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {!hasConf && !rbaConfLoading && !rbaConfError && (
+                                      <div style={{fontSize:10,color:'#555'}}>{'Click the button above to check how this RBA signal has historically performed for ' + sym + '.'}</div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })()}
 
                           </div>
                         );
@@ -11353,7 +11611,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.69</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.70</span>
           </div>
         </div>
 
