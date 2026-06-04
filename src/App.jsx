@@ -4670,7 +4670,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.83</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.84</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4724,7 +4724,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.83</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.84</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5140,7 +5140,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         : (p.score||0);
                       var _d=[]; for(var i=1;i<=5;i++) _d.push(<span key={i} style={{display:"inline-block",width:5,height:5,borderRadius:"50%",background:i<=dotCount?(p.dotCol||"#7abd00"):"#2a2a2a",marginRight:2}}/>);
                       return (
-                        <div onClick={function(){ setExpanded(function(prev){return prev===p.tab?null:p.tab;}); }}
+                        <div onClick={function(){ setExpanded(function(prev){return prev===p.tab?null:p.tab;}); if(p.tab&&window.__goToTab)window.__goToTab(p.tab); }}
                           style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                           onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                           onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
@@ -5160,9 +5160,19 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           if(!pi)return(<div style={{padding:"6px 0",fontSize:10,color:"#555"}}>No moat detail available.</div>);
                           var secs=pi.sections?pi.sections.slice(0,5):[];
                           return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
-                            <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:4}}>Moat Drivers</div>
-                            {pi.explanation&&<div style={{fontSize:10,color:"#888",lineHeight:1.5,marginBottom:6}}>{pi.explanation.slice(0,200)}</div>}
-                            {secs.map(function(s,i){var d=s.score||0;var sc=d>=4?"#7abd00":d>=3?"#9acd50":d>=2?"#EF9F27":"#e05050";return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#666",flex:1}}>{s.label}</span><span style={{fontSize:10,fontWeight:600,color:sc}}>{s.classification||""}</span></div>);})}
+                            <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Moat Evidence</div>
+                            {pi.explanation&&<div style={{fontSize:10,color:"#888",lineHeight:1.5,marginBottom:8,wordBreak:"break-word",whiteSpace:"normal"}}>{pi.explanation.slice(0,220)}</div>}
+                            <div style={{fontSize:9,fontWeight:700,color:"#555",textTransform:"uppercase",marginBottom:4}}>Drivers</div>
+                            {secs.map(function(s,i){
+                              var d=s.score||0;
+                              var sc=d>=4?"#7abd00":d>=3?"#9acd50":d>=2?"#EF9F27":"#e05050";
+                              return(<div key={i} style={{display:"flex",alignItems:"flex-start",padding:"5px 0",borderBottom:"0.5px solid #2a2a2a",gap:8}}>
+                                <span style={{fontSize:10,color:"#888",flex:1,minWidth:0,wordBreak:"break-word",lineHeight:1.4}}>{s.label}</span>
+                                <span style={{fontSize:10,fontWeight:700,color:sc,flexShrink:0}}>{s.classification||"—"}</span>
+                              </div>);
+                            })}
+                            {!secs.length&&<div style={{fontSize:10,color:"#555",marginBottom:4}}>No driver detail available.</div>}
+                            <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether moat is supported by stable margins and pricing power.</div>
                             <button onClick={function(){window.__goToTab&&window.__goToTab("moat");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Moat Analysis</button>
                           </div>);
                         })()}
@@ -5170,18 +5180,21 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                         {expanded==="financial" && (function(){
                           if(!ov)return(<div style={{padding:"6px 0",fontSize:10,color:"#555"}}>No financial data yet.</div>);
-                          function fmtp(v){return v!=null&&!isNaN(v)?(v>=0?"+":"")+v.toFixed(1)+"%":"--";}
-                          function fmtx(v){return v!=null&&!isNaN(v)?v.toFixed(2)+"x":"--";}
+                          function fmtp(v){return v!=null&&!isNaN(v)?(v>=0?"+":"")+v.toFixed(1)+"%":"N/A";}
+                          function fmtx(v){return v!=null&&!isNaN(v)?v.toFixed(2)+"x":"N/A";}
                           var rows=[];
-                          if(ov.grossMargin!=null)rows.push({l:"Gross Margin",v:fmtp(ov.grossMargin),c:ov.grossMargin>=60?"#7abd00":ov.grossMargin>=40?"#EF9F27":"#e05050"});
-                          if(ov.opMargin!=null)rows.push({l:"Op Margin",v:fmtp(ov.opMargin),c:ov.opMargin>=20?"#7abd00":ov.opMargin>=10?"#EF9F27":"#e05050"});
+                          if(ov.revGrowth!=null)rows.push({l:"Revenue Growth",v:fmtp(ov.revGrowth),c:ov.revGrowth>=15?"#7abd00":ov.revGrowth>=5?"#EF9F27":"#e05050"});
+                          if(ov.opMargin!=null)rows.push({l:"Operating Margin",v:fmtp(ov.opMargin),c:ov.opMargin>=20?"#7abd00":ov.opMargin>=10?"#EF9F27":"#e05050"});
                           if(ov.netMargin!=null)rows.push({l:"Net Margin",v:fmtp(ov.netMargin),c:ov.netMargin>=15?"#7abd00":ov.netMargin>=5?"#EF9F27":"#e05050"});
-                          if(ov.de!=null)rows.push({l:"Debt/Equity",v:fmtx(ov.de),c:ov.de<=0.3?"#7abd00":ov.de<=1?"#EF9F27":"#e05050"});
                           if(ov.roe!=null)rows.push({l:"Return on Equity",v:fmtp(ov.roe),c:ov.roe>=15?"#7abd00":ov.roe>=8?"#EF9F27":"#e05050"});
-                          if(ov.currentRatio!=null)rows.push({l:"Current Ratio",v:fmtx(ov.currentRatio),c:ov.currentRatio>=2?"#7abd00":ov.currentRatio>=1?"#EF9F27":"#e05050"});
+                          if(ov.de!=null)rows.push({l:"Debt / Equity",v:fmtx(ov.de),c:ov.de<=0.3?"#7abd00":ov.de<=1?"#EF9F27":"#e05050"});
+                          if(ov.fcfRaw!=null)rows.push({l:"Free Cash Flow",v:ov.fcf||"N/A",c:ov.fcfRaw>0?"#7abd00":"#e05050"});
                           return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
-                            <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:4}}>Financial Metrics</div>
-                            {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#666",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:600,color:r.c}}>{r.v}</span></div>);})}
+                            <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Financial Strength Evidence</div>
+                            <div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>Shows whether the business has healthy profitability, cash flow, and balance sheet strength.</div>
+                            {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:700,color:r.c}}>{r.v}</span></div>);})}
+                            {!rows.length&&<div style={{fontSize:10,color:"#555"}}>Financial data not yet loaded.</div>}
+                            <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether earnings growth and cash flow continue to support the valuation.</div>
                             <button onClick={function(){window.__goToTab&&window.__goToTab("financial");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Financials</button>
                           </div>);
                         })()}
@@ -5192,17 +5205,22 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var pr=q?q.price:0;
                           var oracle=iSt?parseFloat(iSt.oracle):null;
                           var disc=oracle&&pr>0?(oracle-pr)/pr*100:null;
-                          function fmtd(v){return v&&v>0?"$"+v.toFixed(2):"--";}
+                          function fmtd(v){return v&&v>0?"$"+v.toFixed(2):"N/A";}
                           var models=[];
-                          if(iSt&&iSt.dcf20&&parseFloat(iSt.dcf20)>0)models.push({l:"Cash Flow Model",v:fmtd(parseFloat(iSt.dcf20))});
-                          if(iSt&&iSt.dcff20&&parseFloat(iSt.dcff20)>0)models.push({l:"Earnings Model",v:fmtd(parseFloat(iSt.dcff20))});
-                          if(iSt&&iSt.gg&&parseFloat(iSt.gg)>0)models.push({l:"Gordon Growth",v:fmtd(parseFloat(iSt.gg))});
+                          if(pr>0)models.push({l:"Current Price",v:"$"+pr.toFixed(2),c:"#aaa"});
+                          if(iSt&&iSt.dcf20&&parseFloat(iSt.dcf20)>0)models.push({l:"Cash Flow Model",v:fmtd(parseFloat(iSt.dcf20)),c:"#888"});
+                          if(iSt&&iSt.dcff20&&parseFloat(iSt.dcff20)>0)models.push({l:"Earnings Model",v:fmtd(parseFloat(iSt.dcff20)),c:"#888"});
+                          if(iSt&&iSt.gg&&parseFloat(iSt.gg)>0)models.push({l:"Gordon Growth",v:fmtd(parseFloat(iSt.gg)),c:"#888"});
+                          var discColor=disc!=null?(disc>20?"#7abd00":disc>0?"#9acd50":disc>-10?"#EF9F27":"#e05050"):"#aaa";
                           return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
-                            <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:4}}>Valuation Models</div>
-                            {!iSt&&<div style={{fontSize:10,color:"#555"}}>IV data not yet loaded.</div>}
-                            {models.map(function(m,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#666",flex:1}}>{m.l}</span><span style={{fontSize:10,fontWeight:600,color:"#aaa"}}>{m.v}</span></div>);})}
-                            {oracle&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#aaa",flex:1,fontWeight:700}}>Blended IV</span><span style={{fontSize:11,fontWeight:700,color:disc!=null&&disc>0?"#7abd00":"#e05050"}}>{fmtd(oracle)}</span></div>}
-                            {disc!=null&&<div style={{display:"flex",padding:"4px 0"}}><span style={{fontSize:10,color:"#666",flex:1}}>Margin of Safety</span><span style={{fontSize:10,fontWeight:700,color:disc>0?"#7abd00":"#e05050"}}>{(disc>=0?"+":"")+disc.toFixed(1)+"%"}</span></div>}
+                            <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Intrinsic Value Evidence</div>
+                            <div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>Compares the current price against estimated business value.</div>
+                            {!iSt&&<div style={{fontSize:10,color:"#555",marginBottom:4}}>IV data not yet loaded.</div>}
+                            {models.map(function(m,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>{m.l}</span><span style={{fontSize:10,fontWeight:700,color:m.c}}>{m.v}</span></div>);})}
+                            {oracle&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#aaa",flex:1,fontWeight:700}}>Blended IV</span><span style={{fontSize:11,fontWeight:700,color:discColor}}>{fmtd(oracle)}</span></div>}
+                            {disc!=null&&<div style={{display:"flex",padding:"5px 0"}}><span style={{fontSize:10,color:"#888",flex:1}}>Margin of Safety</span><span style={{fontSize:10,fontWeight:700,color:discColor}}>{(disc>=0?"+":"")+disc.toFixed(1)+"%"}</span></div>}
+                            {disc==null&&iSt&&<div style={{fontSize:10,color:"#555",marginTop:4}}>Valuation comparison not available.</div>}
+                            <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether the valuation gap remains supported by earnings and cash flow assumptions.</div>
                             <button onClick={function(){window.__goToTab&&window.__goToTab("intrinsic");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full IV Analysis</button>
                           </div>);
                         })()}
@@ -5264,7 +5282,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         var _tsub = _hasTech ? (_trendSubMap[_trendLabel] || null) : null;
                         var _tcol = _hasTech ? _trendCol.fg : "#555";
                         return (
-                          <div onClick={function(){setExpanded(function(p){return p==="trend"?null:"trend";});}}                            style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
+                          <div onClick={function(){setExpanded(function(p){return p==="trend"?null:"trend";}); if(window.__goToTab)window.__goToTab("trend");}}                            style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                             onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                             onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
                             <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>Trend</span>
@@ -5280,6 +5298,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                       {expanded==="trend" && (function(){
                         var _i=ind2||{},_pr=q?q.price:0,e20=_i.ema20||0,s50=_i.sma50||0,s200=_i.sma200||0;
+                        var w10=_i.wsma10||0,w40=_i.wsma40||0;
                         function pd(p,b){return b>0?(p-b)/b*100:null;}
                         var vE=pd(_pr,e20),v50=pd(_pr,s50),v200=pd(_pr,s200);
                         function fmt(v){return v!=null?(v>=0?"+":"")+v.toFixed(1)+"%":"--";}
@@ -5288,10 +5307,16 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         if(e20>0)rows.push({l:"vs 20-day EMA",v:fmt(vE),c:nc(vE)});
                         if(s50>0)rows.push({l:"vs 50-day SMA",v:fmt(v50),c:nc(v50)});
                         if(s200>0)rows.push({l:"vs 200-day SMA",v:fmt(v200),c:nc(v200)});
+                        if(s50>0&&s200>0){var cross=s50>s200?"Golden Cross":"Death Cross";rows.push({l:"50/200 Structure",v:cross,c:s50>s200?"#7abd00":"#e05050"});}
+                        if(w10>0&&w40>0){var wt=w10>w40?"Bullish":"Bearish";rows.push({l:"Weekly SMA (10/40)",v:wt,c:w10>w40?"#7abd00":"#e05050"});}
+                        var _tsub2={"Strong Uptrend":"Price trend is strongly upward across multiple timeframes.","Uptrend":"Price trend is positive.","Sideways":"No clear directional trend — price is range-bound.","Downtrend":"Price trend is weak and declining.","Strong Downtrend":"Price is in a strong downward trend."};
+                        var _tl3=window.__trendLabel||"--";
                         return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
-                          <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:4}}>Trend Evidence</div>
-                          {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#666",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:600,color:r.c}}>{r.v}</span></div>);})}
+                          <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Trend Evidence</div>
+                          {_tsub2[_tl3]&&<div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>{_tsub2[_tl3]}</div>}
+                          {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:700,color:r.c}}>{r.v}</span></div>);})}
                           {!rows.length&&<div style={{fontSize:10,color:"#555"}}>No indicator data yet.</div>}
+                          <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether price holds above the 20-day EMA and 50-day SMA.</div>
                           <button onClick={function(){window.__goToTab&&window.__goToTab("trend");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
                         </div>);
                       })()}
@@ -5309,7 +5334,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           ? ('D '+(_d||'--')+((_w&&_w!=='No data')?' \u00b7 W '+_w:'')+((_m&&_m!=='No data')?' \u00b7 M '+_m:''))
                           : null;
                         return (
-                          <div onClick={function(){setExpanded(function(p){return p==="momentum"?null:"momentum";});}}
+                          <div onClick={function(){setExpanded(function(p){return p==="momentum"?null:"momentum";}); if(window.__goToTab)window.__goToTab("momentum");}}
                             style={{display:'flex',alignItems:'center',padding:'11px 12px',borderBottom:'0.5px solid #242424',cursor:'pointer',minHeight:44}}
                             onMouseEnter={function(e){e.currentTarget.style.background='#252525';}}
                             onMouseLeave={function(e){e.currentTarget.style.background='transparent';}}>
@@ -5324,18 +5349,28 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       })()}
 
                       {expanded==="momentum" && (function(){
+                        var _lpe=momLiveSym===sym?momLiveProfile:null;
                         var _i=ind2||{},rsi=_i.rsi14||0,mH=_i.macdHistory||[];
                         var cH=mH.length?mH[mH.length-1].histogram:null;
                         var pH=mH.length>=2?mH[mH.length-2].histogram:null;
-                        var hTxt=cH!=null&&pH!=null?(cH>pH?"Expanding":"Contracting"):"--";
+                        var hDir=cH!=null&&pH!=null?(cH>pH?"Expanding":"Contracting"):"--";
                         var hCol=cH==null?"#555":cH>0?"#7abd00":cH<0?"#e05050":"#555";
-                        var rows=[];
-                        if(rsi>0)rows.push({l:"RSI (14)",v:rsi.toFixed(1),c:rsi>=60?"#7abd00":rsi>=50?"#9acd50":rsi>=40?"#EF9F27":"#e05050"});
-                        if(cH!=null)rows.push({l:"MACD Histogram",v:hTxt+(cH>0?" (Pos)":cH<0?" (Neg)":""),c:hCol});
+                        var _dLbl=window.__momLabel||"--";
+                        var _wLbl=_lpe?(_lpe.weekly==="Not Enough Data"?"No data":_lpe.weekly||"--"):"No data";
+                        var _mLbl=_lpe?(_lpe.monthlyRegime==="Not Enough Data"?"No data":_lpe.monthlyRegime||"--"):"No data";
+                        var _profLbl=_lpe?(_lpe.profile||"--"):"--";
+                        function _mc(s){return s==="Strong"||s==="Supportive"?"#7abd00":s==="Building"?"#9acd50":s==="Neutral"?"#EF9F27":s==="Fading"?"#EF9F27":s==="Weak"?"#e05050":"#555";}
+                        var _pExplMap={"Momentum Continuation":"Daily and weekly momentum are both supportive.","Early Recovery Attempt":"Daily is improving but weekly has not fully confirmed.","Waiting for Daily Trigger":"Weekly is supportive but daily has not strengthened yet.","Pullback in Larger Momentum":"Daily momentum has cooled while weekly remains supportive.","Weak Weekly Bounce":"Daily is improving but weekly remains weak — may be a short-term bounce.","Bearish Momentum":"Both daily and weekly momentum are weak or declining.","No Clear Momentum Profile":"Momentum signals are mixed or insufficient."};
                         return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
-                          <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:4}}>Momentum Evidence</div>
-                          {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#666",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:600,color:r.c}}>{r.v}</span></div>);})}
-                          {!rows.length&&<div style={{fontSize:10,color:"#555"}}>No momentum data yet.</div>}
+                          <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Momentum Evidence</div>
+                          {_pExplMap[_profLbl]&&<div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>{_pExplMap[_profLbl]}</div>}
+                          <div style={{fontSize:9,fontWeight:700,color:"#555",textTransform:"uppercase",marginBottom:4}}>Momentum Profile</div>
+                          {[{l:"Daily",v:_dLbl},{l:"Weekly",v:_wLbl},{l:"Monthly Regime",v:_mLbl}].map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:700,color:_mc(r.v)}}>{r.v}</span></div>);})}
+                          <div style={{fontSize:9,fontWeight:700,color:"#555",textTransform:"uppercase",marginTop:6,marginBottom:4}}>Indicators</div>
+                          {rsi>0&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>RSI (14)</span><span style={{fontSize:10,fontWeight:700,color:rsi>=60?"#7abd00":rsi>=50?"#9acd50":rsi>=40?"#EF9F27":"#e05050"}}>{rsi.toFixed(1)}</span></div>}
+                          {cH!=null&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>MACD Histogram</span><span style={{fontSize:10,fontWeight:700,color:hCol}}>{hDir+(cH>0?" (Pos)":cH<0?" (Neg)":"")}</span></div>}
+                          {!rsi&&cH==null&&<div style={{fontSize:10,color:"#555"}}>No indicator data yet.</div>}
+                          <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether daily momentum stabilises or continues to weaken.</div>
                           <button onClick={function(){window.__goToTab&&window.__goToTab("momentum");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
                         </div>);
                       })()}
@@ -5457,7 +5492,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var _rwSub     = _revSubMap[_rwStatus] || null;
                           var _rwMainCol = revStatusColor(_rw ? _rw.status : null, "main");
                           return (
-                            <div onClick={function(){setExpanded(function(p){return p==="reversal"?null:"reversal";});}}
+                            <div onClick={function(){setExpanded(function(p){return p==="reversal"?null:"reversal";}); if(window.__goToTab)window.__goToTab("reversal");}}
                               style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                               onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                               onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
@@ -5474,14 +5509,20 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       {expanded==="reversal" && (function(){
                         var _rw=window.__revWatchStatus&&window.__revWatchStatus[sym];
                         var rd=_rw&&_rw.reversalDecision?_rw.reversalDecision:null;
-                        var trig=rd&&Array.isArray(rd.triggeredConditions)?rd.triggeredConditions:[];
+                        var trig=rd&&Array.isArray(rd.triggeredConditions)?rd.triggeredConditions.filter(function(c){return typeof c==="string";}):[];
                         var rwSt=(_rw&&_rw.status)||"";
-                        var ac=rwSt.toLowerCase().indexOf("bull")>-1?"#7abd00":rwSt.toLowerCase().indexOf("bear")>-1?"#e05050":"#b88000";
+                        var isBull=rwSt.toLowerCase().indexOf("bull")>-1;
+                        var isBear=rwSt.toLowerCase().indexOf("bear")>-1;
+                        var ac=isBull?"#7abd00":isBear?"#e05050":"#EF9F27";
+                        var _stExpl={"Bullish Reversal Watch":"Early bullish signals are emerging but not yet confirmed.","Bullish Reversal Spark":"A bullish momentum spark has been detected.","Bullish Reversal Setup":"A bullish reversal setup is forming.","Bullish Reversal Forming":"Setup and trigger are both active.","Bullish Reversal Triggered":"Momentum has shifted bullish.","Bullish Reversal Confirming":"Price action is beginning to confirm the reversal.","Bullish Reversal Confirmed":"The bullish reversal is confirmed across multiple stages.","Bearish Reversal Watch":"Early bearish signals are emerging but not yet confirmed.","Bearish Reversal Setup":"A bearish reversal setup is forming.","Bearish Reversal Forming":"Bearish setup and trigger are both active.","Bearish Reversal Triggered":"Momentum has shifted bearish.","Bearish Reversal Confirming":"Price action is confirming the bearish reversal.","Bearish Reversal Confirmed":"The bearish reversal is confirmed across multiple stages.","Mixed Reversal Signals":"Bullish and bearish signals are conflicting.","No Clear Reversal":"No clear reversal evidence detected."};
                         return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
-                          <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:4}}>Reversal Evidence</div>
-                          {trig.length===0&&<div style={{fontSize:10,color:"#555"}}>No reversal evidence currently detected.</div>}
-                          {trig.filter(function(c){return typeof c==="string";}).map(function(c,i){return(<div key={i} style={{display:"flex",gap:6,padding:"3px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{color:ac,flexShrink:0}}>+</span><span style={{fontSize:10,color:"#aaa"}}>{c}</span></div>);})}
-                          {rd&&rd.outcome&&<div style={{fontSize:10,fontWeight:700,color:ac,marginTop:4}}>{rd.outcome}</div>}
+                          <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Reversal Evidence</div>
+                          {_stExpl[rwSt]&&<div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>{_stExpl[rwSt]}</div>}
+                          {trig.length===0&&<div style={{fontSize:10,color:"#555",marginBottom:4}}>No reversal evidence currently detected.</div>}
+                          {trig.length>0&&<div style={{fontSize:9,fontWeight:700,color:"#555",textTransform:"uppercase",marginBottom:4}}>Detected Signals</div>}
+                          {trig.map(function(c,i){return(<div key={i} style={{display:"flex",gap:6,padding:"4px 0",borderBottom:"0.5px solid #2a2a2a",alignItems:"flex-start"}}><span style={{color:ac,flexShrink:0,lineHeight:1.5}}>{String.fromCharCode(0x2713)}</span><span style={{fontSize:10,color:"#aaa",lineHeight:1.4}}>{c}</span></div>);})}
+                          {rd&&rd.outcome&&<div style={{fontSize:10,fontWeight:700,color:ac,marginTop:6,paddingTop:4}}>{rd.outcome}</div>}
+                          <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether price confirms the reversal with follow-through volume.</div>
                           <button onClick={function(){window.__goToTab&&window.__goToTab("reversal");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
                         </div>);
                       })()}
@@ -5528,7 +5569,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var _smfSub2    = _smfSub(_smf, _smd);
                           var _smfMainCol = smfStatusColor(_smf ? _smf.status : null, "main");
                           return (
-                            <div onClick={function(){setExpanded(function(p){return p==="whale"?null:"whale";});}}
+                            <div onClick={function(){setExpanded(function(p){return p==="whale"?null:"whale";}); if(window.__goToTab)window.__goToTab("whale");}}
                               style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                               onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                               onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
@@ -5549,16 +5590,19 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         var dpfx=_sd&&_sd.dailyPrefix&&_sd.dailyPrefix!=="No Daily Data"?_sd.dailyPrefix:null;
                         var fL=_s&&_s.fiveDayLabel&&_s.fiveDayLabel!=="N/A"?_s.fiveDayLabel:null;
                         var dL=_s&&_s.thirtyDayLabel&&_s.thirtyDayLabel!=="N/A"?_s.thirtyDayLabel:null;
-                        function fC(l){if(!l)return"#555";var lo=l.toLowerCase();return lo.indexOf("high")>-1||lo.indexOf("strong")>-1?"#7abd00":lo.indexOf("mod")>-1?"#9acd50":lo.indexOf("low")>-1||lo.indexOf("quiet")>-1?"#EF9F27":"#aaa";}
-                        var rows=[];
-                        if(bst)rows.push({l:"Base Signal",v:bst,c:smfStatusColor(_s?_s.status:null,"main")});
-                        if(dpfx)rows.push({l:"Today",v:dpfx,c:fC(dpfx)});
-                        if(fL)rows.push({l:"5D Flow",v:fL,c:fC(fL)});
-                        if(dL)rows.push({l:"30D Flow",v:dL,c:fC(dL)});
+                        function fC(l){if(!l)return"#555";var lo=l.toLowerCase();return lo.indexOf("very high")>-1||lo.indexOf("high")>-1||lo.indexOf("strong")>-1?"#7abd00":lo.indexOf("mod")>-1?"#9acd50":lo.indexOf("low")>-1||lo.indexOf("mild")>-1||lo.indexOf("quiet")>-1?"#EF9F27":"#777";}
+                        var bstExplMap={"Strong Accumulation":"Both short-term and long-term accumulation are strong.","Steady Accumulation":"Long-term accumulation is strong and short-term flow is supportive.","Long-Term Accumulation":"Long-term accumulation is strong, though short-term flow has cooled.","Early Accumulation":"Short-term flow is strong but longer-term accumulation has not confirmed yet.","Mixed Flow":"Both 5-day and 30-day indicators are at moderate levels.","Cooling Accumulation":"Short-term flow is cooling while longer-term remains moderate.","Short-Term Flow Spike":"Short-term flow is elevated but longer-term accumulation is not yet supportive.","Short-Term Flow Watch":"Short-term flow is moderate while longer-term accumulation is weak.","No Sustained Flow":"No meaningful accumulation pattern is present across either timeframe.","No Clear Signal":"Neither short-term nor longer-term flow shows a clear signal."};
+                        var bstC=bst?smfStatusColor(_s?_s.status:null,"main"):"#555";
                         return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
-                          <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:4}}>Money Flow Evidence</div>
-                          {!_s&&<div style={{fontSize:10,color:"#555"}}>No money flow data yet.</div>}
-                          {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#666",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:600,color:r.c}}>{r.v}</span></div>);})}
+                          <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Money Flow Evidence</div>
+                          {bst&&bstExplMap[bst]&&<div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>{bstExplMap[bst]}</div>}
+                          {!_s&&<div style={{fontSize:10,color:"#555",marginBottom:4}}>No money flow data yet.</div>}
+                          {_s&&<div style={{fontSize:9,fontWeight:700,color:"#555",textTransform:"uppercase",marginBottom:4}}>Flow View</div>}
+                          {dpfx&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>Today</span><span style={{fontSize:10,fontWeight:700,color:fC(dpfx)}}>{dpfx}</span></div>}
+                          {fL&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>5D Flow</span><span style={{fontSize:10,fontWeight:700,color:fC(fL)}}>{fL}</span></div>}
+                          {dL&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>30D Flow</span><span style={{fontSize:10,fontWeight:700,color:fC(dL)}}>{dL}</span></div>}
+                          {bst&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>Base Signal</span><span style={{fontSize:10,fontWeight:700,color:bstC}}>{bst}</span></div>}
+                          <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether 5D flow improves before the 30D signal confirms accumulation.</div>
                           <button onClick={function(){window.__goToTab&&window.__goToTab("whale");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
                         </div>);
                       })()}
@@ -11709,7 +11753,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.83</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.84</span>
           </div>
         </div>
 
