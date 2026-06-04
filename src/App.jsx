@@ -42,6 +42,10 @@ function revDirLabelColor(lbl, isBullish, variant) {
   }
   return _CLR.grey[v];
 }
+function isMobileView() {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth < 900;
+}
 function smfStatusColor(status, variant) {
   var v = variant||"main";
   if (!status||status==="Not Enough Data"||status==="No Clear Signal") return v==="darkbg"?"#1a1a1a":_CLR.grey[v];
@@ -4908,7 +4912,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.98</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.99</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4962,7 +4966,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.98</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.99</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5319,7 +5323,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {aiFundResult.summary&&<div style={{fontSize:11,color:"#c0bdb4",lineHeight:1.6,marginBottom:6}}>{aiFundResult.summary}</div>}
                           {aiFundResult.strength&&<div style={{marginBottom:3}}><span style={{fontSize:9,fontWeight:700,color:"#7abd00",marginRight:4}}>STRENGTH</span><span style={{fontSize:11,color:"#aaa"}}>{aiFundResult.strength}</span></div>}
                           {aiFundResult.risk&&<div style={{marginBottom:8}}><span style={{fontSize:9,fontWeight:700,color:"#e05050",marginRight:4}}>RISK</span><span style={{fontSize:11,color:"#aaa"}}>{aiFundResult.risk}</span></div>}
-                          <button onClick={function(){window.__goToTab&&window.__goToTab("aianalysis");setExpanded(null);}} style={{fontSize:10,padding:"4px 12px",border:"0.5px solid "+fc.bd,borderRadius:10,background:"none",color:fc.text,cursor:"pointer"}}>Full Analysis</button>
+                          {isMobileView()&&<button onClick={function(){window.__goToTab&&window.__goToTab("aianalysis");setExpanded(null);}} style={{fontSize:10,padding:"4px 12px",border:"0.5px solid "+fc.bd,borderRadius:10,background:"none",color:fc.text,cursor:"pointer"}}>Full Analysis</button>}
                         </div>);
                       })()}
                       {expanded==="tech" && !ruleAnalytics && <div style={{padding:"8px 0",fontSize:11,color:"#555"}}>Technical analysis not yet available.</div>}
@@ -5344,7 +5348,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           <div style={{borderTop:"0.5px solid #2a2a2a",paddingTop:8}}>
                             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
                               <span style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase"}}>Historical Confidence</span>
-                              {!rbaConfResult&&!rbaConfLoading&&<button onClick={function(e){e.stopPropagation();if(window.__doRbaConfCheck)window.__doRbaConfCheck();}} style={{fontSize:9,padding:"3px 10px",border:"0.5px solid #555",borderRadius:8,background:"none",color:"#ccc",cursor:"pointer"}}>Check</button>}
+                              {!rbaConfResult&&!rbaConfLoading&&<button onClick={function(e){e.stopPropagation();
+                                if(window.__doRbaConfCheck){ window.__doRbaConfCheck(); }
+                                else { window.__goToTab&&window.__goToTab("technical"); setTimeout(function(){ if(window.__doRbaConfCheck)window.__doRbaConfCheck(); },300); }
+                              }} style={{fontSize:9,padding:"3px 10px",border:"0.5px solid #555",borderRadius:8,background:"none",color:"#ccc",cursor:"pointer"}}>Check</button>}
                               {rbaConfLoading&&<span style={{fontSize:9,color:"#555"}}>Computing...</span>}
                             </div>
                             {rbaConfResult&&rbaConfResult.ticker===sym&&(<div>
@@ -5356,7 +5363,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               </div>):(<div style={{fontSize:10,color:"#555"}}>No historical data.</div>)}
                             </div>)}
                           </div>
-                          <button onClick={function(){window.__goToTab&&window.__goToTab("technical");setExpanded(null);}} style={{fontSize:10,marginTop:8,padding:"4px 12px",border:"0.5px solid "+tc.bd,borderRadius:10,background:"none",color:tc.text,cursor:"pointer"}}>Full Analysis</button>
+                          {isMobileView()&&<button onClick={function(){window.__goToTab&&window.__goToTab("technical");setExpanded(null);}} style={{fontSize:10,marginTop:8,padding:"4px 12px",border:"0.5px solid "+tc.bd,borderRadius:10,background:"none",color:tc.text,cursor:"pointer"}}>Full Analysis</button>}
                         </div>);
                       })()}
                     </div>
@@ -5452,7 +5459,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             })}
                             {secs.length === 0 && <div style={{fontSize:10,color:"#555",marginBottom:4}}>Driver details available in Full Moat Analysis.</div>}
                             <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether moat is supported by stable margins and pricing power.</div>
-                            <button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("moat");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Moat Analysis</button>
+                            {isMobileView()&&<button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("moat");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Moat Analysis</button>}
                           </div>);
                         })()}
                         <FRow label="Financial Strength" value={finRating} score={finScore} dotCol={finColors.dot} valCol={finColors.fg} loading={false} tab="financial" />
@@ -5503,7 +5510,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:700,color:r.c}}>{r.v}</span></div>);})}
                             {!rows.length&&<div style={{fontSize:10,color:"#555"}}>Financial data not yet loaded.</div>}
                             <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether earnings growth and cash flow continue to support the valuation.</div>
-                            <button onClick={function(){window.__goToTab&&window.__goToTab("financial");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Financials</button>
+                            {isMobileView()&&<button onClick={function(){window.__goToTab&&window.__goToTab("financial");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Financials</button>}
                           </div>);
                         })()}
                         <FRow label="Intrinsic Value" value={ivSublabel||ivLabel||"--"} score={ivScore} dotCol={ivColors.dot} valCol={ivColors.fg} loading={!ivOracle&&!ov} tab="intrinsic" />
@@ -5562,7 +5569,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               <span style={{fontSize:10,fontWeight:700,color:discColor}}>{(disc >= 0 ? "+" : "") + disc.toFixed(1) + "%"}</span>
                             </div>}
                             <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether the valuation gap remains supported by earnings and cash flow assumptions.</div>
-                            <button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("intrinsic");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full IV Analysis</button>
+                            {isMobileView()&&<button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("intrinsic");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full IV Analysis</button>}
                           </div>);
                         })()}
                       </div>
@@ -5658,7 +5665,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:700,color:r.c}}>{r.v}</span></div>);})}
                           {!rows.length&&<div style={{fontSize:10,color:"#555"}}>No indicator data yet.</div>}
                           <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether price holds above the 20-day EMA and 50-day SMA.</div>
-                          <button onClick={function(){window.__goToTab&&window.__goToTab("trend");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
+                          {isMobileView()&&<button onClick={function(){window.__goToTab&&window.__goToTab("trend");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>}
                         </div>);
                       })()}
                       {(function(){
@@ -5712,7 +5719,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {cH!=null&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>MACD Histogram</span><span style={{fontSize:10,fontWeight:700,color:hCol}}>{hDir+(cH>0?" (Pos)":cH<0?" (Neg)":"")}</span></div>}
                           {!rsi&&cH==null&&<div style={{fontSize:10,color:"#555"}}>No indicator data yet.</div>}
                           <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether daily momentum stabilises or continues to weaken.</div>
-                          <button onClick={function(){window.__goToTab&&window.__goToTab("momentum");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
+                          {isMobileView()&&<button onClick={function(){window.__goToTab&&window.__goToTab("momentum");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>}
                         </div>);
                       })()}
                     </div>
@@ -5942,8 +5949,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {isBull&&!isMixed&&bearEvidence.length>0&&null}
                           {isBear&&!isMixed&&bullEvidence.length>0&&null}
                           <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>{_watch}</div>
-                          <button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("reversal");setExpanded(null);}}
-                            style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
+                          {isMobileView()&&<button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("reversal");setExpanded(null);}}
+                            style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>}
                         </div>);
                       })()}
                         {(function(){
@@ -6023,7 +6030,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {dL&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>30D Flow</span><span style={{fontSize:10,fontWeight:700,color:fC(dL)}}>{dL}</span></div>}
                           {bst&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>Base Signal</span><span style={{fontSize:10,fontWeight:700,color:bstC}}>{bst}</span></div>}
                           <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether 5D flow improves before the 30D signal confirms accumulation.</div>
-                          <button onClick={function(){window.__goToTab&&window.__goToTab("whale");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
+                          {isMobileView()&&<button onClick={function(){window.__goToTab&&window.__goToTab("whale");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>}
                         </div>);
                       })()}
                       </div>
@@ -6110,9 +6117,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     {/* 5-Tab Insight Panel */}
           {(function() {
             var ALL_TABS = [
+              { id:"business",   label:"Business Overview" },
               { id:"aianalysis", label:"Fundamental Analysis" },
               { id:"technical",  label:"Technical Analysis" },
-              { id:"business",   label:"Business Overview" },
               { id:"moat",       label:"Economic MOAT" },
               { id:"intrinsic",  label:"Intrinsic Value" },
               { id:"financial",  label:"Financial Strength" },
@@ -12189,7 +12196,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.98</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.99</span>
           </div>
         </div>
 
