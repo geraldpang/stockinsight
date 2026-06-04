@@ -4908,7 +4908,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.96</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.97</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4962,7 +4962,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.96</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.97</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5470,7 +5470,36 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           if(ov.fcfRaw!=null)rows.push({l:"Free Cash Flow",v:ov.fcf||"N/A",c:ov.fcfRaw>0?"#7abd00":"#e05050"});
                           return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
                             <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Financial Strength Evidence</div>
-                            <div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>Shows whether the business has healthy profitability, cash flow, and balance sheet strength.</div>
+                            {(function(){
+                              // Build a 1-sentence commentary from the metrics already shown
+                              var hasGrowth  = ov.revGrowth != null;
+                              var goodGrowth = hasGrowth && ov.revGrowth >= 10;
+                              var goodMargin = ov.netMargin != null && ov.netMargin >= 10;
+                              var highMargin = ov.netMargin != null && ov.netMargin >= 20;
+                              var lowDebt    = ov.de != null && ov.de <= 0.5;
+                              var highDebt   = ov.de != null && ov.de > 1.5;
+                              var posFCF     = ov.fcfRaw != null && ov.fcfRaw > 0;
+                              var negFCF     = ov.fcfRaw != null && ov.fcfRaw < 0;
+                              var msg;
+                              if (!rows.length) return null;
+                              if (goodGrowth && highMargin && lowDebt && posFCF)
+                                msg = "Strong growth, high margins, low leverage, and positive cash flow.";
+                              else if (goodGrowth && goodMargin && highDebt)
+                                msg = "Good growth and margins, but leverage is elevated and may reduce financial flexibility.";
+                              else if (goodGrowth && negFCF)
+                                msg = "Growth looks strong, but negative free cash flow needs monitoring.";
+                              else if (!goodGrowth && goodMargin && posFCF)
+                                msg = "Growth is modest, but margins and cash flow are supportive.";
+                              else if (goodGrowth && !goodMargin)
+                                msg = "Growing quickly, but profitability margins remain weaker and should be watched.";
+                              else if (highDebt)
+                                msg = "Leverage is elevated — financial flexibility may be more limited.";
+                              else if (rows.length >= 3)
+                                msg = "Financial indicators are available for review below.";
+                              else
+                                msg = null;
+                              return msg ? <div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>{msg}</div> : null;
+                            })()}
                             {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:700,color:r.c}}>{r.v}</span></div>);})}
                             {!rows.length&&<div style={{fontSize:10,color:"#555"}}>Financial data not yet loaded.</div>}
                             <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether earnings growth and cash flow continue to support the valuation.</div>
@@ -5491,7 +5520,31 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var discColor = disc != null ? (disc > 20 ? "#7abd00" : disc > 0 ? "#9acd50" : disc > -10 ? "#EF9F27" : "#e05050") : "#aaa";
                           return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
                             <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Intrinsic Value Evidence</div>
-                            <div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>Compares the current price against estimated business value.</div>
+                            {(function(){
+                              if (!iSt || ivModels.length === 0) return null;
+                              // Check spread of model values for "wide range" comment
+                              var modelVals = ivModels.map(function(m){ return m.value; }).filter(function(v){ return v > 0; });
+                              var spread = modelVals.length >= 2
+                                ? (Math.max.apply(null,modelVals) - Math.min.apply(null,modelVals)) / Math.max.apply(null,modelVals)
+                                : 0;
+                              var wideSpread = spread > 0.4;
+                              var msg;
+                              if (disc != null && disc > 20 && wideSpread)
+                                msg = "The blended estimate is above the current price, though the model range is wide.";
+                              else if (disc != null && disc > 20)
+                                msg = "Models suggest the stock may be trading below estimated intrinsic value.";
+                              else if (disc != null && disc < -10 && wideSpread)
+                                msg = "The blended estimate is below the current price and model assumptions vary widely.";
+                              else if (disc != null && disc < -10)
+                                msg = "Models suggest the stock may be trading above estimated intrinsic value.";
+                              else if (disc != null && wideSpread)
+                                msg = "Models are broadly in line with the current price, but the range of estimates is wide.";
+                              else if (disc != null)
+                                msg = "Models are broadly in line with the current price.";
+                              else
+                                msg = null;
+                              return msg ? <div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>{msg}</div> : null;
+                            })()}
                             {!iSt && <div style={{fontSize:10,color:"#555",marginBottom:4}}>IV data not yet loaded.</div>}
                             {iSt && ivModels.length === 0 && <div style={{fontSize:10,color:"#555",marginBottom:4}}>Intrinsic value model details are available in Full IV Analysis.</div>}
                             {ivModels.map(function(m, i){
@@ -12132,7 +12185,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.96</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.97</span>
           </div>
         </div>
 
