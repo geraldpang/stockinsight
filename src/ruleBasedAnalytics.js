@@ -47,7 +47,7 @@ export function classifyMomentum(status) {
   switch (status) {
     case 'Momentum Continuation':      return 'strongMomentum';
     case 'Early Recovery Attempt':     return 'buildingMomentum';
-    case 'Waiting for Daily Trigger':  return 'buildingMomentum';
+    case 'Waiting for Daily Trigger':  return 'neutralMomentum';
     case 'Pullback in Larger Momentum':return 'neutralMomentum';
     case 'Weak Weekly Bounce':         return 'fadingMomentum';
     case 'Bearish Momentum':           return 'weakMomentum';
@@ -609,7 +609,7 @@ function getMomentumStatus(momentumLabel, monthlyRegime) {
   var profileMap = {
     'Momentum Continuation':      { status:'bullish', strength:'strong',  cause:'Daily and weekly momentum are aligned positively.' },
     'Early Recovery Attempt':     { status:'bullish', strength:'watch',   cause:'Daily momentum is improving before broader weekly confirmation.' },
-    'Waiting for Daily Trigger':  { status:'bullish', strength:'watch',   cause:'Weekly momentum is supportive, but daily momentum has not fully triggered.' },
+    'Waiting for Daily Trigger':  { status:'neutral', strength:'watch',   cause:'Weekly momentum is supportive, but daily momentum has not yet triggered.' },
     'Pullback in Larger Momentum':{ status:'neutral', strength:'watch',   cause:'Larger momentum remains supportive, but daily momentum has pulled back.' },
     'Weak Weekly Bounce':         { status:'neutral', strength:'weak',    cause:'Daily momentum is bouncing, but weekly momentum remains weak.' },
     'Bearish Momentum':           { status:'bearish', strength:'strong',  cause:'Momentum is weak across key timeframes.' },
