@@ -665,8 +665,19 @@ export function calculateTechnicalSignalSnapshot(input) {
 
   var trend    = calcTrendScore(bars, ind, crossData);
   var momentum = calcMomentumScore(bars, ind);
-  var smf      = calcSmartMoneyFlow(bars, price);
   var reversal = calcReversalWatch(bars, ind, { hi52: meta.hi52 || 0, lo52: meta.lo52 || 0, price: price || 0 });
+
+  // ── SMF: use the three-signal path (same as live detail view) ────────────────
+  var smf = calcSmartMoneyFlow(bars, price); // keep for raw score fallback
+  var tSig = (n >= 2)  ? calcSmfTodaySignal(bars)      : null;
+  var fSig = (n >= 6)  ? calcSmfFiveDaySignal(bars)     : null;
+  var dSig = (n >= 30) ? calcSmfThirtyDaySignal(bars)   : null;
+  var smfCard = calcSmfSummaryCard(
+    tSig ? tSig.score : 0,
+    fSig ? fSig.score : 0,
+    dSig ? dSig.score : 0,
+    tSig, fSig, dSig
+  );
 
   // New structured outputs (Run 2A)
   var caution    = calcCautionFlags(bars, ind, meta);
@@ -717,11 +728,20 @@ export function calculateTechnicalSignalSnapshot(input) {
       signalArray:               revSigArr,
     },
     smartMoneyFlow: {
-      status:                         smf.status,
-      score:                          smf.score,
-      todayActivityScore:             smf.todayActivityScore,
-      fiveDayFlowScore:               smf.fiveDayFlowScore,
-      thirtyDayAccumulationScore:     smf.thirtyDayAccumulationScore,
+      // Status from new summary card model (new labels: Strong Accumulation, No Sustained Flow etc.)
+      status:                         smfCard.status,
+      score:                          smfCard.primaryScore !== null ? smfCard.primaryScore : smf.score,
+      // Structured decision from buildSmfDecision
+      smartMoneyDecision:             smfCard.smartMoneyDecision,
+      // Labels for today / 5D / 30D bands
+      todayLabel:                     smfCard.todayLabel,
+      fiveDayLabel:                   smfCard.fiveDayLabel,
+      thirtyDayLabel:                 smfCard.thirtyDayLabel,
+      // Raw scores from individual signal functions (for chart/journal detail)
+      todayActivityScore:             tSig ? tSig.score : smf.todayActivityScore,
+      fiveDayFlowScore:               fSig ? fSig.score : smf.fiveDayFlowScore,
+      thirtyDayAccumulationScore:     dSig ? dSig.score : smf.thirtyDayAccumulationScore,
+      // Legacy raw fields preserved for compat
       obvValue:                       smf.obvValue,
       obvTrend30d:                    smf.obvTrend30d,
       volumeRatio:                    smf.volumeRatio,
