@@ -44,7 +44,9 @@ function revDirLabelColor(lbl, isBullish, variant) {
 }
 function smfStatusColor(status, variant) {
   var v = variant||"main";
-  if (!status||status==="Not Enough Data"||status==="No Clear Signal"||status==="No Sustained Flow") return v==="darkbg"?"#1a1a1a":_CLR.grey[v];
+  if (!status||status==="Not Enough Data"||status==="No Clear Signal") return v==="darkbg"?"#1a1a1a":_CLR.grey[v];
+  // No Sustained Flow = amber (observable weak flow, not absence of data)
+  if (status==="No Sustained Flow") return v==="darkbg"?"#2a1800":_CLR.amber[v];
   if (v==="darkbg") return summaryCardDark(status).bg;
   // Green: Strong Accumulation (all prefixes); Steady Accumulation with Spike or Support prefix
   if (status.indexOf("Strong Accumulation")>-1) return _CLR.green[v];
@@ -58,6 +60,17 @@ function smfStatusColor(status, variant) {
   if (status==="Constructive but Cooling"||status==="Early Accumulation") return _CLR.blue[v];
   if (status==="Short-Term Spike") return _CLR.amber[v];
   return _CLR.grey[v];
+}
+// ── Central momentum state colour helper ──────────────────────────────────────
+// Single source of truth for daily momentum label colours.
+// Replaces all local mColor() IIFE definitions.
+function momentumStateColor(status) {
+  if (status === 'Strong')   return '#7abd00';
+  if (status === 'Building') return '#9acd50';
+  if (status === 'Neutral')  return '#EF9F27';
+  if (status === 'Fading')   return '#EF9F27';
+  if (status === 'Weak')     return '#e05050';
+  return '#555';
 }
 function smfLabelColor(lbl, variant) {
   var v = variant||"main";
@@ -1033,16 +1046,24 @@ function summaryCardDark(verdict) {
   if (!verdict) return { bg:'#1a1a1a', bd:'#333', text:'#666' };
   var v = verdict.toLowerCase();
   // ── Explicit overrides BEFORE broad keyword checks ───────────────────────────
-  // Prevents "Caution — Uptrend Losing Strength" matching 'uptrend' → green
-  // Prevents "Strong Bearish" matching 'strong' → green
-  // Prevents "Bullish Watch — Recovery Setup Forming" matching 'forming' → green
+  // RBA compound verdicts — must fire before any generic keyword tiers
   if (v.indexOf('strong bearish')!==-1)                          return { bg:'#200808', bd:'#e05050', text:'#e05050' };
   if (v.indexOf('strong bullish')!==-1)                          return { bg:'#0d200d', bd:'#7abd00', text:'#7abd00' };
-  if (v.indexOf('bullish watch')!==-1)                           return { bg:'#1e1800', bd:'#EF9F27', text:'#EF9F27' };
+  if (v.indexOf('bullish watch')!==-1)                           return { bg:'#0a1828', bd:'#6090d0', text:'#6090d0' };
   if (v.indexOf('caution')!==-1 || v.indexOf('uptrend losing')!==-1)
                                                                  return { bg:'#241800', bd:'#b87820', text:'#b87820' };
   if (v.indexOf('bearish watch')!==-1 || v.indexOf('breakdown risk')!==-1)
                                                                  return { bg:'#1e1008', bd:'#c86820', text:'#c86820' };
+  // Bearish + Uptrend compound (e.g. "Bearish in Uptrend Conditions") → red
+  if (v.indexOf('bearish')!==-1 && v.indexOf('uptrend')!==-1)   return { bg:'#200808', bd:'#e05050', text:'#e05050' };
+  // ── Momentum Profile labels — explicit, before generic tiers ────────────────
+  if (v==='momentum continuation')                               return { bg:'#0d200d', bd:'#7abd00', text:'#7abd00' };
+  if (v==='early recovery attempt')                              return { bg:'#0a1828', bd:'#6090d0', text:'#6090d0' };
+  if (v==='waiting for daily trigger')                           return { bg:'#2a1800', bd:'#EF9F27', text:'#EF9F27' };
+  if (v==='pullback in larger momentum')                         return { bg:'#2a1800', bd:'#EF9F27', text:'#EF9F27' };
+  if (v==='weak weekly bounce')                                  return { bg:'#2a1800', bd:'#EF9F27', text:'#EF9F27' };
+  if (v==='bearish momentum')                                    return { bg:'#200808', bd:'#e05050', text:'#e05050' };
+  if (v==='no clear momentum profile')                           return { bg:'#1a1a1a', bd:'#333', text:'#555' };
   // ── Reversal: Bearish active statuses must return red before generic keyword checks ──
   if (v.indexOf('bearish reversal')!==-1 &&
       (v.indexOf('triggered')!==-1||v.indexOf('confirmed')!==-1||v.indexOf('confirming')!==-1||v.indexOf('forming')!==-1))
@@ -1057,28 +1078,31 @@ function summaryCardDark(verdict) {
   // Blue: long-term or early accumulation (with any prefix)
   if (v.indexOf('long-term accumulation')!==-1 || v.indexOf('early accumulation')!==-1)
                                                                  return { bg:'#0a1828', bd:'#6090d0', text:'#6090d0' };
-  // Amber: cooling, mixed flow, short-term flow, or no-sustained-flow prefix variants
+  // Amber: No Sustained Flow (base or prefixed), cooling, mixed flow, short-term flow
+  if (v==='no sustained flow' || v.indexOf('no sustained flow')!==-1 || v.indexOf('but no sustained')!==-1)
+                                                                 return { bg:'#2a1800', bd:'#EF9F27', text:'#EF9F27' };
   if (v.indexOf('cooling accumulation')!==-1 || v.indexOf('mixed flow')!==-1 ||
-      v.indexOf('short-term flow')!==-1 ||
-      v.indexOf('no sustained flow')!==-1 || v.indexOf('but no sustained')!==-1)
+      v.indexOf('short-term flow')!==-1)
                                                                  return { bg:'#2a1800', bd:'#EF9F27', text:'#EF9F27' };
   // Grey: no clear signal / not enough data
-  if (v==='no clear signal' || v==='no sustained flow' || v==='not enough data')
-                                                                 return { bg:'#1a1a1a', bd:'#333', text:'#555' };
-  // Tier 1 — exceptional / wide / strong uptrend / strong (momentum) / confirmed
+  if (v==='no clear signal' || v==='not enough data')            return { bg:'#1a1a1a', bd:'#333', text:'#555' };
+  // ── Daily momentum states — explicit before broad tiers ─────────────────────
+  // "Fading" is caution/amber, not red
+  if (v==='fading')                                              return { bg:'#2a1800', bd:'#EF9F27', text:'#EF9F27' };
+  // ── Tier 1 — exceptional / wide / strong uptrend / confirmed bullish ─────────
   if (v.indexOf('exceptional')!==-1 || v.indexOf('wide')!==-1 ||
       v.indexOf('strong uptrend')!==-1 || v.indexOf('strong multi')!==-1 ||
       v.indexOf('accumulation trend')!==-1 ||
       (v.indexOf('confirmed')!==-1 && v.indexOf('bullish')!==-1))
     return { bg:'#0d200d', bd:'#7abd00', text:'#7abd00' };
-  // Tier 2 — strong / uptrend / building / undervalued / triggered / forming / confirming / good (fundamental) / bullish (plain)
+  // ── Tier 2 — strong / uptrend / building / undervalued / triggered / forming / confirming / bullish ──
   if (v.indexOf('strong')!==-1 || v.indexOf('uptrend')!==-1 ||
       v.indexOf('building')!==-1 || v.indexOf('undervalued')!==-1 ||
       v.indexOf('triggered')!==-1 || v.indexOf('forming')!==-1 ||
       v.indexOf('confirming')!==-1 || v.indexOf('good')!==-1 ||
       v.indexOf('bullish')!==-1)
     return { bg:'#0f2010', bd:'#9acd50', text:'#9acd50' };
-  // Tier 3 — moderate / neutral / sideways / watch / spark / early / constructive / fair / premium / stretched (fundamental)
+  // ── Tier 3 — moderate / neutral / sideways / watch / spark / early / constructive / fair / stretched ──
   if (v.indexOf('moderate')!==-1 || v.indexOf('neutral')!==-1 ||
       v.indexOf('sideways')!==-1 || v.indexOf('mixed')!==-1 ||
       v.indexOf('watch')!==-1 || v.indexOf('spark')!==-1 ||
@@ -1086,11 +1110,11 @@ function summaryCardDark(verdict) {
       v.indexOf('fair')!==-1 || v.indexOf('premium')!==-1 ||
       v.indexOf('short-term spike')!==-1 || v.indexOf('stretched')!==-1)
     return { bg:'#1e1800', bd:'#EF9F27', text:'#EF9F27' };
-  // Tier 4 — weak / fading / downtrend / narrow / poor / avoid (fundamental)
+  // ── Tier 4 — weak / fading / downtrend / narrow / poor / avoid / bearish ────
   if (v.indexOf('weak')!==-1 || v.indexOf('fading')!==-1 ||
       v.indexOf('downtrend')!==-1 || v.indexOf('narrow')!==-1 ||
       v.indexOf('poor')!==-1 || v.indexOf('overvalued')!==-1 ||
-      v.indexOf('avoid')!==-1 || (v.indexOf('bearish')!==-1))
+      v.indexOf('avoid')!==-1 || v.indexOf('bearish')!==-1)
     return { bg:'#200808', bd:'#e05050', text:'#e05050' };
   return { bg:'#1a1a1a', bd:'#333', text:'#666' };
 }
@@ -2685,7 +2709,7 @@ export function SimulatorPage() {
                   <FilterChips label="Trend Condition" opts={CST_TREND_OPTS} selected={cstTrendCond} onToggle={function(v){ setCstFilters(function(p){ return Object.assign({},p,{trendCond:toggle(p.trendCond||[],v)}); }); }} />
                   <FilterChips label="Momentum Status" opts={CST_MOM_STATUS_OPTS} selected={cstMomStatus} onToggle={function(v){ setCstFilters(function(p){ return Object.assign({},p,{momStatus:toggle(p.momStatus||[],v)}); }); }} />
                   <FilterChips label="Reversal Status" opts={CST_REV_STATUS_OPTS} selected={cstRevStatus} onToggle={function(v){ setCstFilters(function(p){ return Object.assign({},p,{revStatus:toggle(p.revStatus||[],v)}); }); }} />
-                  <FilterChips label="Smart Money Status" opts={CST_SMF_STATUS_OPTS} selected={cstSmfStatus} onToggle={function(v){ setCstFilters(function(p){ return Object.assign({},p,{smfStatus:toggle(p.smfStatus||[],v)}); }); }} />
+                  <FilterChips label="Money Flow Status" opts={CST_SMF_STATUS_OPTS} selected={cstSmfStatus} onToggle={function(v){ setCstFilters(function(p){ return Object.assign({},p,{smfStatus:toggle(p.smfStatus||[],v)}); }); }} />
                   {hasFilters && condParts.length > 0 && (
                     <div style={{ fontSize:9, color:'#888', background:'rgba(0,0,0,0.15)', borderRadius:4, padding:'5px 10px', marginBottom:10 }}>
                       <span style={{ fontWeight:700, color:'#aaa' }}>{'Selected Condition: '}</span>{condParts.join(' · ')}
@@ -4646,7 +4670,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.76</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.83</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4700,7 +4724,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.76</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.83</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5017,7 +5041,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   if (!window.__isPaid && !_isFreeTickerAI) {
                     return (
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
-                        {["Fundamental (Invest)","Technical (Trade)"].map(function(lbl,i){
+                        {["Fundamental (Invest)","Rule Based Analytics"].map(function(lbl,i){
                           return (
                             <div key={i} onClick={function(){ window.__goToPaywall && window.__goToPaywall(); }}
                               style={{ padding:"9px 12px", background:"#1a1a10", border:"0.5px solid #2c2c14", borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer", justifyContent:"center", alignItems:"center" }}>
@@ -5042,7 +5066,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         </div>
                         <div onClick={function(){setExpanded(function(p){return p==="tech"?null:"tech";});}}
                           style={{ padding:"9px 12px", background: ruleAnalytics ? summaryCardDark(ruleAnalytics.verdict).bg : "#222", border:"0.5px solid "+(ruleAnalytics ? summaryCardDark(ruleAnalytics.verdict).bd : "#333"), borderRadius:8, minHeight:72, display:"flex", flexDirection:"column", cursor:"pointer" }}>
-                          <div style={{ fontSize:9, color: ruleAnalytics ? summaryCardDark(ruleAnalytics.verdict).text : "#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Technical (Trade)</div>
+                          <div style={{ fontSize:9, color: ruleAnalytics ? summaryCardDark(ruleAnalytics.verdict).text : "#555", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5, opacity:0.8 }}>Rule Based Analytics</div>
                           <div style={{ display:"flex", alignItems:"center", flex:1 }}>
                             {!ruleAnalytics ? <span style={{ fontSize:10, color:"#555" }}>{"Loading..."}</span>
                               : <span style={{ fontSize:13, fontWeight:700, color: summaryCardDark(ruleAnalytics.verdict).text }}>{ruleAnalytics.verdict.split("—")[0].trim()}</span>}
@@ -5189,7 +5213,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 {/* TECHNICAL ANALYSIS -- compact rows */}
                 <div style={{ background:"#1e1e1e", border:"0.5px solid #2c2c2e", borderRadius:10, overflow:"hidden", marginBottom:8 }}>
                   <div style={{ background:"#242424", padding:"5px 12px", borderBottom:"0.5px solid #2c2c2e" }}>
-                    <span style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.1em" }}>Technical Analysis</span>
+                    <span style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.1em" }}>Technical Signals</span>
                   </div>
                   <div style={{ padding:"0" }}>
                 <div style={{ display:"none" }}>Technical Analysis</div>
@@ -5232,8 +5256,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       {(function(){
                         var _trendSubMap = {
                           "Strong Uptrend":"Price trend is strong","Uptrend":"Trend is positive",
-                          "Weak Uptrend":"Trend is mildly positive","Sideways":"No clear trend direction",
-                          "Weak Downtrend":"Trend is mildly weak","Downtrend":"Trend is weak",
+                          "Sideways":"No clear trend direction",
+                          "Downtrend":"Trend is weak",
                           "Strong Downtrend":"Strong downward trend","Not Enough Data":"Insufficient data"
                         };
                         var _tl = _hasTech ? _trendLabel : "--";
@@ -5274,9 +5298,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       {(function(){
                         var _lp = momLiveSym===sym ? momLiveProfile : null;
                         function _sp(p){if(p==='Momentum Continuation') return 'Continuation';if(p==='Early Recovery Attempt') return 'Recovery';if(p==='Weak Weekly Bounce') return 'Weak Bounce';if(p==='Waiting for Daily Trigger') return 'Waiting';if(p==='Pullback in Larger Momentum') return 'Pullback';if(p==='Bearish Momentum') return 'Bearish';if(p==='No Clear Momentum Profile') return 'Unclear';if(p==='Not Enough Data') return 'No Data';return 'No Data';}
-                        function _sc(s){return s==='Strong'||s==='Supportive'?'#7abd00':s==='Building'?'#6090d0':s==='Neutral'?'#b88000':s==='Fading'||s==='Weak'?'#c03030':'#555';}
+                        function _sc(s){return s==='Strong'||s==='Supportive'?'#7abd00':s==='Building'?'#6090d0':s==='Neutral'?'#EF9F27':s==='Fading'?'#EF9F27':s==='Weak'?'#e05050':'#555';}
                         var _sp2 = _lp ? _sp(_lp.profile) : (momLiveLoading ? '...' : 'No Data');
-                        var _spc = _sp2==='Continuation'?'#7abd00':_sp2==='Recovery'?'#6090d0':_sp2==='Pullback'?'#6090d0':_sp2==='Waiting'?'#b88000':_sp2==='Weak Bounce'?'#b88000':_sp2==='Bearish'?'#c03030':'#aaa';
+                        var _spc = _sp2==='Continuation'?'#7abd00':_sp2==='Recovery'?'#6090d0':_sp2==='Pullback'?'#EF9F27':_sp2==='Waiting'?'#EF9F27':_sp2==='Weak Bounce'?'#EF9F27':_sp2==='Bearish'?'#e05050':'#aaa';
                         var _d = _hasTech && _momLabel && _momLabel!=='--' ? _momLabel : '--';
                         var _w = _lp ? (_lp.weekly==='Not Enough Data'?'No data':_lp.weekly||'--') : 'No data';
                         var _m = _lp ? (_lp.monthlyRegime==='Not Enough Data'?'No data':_lp.monthlyRegime||'--') : 'No data';
@@ -5416,7 +5440,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             "Bearish Reversal Confirmed":"Bearish Confirmed","Bearish Reversal Triggered":"Bearish Triggered",
                             "Bearish Reversal Setup":"Bearish Setup","Bearish Reversal Watch":"Bearish Watch",
                             "Bearish Reversal Forming":"Bearish Forming","Bearish Reversal Confirming":"Bearish Confirming",
-                            "Mixed Reversal Signals":"Mixed Signals","No Clear Reversal":"No Clear Signal","Not Enough Data":"No Data"
+                            "Mixed Reversal Signals":"Mixed Signals","No Clear Reversal":"No Signal","Not Enough Data":"No Signal"
                           };
                           var _revSubMap = {
                             "Bullish Confirmed":"Price confirmation is strong","Bullish Triggered":"Momentum has turned bullish",
@@ -5427,7 +5451,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             "Bearish Setup":"Early bearish risk forming","Bearish Watch":"Early bearish warning",
                             "Bearish Forming":"Bearish setup and trigger are building","Bearish Confirming":"Bearish price action is validating",
                             "Mixed Signals":"Bullish and bearish evidence conflict",
-                            "No Clear Signal":"No clear reversal signal","No Data":"Insufficient data"
+                            "No Signal":"No clear reversal signal"
                           };
                           var _rwStatus  = _rw ? (_revShortMap[_rw.status]||_rw.status) : "No Data";
                           var _rwSub     = _revSubMap[_rwStatus] || null;
@@ -5483,7 +5507,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             if (s.indexOf("Daily Support but")>-1) return "Daily Support";
                             if (s==="No Clear Signal") return "No Signal";
                             if (s==="No Sustained Flow") return "No Sustained Flow";
-                            if (s==="Not Enough Data") return "No Data";
+                            if (s==="Not Enough Data") return "No Signal";
                             return s;
                           }
                           // Subtitle: "Daily spike · 5D Moderate · 30D Very High"
@@ -5631,8 +5655,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
               { id:"trend",     label:"Trend" },
               { id:"momentum",  label:"Momentum" },
-              { id:"reversal",  label:"Reversal Watch" },
-              { id:"whale",     label:"Smart Money Flow" },
+              { id:"reversal",  label:"Reversal" },
+              { id:"whale",     label:"Money Flow" },
               { id:"addlinfo",  label:"Additional Information" },
               { id:"debug",     label:"Debug" },
               { id:"admin",     label:"Admin" },
@@ -6580,18 +6604,22 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           }
                           if (key === "momentum") {
                             var vl = val.toLowerCase();
-                            // New Momentum Profile labels
+                            // Momentum Profile labels
                             if (vl === "momentum continuation")      return "#7abd00";
                             if (vl === "early recovery attempt")      return "#6090d0";
-                            if (vl === "waiting for daily trigger")   return "#9acd50";
+                            if (vl === "waiting for daily trigger")   return "#EF9F27";
                             if (vl === "pullback in larger momentum") return "#EF9F27";
                             if (vl === "weak weekly bounce")          return "#EF9F27";
                             if (vl === "bearish momentum")            return "#e05050";
+                            if (vl === "no clear momentum profile")   return "#777";
                             if (vl === "not enough data")             return "#777";
                             // Legacy daily labels
-                            if (val === "Strong" || val === "Building") return "#7abd00";
-                            if (val === "Neutral")                      return "#EF9F27";
-                            return "#e05050";
+                            if (val === "Strong")   return "#7abd00";
+                            if (val === "Building") return "#9acd50";
+                            if (val === "Neutral")  return "#EF9F27";
+                            if (val === "Fading")   return "#EF9F27";
+                            if (val === "Weak")     return "#e05050";
+                            return "#777";
                           }
                           if (key === "reversal") return revStatusColor(val, "main");
                           if (key === "smartMoney") return smfStatusColor(val, "main");
@@ -6624,7 +6652,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                   ["Trend",       "trend",      rba.factorLabels.trend],
                                   ["Momentum",    "momentum",   rba.factorLabels.momentum],
                                   ["Reversal",    "reversal",   rba.factorLabels.reversal],
-                                  ["Smart Money", "smartMoney", rba.factorLabels.smartMoney],
+                                  ["Money Flow",  "smartMoney", rba.factorLabels.smartMoney],
                                 ].map(function(f) {
                                   return (
                                     <div key={f[0]} style={{ background:"rgba(0,0,0,0.25)", borderRadius:6, padding:"6px 8px" }}>
@@ -8590,8 +8618,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var _ml2=window.__momLabel||'Neutral';
                           var _msbg=summaryCardDark(_ml2).bg;
                           var _msbd=summaryCardDark(_ml2).bd;
-                          function pColor(p){return p==='Momentum Continuation'?'#7abd00':p==='Early Recovery Attempt'?'#6090d0':p==='Weak Weekly Bounce'?'#EF9F27':p==='Waiting for Daily Trigger'?'#9acd50':p==='Pullback in Larger Momentum'?'#d0a060':p==='Bearish Momentum'?'#e05050':'#888';}
-                          function mColor(s){return s==='Strong'?'#7abd00':s==='Building'?'#9acd50':s==='Neutral'?'#EF9F27':s==='Fading'?'#e08050':s==='Weak'?'#e05050':'#555';}
+                          function pColor(p){return p==='Momentum Continuation'?'#7abd00':p==='Early Recovery Attempt'?'#6090d0':p==='Weak Weekly Bounce'?'#EF9F27':p==='Waiting for Daily Trigger'?'#EF9F27':p==='Pullback in Larger Momentum'?'#EF9F27':p==='Bearish Momentum'?'#e05050':'#888';}
+                          function mColor(s){return momentumStateColor(s);}
                           function rColor(r){return r==='Supportive'?'#7abd00':r==='Neutral'?'#EF9F27':r==='Weak'?'#e05050':'#555';}
                           function pExpl(p){
                             if(p==='Momentum Continuation') return 'Daily and weekly momentum are both supportive. This suggests the move is continuing across short and medium timeframes.';
@@ -8714,8 +8742,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         {/* ══ 3. DAILY MOMENTUM DETAILS ════════════════════════════ */}
                         {(function(){
                           var _ml2=window.__momLabel||'Neutral';
-                          function mColor(s){return s==='Strong'?'#1a6a1a':s==='Building'?'#2a7a2a':s==='Neutral'?'#b88000':s==='Fading'?'#c05030':'#c03030';}
-                          var _rsiHist=ind.rsiHistory||[];
+                          function mColor(s){return momentumStateColor(s);}
                           var _rsiDirDisp=(_rsiHist.length>=7)?((parseFloat(_rsiHist[0])+parseFloat(_rsiHist[1]))/2)-((parseFloat(_rsiHist[2])+parseFloat(_rsiHist[3])+parseFloat(_rsiHist[4])+parseFloat(_rsiHist[5])+parseFloat(_rsiHist[6]))/5):0;
                           var _dirLabel=_rsiDirDisp>3?'↑ improving':_rsiDirDisp<-3?'↓ declining':'→ stable';
                           var _rs=(function(){if(rsi==null) return 3;if(rsi>70) return 4;if(rsi>=65) return _rsiDirDisp<-3?4:5;if(rsi>=55) return _rsiDirDisp<-3?3:4;if(rsi>=45) return _rsiDirDisp>3?4:_rsiDirDisp<-3?2:3;if(rsi>=35) return _rsiDirDisp>0?3:2;return 1;})();
@@ -8779,7 +8806,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         {(function(){
                           var lp=momLiveSym===sym?momLiveProfile:null;
                           if(!lp) return null;
-                          function mColor(s){return s==='Strong'?'#1a6a1a':s==='Building'?'#2a7a2a':s==='Neutral'?'#b88000':s==='Fading'?'#c05030':'#c03030';}
+                          function mColor(s){return momentumStateColor(s);}
                           if(lp.weekly==='Not Enough Data') return <div style={{border:'1px solid #e0dbd0',borderRadius:8,marginBottom:10,padding:'10px 14px'}}><div style={{fontSize:11,fontWeight:700,color:'#888',marginBottom:4}}>Weekly Momentum Details</div><div style={{fontSize:11,color:'#aaa'}}>Not enough historical price data to calculate weekly indicators.</div></div>;
                           var wRsi=lp.weeklyRsi,wRsiDir=lp.weeklyRsiDir;
                           var wRsiScore=wRsi==null?null:wRsi>=65?5:wRsi>=55?4:wRsi>=45?3:wRsi>=35?2:1;
@@ -11005,7 +11032,7 @@ export function JournalPage() {
                 ["Trend",       "trend",      ["Strong Uptrend","Uptrend","Sideways","Downtrend","Strong Downtrend"]],
                 ["Momentum",    "momentum",   ["Strong","Building","Neutral","Fading","Weak"]],
                 ["Reversal",    "reversal",   ["Bull Spark","Bull Watch","Bull Forming","Bull Triggered","Bull Confirming","Bull Confirmed","Bear Watch","Bear Forming","Bear Triggered","Bear Confirmed","Mixed"]],
-                ["Smart Money", "smartMoney", ["Strong Flow","Accumulating","Early Accum.","Constructive","ST Spike","No Signal"]],
+                ["Money Flow",  "smartMoney", ["Strong Flow","Accumulating","Early Accum.","Constructive","ST Spike","No Signal"]],
                 ["Setup",       "setup",      SETUP_OPTS],
                 ["Outcome",     "outcome",    ["Strong Win","Win","Neutral","Failed","Strong Failed","Pending"]],
               ];
@@ -11682,7 +11709,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.76</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.83</span>
           </div>
         </div>
 
