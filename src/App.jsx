@@ -1771,7 +1771,7 @@ function Screener() {
         if (d && d.hit && d.value) {
           var parsed = JSON.parse(d.value);
           var ageHrs = (Date.now() - new Date(parsed.cachedAt).getTime()) / 3600000;
-          if (ageHrs < 12 && parsed.results && parsed.screenerSchemaVersion === 'v2') { setResults(parsed); setScanStatus('done'); return; }
+          if (ageHrs < 12 && parsed.results && parsed.screenerSchemaVersion === 'v3') { setResults(parsed); setScanStatus('done'); return; }
         }
         setScanStatus('idle');
       })
@@ -1782,33 +1782,87 @@ function Screener() {
     if (scanStatus==='scanning') return;
     setScanStatus('scanning'); setScanMsg('Fetching most active tickers...');
     try {
-      // Step 1: Yahoo Finance most-active screener (via existing /proxy route)
+      // Step 1: Yahoo Finance most-active screener — paginate to collect up to 250 raw quotes
       var candidates = [];
+      var scanNote   = '';
       try {
-        var sUrl = 'https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&start=0&count=100&lang=en-US&region=US';
-        var sRes = await fetch('/proxy?url='+encodeURIComponent(sUrl));
-        var sData = await sRes.json();
-        var quotes = (sData.finance&&sData.finance.result&&sData.finance.result[0]&&sData.finance.result[0].quotes)||[];
-        candidates = quotes.filter(function(q){
-          return q.regularMarketPrice>5 && q.regularMarketChangePercent>-1 &&
-                 q.regularMarketVolume>1000000 && q.quoteType==='EQUITY';
-        }).slice(0,50).map(function(q){
+        var rawQuotes = [];
+        // Fetch three pages of 100 at offsets 0 / 100 / 200 — Yahoo caps count at 100 per request
+        var pages = [0, 100, 200];
+        for (var pi2 = 0; pi2 < pages.length; pi2++) {
+          try {
+            var pUrl = 'https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&start='+pages[pi2]+'&count=100&lang=en-US&region=US';
+            var pRes = await fetch('/proxy?url='+encodeURIComponent(pUrl));
+            var pData = await pRes.json();
+            var pQuotes = (pData.finance&&pData.finance.result&&pData.finance.result[0]&&pData.finance.result[0].quotes)||[];
+            if (!pQuotes.length) break; // no more results
+            rawQuotes = rawQuotes.concat(pQuotes);
+            if (pQuotes.length < 100) break; // last page was partial
+          } catch(e2) { break; } // page failed — stop paginating but keep what we have
+        }
+        setScanMsg('Fetched '+rawQuotes.length+' raw quotes. Applying filters...');
+
+        // Dedup by symbol
+        var seen = {};
+        rawQuotes = rawQuotes.filter(function(q){ if(seen[q.symbol])return false; seen[q.symbol]=true; return true; });
+
+        function toCandidate(q){
           return { sym:q.symbol, name:q.longName||q.shortName||q.symbol,
                    price:q.regularMarketPrice, changePct:q.regularMarketChangePercent, volume:q.regularMarketVolume };
+        }
+
+        // Stage 1: preferred — positive day, solid volume
+        var stage1 = rawQuotes.filter(function(q){
+          return q.regularMarketPrice>5 && q.regularMarketChangePercent>0 &&
+                 q.regularMarketVolume>1000000 && q.quoteType==='EQUITY';
         });
+
+        // Stage 2: relaxed changePct (covers early reversals and small pullbacks)
+        var stage2Syms = {};
+        stage1.forEach(function(q){ stage2Syms[q.symbol]=true; });
+        var stage2 = rawQuotes.filter(function(q){
+          return !stage2Syms[q.symbol] &&
+                 q.regularMarketPrice>5 && q.regularMarketChangePercent>=-1 &&
+                 q.regularMarketVolume>1000000 && q.quoteType==='EQUITY';
+        });
+
+        // Stage 3: relaxed volume (fills remaining gap if still short of 50)
+        var stage3Syms = Object.assign({}, stage2Syms);
+        stage2.forEach(function(q){ stage3Syms[q.symbol]=true; });
+        var stage3 = rawQuotes.filter(function(q){
+          return !stage3Syms[q.symbol] &&
+                 q.regularMarketPrice>5 &&
+                 q.regularMarketVolume>500000 && q.quoteType==='EQUITY';
+        });
+
+        var combined = stage1.concat(stage2).concat(stage3);
+        candidates = combined.slice(0, 50).map(toCandidate);
+
+        // Build a friendly note about how the list was filled
+        var s1c = stage1.length, s2c = Math.min(stage2.length, Math.max(0, 50-s1c));
+        var s3c = Math.min(stage3.length, Math.max(0, 50-s1c-s2c));
+        if (s2c > 0 && s3c > 0) {
+          scanNote = s1c+' strict + '+s2c+' relaxed + '+s3c+' volume-relaxed candidates.';
+        } else if (s2c > 0) {
+          scanNote = s1c+' strict + '+s2c+' relaxed candidates.';
+        } else {
+          scanNote = s1c+' candidates matched strict criteria.';
+        }
       } catch(e) {
         // Fallback: curated top-US ticker universe
         ['NVDA','AAPL','MSFT','AMZN','GOOGL','META','TSLA','AMD','AVGO','PLTR',
          'COIN','MARA','RIOT','HOOD','SOFI','NFLX','DIS','INTL','NOW','SNOW']
           .forEach(function(s){ candidates.push({ sym:s, name:s, price:0, changePct:0, volume:0 }); });
+        scanNote = 'Using fallback ticker list (Yahoo screener unavailable).';
       }
 
-      if (!candidates.length){ setScanMsg('No candidates after pre-filter.'); setScanStatus('done'); setResults({ cachedAt:new Date().toISOString(), results:[] }); return; }
-      setScanMsg('Scanning '+candidates.length+' candidates...');
+      if (!candidates.length){ setScanMsg('No candidates after filtering.'); setScanStatus('done'); setResults({ cachedAt:new Date().toISOString(), screenerSchemaVersion:'v3', results:[] }); return; }
+      setScanMsg(scanNote+' Scanning '+candidates.length+' candidates...');
 
-      // Step 2: Batch technical scans, 5 at a time — max 50 tickers
+      // Step 2: Batch technical scans, 5 at a time
       var hdrs = window.__clerkToken ? { Authorization:'Bearer '+window.__clerkToken } : {};
       var matched = [];
+      var failedCount = 0;
       var BATCH = 5;
       for (var i=0; i<candidates.length; i+=BATCH) {
         var batch = candidates.slice(i, i+BATCH);
@@ -1816,27 +1870,22 @@ function Screener() {
         var bRes = await Promise.all(batch.map(async function(c) {
           try {
             var mRes = await fetch('/massive?sym='+c.sym, { headers:hdrs });
-            if (!mRes.ok) return null;
+            if (!mRes.ok) { failedCount++; return null; }
             var mData = await mRes.json();
-            if (!mData||!mData.aggs||mData.aggs.length<10) return null;
+            if (!mData||!mData.aggs||mData.aggs.length<10) { failedCount++; return null; }
             var snap = buildScreenerSnapshot(c.sym, mData);
-            if (!snap) return null;
-            // Store all results — criteria applied client-side for flexible filtering
+            if (!snap) { failedCount++; return null; }
             var ms = mData.snapshot||{};
             var smf = snap.smartMoneyFlow;
             var rev = snap.reversalWatch;
             return {
               ticker:c.sym, company:(mData.ticker&&mData.ticker.name)||c.name||c.sym,
               price:c.price||ms.close||0, changePct:c.changePct||ms.change||0, volume:c.volume||ms.volume||0,
-              // Trend
               trend:snap.trend.status, trendScore:snap.trend.score||0,
-              // Momentum (daily)
               momentum:snap.momentum.status, momentumScore:snap.momentum.score||0,
-              // Reversal — include structured decision
               reversal:rev.status, reversalScore:rev.score||0,
               reversalDecision:rev.reversalDecision||null,
               bullishScore:rev.bullishScore||0, bearishScore:rev.bearishScore||0,
-              // Money Flow — new labels from smfCard path
               moneyFlow:smf.status, moneyFlowScore:smf.score||0,
               smartMoneyDecision:smf.smartMoneyDecision||null,
               todayActivityScore:smf.todayActivityScore||null,
@@ -1846,7 +1895,7 @@ function Screener() {
               fiveDayLabel:smf.fiveDayLabel||null,
               thirtyDayLabel:smf.thirtyDayLabel||null,
             };
-          } catch(e){ return null; }
+          } catch(e){ failedCount++; return null; }
         }));
         matched = matched.concat(bRes.filter(Boolean));
       }
@@ -1854,13 +1903,13 @@ function Screener() {
       // Sort by combined reversal + money flow score
       matched.sort(function(a,b){ return (b.reversalScore+b.moneyFlowScore)-(a.reversalScore+a.moneyFlowScore); });
 
-      var cacheObj = { cachedAt:new Date().toISOString(), screenerSchemaVersion:'v2', results:matched };
-      // Write to KV cache (12h enforced on read via cachedAt check above)
+      var finalMsg = matched.length+' of '+candidates.length+' candidates scanned successfully'+(failedCount>0?' ('+failedCount+' failed — missing data)':'')+'.';
+      var cacheObj = { cachedAt:new Date().toISOString(), screenerSchemaVersion:'v3', candidateCount:candidates.length, failedCount:failedCount, results:matched };
       var postHdrs = { 'Content-Type':'text/plain' };
       if (window.__clerkToken) postHdrs['Authorization']='Bearer '+window.__clerkToken;
       fetch('/cache?sym=__SCREENER&tab=results', { method:'POST', headers:postHdrs, body:JSON.stringify(cacheObj) }).catch(function(){});
 
-      setResults(cacheObj); setScanStatus('done'); setScanMsg('');
+      setResults(cacheObj); setScanStatus('done'); setScanMsg(finalMsg);
     } catch(e) { setScanStatus('error'); setScanMsg('Scan failed: '+(e.message||'Unknown error')); }
   }
 
@@ -2220,7 +2269,12 @@ function Screener() {
             );
           })()}
           <div style={{ fontSize:10, color:'#444', marginTop:10 }}>
-            {items.length+' tickers scanned \u2022 Sorted by reversal and money flow strength \u2022 Research use only. Not financial advice.'}
+            {(function(){
+              var total = results && results.candidateCount ? results.candidateCount : items.length;
+              var succ  = items.length;
+              var fail  = results && results.failedCount ? results.failedCount : 0;
+              return succ+' of '+total+' candidates scanned'+(fail>0?' \u2022 '+fail+' failed (missing data)':'')+' \u2022 Sorted by reversal and money flow strength \u2022 Research use only. Not financial advice.';
+            })()}
           </div>
         </div>
       )}
@@ -4850,7 +4904,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.88</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.89</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4904,7 +4958,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.88</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.89</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11940,7 +11994,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.88</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.89</span>
           </div>
         </div>
 
