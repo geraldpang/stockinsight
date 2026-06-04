@@ -4908,7 +4908,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.93</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.94</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4962,7 +4962,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.93</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.94</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5480,27 +5480,36 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         <FRow label="Intrinsic Value" value={ivSublabel||ivLabel||"--"} score={ivScore} dotCol={ivColors.dot} valCol={ivColors.fg} loading={!ivOracle&&!ov} tab="intrinsic" />
 
                         {expanded==="intrinsic" && (function(){
-                          var iSt=window.__ivStore&&window.__ivStore[sym];
-                          var pr=q?q.price:0;
-                          var oracle=iSt?parseFloat(iSt.oracle):null;
-                          var disc=oracle&&pr>0?(oracle-pr)/pr*100:null;
-                          function fmtd(v){return v&&v>0?"$"+v.toFixed(2):"N/A";}
-                          var models=[];
-                          if(pr>0)models.push({l:"Current Price",v:"$"+pr.toFixed(2),c:"#aaa"});
-                          if(iSt&&iSt.dcf20&&parseFloat(iSt.dcf20)>0)models.push({l:"Cash Flow Model",v:fmtd(parseFloat(iSt.dcf20)),c:"#888"});
-                          if(iSt&&iSt.dcff20&&parseFloat(iSt.dcff20)>0)models.push({l:"Earnings Model",v:fmtd(parseFloat(iSt.dcff20)),c:"#888"});
-                          if(iSt&&iSt.gg&&parseFloat(iSt.gg)>0)models.push({l:"Gordon Growth",v:fmtd(parseFloat(iSt.gg)),c:"#888"});
-                          var discColor=disc!=null?(disc>20?"#7abd00":disc>0?"#9acd50":disc>-10?"#EF9F27":"#e05050"):"#aaa";
+                          var iSt = window.__ivStore && window.__ivStore[sym];
+                          var pr  = q ? q.price : 0;
+                          var oracle = iSt ? parseFloat(iSt.oracle) : null;
+                          var disc   = oracle && pr > 0 ? (oracle - pr) / pr * 100 : null;
+                          function fmtd(v){ return v && v > 0 ? "$" + v.toFixed(2) : "N/A"; }
+                          // Use vals array from store — same source as full IV tab
+                          var ivVals   = (iSt && Array.isArray(iSt.vals)) ? iSt.vals : [];
+                          var ivModels = ivVals.filter(function(v){ return !v.bold; });
+                          var discColor = disc != null ? (disc > 20 ? "#7abd00" : disc > 0 ? "#9acd50" : disc > -10 ? "#EF9F27" : "#e05050") : "#aaa";
                           return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
                             <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Intrinsic Value Evidence</div>
                             <div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>Compares the current price against estimated business value.</div>
-                            {!iSt&&<div style={{fontSize:10,color:"#555",marginBottom:4}}>IV data not yet loaded.</div>}
-                            {models.map(function(m,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>{m.l}</span><span style={{fontSize:10,fontWeight:700,color:m.c}}>{m.v}</span></div>);})}
-                            {oracle&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#aaa",flex:1,fontWeight:700}}>Blended IV</span><span style={{fontSize:11,fontWeight:700,color:discColor}}>{fmtd(oracle)}</span></div>}
-                            {disc!=null&&<div style={{display:"flex",padding:"5px 0"}}><span style={{fontSize:10,color:"#888",flex:1}}>Margin of Safety</span><span style={{fontSize:10,fontWeight:700,color:discColor}}>{(disc>=0?"+":"")+disc.toFixed(1)+"%"}</span></div>}
-                            {disc==null&&iSt&&<div style={{fontSize:10,color:"#555",marginTop:4}}>Valuation comparison not available.</div>}
+                            {!iSt && <div style={{fontSize:10,color:"#555",marginBottom:4}}>IV data not yet loaded.</div>}
+                            {iSt && ivModels.length === 0 && <div style={{fontSize:10,color:"#555",marginBottom:4}}>Intrinsic value model details are available in Full IV Analysis.</div>}
+                            {ivModels.map(function(m, i){
+                              return(<div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a",gap:8}}>
+                                <span style={{fontSize:10,color:"#888",flex:1,minWidth:0,lineHeight:1.35}}>{m.label}</span>
+                                <span style={{fontSize:10,fontWeight:700,color:"#aaa"}}>{fmtd(m.value)}</span>
+                              </div>);
+                            })}
+                            {oracle != null && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a",gap:8}}>
+                              <span style={{fontSize:10,color:"#aaa",fontWeight:700,flex:1,minWidth:0}}>Blended IV</span>
+                              <span style={{fontSize:11,fontWeight:700,color:discColor}}>{fmtd(oracle)}</span>
+                            </div>}
+                            {disc != null && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",gap:8}}>
+                              <span style={{fontSize:10,color:"#888",flex:1}}>vs Current Price</span>
+                              <span style={{fontSize:10,fontWeight:700,color:discColor}}>{(disc >= 0 ? "+" : "") + disc.toFixed(1) + "%"}</span>
+                            </div>}
                             <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether the valuation gap remains supported by earnings and cash flow assumptions.</div>
-                            <button onClick={function(){window.__goToTab&&window.__goToTab("intrinsic");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full IV Analysis</button>
+                            <button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("intrinsic");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full IV Analysis</button>
                           </div>);
                         })()}
                       </div>
@@ -12123,7 +12132,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.93</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.94</span>
           </div>
         </div>
 
