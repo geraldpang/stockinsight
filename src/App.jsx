@@ -4670,7 +4670,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.84</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.85</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4724,7 +4724,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.84</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.85</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5140,7 +5140,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         : (p.score||0);
                       var _d=[]; for(var i=1;i<=5;i++) _d.push(<span key={i} style={{display:"inline-block",width:5,height:5,borderRadius:"50%",background:i<=dotCount?(p.dotCol||"#7abd00"):"#2a2a2a",marginRight:2}}/>);
                       return (
-                        <div onClick={function(){ setExpanded(function(prev){return prev===p.tab?null:p.tab;}); if(p.tab&&window.__goToTab)window.__goToTab(p.tab); }}
+                        <div onClick={function(){ setExpanded(function(prev){return prev===p.tab?null:p.tab;}); if(p.tab&&window.__goToTab&&window.innerWidth>768)window.__goToTab(p.tab); }}
                           style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                           onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                           onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
@@ -5282,7 +5282,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         var _tsub = _hasTech ? (_trendSubMap[_trendLabel] || null) : null;
                         var _tcol = _hasTech ? _trendCol.fg : "#555";
                         return (
-                          <div onClick={function(){setExpanded(function(p){return p==="trend"?null:"trend";}); if(window.__goToTab)window.__goToTab("trend");}}                            style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
+                          <div onClick={function(){setExpanded(function(p){return p==="trend"?null:"trend";}); if(window.__goToTab&&window.innerWidth>768)window.__goToTab("trend");}}                            style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                             onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                             onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
                             <span style={{fontSize:11,color:"#666",width:110,flexShrink:0}}>Trend</span>
@@ -5334,7 +5334,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           ? ('D '+(_d||'--')+((_w&&_w!=='No data')?' \u00b7 W '+_w:'')+((_m&&_m!=='No data')?' \u00b7 M '+_m:''))
                           : null;
                         return (
-                          <div onClick={function(){setExpanded(function(p){return p==="momentum"?null:"momentum";}); if(window.__goToTab)window.__goToTab("momentum");}}
+                          <div onClick={function(){setExpanded(function(p){return p==="momentum"?null:"momentum";}); if(window.__goToTab&&window.innerWidth>768)window.__goToTab("momentum");}}
                             style={{display:'flex',alignItems:'center',padding:'11px 12px',borderBottom:'0.5px solid #242424',cursor:'pointer',minHeight:44}}
                             onMouseEnter={function(e){e.currentTarget.style.background='#252525';}}
                             onMouseLeave={function(e){e.currentTarget.style.background='transparent';}}>
@@ -5492,7 +5492,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var _rwSub     = _revSubMap[_rwStatus] || null;
                           var _rwMainCol = revStatusColor(_rw ? _rw.status : null, "main");
                           return (
-                            <div onClick={function(){setExpanded(function(p){return p==="reversal"?null:"reversal";}); if(window.__goToTab)window.__goToTab("reversal");}}
+                            <div onClick={function(){setExpanded(function(p){return p==="reversal"?null:"reversal";}); if(window.__goToTab&&window.innerWidth>768)window.__goToTab("reversal");}}
                               style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                               onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                               onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
@@ -5569,7 +5569,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           var _smfSub2    = _smfSub(_smf, _smd);
                           var _smfMainCol = smfStatusColor(_smf ? _smf.status : null, "main");
                           return (
-                            <div onClick={function(){setExpanded(function(p){return p==="whale"?null:"whale";}); if(window.__goToTab)window.__goToTab("whale");}}
+                            <div onClick={function(){setExpanded(function(p){return p==="whale"?null:"whale";}); if(window.__goToTab&&window.innerWidth>768)window.__goToTab("whale");}}
                               style={{display:"flex",alignItems:"center",padding:"11px 12px",borderBottom:"0.5px solid #242424",cursor:"pointer",minHeight:44}}
                               onMouseEnter={function(e){e.currentTarget.style.background="#252525";}}
                               onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>
@@ -11754,7 +11754,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.84</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.85</span>
           </div>
         </div>
 
