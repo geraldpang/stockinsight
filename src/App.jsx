@@ -3467,7 +3467,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       var sections = [];
       driverNames.forEach(function(dn) {
         var dnMatch = text.match(new RegExp(dn + "[^0-9]*([1-5])/5"));
-        if (dnMatch) sections.push({ label:dn, score:parseInt(dnMatch[1],10), classification:null });
+        if (dnMatch) {
+          var ds = parseInt(dnMatch[1], 10);
+          var dcl = ds >= 5 ? "Wide" : ds >= 4 ? "Strong" : ds >= 3 ? "Moderate" : ds >= 2 ? "Narrow" : "Weak";
+          sections.push({ label:dn, score:ds, classification:dcl });
+        }
       });
       result = {
         score: score,
@@ -4904,7 +4908,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.89</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.98</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4958,7 +4962,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.89</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.98</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5390,24 +5394,65 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         <FRow label="Economic Moat" value={moatRating} score={moatScore} classification={parsedInsights&&parsedInsights["moat"]?parsedInsights["moat"].classification:null} dotCol={moatColors.dot} valCol={moatColors.fg} loading={!moatRating&&insightLoading} tab="moat" />
 
                         {expanded==="moat" && (function(){
-                          var pi=parsedInsights&&parsedInsights["moat"];
-                          if(!pi)return(<div style={{padding:"6px 0",fontSize:10,color:"#555"}}>No moat detail available.</div>);
-                          var secs=pi.sections?pi.sections.slice(0,5):[];
+                          var pi = parsedInsights && parsedInsights["moat"];
+                          // Also try richer parseMoat from raw cached text
+                          var rawMoatText = insightCache && insightCache["moat"];
+                          var parsedMoat  = rawMoatText ? (function(){
+                            var drivers = ["Network Effects","Switching Costs","Cost Advantage","Intangible Assets","Efficient Scale","Ecosystem Lock-in"];
+                            var result = [];
+                            drivers.forEach(function(drv) {
+                              var drvIdx = rawMoatText.indexOf(drv);
+                              if (drvIdx === -1) return;
+                              var nextDrv = drivers[drivers.indexOf(drv) + 1];
+                              var block = nextDrv ? rawMoatText.substring(drvIdx, rawMoatText.indexOf(nextDrv, drvIdx)) : rawMoatText.substring(drvIdx);
+                              var sm = block.match(/([0-9])\/5/);
+                              if (!sm) return;
+                              var s = parseInt(sm[1], 10);
+                              var lines = block.split("\n");
+                              var body = "";
+                              for (var li = 0; li < lines.length; li++) {
+                                if (lines[li].indexOf("Result:") !== -1) { body = lines[li].replace(/^.*Result:\s*/, "").trim(); break; }
+                              }
+                              var cl = s >= 5 ? "Wide" : s >= 4 ? "Strong" : s >= 3 ? "Moderate" : s >= 2 ? "Narrow" : "Weak";
+                              result.push({ label:drv, score:s, classification:cl, body:body });
+                            });
+                            return result.length > 0 ? result : null;
+                          })() : null;
+                          // Prefer richer parsedMoat sections; fall back to parsedInsights sections
+                          var secs = parsedMoat ? parsedMoat.slice(0,6)
+                                   : (pi && pi.sections ? pi.sections.slice(0,6) : []);
+                          if (!pi && !parsedMoat) return(<div style={{padding:"6px 0",fontSize:10,color:"#555"}}>No moat detail available.</div>);
+                          // Colour by label string — matches full moat tab fsCol convention (dark background)
+                          function _drvColor(cl) {
+                            if (!cl) return "#777";
+                            var v = cl.toLowerCase();
+                            if (v === "wide"   || v === "strong")   return "#7abd00";
+                            if (v === "moderate")                    return "#EF9F27";
+                            if (v === "narrow")                      return "#EF9F27";
+                            if (v === "weak")                        return "#e05050";
+                            return "#777";
+                          }
+                          var expl = (pi && pi.explanation) ? pi.explanation : "";
+                          // Trim summary to first 2 sentences for compact display
+                          var _exShort = (function(){
+                            var sentences = expl.replace(/^\*+|\*+$/g,"").trim().split(/(?<=[.!?])\s+/);
+                            return sentences.slice(0,2).join(" ");
+                          })();
                           return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
                             <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Moat Evidence</div>
-                            {pi.explanation&&<div style={{fontSize:10,color:"#888",lineHeight:1.5,marginBottom:8,wordBreak:"break-word",whiteSpace:"normal"}}>{pi.explanation.slice(0,220)}</div>}
-                            <div style={{fontSize:9,fontWeight:700,color:"#555",textTransform:"uppercase",marginBottom:4}}>Drivers</div>
+                            {_exShort.length > 5 && <div style={{fontSize:10,color:"#888",lineHeight:1.5,marginBottom:8,wordBreak:"break-word",whiteSpace:"normal"}}>{_exShort}</div>}
+                            {secs.length > 0 && <div style={{fontSize:9,fontWeight:700,color:"#555",textTransform:"uppercase",marginBottom:4}}>Drivers</div>}
                             {secs.map(function(s,i){
-                              var d=s.score||0;
-                              var sc=d>=4?"#7abd00":d>=3?"#9acd50":d>=2?"#EF9F27":"#e05050";
-                              return(<div key={i} style={{display:"flex",alignItems:"flex-start",padding:"5px 0",borderBottom:"0.5px solid #2a2a2a",gap:8}}>
-                                <span style={{fontSize:10,color:"#888",flex:1,minWidth:0,wordBreak:"break-word",lineHeight:1.4}}>{s.label}</span>
-                                <span style={{fontSize:10,fontWeight:700,color:sc,flexShrink:0}}>{s.classification||"—"}</span>
+                              var cl = s.classification || (s.score >= 5 ? "Wide" : s.score >= 4 ? "Strong" : s.score >= 3 ? "Moderate" : s.score >= 2 ? "Narrow" : "Weak");
+                              var sc = _drvColor(cl);
+                              return(<div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a",gap:8}}>
+                                <span style={{fontSize:10,color:"#888",flex:1,minWidth:0,lineHeight:1.35}}>{s.label}</span>
+                                <span style={{fontSize:10,fontWeight:700,color:sc,flexShrink:0}}>{cl}</span>
                               </div>);
                             })}
-                            {!secs.length&&<div style={{fontSize:10,color:"#555",marginBottom:4}}>No driver detail available.</div>}
+                            {secs.length === 0 && <div style={{fontSize:10,color:"#555",marginBottom:4}}>Driver details available in Full Moat Analysis.</div>}
                             <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether moat is supported by stable margins and pricing power.</div>
-                            <button onClick={function(){window.__goToTab&&window.__goToTab("moat");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Moat Analysis</button>
+                            <button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("moat");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Moat Analysis</button>
                           </div>);
                         })()}
                         <FRow label="Financial Strength" value={finRating} score={finScore} dotCol={finColors.dot} valCol={finColors.fg} loading={false} tab="financial" />
@@ -5425,7 +5470,36 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           if(ov.fcfRaw!=null)rows.push({l:"Free Cash Flow",v:ov.fcf||"N/A",c:ov.fcfRaw>0?"#7abd00":"#e05050"});
                           return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
                             <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Financial Strength Evidence</div>
-                            <div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>Shows whether the business has healthy profitability, cash flow, and balance sheet strength.</div>
+                            {(function(){
+                              // Build a 1-sentence commentary from the metrics already shown
+                              var hasGrowth  = ov.revGrowth != null;
+                              var goodGrowth = hasGrowth && ov.revGrowth >= 10;
+                              var goodMargin = ov.netMargin != null && ov.netMargin >= 10;
+                              var highMargin = ov.netMargin != null && ov.netMargin >= 20;
+                              var lowDebt    = ov.de != null && ov.de <= 0.5;
+                              var highDebt   = ov.de != null && ov.de > 1.5;
+                              var posFCF     = ov.fcfRaw != null && ov.fcfRaw > 0;
+                              var negFCF     = ov.fcfRaw != null && ov.fcfRaw < 0;
+                              var msg;
+                              if (!rows.length) return null;
+                              if (goodGrowth && highMargin && lowDebt && posFCF)
+                                msg = "Strong growth, high margins, low leverage, and positive cash flow.";
+                              else if (goodGrowth && goodMargin && highDebt)
+                                msg = "Good growth and margins, but leverage is elevated and may reduce financial flexibility.";
+                              else if (goodGrowth && negFCF)
+                                msg = "Growth looks strong, but negative free cash flow needs monitoring.";
+                              else if (!goodGrowth && goodMargin && posFCF)
+                                msg = "Growth is modest, but margins and cash flow are supportive.";
+                              else if (goodGrowth && !goodMargin)
+                                msg = "Growing quickly, but profitability margins remain weaker and should be watched.";
+                              else if (highDebt)
+                                msg = "Leverage is elevated — financial flexibility may be more limited.";
+                              else if (rows.length >= 3)
+                                msg = "Financial indicators are available for review below.";
+                              else
+                                msg = null;
+                              return msg ? <div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>{msg}</div> : null;
+                            })()}
                             {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:700,color:r.c}}>{r.v}</span></div>);})}
                             {!rows.length&&<div style={{fontSize:10,color:"#555"}}>Financial data not yet loaded.</div>}
                             <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether earnings growth and cash flow continue to support the valuation.</div>
@@ -5435,27 +5509,60 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         <FRow label="Intrinsic Value" value={ivSublabel||ivLabel||"--"} score={ivScore} dotCol={ivColors.dot} valCol={ivColors.fg} loading={!ivOracle&&!ov} tab="intrinsic" />
 
                         {expanded==="intrinsic" && (function(){
-                          var iSt=window.__ivStore&&window.__ivStore[sym];
-                          var pr=q?q.price:0;
-                          var oracle=iSt?parseFloat(iSt.oracle):null;
-                          var disc=oracle&&pr>0?(oracle-pr)/pr*100:null;
-                          function fmtd(v){return v&&v>0?"$"+v.toFixed(2):"N/A";}
-                          var models=[];
-                          if(pr>0)models.push({l:"Current Price",v:"$"+pr.toFixed(2),c:"#aaa"});
-                          if(iSt&&iSt.dcf20&&parseFloat(iSt.dcf20)>0)models.push({l:"Cash Flow Model",v:fmtd(parseFloat(iSt.dcf20)),c:"#888"});
-                          if(iSt&&iSt.dcff20&&parseFloat(iSt.dcff20)>0)models.push({l:"Earnings Model",v:fmtd(parseFloat(iSt.dcff20)),c:"#888"});
-                          if(iSt&&iSt.gg&&parseFloat(iSt.gg)>0)models.push({l:"Gordon Growth",v:fmtd(parseFloat(iSt.gg)),c:"#888"});
-                          var discColor=disc!=null?(disc>20?"#7abd00":disc>0?"#9acd50":disc>-10?"#EF9F27":"#e05050"):"#aaa";
+                          var iSt = window.__ivStore && window.__ivStore[sym];
+                          var pr  = q ? q.price : 0;
+                          var oracle = iSt ? parseFloat(iSt.oracle) : null;
+                          var disc   = oracle && pr > 0 ? (oracle - pr) / pr * 100 : null;
+                          function fmtd(v){ return v && v > 0 ? "$" + v.toFixed(2) : "N/A"; }
+                          // Use vals array from store — same source as full IV tab
+                          var ivVals   = (iSt && Array.isArray(iSt.vals)) ? iSt.vals : [];
+                          var ivModels = ivVals.filter(function(v){ return !v.bold; });
+                          var discColor = disc != null ? (disc > 20 ? "#7abd00" : disc > 0 ? "#9acd50" : disc > -10 ? "#EF9F27" : "#e05050") : "#aaa";
                           return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
                             <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Intrinsic Value Evidence</div>
-                            <div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>Compares the current price against estimated business value.</div>
-                            {!iSt&&<div style={{fontSize:10,color:"#555",marginBottom:4}}>IV data not yet loaded.</div>}
-                            {models.map(function(m,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>{m.l}</span><span style={{fontSize:10,fontWeight:700,color:m.c}}>{m.v}</span></div>);})}
-                            {oracle&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#aaa",flex:1,fontWeight:700}}>Blended IV</span><span style={{fontSize:11,fontWeight:700,color:discColor}}>{fmtd(oracle)}</span></div>}
-                            {disc!=null&&<div style={{display:"flex",padding:"5px 0"}}><span style={{fontSize:10,color:"#888",flex:1}}>Margin of Safety</span><span style={{fontSize:10,fontWeight:700,color:discColor}}>{(disc>=0?"+":"")+disc.toFixed(1)+"%"}</span></div>}
-                            {disc==null&&iSt&&<div style={{fontSize:10,color:"#555",marginTop:4}}>Valuation comparison not available.</div>}
+                            {(function(){
+                              if (!iSt || ivModels.length === 0) return null;
+                              // Check spread of model values for "wide range" comment
+                              var modelVals = ivModels.map(function(m){ return m.value; }).filter(function(v){ return v > 0; });
+                              var spread = modelVals.length >= 2
+                                ? (Math.max.apply(null,modelVals) - Math.min.apply(null,modelVals)) / Math.max.apply(null,modelVals)
+                                : 0;
+                              var wideSpread = spread > 0.4;
+                              var msg;
+                              if (disc != null && disc > 20 && wideSpread)
+                                msg = "The blended estimate is above the current price, though the model range is wide.";
+                              else if (disc != null && disc > 20)
+                                msg = "Models suggest the stock may be trading below estimated intrinsic value.";
+                              else if (disc != null && disc < -10 && wideSpread)
+                                msg = "The blended estimate is below the current price and model assumptions vary widely.";
+                              else if (disc != null && disc < -10)
+                                msg = "Models suggest the stock may be trading above estimated intrinsic value.";
+                              else if (disc != null && wideSpread)
+                                msg = "Models are broadly in line with the current price, but the range of estimates is wide.";
+                              else if (disc != null)
+                                msg = "Models are broadly in line with the current price.";
+                              else
+                                msg = null;
+                              return msg ? <div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>{msg}</div> : null;
+                            })()}
+                            {!iSt && <div style={{fontSize:10,color:"#555",marginBottom:4}}>IV data not yet loaded.</div>}
+                            {iSt && ivModels.length === 0 && <div style={{fontSize:10,color:"#555",marginBottom:4}}>Intrinsic value model details are available in Full IV Analysis.</div>}
+                            {ivModels.map(function(m, i){
+                              return(<div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a",gap:8}}>
+                                <span style={{fontSize:10,color:"#888",flex:1,minWidth:0,lineHeight:1.35}}>{m.label}</span>
+                                <span style={{fontSize:10,fontWeight:700,color:"#aaa"}}>{fmtd(m.value)}</span>
+                              </div>);
+                            })}
+                            {oracle != null && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a",gap:8}}>
+                              <span style={{fontSize:10,color:"#aaa",fontWeight:700,flex:1,minWidth:0}}>Blended IV</span>
+                              <span style={{fontSize:11,fontWeight:700,color:discColor}}>{fmtd(oracle)}</span>
+                            </div>}
+                            {disc != null && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",gap:8}}>
+                              <span style={{fontSize:10,color:"#888",flex:1}}>vs Current Price</span>
+                              <span style={{fontSize:10,fontWeight:700,color:discColor}}>{(disc >= 0 ? "+" : "") + disc.toFixed(1) + "%"}</span>
+                            </div>}
                             <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether the valuation gap remains supported by earnings and cash flow assumptions.</div>
-                            <button onClick={function(){window.__goToTab&&window.__goToTab("intrinsic");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full IV Analysis</button>
+                            <button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("intrinsic");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full IV Analysis</button>
                           </div>);
                         })()}
                       </div>
@@ -5741,23 +5848,102 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         })()}
 
                       {expanded==="reversal" && (function(){
-                        var _rw=window.__revWatchStatus&&window.__revWatchStatus[sym];
-                        var rd=_rw&&_rw.reversalDecision?_rw.reversalDecision:null;
-                        var trig=rd&&Array.isArray(rd.triggeredConditions)?rd.triggeredConditions.filter(function(c){return typeof c==="string";}):[];
-                        var rwSt=(_rw&&_rw.status)||"";
-                        var isBull=rwSt.toLowerCase().indexOf("bull")>-1;
-                        var isBear=rwSt.toLowerCase().indexOf("bear")>-1;
-                        var ac=isBull?"#7abd00":isBear?"#e05050":"#EF9F27";
-                        var _stExpl={"Bullish Reversal Watch":"Early bullish signals are emerging but not yet confirmed.","Bullish Reversal Spark":"A bullish momentum spark has been detected.","Bullish Reversal Setup":"A bullish reversal setup is forming.","Bullish Reversal Forming":"Setup and trigger are both active.","Bullish Reversal Triggered":"Momentum has shifted bullish.","Bullish Reversal Confirming":"Price action is beginning to confirm the reversal.","Bullish Reversal Confirmed":"The bullish reversal is confirmed across multiple stages.","Bearish Reversal Watch":"Early bearish signals are emerging but not yet confirmed.","Bearish Reversal Setup":"A bearish reversal setup is forming.","Bearish Reversal Forming":"Bearish setup and trigger are both active.","Bearish Reversal Triggered":"Momentum has shifted bearish.","Bearish Reversal Confirming":"Price action is confirming the bearish reversal.","Bearish Reversal Confirmed":"The bearish reversal is confirmed across multiple stages.","Mixed Reversal Signals":"Bullish and bearish signals are conflicting.","No Clear Reversal":"No clear reversal evidence detected."};
+                        var _rw  = window.__revWatchStatus && window.__revWatchStatus[sym];
+                        var rd   = _rw && _rw.reversalDecision ? _rw.reversalDecision : null;
+                        var rwSt = (_rw && _rw.status) || "";
+                        var rl   = rwSt.toLowerCase();
+                        var isBull   = rl.indexOf("bull") > -1;
+                        var isBear   = rl.indexOf("bear") > -1;
+                        var isMixed  = rl.indexOf("mixed") > -1;
+                        var isNoClear= rl.indexOf("no clear") > -1 || rl.indexOf("not enough") > -1 || rwSt === "";
+                        var ac = isBull ? "#7abd00" : isBear ? "#e05050" : isMixed ? "#EF9F27" : "#777";
+                        var _wtm = (function(){
+                          if (isMixed)   return "Bullish and bearish reversal evidence are both present, so the signal is not yet decisive.";
+                          if (isNoClear) return rl.indexOf("not enough") > -1 ? "There is not enough recent price data to assess reversal evidence reliably." : "No meaningful reversal evidence has been detected yet.";
+                          if (isBull) {
+                            if (rl.indexOf("confirming") > -1 || rl.indexOf("confirmed") > -1) return "Bullish reversal evidence has strengthened and is now more clearly supported.";
+                            if (rl.indexOf("forming") > -1 || rl.indexOf("triggered") > -1)    return "Bullish reversal conditions are developing and need follow-through.";
+                            return "Early bullish reversal evidence is appearing, but confirmation is still needed.";
+                          }
+                          if (isBear) {
+                            if (rl.indexOf("confirming") > -1 || rl.indexOf("confirmed") > -1) return "Bearish reversal evidence has strengthened and downside pressure is more clearly supported.";
+                            if (rl.indexOf("forming") > -1 || rl.indexOf("triggered") > -1)    return "Bearish reversal conditions are developing and need follow-through.";
+                            return "Early bearish reversal evidence is appearing, but confirmation is still needed.";
+                          }
+                          return "Reversal conditions are being monitored.";
+                        })();
+                        var _watch = isBull  ? "Watch whether price follows through above nearby resistance with supportive volume."
+                                   : isBear  ? "Watch whether price confirms downside follow-through with increased selling pressure."
+                                   : isMixed ? "Watch whether price breaks higher or lower with follow-through volume."
+                                   :           "Watch for a clear reversal setup, trigger, and confirmation before drawing conclusions.";
+                        // ── Detected evidence from full Reversal tab inds arrays ──────────────
+                        // Read the six indicator arrays stored when the Reversal tab rendered.
+                        // Fall back to legacy boolean arrays if Reversal tab not yet visited.
+                        var _rws = _rw || {};
+                        function _detected(arr, group, dir) {
+                          if (!Array.isArray(arr)) return [];
+                          return arr.filter(function(i){ return i && i.status === "detected"; })
+                                    .map(function(i){ return { label: i.name, group: group, dir: dir }; });
+                        }
+                        var bullEv = _detected(_rws.bsInds,"Setup","bull")
+                                     .concat(_detected(_rws.btInds,"Trigger","bull"))
+                                     .concat(_detected(_rws.bcInds,"Confirmation","bull"));
+                        var bearEv = _detected(_rws.dsInds,"Setup","bear")
+                                     .concat(_detected(_rws.dtInds,"Trigger","bear"))
+                                     .concat(_detected(_rws.dcInds,"Confirmation","bear"));
+
+                        // If tab not yet visited, fall back to legacy boolean arrays
+                        if (bullEv.length === 0 && bearEv.length === 0) {
+                          var _BL = [
+                            {l:"RSI price divergence forming",g:"Setup"},
+                            {l:"MACD histogram turning up",g:"Trigger"},
+                            {l:"Weekly average cross approaching",g:"Setup"},
+                            {l:"RSI base forming",g:"Setup"},
+                            {l:"Price near 52-week low with RSI recovering",g:"Setup"},
+                          ];
+                          var _BRL = [
+                            {l:"RSI bearish divergence forming",g:"Setup"},
+                            {l:"MACD histogram turning down",g:"Trigger"},
+                            {l:"Weekly average cross approaching",g:"Setup"},
+                            {l:"RSI overbought and stalling",g:"Setup"},
+                            {l:"Price near 52-week high with RSI topping",g:"Setup"},
+                          ];
+                          var bArr3  = window.__revArr3     && window.__revSym3 === sym ? window.__revArr3     : [];
+                          var beArr3 = window.__revBearArr3 && window.__revSym3 === sym ? window.__revBearArr3 : [];
+                          bArr3.forEach(function(v,i){ if(v && _BL[i]) bullEv.push({label:_BL[i].l, group:_BL[i].g, dir:"bull"}); });
+                          beArr3.forEach(function(v,i){ if(v && _BRL[i]) bearEv.push({label:_BRL[i].l, group:_BRL[i].g, dir:"bear"}); });
+                        }
+
+                        // Filter by primary direction — mixed is the only case that shows both sides
+                        var bullEvidence = (isBull || isMixed) ? bullEv.slice(0, 5) : [];
+                        var bearEvidence = (isBear || isMixed) ? bearEv.slice(0, isMixed ? Math.max(0, 5 - bullEvidence.length) : 5) : [];
+                        var hasEvidence  = bullEvidence.length > 0 || bearEvidence.length > 0;
+                        function EvidRow(props) {
+                          return <div style={{display:"flex",gap:6,padding:"3px 0",borderBottom:"0.5px solid #242424",alignItems:"flex-start"}}>
+                            <span style={{color:props.col,flexShrink:0,lineHeight:1.5,fontSize:10}}>{String.fromCharCode(0x2713)}</span>
+                            <span style={{fontSize:10,color:"#aaa",lineHeight:1.4,minWidth:0,wordBreak:"break-word"}}>{props.txt}</span>
+                          </div>;
+                        }
                         return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
                           <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Reversal Evidence</div>
-                          {_stExpl[rwSt]&&<div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>{_stExpl[rwSt]}</div>}
-                          {trig.length===0&&<div style={{fontSize:10,color:"#555",marginBottom:4}}>No reversal evidence currently detected.</div>}
-                          {trig.length>0&&<div style={{fontSize:9,fontWeight:700,color:"#555",textTransform:"uppercase",marginBottom:4}}>Detected Signals</div>}
-                          {trig.map(function(c,i){return(<div key={i} style={{display:"flex",gap:6,padding:"4px 0",borderBottom:"0.5px solid #2a2a2a",alignItems:"flex-start"}}><span style={{color:ac,flexShrink:0,lineHeight:1.5}}>{String.fromCharCode(0x2713)}</span><span style={{fontSize:10,color:"#aaa",lineHeight:1.4}}>{c}</span></div>);})}
-                          {rd&&rd.outcome&&<div style={{fontSize:10,fontWeight:700,color:ac,marginTop:6,paddingTop:4}}>{rd.outcome}</div>}
-                          <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether price confirms the reversal with follow-through volume.</div>
-                          <button onClick={function(){window.__goToTab&&window.__goToTab("reversal");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
+                          <div style={{fontSize:10,color:"#888",lineHeight:1.4,marginBottom:8}}>{_wtm}</div>
+                          {rwSt&&<div style={{marginBottom:8}}>
+                            <div style={{fontSize:9,fontWeight:700,color:"#555",textTransform:"uppercase",marginBottom:2}}>Current Signal</div>
+                            <div style={{fontSize:11,fontWeight:700,color:ac}}>{rwSt}</div>
+                          </div>}
+                          <div style={{fontSize:9,fontWeight:700,color:"#555",textTransform:"uppercase",marginBottom:4}}>Detected Evidence</div>
+                          {!hasEvidence&&<div style={{fontSize:10,color:"#555",marginBottom:4}}>
+                            {isMixed?"No clear reversal trigger has been confirmed yet.":isNoClear?"No clear reversal setup, trigger, or confirmation has been detected.":"No specific evidence conditions currently active."}
+                          </div>}
+                          {isBull&&!isMixed&&bullEvidence.map(function(e,i){return <EvidRow key={i} txt={e.label+" ("+e.group+")"} col="#7abd00" />;}) }
+                          {isBear&&!isMixed&&bearEvidence.map(function(e,i){return <EvidRow key={i} txt={e.label+" ("+e.group+")"} col="#e05050" />;}) }
+                          {isMixed&&bullEvidence.length>0&&<div><div style={{fontSize:9,fontWeight:700,color:"#7abd00",marginBottom:2,marginTop:2}}>Bullish</div>{bullEvidence.map(function(e,i){return <EvidRow key={i} txt={e.label+" ("+e.group+")"} col="#7abd00" />;})}</div>}
+                          {isMixed&&bearEvidence.length>0&&<div style={{marginTop:4}}><div style={{fontSize:9,fontWeight:700,color:"#e05050",marginBottom:2}}>Bearish</div>{bearEvidence.map(function(e,i){return <EvidRow key={i} txt={e.label+" ("+e.group+")"} col="#e05050" />;})}</div>}
+                          {isBull&&!isMixed&&bearEvidence.length>0&&null}
+                          {isBear&&!isMixed&&bullEvidence.length>0&&null}
+                          <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>{_watch}</div>
+                          <button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("reversal");setExpanded(null);}}
+                            style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
                         </div>);
                       })()}
                         {(function(){
@@ -7142,8 +7328,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 var map={};
                                 rows3.forEach(function(r){
                                   if (!r.momentumStatus||!r.reversalStatus||!r.smartMoneyStatus) return;
-                                  var k=r.momentumStatus+'|'+r.reversalStatus+'|'+r.smartMoneyStatus+'|'+(r.rawResult||'?');
-                                  if (!map[k]) map[k]={momentumStatus:r.momentumStatus,reversalStatus:r.reversalStatus,smartMoneyStatus:r.smartMoneyStatus,rawResult:r.rawResult||'—',rets:[]};
+                                  var k=(r.trendCondition||'N/A')+'|'+r.momentumStatus+'|'+r.reversalStatus+'|'+r.smartMoneyStatus+'|'+(r.rawResult||'?');
+                                  if (!map[k]) map[k]={trendCondition:r.trendCondition||'N/A',momentumStatus:r.momentumStatus,reversalStatus:r.reversalStatus,smartMoneyStatus:r.smartMoneyStatus,rawResult:r.rawResult||'—',rets:[]};
                                   var v=getPeriodReturn(r,period); if(v!=null&&!isNaN(v)){ map[k].rets.push(v); }
                                 });
                                 return Object.values(map).map(function(g){
@@ -7160,7 +7346,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               var rcGroups  = hasConf ? buildRCGroups(confRows)   : [];
                               var sigGroups = hasConf ? build3SigGroups(confRows) : [];
                               var curKeyRC  = curRaw+'|'+curTrend;
-                              var curKey3   = curMom+'|'+curRev+'|'+curSmf+'|'+curRaw;
+                              var cur3sig   = hasConf ? confRows.filter(function(r){ return r.trendCondition===curTrend && r.momentumStatus===curMom && r.reversalStatus===curRev && r.smartMoneyStatus===curSmf && r.rawResult===curRaw; }) : [];
+                              var cur3Sum   = summariseRows(cur3sig, period);
+                              var curKey3   = (curTrend||'N/A')+'|'+curMom+'|'+curRev+'|'+curSmf+'|'+curRaw;
                               function StatRow(props) {
                                 var s=props.stats;
                                 if (!s) return <div style={{fontSize:11,color:'#555'}}>{'No matching data for this period.'}</div>;
@@ -7208,9 +7396,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                             <div style={{fontSize:10,color:'#555',padding:'8px'}}>{'No historical matches for this signal.'}</div>}
                                           {curMatchRC.length < 5 && curMatchRC.length >= 1 && <div style={{fontSize:9,color:'#b88000',marginTop:4}}>{'Low sample size. Treat this as directional only.'}</div>}
                                         </div>
-                                        {/* Current 3-signal combination */}
+                                        {/* Current 4-signal combination */}
                                         <div style={{marginBottom:14}}>
-                                          <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:4}}>{'3-Signal Combination: ' + (curMom||'—') + ' · ' + (curRev||'—') + ' · ' + (curSmf||'—')}</div>
+                                          <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:4}}>{'4-Signal Combination: ' + (curTrend||'—') + ' · ' + (curMom||'—') + ' · ' + (curRev||'—') + ' · ' + (curSmf||'—')}</div>
                                           {cur3sig.length >= 1 ? <StatRow stats={cur3Sum} /> :
                                             <div style={{fontSize:10,color:'#555',padding:'8px'}}>{'No historical matches for this combination.'}</div>}
                                           {cur3sig.length < 5 && cur3sig.length >= 1 && <div style={{fontSize:9,color:'#b88000',marginTop:4}}>{'Low sample size. Treat this as directional only.'}</div>}
@@ -7241,19 +7429,21 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                             </table>
                                           </div> : <div style={{fontSize:10,color:'#555'}}>{'Not enough data for this period.'}</div>}
                                         </div>
-                                        {/* Top 10 3-Signal table */}
+                                        {/* Top 10 4-Signal table */}
                                         <div>
-                                          <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>{'Top 3-Signal Combinations (' + period + ')'}</div>
+                                          <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>{'Top 4-Signal Combinations (' + period + ')'}</div>
                                           {sigGroups.length ? <div style={{overflowX:'auto'}}>
                                             <table style={{width:'100%',borderCollapse:'collapse',fontSize:10}}>
-                                              <thead><tr>{['#','Mom','Rev','SMF','Result','Sigs','Win%','Avg','Median','Conf','Quality'].map(function(h){ return <th key={h} style={{textAlign:'left',color:'#555',fontWeight:700,fontSize:8,padding:'3px 6px',borderBottom:'0.5px solid #ddd',whiteSpace:'nowrap'}}>{h}</th>; })}</tr></thead>
+                                              <thead><tr>{['#','Trend','Mom','Rev','Flow','Result','Sigs','Win%','Avg','Median','Conf','Quality'].map(function(h){ return <th key={h} style={{textAlign:'left',color:'#555',fontWeight:700,fontSize:8,padding:'3px 6px',borderBottom:'0.5px solid #ddd',whiteSpace:'nowrap'}}>{h}</th>; })}</tr></thead>
                                               <tbody>{sigGroups.slice(0,10).map(function(g,i){
-                                                var isCur = (g.momentumStatus+'|'+g.reversalStatus+'|'+g.smartMoneyStatus+'|'+g.rawResult)===curKey3;
+                                                var isCur = ((g.trendCondition||'N/A')+'|'+g.momentumStatus+'|'+g.reversalStatus+'|'+g.smartMoneyStatus+'|'+g.rawResult)===curKey3;
                                                 var ql=qualLabel(g.signals,g.winRate,g.medianReturn,g.avgReturn),qc=qualColor(ql);
                                                 var cl=confLabel(g.signals),cc=confColor(g.signals);
                                                 function sC(s){ return s==='bullish'?'#7abd00':s==='bearish'?'#e05050':'#b88000'; }
+                                                var tc=g.trendCondition||'N/A'; var tcol=tc.indexOf('Uptrend')>-1?'#7abd00':tc.indexOf('Down')>-1?'#e05050':tc==='N/A'?'#555':'#b88000';
                                                 return <tr key={i} style={{borderBottom:'0.5px solid #f0ede6',background:isCur?'rgba(122,189,0,0.1)':'transparent'}}>
                                                   <td style={{padding:'4px 6px',color:isCur?'#7abd00':'#555'}}>{isCur?'\u2605':(i+1)}</td>
+                                                  <td style={{padding:'4px 6px',fontWeight:700,color:tcol,fontSize:9}}>{tc.replace(' Conditions','')}</td>
                                                   <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.momentumStatus)}}>{g.momentumStatus}</td>
                                                   <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.reversalStatus)}}>{g.reversalStatus}</td>
                                                   <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.smartMoneyStatus)}}>{g.smartMoneyStatus}</td>
@@ -9699,9 +9889,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       );
                     }
 
-                    // Store for left panel
+                    // Store for left panel — include detected indicator arrays for side-panel evidence
                     if (!window.__revWatchStatus) window.__revWatchStatus = {};
-                    window.__revWatchStatus[sym] = { status:revStatus.status, bullScore:bullScore, bearScore:bearScore, reversalDecision:_revW&&_revW.reversalDecision?_revW.reversalDecision:null };
+                    window.__revWatchStatus[sym] = {
+                      status: revStatus.status, bullScore: bullScore, bearScore: bearScore,
+                      reversalDecision: _revW && _revW.reversalDecision ? _revW.reversalDecision : null,
+                      bsInds: bsInds, btInds: btInds, bcInds: bcInds,
+                      dsInds: dsInds, dtInds: dtInds, dcInds: dcInds,
+                    };
 
                     return (
                       <div>
@@ -11994,7 +12189,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.89</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.98</span>
           </div>
         </div>
 
