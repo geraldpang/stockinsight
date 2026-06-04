@@ -1918,8 +1918,69 @@ function Screener() {
   var [filterReversal, setFilterReversal] = useState([]);
   var [filterSMF,      setFilterSMF]      = useState([]);
   var [filterSetupSc,  setFilterSetupSc]  = useState([]);
+  var [activePreset,   setActivePreset]   = useState(null);
   var [scSortCol,      setScSortCol]      = useState('');
   var [scSortDir,      setScSortDir]      = useState('desc');
+
+  // ── Screener presets ─────────────────────────────────────────────────────
+  var PRESETS = [
+    {
+      id:'bullish_reversal',
+      label:'Bullish Reversal Watch',
+      apply: function(){
+        setFilterReversal(['Bullish Reversal Watch','Bullish Reversal Spark','Bullish Reversal Setup','Bullish Reversal Forming','Bullish Reversal Triggered']);
+        setFilterTrend([]); setFilterMomentum([]); setFilterSMF([]); setFilterSetupSc([]);
+      },
+    },
+    {
+      id:'momentum_continuation',
+      label:'Momentum Continuation',
+      apply: function(){
+        setFilterTrend(['Strong Uptrend','Uptrend']);
+        setFilterMomentum(['Strong','Building']);
+        setFilterSMF(['Strong Accumulation','Steady Accumulation','Long-Term Accumulation']);
+        setFilterReversal([]); setFilterSetupSc([]);
+      },
+    },
+    {
+      id:'money_flow_accum',
+      label:'Money Flow Accumulation',
+      apply: function(){
+        setFilterSMF(['Strong Accumulation','Steady Accumulation','Long-Term Accumulation','Early Accumulation']);
+        setFilterTrend([]); setFilterMomentum([]); setFilterReversal([]); setFilterSetupSc([]);
+      },
+    },
+    {
+      // Pullback Watch — approximated via daily momentum (no Momentum Profile in screener batch)
+      id:'pullback_watch',
+      label:'Pullback Watch',
+      apply: function(){
+        setFilterTrend(['Strong Uptrend','Uptrend']);
+        setFilterMomentum(['Fading','Neutral']);
+        setFilterSMF(['Strong Accumulation','Steady Accumulation','Long-Term Accumulation','Early Accumulation']);
+        setFilterReversal([]); setFilterSetupSc([]);
+      },
+    },
+    {
+      id:'bearish_breakdown',
+      label:'Bearish Breakdown Watch',
+      apply: function(){
+        setFilterReversal(['Bearish Reversal Watch','Bearish Reversal Setup','Bearish Reversal Forming','Bearish Reversal Triggered','Bearish Reversal Confirming','Bearish Reversal Confirmed']);
+        setFilterTrend(['Sideways','Downtrend','Strong Downtrend']);
+        setFilterSMF(['No Sustained Flow','No Clear Signal','Mixed Flow','Cooling Accumulation']);
+        setFilterMomentum([]); setFilterSetupSc([]);
+      },
+    },
+  ];
+
+  function applyPreset(preset) {
+    preset.apply();
+    setActivePreset(preset.id);
+  }
+  function clearAllFilters() {
+    setFilterTrend([]); setFilterMomentum([]); setFilterReversal([]); setFilterSMF([]); setFilterSetupSc([]);
+    setActivePreset(null);
+  }
   // Scan criteria — applied client-side on cached results
   var items = (results&&results.results)||[];
 
@@ -1962,6 +2023,28 @@ function Screener() {
       {(scanStatus==='done'||scanStatus==='scanning') && results && (
         <div>
 
+          {/* Preset buttons */}
+          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:10, flexWrap:'wrap' }}>
+            <span style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginRight:4 }}>Presets</span>
+            {PRESETS.map(function(p){
+              var active = activePreset === p.id;
+              return (
+                <button key={p.id} onClick={function(){ applyPreset(p); }}
+                  style={{ fontSize:9, padding:'3px 10px', borderRadius:10, cursor:'pointer', fontWeight:active?700:400,
+                    background:active?'#1e2a10':'#1a1a18', color:active?LIME:'#666',
+                    border:'0.5px solid '+(active?LIME:'#2a2a28'), outline:'none' }}>
+                  {p.label}
+                </button>
+              );
+            })}
+            {activePreset && (
+              <button onClick={clearAllFilters}
+                style={{ fontSize:9, padding:'3px 10px', background:'none', border:'0.5px solid #444', borderRadius:10, color:'#666', cursor:'pointer' }}>
+                {'Clear preset'}
+              </button>
+            )}
+          </div>
+
           {/* Multi-select pill filters */}
           {(function(){
             var SETUP_OPTS = ['Strong Bullish','Bullish','Bullish Watch','Risky Bounce','Neutral','Caution','Mixed / Caution','Bearish Watch','Bearish','Strong Bearish'];
@@ -1985,7 +2068,7 @@ function Screener() {
               ['Rule Based Analytics', filterSetupSc,  setFilterSetupSc,  SETUP_OPTS],
             ];
             var anyActive = filterTrend.length||filterMomentum.length||filterReversal.length||filterSMF.length||filterSetupSc.length;
-            function toggle(arr, setArr, v) { setArr(arr.indexOf(v)!==-1 ? arr.filter(function(x){return x!==v;}) : arr.concat([v])); }
+            function toggle(arr, setArr, v) { setArr(arr.indexOf(v)!==-1 ? arr.filter(function(x){return x!==v;}) : arr.concat([v])); setActivePreset(null); }
             // Semantic pill colour on selection — use platform helpers
             function pillSelColor(groupLbl, v) {
               if (groupLbl === 'Trend')      return summaryCardDark(v).text;
@@ -2016,7 +2099,7 @@ function Screener() {
                     </div>
                   );
                 })}
-                {anyActive ? <button onClick={function(){ setFilterTrend([]); setFilterMomentum([]); setFilterReversal([]); setFilterSMF([]); setFilterSetupSc([]); }}
+                {anyActive ? <button onClick={clearAllFilters}
                   style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #444', borderRadius:5, color:'#666', cursor:'pointer', marginTop:2 }}>Clear all filters</button> : null}
               </div>
             );
@@ -3325,11 +3408,18 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       // Use float for classification so 4.3+ reaches Wide (not just 5.0)
       var classification = floatScore >= 4.3 ? "Wide" : floatScore >= 3.5 ? "Strong" : floatScore >= 2.5 ? "Moderate" : floatScore >= 1.5 ? "Narrow" : "Weak";
       var expIdx = text.indexOf("Explanation");
-      var explanation = expIdx !== -1 ? text.substring(expIdx).replace(/^Explanation[^:]*:\s*/, "").split("\n")[0].trim() : "";
+      var explanation = expIdx !== -1 ? text.substring(expIdx).replace(/^Explanation[^:]*:\s*/, "").trim() : "";
+      // Also extract sections for display in expanded left-panel and moat tab fallback
+      var sections = [];
+      driverNames.forEach(function(dn) {
+        var dnMatch = text.match(new RegExp(dn + "[^0-9]*([1-5])/5"));
+        if (dnMatch) sections.push({ label:dn, score:parseInt(dnMatch[1],10), classification:null });
+      });
       result = {
         score: score,
         classification: classification,
         explanation: explanation,
+        sections: sections,
       };
     } else if (tabId === "financial") {
       var mc = text.match(/Financial Strength Classification[^:]*:\s*(.+)/);
@@ -4760,7 +4850,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.86</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.88</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4814,7 +4904,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.86</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.88</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6408,7 +6498,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               var _mc = summaryCardDark(pi.classification);
                               return (
                                   <div style={{ background:_mc.bg, border:"0.5px solid "+_mc.bd, borderRadius:10, padding:"14px 16px", marginBottom:16 }}>
-                                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom: pi.explanation ? 10 : 0 }}>
+                                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom: (pi.explanation || (parsed && parsed.explanation)) ? 10 : 0 }}>
                                       <div>
                                         <div style={{ fontSize:10, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>Economic Moat</div>
                                         <div style={{ fontSize:15, fontWeight:700, color:_mc.text }}>{pi.classification}</div>
@@ -6417,7 +6507,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                         <DotBar score={pi.score} classification={pi.classification} />
                                       </div>
                                     </div>
-                                    {(function(){ var _exp = (pi.explanation||"").replace(/^\*+|\*+$/g,"").trim(); return _exp.length > 5 ? <div style={{ fontSize:12, color:"#aaa", lineHeight:1.7, marginBottom:10 }}>{_exp}</div> : null; })()}
+                                    {(function(){
+                                      // Prefer full explanation from parseMoat(tabContent); fall back to parsedInsights["moat"].explanation
+                                      var _piExp = (pi.explanation||"");
+                                      var _parsedExp = (parsed && parsed.explanation) ? parsed.explanation : "";
+                                      var _exp = (_parsedExp.length > _piExp.length ? _parsedExp : _piExp).replace(/^\*+|\*+$/g,"").trim();
+                                      return _exp.length > 5 ? <div style={{ fontSize:12, color:"#aaa", lineHeight:1.7, marginBottom:10, whiteSpace:"pre-line" }}>{_exp}</div> : null;
+                                    })()}
                                     <div style={{ borderTop:"0.5px solid "+_mc.bd+"44", paddingTop:8 }}>
                                       <details>
                                         <summary style={{ fontSize:10, color:"#777", cursor:"pointer", outline:"none", listStyle:"none", display:"flex", alignItems:"center", gap:4 }}>
@@ -11844,7 +11940,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.86</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.88</span>
           </div>
         </div>
 
