@@ -3467,7 +3467,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       var sections = [];
       driverNames.forEach(function(dn) {
         var dnMatch = text.match(new RegExp(dn + "[^0-9]*([1-5])/5"));
-        if (dnMatch) sections.push({ label:dn, score:parseInt(dnMatch[1],10), classification:null });
+        if (dnMatch) {
+          var ds = parseInt(dnMatch[1], 10);
+          var dcl = ds >= 5 ? "Wide" : ds >= 4 ? "Strong" : ds >= 3 ? "Moderate" : ds >= 2 ? "Narrow" : "Weak";
+          sections.push({ label:dn, score:ds, classification:dcl });
+        }
       });
       result = {
         score: score,
@@ -4904,7 +4908,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.89</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.90</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4958,7 +4962,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.89</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.90</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5390,22 +5394,61 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         <FRow label="Economic Moat" value={moatRating} score={moatScore} classification={parsedInsights&&parsedInsights["moat"]?parsedInsights["moat"].classification:null} dotCol={moatColors.dot} valCol={moatColors.fg} loading={!moatRating&&insightLoading} tab="moat" />
 
                         {expanded==="moat" && (function(){
-                          var pi=parsedInsights&&parsedInsights["moat"];
-                          if(!pi)return(<div style={{padding:"6px 0",fontSize:10,color:"#555"}}>No moat detail available.</div>);
-                          var secs=pi.sections?pi.sections.slice(0,5):[];
+                          var pi = parsedInsights && parsedInsights["moat"];
+                          // Also try richer parseMoat from raw cached text
+                          var rawMoatText = insightCache && insightCache["moat"];
+                          var parsedMoat  = rawMoatText ? (function(){
+                            var drivers = ["Network Effects","Switching Costs","Cost Advantage","Intangible Assets","Efficient Scale","Ecosystem Lock-in"];
+                            var result = [];
+                            drivers.forEach(function(drv) {
+                              var drvIdx = rawMoatText.indexOf(drv);
+                              if (drvIdx === -1) return;
+                              var nextDrv = drivers[drivers.indexOf(drv) + 1];
+                              var block = nextDrv ? rawMoatText.substring(drvIdx, rawMoatText.indexOf(nextDrv, drvIdx)) : rawMoatText.substring(drvIdx);
+                              var sm = block.match(/([0-9])\/5/);
+                              if (!sm) return;
+                              var s = parseInt(sm[1], 10);
+                              var lines = block.split("\n");
+                              var body = "";
+                              for (var li = 0; li < lines.length; li++) {
+                                if (lines[li].indexOf("Result:") !== -1) { body = lines[li].replace(/^.*Result:\s*/, "").trim(); break; }
+                              }
+                              var cl = s >= 5 ? "Wide" : s >= 4 ? "Strong" : s >= 3 ? "Moderate" : s >= 2 ? "Narrow" : "Weak";
+                              result.push({ label:drv, score:s, classification:cl, body:body });
+                            });
+                            return result.length > 0 ? result : null;
+                          })() : null;
+                          // Prefer richer parsedMoat sections; fall back to parsedInsights sections
+                          var secs = parsedMoat ? parsedMoat.slice(0,6)
+                                   : (pi && pi.sections ? pi.sections.slice(0,6) : []);
+                          if (!pi && !parsedMoat) return(<div style={{padding:"6px 0",fontSize:10,color:"#555"}}>No moat detail available.</div>);
+                          // Colour by label string — matches full moat tab fsCol convention (dark background)
+                          function _drvColor(cl) {
+                            if (!cl) return "#777";
+                            var v = cl.toLowerCase();
+                            if (v === "wide"   || v === "strong")   return "#7abd00";
+                            if (v === "moderate")                    return "#EF9F27";
+                            if (v === "narrow")                      return "#EF9F27";
+                            if (v === "weak")                        return "#e05050";
+                            return "#777";
+                          }
+                          var expl = (pi && pi.explanation) ? pi.explanation : "";
                           return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
                             <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Moat Evidence</div>
-                            {pi.explanation&&<div style={{fontSize:10,color:"#888",lineHeight:1.5,marginBottom:8,wordBreak:"break-word",whiteSpace:"normal"}}>{pi.explanation.slice(0,220)}</div>}
-                            <div style={{fontSize:9,fontWeight:700,color:"#555",textTransform:"uppercase",marginBottom:4}}>Drivers</div>
+                            {expl.length > 5 && <div style={{fontSize:10,color:"#888",lineHeight:1.5,marginBottom:8,wordBreak:"break-word",whiteSpace:"normal"}}>{expl.slice(0,240)}</div>}
+                            {secs.length > 0 && <div style={{fontSize:9,fontWeight:700,color:"#555",textTransform:"uppercase",marginBottom:4}}>Drivers</div>}
                             {secs.map(function(s,i){
-                              var d=s.score||0;
-                              var sc=d>=4?"#7abd00":d>=3?"#9acd50":d>=2?"#EF9F27":"#e05050";
+                              var cl = s.classification || (s.score >= 5 ? "Wide" : s.score >= 4 ? "Strong" : s.score >= 3 ? "Moderate" : s.score >= 2 ? "Narrow" : "Weak");
+                              var sc = _drvColor(cl);
                               return(<div key={i} style={{display:"flex",alignItems:"flex-start",padding:"5px 0",borderBottom:"0.5px solid #2a2a2a",gap:8}}>
-                                <span style={{fontSize:10,color:"#888",flex:1,minWidth:0,wordBreak:"break-word",lineHeight:1.4}}>{s.label}</span>
-                                <span style={{fontSize:10,fontWeight:700,color:sc,flexShrink:0}}>{s.classification||"—"}</span>
+                                <div style={{flex:1,minWidth:0}}>
+                                  <span style={{fontSize:10,color:"#888",wordBreak:"break-word",lineHeight:1.4}}>{s.label}</span>
+                                  {s.body && <div style={{fontSize:9,color:"#555",lineHeight:1.3,marginTop:2,wordBreak:"break-word"}}>{s.body.slice(0,80)}</div>}
+                                </div>
+                                <span style={{fontSize:10,fontWeight:700,color:sc,flexShrink:0,minWidth:52,textAlign:"right"}}>{cl}</span>
                               </div>);
                             })}
-                            {!secs.length&&<div style={{fontSize:10,color:"#555",marginBottom:4}}>No driver detail available.</div>}
+                            {secs.length === 0 && <div style={{fontSize:10,color:"#555",marginBottom:4}}>Driver details available in Full Moat Analysis.</div>}
                             <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether moat is supported by stable margins and pricing power.</div>
                             <button onClick={function(){window.__goToTab&&window.__goToTab("moat");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Moat Analysis</button>
                           </div>);
@@ -11994,7 +12037,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.89</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.90</span>
           </div>
         </div>
 
