@@ -4908,7 +4908,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.95</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.96</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4962,7 +4962,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.95</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.96</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5861,9 +5861,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           beArr3.forEach(function(v,i){ if(v && _BRL[i]) bearEv.push({label:_BRL[i].l, group:_BRL[i].g, dir:"bear"}); });
                         }
 
-                        // Limit to 5 total, prioritise primary direction
-                        var bullEvidence = bullEv.slice(0, 5);
-                        var bearEvidence = bearEv.slice(0, Math.max(0, 5 - bullEvidence.length));
+                        // Filter by primary direction — mixed is the only case that shows both sides
+                        var bullEvidence = (isBull || isMixed) ? bullEv.slice(0, 5) : [];
+                        var bearEvidence = (isBear || isMixed) ? bearEv.slice(0, isMixed ? Math.max(0, 5 - bullEvidence.length) : 5) : [];
                         var hasEvidence  = bullEvidence.length > 0 || bearEvidence.length > 0;
                         function EvidRow(props) {
                           return <div style={{display:"flex",gap:6,padding:"3px 0",borderBottom:"0.5px solid #242424",alignItems:"flex-start"}}>
@@ -5886,8 +5886,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {isBear&&!isMixed&&bearEvidence.map(function(e,i){return <EvidRow key={i} txt={e.label+" ("+e.group+")"} col="#e05050" />;}) }
                           {isMixed&&bullEvidence.length>0&&<div><div style={{fontSize:9,fontWeight:700,color:"#7abd00",marginBottom:2,marginTop:2}}>Bullish</div>{bullEvidence.map(function(e,i){return <EvidRow key={i} txt={e.label+" ("+e.group+")"} col="#7abd00" />;})}</div>}
                           {isMixed&&bearEvidence.length>0&&<div style={{marginTop:4}}><div style={{fontSize:9,fontWeight:700,color:"#e05050",marginBottom:2}}>Bearish</div>{bearEvidence.map(function(e,i){return <EvidRow key={i} txt={e.label+" ("+e.group+")"} col="#e05050" />;})}</div>}
-                          {isBull&&!isMixed&&bearEvidence.length>0&&<div style={{marginTop:4}}><div style={{fontSize:9,fontWeight:700,color:"#e05050",marginBottom:2}}>Counter signals</div>{bearEvidence.map(function(e,i){return <EvidRow key={i} txt={e.label+" ("+e.group+")"} col="#e05050" />;})}</div>}
-                          {isBear&&!isMixed&&bullEvidence.length>0&&<div style={{marginTop:4}}><div style={{fontSize:9,fontWeight:700,color:"#7abd00",marginBottom:2}}>Counter signals</div>{bullEvidence.map(function(e,i){return <EvidRow key={i} txt={e.label+" ("+e.group+")"} col="#7abd00" />;})}</div>}
+                          {isBull&&!isMixed&&bearEvidence.length>0&&null}
+                          {isBear&&!isMixed&&bullEvidence.length>0&&null}
                           <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>{_watch}</div>
                           <button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("reversal");setExpanded(null);}}
                             style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
@@ -12132,7 +12132,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.95</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.96</span>
           </div>
         </div>
 
