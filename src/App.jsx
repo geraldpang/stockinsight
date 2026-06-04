@@ -4908,7 +4908,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.91</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.92</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4962,7 +4962,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.91</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.92</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5433,24 +5433,26 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             return "#777";
                           }
                           var expl = (pi && pi.explanation) ? pi.explanation : "";
+                          // Trim summary to first 2 sentences for compact display
+                          var _exShort = (function(){
+                            var sentences = expl.replace(/^\*+|\*+$/g,"").trim().split(/(?<=[.!?])\s+/);
+                            return sentences.slice(0,2).join(" ");
+                          })();
                           return(<div style={{background:"#1a1a1a",borderRadius:6,padding:"10px 12px",marginBottom:4}}>
                             <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Moat Evidence</div>
-                            {expl.length > 5 && <div style={{fontSize:10,color:"#888",lineHeight:1.5,marginBottom:8,wordBreak:"break-word",whiteSpace:"normal"}}>{expl.slice(0,240)}</div>}
+                            {_exShort.length > 5 && <div style={{fontSize:10,color:"#888",lineHeight:1.5,marginBottom:8,wordBreak:"break-word",whiteSpace:"normal"}}>{_exShort}</div>}
                             {secs.length > 0 && <div style={{fontSize:9,fontWeight:700,color:"#555",textTransform:"uppercase",marginBottom:4}}>Drivers</div>}
                             {secs.map(function(s,i){
                               var cl = s.classification || (s.score >= 5 ? "Wide" : s.score >= 4 ? "Strong" : s.score >= 3 ? "Moderate" : s.score >= 2 ? "Narrow" : "Weak");
                               var sc = _drvColor(cl);
-                              return(<div key={i} style={{display:"flex",alignItems:"flex-start",padding:"5px 0",borderBottom:"0.5px solid #2a2a2a",gap:8}}>
-                                <div style={{flex:1,minWidth:0}}>
-                                  <span style={{fontSize:10,color:"#888",wordBreak:"break-word",lineHeight:1.4}}>{s.label}</span>
-                                  {s.body && <div style={{fontSize:9,color:"#555",lineHeight:1.3,marginTop:2,wordBreak:"break-word"}}>{s.body.slice(0,80)}</div>}
-                                </div>
-                                <span style={{fontSize:10,fontWeight:700,color:sc,flexShrink:0,minWidth:52,textAlign:"right"}}>{cl}</span>
+                              return(<div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a",gap:8}}>
+                                <span style={{fontSize:10,color:"#888",flex:1,minWidth:0,lineHeight:1.35}}>{s.label}</span>
+                                <span style={{fontSize:10,fontWeight:700,color:sc,flexShrink:0}}>{cl}</span>
                               </div>);
                             })}
                             {secs.length === 0 && <div style={{fontSize:10,color:"#555",marginBottom:4}}>Driver details available in Full Moat Analysis.</div>}
                             <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether moat is supported by stable margins and pricing power.</div>
-                            <button onClick={function(){window.__goToTab&&window.__goToTab("moat");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Moat Analysis</button>
+                            <button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("moat");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Moat Analysis</button>
                           </div>);
                         })()}
                         <FRow label="Financial Strength" value={finRating} score={finScore} dotCol={finColors.dot} valCol={finColors.fg} loading={false} tab="financial" />
@@ -12100,7 +12102,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.91</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.92</span>
           </div>
         </div>
 
