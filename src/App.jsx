@@ -4908,7 +4908,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.94</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.95</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4962,7 +4962,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.94</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.95</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5823,53 +5823,48 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                    : isBear  ? "Watch whether price confirms downside follow-through with increased selling pressure."
                                    : isMixed ? "Watch whether price breaks higher or lower with follow-through volume."
                                    :           "Watch for a clear reversal setup, trigger, and confirmation before drawing conclusions.";
-                        // ── Plain-English evidence labels mapped from signal array positions ────
-                        // Positions match technicalSignals.js calcReversalWatch bullSignals/bearSignals order
-                        var _BULL_EV = [
-                          "RSI price divergence forming (Setup)",
-                          "MACD histogram turning up (Trigger)",
-                          "Weekly average cross approaching (Setup)",
-                          "RSI base forming (Setup)",
-                          "Price near 52-week low with RSI recovering (Setup)",
-                        ];
-                        var _BEAR_EV = [
-                          "RSI bearish divergence forming (Setup)",
-                          "MACD histogram turning down (Trigger)",
-                          "Weekly average cross approaching (Setup)",
-                          "RSI overbought and stalling (Setup)",
-                          "Price near 52-week high with RSI topping (Setup)",
-                        ];
-                        // Stage derived from reversalDecision.ruleId maps to a confirmation label
-                        var _stageLabel = (function(){
-                          if (!rd || !rd.ruleId) return null;
-                          var ri = rd.ruleId.toLowerCase();
-                          if (ri.indexOf("confirm") > -1) return "Higher high and higher low structure (Confirmation)";
-                          if (ri.indexOf("trigger") > -1) return "Price breaking through key level (Trigger)";
-                          if (ri.indexOf("setup")   > -1) return "Reversal setup conditions aligning (Setup)";
-                          return null;
-                        })();
-
-                        var bullEvidence = [];
-                        var bearEvidence = [];
-                        // Primary: use named boolean signal arrays
-                        var bArr3  = window.__revArr3     && window.__revSym3 === sym ? window.__revArr3     : [];
-                        var beArr3 = window.__revBearArr3 && window.__revSym3 === sym ? window.__revBearArr3 : [];
-                        bArr3.forEach(function(v, i){ if (v && _BULL_EV[i]) bullEvidence.push(_BULL_EV[i]); });
-                        beArr3.forEach(function(v, i){ if (v && _BEAR_EV[i]) bearEvidence.push(_BEAR_EV[i]); });
-                        // Supplement with stage label from ruleId if it adds something not already covered
-                        if (_stageLabel) {
-                          var all = bullEvidence.concat(bearEvidence);
-                          var alreadyCovered = all.some(function(e){ return e.indexOf("Confirmation") > -1 || e.indexOf("Trigger") > -1; });
-                          if (!alreadyCovered) {
-                            var dir = rd && rd.direction ? rd.direction.toLowerCase() : "";
-                            if (dir === "bearish") bearEvidence.push(_stageLabel);
-                            else bullEvidence.push(_stageLabel);
-                          }
+                        // ── Detected evidence from full Reversal tab inds arrays ──────────────
+                        // Read the six indicator arrays stored when the Reversal tab rendered.
+                        // Fall back to legacy boolean arrays if Reversal tab not yet visited.
+                        var _rws = _rw || {};
+                        function _detected(arr, group, dir) {
+                          if (!Array.isArray(arr)) return [];
+                          return arr.filter(function(i){ return i && i.status === "detected"; })
+                                    .map(function(i){ return { label: i.name, group: group, dir: dir }; });
                         }
-                        // Limit to 5 total across both directions
-                        bullEvidence = bullEvidence.slice(0, 5);
-                        bearEvidence = bearEvidence.slice(0, Math.max(0, 5 - bullEvidence.length));
-                        var hasEvidence = bullEvidence.length > 0 || bearEvidence.length > 0;
+                        var bullEv = _detected(_rws.bsInds,"Setup","bull")
+                                     .concat(_detected(_rws.btInds,"Trigger","bull"))
+                                     .concat(_detected(_rws.bcInds,"Confirmation","bull"));
+                        var bearEv = _detected(_rws.dsInds,"Setup","bear")
+                                     .concat(_detected(_rws.dtInds,"Trigger","bear"))
+                                     .concat(_detected(_rws.dcInds,"Confirmation","bear"));
+
+                        // If tab not yet visited, fall back to legacy boolean arrays
+                        if (bullEv.length === 0 && bearEv.length === 0) {
+                          var _BL = [
+                            {l:"RSI price divergence forming",g:"Setup"},
+                            {l:"MACD histogram turning up",g:"Trigger"},
+                            {l:"Weekly average cross approaching",g:"Setup"},
+                            {l:"RSI base forming",g:"Setup"},
+                            {l:"Price near 52-week low with RSI recovering",g:"Setup"},
+                          ];
+                          var _BRL = [
+                            {l:"RSI bearish divergence forming",g:"Setup"},
+                            {l:"MACD histogram turning down",g:"Trigger"},
+                            {l:"Weekly average cross approaching",g:"Setup"},
+                            {l:"RSI overbought and stalling",g:"Setup"},
+                            {l:"Price near 52-week high with RSI topping",g:"Setup"},
+                          ];
+                          var bArr3  = window.__revArr3     && window.__revSym3 === sym ? window.__revArr3     : [];
+                          var beArr3 = window.__revBearArr3 && window.__revSym3 === sym ? window.__revBearArr3 : [];
+                          bArr3.forEach(function(v,i){ if(v && _BL[i]) bullEv.push({label:_BL[i].l, group:_BL[i].g, dir:"bull"}); });
+                          beArr3.forEach(function(v,i){ if(v && _BRL[i]) bearEv.push({label:_BRL[i].l, group:_BRL[i].g, dir:"bear"}); });
+                        }
+
+                        // Limit to 5 total, prioritise primary direction
+                        var bullEvidence = bullEv.slice(0, 5);
+                        var bearEvidence = bearEv.slice(0, Math.max(0, 5 - bullEvidence.length));
+                        var hasEvidence  = bullEvidence.length > 0 || bearEvidence.length > 0;
                         function EvidRow(props) {
                           return <div style={{display:"flex",gap:6,padding:"3px 0",borderBottom:"0.5px solid #242424",alignItems:"flex-start"}}>
                             <span style={{color:props.col,flexShrink:0,lineHeight:1.5,fontSize:10}}>{String.fromCharCode(0x2713)}</span>
@@ -5887,12 +5882,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {!hasEvidence&&<div style={{fontSize:10,color:"#555",marginBottom:4}}>
                             {isMixed?"No clear reversal trigger has been confirmed yet.":isNoClear?"No clear reversal setup, trigger, or confirmation has been detected.":"No specific evidence conditions currently active."}
                           </div>}
-                          {isBull&&!isMixed&&bullEvidence.map(function(e,i){return <EvidRow key={i} txt={e} col="#7abd00" />;}) }
-                          {isBear&&!isMixed&&bearEvidence.map(function(e,i){return <EvidRow key={i} txt={e} col="#e05050" />;}) }
-                          {isMixed&&bullEvidence.length>0&&<div><div style={{fontSize:9,fontWeight:700,color:"#7abd00",marginBottom:2,marginTop:2}}>Bullish</div>{bullEvidence.map(function(e,i){return <EvidRow key={i} txt={e} col="#7abd00" />;})}</div>}
-                          {isMixed&&bearEvidence.length>0&&<div style={{marginTop:4}}><div style={{fontSize:9,fontWeight:700,color:"#e05050",marginBottom:2}}>Bearish</div>{bearEvidence.map(function(e,i){return <EvidRow key={i} txt={e} col="#e05050" />;})}</div>}
-                          {isBull&&!isMixed&&bearEvidence.length>0&&<div style={{marginTop:4}}><div style={{fontSize:9,fontWeight:700,color:"#e05050",marginBottom:2}}>Counter signals</div>{bearEvidence.map(function(e,i){return <EvidRow key={i} txt={e} col="#e05050" />;})}</div>}
-                          {isBear&&!isMixed&&bullEvidence.length>0&&<div style={{marginTop:4}}><div style={{fontSize:9,fontWeight:700,color:"#7abd00",marginBottom:2}}>Counter signals</div>{bullEvidence.map(function(e,i){return <EvidRow key={i} txt={e} col="#7abd00" />;})}</div>}
+                          {isBull&&!isMixed&&bullEvidence.map(function(e,i){return <EvidRow key={i} txt={e.label+" ("+e.group+")"} col="#7abd00" />;}) }
+                          {isBear&&!isMixed&&bearEvidence.map(function(e,i){return <EvidRow key={i} txt={e.label+" ("+e.group+")"} col="#e05050" />;}) }
+                          {isMixed&&bullEvidence.length>0&&<div><div style={{fontSize:9,fontWeight:700,color:"#7abd00",marginBottom:2,marginTop:2}}>Bullish</div>{bullEvidence.map(function(e,i){return <EvidRow key={i} txt={e.label+" ("+e.group+")"} col="#7abd00" />;})}</div>}
+                          {isMixed&&bearEvidence.length>0&&<div style={{marginTop:4}}><div style={{fontSize:9,fontWeight:700,color:"#e05050",marginBottom:2}}>Bearish</div>{bearEvidence.map(function(e,i){return <EvidRow key={i} txt={e.label+" ("+e.group+")"} col="#e05050" />;})}</div>}
+                          {isBull&&!isMixed&&bearEvidence.length>0&&<div style={{marginTop:4}}><div style={{fontSize:9,fontWeight:700,color:"#e05050",marginBottom:2}}>Counter signals</div>{bearEvidence.map(function(e,i){return <EvidRow key={i} txt={e.label+" ("+e.group+")"} col="#e05050" />;})}</div>}
+                          {isBear&&!isMixed&&bullEvidence.length>0&&<div style={{marginTop:4}}><div style={{fontSize:9,fontWeight:700,color:"#7abd00",marginBottom:2}}>Counter signals</div>{bullEvidence.map(function(e,i){return <EvidRow key={i} txt={e.label+" ("+e.group+")"} col="#7abd00" />;})}</div>}
                           <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>{_watch}</div>
                           <button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("reversal");setExpanded(null);}}
                             style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
@@ -9837,9 +9832,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       );
                     }
 
-                    // Store for left panel
+                    // Store for left panel — include detected indicator arrays for side-panel evidence
                     if (!window.__revWatchStatus) window.__revWatchStatus = {};
-                    window.__revWatchStatus[sym] = { status:revStatus.status, bullScore:bullScore, bearScore:bearScore, reversalDecision:_revW&&_revW.reversalDecision?_revW.reversalDecision:null };
+                    window.__revWatchStatus[sym] = {
+                      status: revStatus.status, bullScore: bullScore, bearScore: bearScore,
+                      reversalDecision: _revW && _revW.reversalDecision ? _revW.reversalDecision : null,
+                      bsInds: bsInds, btInds: btInds, bcInds: bcInds,
+                      dsInds: dsInds, dtInds: dtInds, dcInds: dcInds,
+                    };
 
                     return (
                       <div>
@@ -12132,7 +12132,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.94</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.95</span>
           </div>
         </div>
 
