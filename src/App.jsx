@@ -8787,6 +8787,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         {(function(){
                           var _ml2=window.__momLabel||'Neutral';
                           function mColor(s){return momentumStateColor(s);}
+                          var _rsiHist=ind.rsiHistory||[];
                           var _rsiDirDisp=(_rsiHist.length>=7)?((parseFloat(_rsiHist[0])+parseFloat(_rsiHist[1]))/2)-((parseFloat(_rsiHist[2])+parseFloat(_rsiHist[3])+parseFloat(_rsiHist[4])+parseFloat(_rsiHist[5])+parseFloat(_rsiHist[6]))/5):0;
                           var _dirLabel=_rsiDirDisp>3?'↑ improving':_rsiDirDisp<-3?'↓ declining':'→ stable';
                           var _rs=(function(){if(rsi==null) return 3;if(rsi>70) return 4;if(rsi>=65) return _rsiDirDisp<-3?4:5;if(rsi>=55) return _rsiDirDisp<-3?3:4;if(rsi>=45) return _rsiDirDisp>3?4:_rsiDirDisp<-3?2:3;if(rsi>=35) return _rsiDirDisp>0?3:2;return 1;})();
