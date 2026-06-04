@@ -4908,7 +4908,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.92</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.93</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4962,7 +4962,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.92</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.93</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5814,31 +5814,52 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                    : isBear  ? "Watch whether price confirms downside follow-through with increased selling pressure."
                                    : isMixed ? "Watch whether price breaks higher or lower with follow-through volume."
                                    :           "Watch for a clear reversal setup, trigger, and confirmation before drawing conclusions.";
-                        var _BULL_LABELS = ["Higher low forming","Close above 20-day EMA","RSI crossing 50 upward","MACD histogram turning positive","Price reclaiming key level"];
-                        var _BEAR_LABELS = ["Lower high forming","Close below 20-day EMA","RSI falling below 50","MACD histogram turning negative","Price breaking key support"];
+                        // ── Plain-English evidence labels mapped from signal array positions ────
+                        // Positions match technicalSignals.js calcReversalWatch bullSignals/bearSignals order
+                        var _BULL_EV = [
+                          "RSI price divergence forming (Setup)",
+                          "MACD histogram turning up (Trigger)",
+                          "Weekly average cross approaching (Setup)",
+                          "RSI base forming (Setup)",
+                          "Price near 52-week low with RSI recovering (Setup)",
+                        ];
+                        var _BEAR_EV = [
+                          "RSI bearish divergence forming (Setup)",
+                          "MACD histogram turning down (Trigger)",
+                          "Weekly average cross approaching (Setup)",
+                          "RSI overbought and stalling (Setup)",
+                          "Price near 52-week high with RSI topping (Setup)",
+                        ];
+                        // Stage derived from reversalDecision.ruleId maps to a confirmation label
+                        var _stageLabel = (function(){
+                          if (!rd || !rd.ruleId) return null;
+                          var ri = rd.ruleId.toLowerCase();
+                          if (ri.indexOf("confirm") > -1) return "Higher high and higher low structure (Confirmation)";
+                          if (ri.indexOf("trigger") > -1) return "Price breaking through key level (Trigger)";
+                          if (ri.indexOf("setup")   > -1) return "Reversal setup conditions aligning (Setup)";
+                          return null;
+                        })();
+
                         var bullEvidence = [];
                         var bearEvidence = [];
-                        if (rd && Array.isArray(rd.triggeredConditions)) {
-                          rd.triggeredConditions.forEach(function(c){
-                            if (!c) return;
-                            if (typeof c === "object" && c.condition && c.result) {
-                              var txt = c.condition + (c.actualValue != null ? ": " + c.actualValue : "");
-                              var dir = rd.direction ? rd.direction.toLowerCase() : "";
-                              if (dir === "bearish") bearEvidence.push(txt);
-                              else bullEvidence.push(txt);
-                            } else if (typeof c === "string" && c.trim()) {
-                              var cl = c.toLowerCase();
-                              if (cl.indexOf("bear") > -1) bearEvidence.push(c);
-                              else bullEvidence.push(c);
-                            }
-                          });
+                        // Primary: use named boolean signal arrays
+                        var bArr3  = window.__revArr3     && window.__revSym3 === sym ? window.__revArr3     : [];
+                        var beArr3 = window.__revBearArr3 && window.__revSym3 === sym ? window.__revBearArr3 : [];
+                        bArr3.forEach(function(v, i){ if (v && _BULL_EV[i]) bullEvidence.push(_BULL_EV[i]); });
+                        beArr3.forEach(function(v, i){ if (v && _BEAR_EV[i]) bearEvidence.push(_BEAR_EV[i]); });
+                        // Supplement with stage label from ruleId if it adds something not already covered
+                        if (_stageLabel) {
+                          var all = bullEvidence.concat(bearEvidence);
+                          var alreadyCovered = all.some(function(e){ return e.indexOf("Confirmation") > -1 || e.indexOf("Trigger") > -1; });
+                          if (!alreadyCovered) {
+                            var dir = rd && rd.direction ? rd.direction.toLowerCase() : "";
+                            if (dir === "bearish") bearEvidence.push(_stageLabel);
+                            else bullEvidence.push(_stageLabel);
+                          }
                         }
-                        if (bullEvidence.length === 0 && bearEvidence.length === 0) {
-                          var bArr3  = window.__revArr3     && window.__revSym3 === sym ? window.__revArr3     : [];
-                          var beArr3 = window.__revBearArr3 && window.__revSym3 === sym ? window.__revBearArr3 : [];
-                          bArr3.forEach(function(v, i){ if (v && _BULL_LABELS[i]) bullEvidence.push(_BULL_LABELS[i]); });
-                          beArr3.forEach(function(v, i){ if (v && _BEAR_LABELS[i]) bearEvidence.push(_BEAR_LABELS[i]); });
-                        }
+                        // Limit to 5 total across both directions
+                        bullEvidence = bullEvidence.slice(0, 5);
+                        bearEvidence = bearEvidence.slice(0, Math.max(0, 5 - bullEvidence.length));
                         var hasEvidence = bullEvidence.length > 0 || bearEvidence.length > 0;
                         function EvidRow(props) {
                           return <div style={{display:"flex",gap:6,padding:"3px 0",borderBottom:"0.5px solid #242424",alignItems:"flex-start"}}>
@@ -12102,7 +12123,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.92</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.93</span>
           </div>
         </div>
 
