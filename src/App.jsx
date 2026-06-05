@@ -42,6 +42,10 @@ function revDirLabelColor(lbl, isBullish, variant) {
   }
   return _CLR.grey[v];
 }
+function isMobileView() {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth < 900;
+}
 function smfStatusColor(status, variant) {
   var v = variant||"main";
   if (!status||status==="Not Enough Data"||status==="No Clear Signal") return v==="darkbg"?"#1a1a1a":_CLR.grey[v];
@@ -1168,13 +1172,22 @@ function buildRuleSnapshotFromRow(row) {
       status: row.momentumStatus  || row.momentum_status  || row.momentum,
       score:  row.momentumScore   || row.momentum_score,
     },
+    // Momentum Profile — used by RBA for richer classification when available
+    momentumProfile: row.momentumProfile || null,
     reversalWatch: (row.reversalWatch && row.reversalWatch.status) ? row.reversalWatch : {
-      status: row.reversalStatus  || row.reversal_status  || row.reversalWatch || row.reversal,
-      score:  row.reversalScore   || row.reversal_score,
+      status:           row.reversalStatus  || row.reversal_status  || row.reversalWatch || row.reversal,
+      score:            row.reversalScore   || row.reversal_score,
+      reversalDecision: row.reversalDecision || null,
+      bullishScore:     row.bullishScore     || 0,
+      bearishScore:     row.bearishScore     || 0,
     },
     smartMoneyFlow: (row.smartMoneyFlow && row.smartMoneyFlow.status) ? row.smartMoneyFlow : {
-      status: row.smartMoneyStatus  || row.smart_money_status  || row.moneyFlow,
-      score:  row.smartMoneyScore   || row.smart_money_score   || row.moneyFlowScore,
+      status:                     row.smartMoneyStatus  || row.smart_money_status  || row.moneyFlow,
+      score:                      row.smartMoneyScore   || row.smart_money_score   || row.moneyFlowScore,
+      smartMoneyDecision:         row.smartMoneyDecision         || null,
+      todayActivityScore:         row.todayActivityScore         || null,
+      fiveDayFlowScore:           row.fiveDayFlowScore           || null,
+      thirtyDayAccumulationScore: row.thirtyDayAccumulationScore || null,
     },
   };
 }
@@ -1740,16 +1753,22 @@ function buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200) {
 }
 
 // ── Screener: data adapter — converts Massive data to snapshot (no tech calc) ──
-function buildScreenerSnapshot(sym, massiveInfo) {
+function buildScreenerSnapshot(sym, massiveInfo, metaOverride) {
   if (!massiveInfo || !massiveInfo.aggs || massiveInfo.aggs.length < 10) return null;
   var rawAggs = massiveInfo.aggs;
   var ind     = massiveInfo.indicators || {};
   var mSnap   = massiveInfo.snapshot   || {};
-  var price   = mSnap.close || (rawAggs[0] && rawAggs[0].c) || 0;
-  var hi52 = 0, lo52 = Infinity;
-  rawAggs.forEach(function(b){ if (b.h>hi52) hi52=b.h; if (b.l>0&&b.l<lo52) lo52=b.l; });
-  if (lo52===Infinity) lo52=0;
-  var ohlcv = rawAggs.filter(function(b){ return b&&b.c>0; }).slice().reverse()
+  var price   = (metaOverride && metaOverride.price > 0 ? metaOverride.price : 0)
+                || mSnap.close || (rawAggs[0] && rawAggs[0].c) || 0;
+  // Compute aggs-based hi52/lo52 as fallback (30-bar window)
+  var computedHi52 = 0, computedLo52 = Infinity;
+  rawAggs.forEach(function(b){ if (b.h>computedHi52) computedHi52=b.h; if (b.l>0&&b.l<computedLo52) computedLo52=b.l; });
+  if (computedLo52===Infinity) computedLo52=0;
+  // Prefer Yahoo 52-week values when supplied via metaOverride (true 52-week window)
+  var hi52 = (metaOverride && metaOverride.hi52 > 0) ? metaOverride.hi52 : computedHi52;
+  var lo52 = (metaOverride && metaOverride.lo52 > 0) ? metaOverride.lo52 : computedLo52;
+  // OHLCV filter aligned with detail page (b.c>0 AND b.h>0 AND b.l>0 AND b.v>=0)
+  var ohlcv = rawAggs.filter(function(b){ return b&&b.c>0&&b.h>0&&b.l>0&&b.v>=0; }).slice().reverse()
     .map(function(b){ return { date:'',open:b.o||0,high:b.h||0,low:b.l||0,close:b.c||0,volume:b.v||0 }; });
   try {
     return calculateTechnicalSignalSnapshot({ ticker:sym, date:new Date().toISOString().split('T')[0],
@@ -1771,7 +1790,7 @@ function Screener() {
         if (d && d.hit && d.value) {
           var parsed = JSON.parse(d.value);
           var ageHrs = (Date.now() - new Date(parsed.cachedAt).getTime()) / 3600000;
-          if (ageHrs < 12 && parsed.results && parsed.screenerSchemaVersion === 'v3') { setResults(parsed); setScanStatus('done'); return; }
+          if (ageHrs < 12 && parsed.results && parsed.screenerSchemaVersion === 'v5') { setResults(parsed); setScanStatus('done'); return; }
         }
         setScanStatus('idle');
       })
@@ -1808,7 +1827,8 @@ function Screener() {
 
         function toCandidate(q){
           return { sym:q.symbol, name:q.longName||q.shortName||q.symbol,
-                   price:q.regularMarketPrice, changePct:q.regularMarketChangePercent, volume:q.regularMarketVolume };
+                   price:q.regularMarketPrice, changePct:q.regularMarketChangePercent, volume:q.regularMarketVolume,
+                   hi52:q.fiftyTwoWeekHigh||0, lo52:q.fiftyTwoWeekLow||0 };
         }
 
         // Stage 1: preferred — positive day, solid volume
@@ -1856,7 +1876,7 @@ function Screener() {
         scanNote = 'Using fallback ticker list (Yahoo screener unavailable).';
       }
 
-      if (!candidates.length){ setScanMsg('No candidates after filtering.'); setScanStatus('done'); setResults({ cachedAt:new Date().toISOString(), screenerSchemaVersion:'v3', results:[] }); return; }
+      if (!candidates.length){ setScanMsg('No candidates after filtering.'); setScanStatus('done'); setResults({ cachedAt:new Date().toISOString(), screenerSchemaVersion:'v5', results:[] }); return; }
       setScanMsg(scanNote+' Scanning '+candidates.length+' candidates...');
 
       // Step 2: Batch technical scans, 5 at a time
@@ -1864,25 +1884,58 @@ function Screener() {
       var matched = [];
       var failedCount = 0;
       var BATCH = 5;
+      // Date range for Momentum Profile: 9 months back → today (gives ~190 daily bars → ~38 weekly)
+      var _mpEnd   = new Date();
+      var _mpStart = new Date(_mpEnd.getTime() - 270 * 24 * 3600 * 1000);
+      var _fmt     = function(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); };
+      var _mpStartStr = _fmt(_mpStart);
+      var _mpEndStr   = _fmt(_mpEnd);
+
       for (var i=0; i<candidates.length; i+=BATCH) {
         var batch = candidates.slice(i, i+BATCH);
         setScanMsg('Scanning '+(Math.min(i+BATCH,candidates.length))+' / '+candidates.length+'...');
         var bRes = await Promise.all(batch.map(async function(c) {
           try {
-            var mRes = await fetch('/massive?sym='+c.sym, { headers:hdrs });
+            // Fetch Massive data and Yahoo historical bars in parallel
+            var [mRes, yhBars] = await Promise.all([
+              fetch('/massive?sym='+c.sym, { headers:hdrs }),
+              fetchYahooHistoricalBars(c.sym, _mpStartStr, _mpEndStr, 0).catch(function(){ return null; }),
+            ]);
             if (!mRes.ok) { failedCount++; return null; }
             var mData = await mRes.json();
             if (!mData||!mData.aggs||mData.aggs.length<10) { failedCount++; return null; }
-            var snap = buildScreenerSnapshot(c.sym, mData);
+            var snap = buildScreenerSnapshot(c.sym, mData, { hi52:c.hi52||0, lo52:c.lo52||0, price:c.price||0 });
             if (!snap) { failedCount++; return null; }
             var ms = mData.snapshot||{};
             var smf = snap.smartMoneyFlow;
             var rev = snap.reversalWatch;
+
+            // Compute Momentum Profile from Yahoo historical bars (same path as detail page)
+            var momProfile = null;
+            try {
+              if (yhBars && yhBars.length >= 70) {
+                var wMom = calcWeeklyMomentum(buildWeeklyBars(yhBars));
+                var mMom = calcMonthlyMomentum(buildMonthlyBars(yhBars));
+                var daily = snap.momentum ? snap.momentum.status : 'Neutral';
+                momProfile = {
+                  daily:        daily,
+                  dailyScore:   snap.momentum ? snap.momentum.score : 50,
+                  weekly:       wMom.status,
+                  weeklyScore:  wMom.score,
+                  monthly:      mMom.status,
+                  monthlyScore: mMom.score,
+                  profile:      classifyMomentumProfile(daily, wMom.status),
+                  monthlyRegime:classifyMonthlyRegime(mMom.status),
+                };
+              }
+            } catch(mpErr) { momProfile = null; }
+
             return {
               ticker:c.sym, company:(mData.ticker&&mData.ticker.name)||c.name||c.sym,
               price:c.price||ms.close||0, changePct:c.changePct||ms.change||0, volume:c.volume||ms.volume||0,
               trend:snap.trend.status, trendScore:snap.trend.score||0,
               momentum:snap.momentum.status, momentumScore:snap.momentum.score||0,
+              momentumProfile: momProfile,
               reversal:rev.status, reversalScore:rev.score||0,
               reversalDecision:rev.reversalDecision||null,
               bullishScore:rev.bullishScore||0, bearishScore:rev.bearishScore||0,
@@ -1904,7 +1957,7 @@ function Screener() {
       matched.sort(function(a,b){ return (b.reversalScore+b.moneyFlowScore)-(a.reversalScore+a.moneyFlowScore); });
 
       var finalMsg = matched.length+' of '+candidates.length+' candidates scanned successfully'+(failedCount>0?' ('+failedCount+' failed — missing data)':'')+'.';
-      var cacheObj = { cachedAt:new Date().toISOString(), screenerSchemaVersion:'v3', candidateCount:candidates.length, failedCount:failedCount, results:matched };
+      var cacheObj = { cachedAt:new Date().toISOString(), screenerSchemaVersion:'v5', candidateCount:candidates.length, failedCount:failedCount, results:matched };
       var postHdrs = { 'Content-Type':'text/plain' };
       if (window.__clerkToken) postHdrs['Authorization']='Bearer '+window.__clerkToken;
       fetch('/cache?sym=__SCREENER&tab=results', { method:'POST', headers:postHdrs, body:JSON.stringify(cacheObj) }).catch(function(){});
@@ -2111,7 +2164,7 @@ function Screener() {
             ];
             var FILTER_GROUPS = [
               ['Trend',                filterTrend,    setFilterTrend,    ['Strong Uptrend','Uptrend','Sideways','Downtrend','Strong Downtrend']],
-              ['Momentum',             filterMomentum, setFilterMomentum, ['Strong','Building','Neutral','Fading','Weak']],
+              ['Momentum',      filterMomentum, setFilterMomentum, ['Strong','Building','Neutral','Fading','Weak','Momentum Continuation','Early Recovery Attempt','Waiting for Daily Trigger','Pullback in Larger Momentum','Weak Weekly Bounce','Bearish Momentum']],
               ['Reversal',             filterReversal, setFilterReversal, REV_OPTS],
               ['Money Flow',           filterSMF,      setFilterSMF,      SMF_OPTS],
               ['Rule Based Analytics', filterSetupSc,  setFilterSetupSc,  SETUP_OPTS],
@@ -2195,7 +2248,10 @@ function Screener() {
             // Filter matching — Reversal and Money Flow filters now use full labels directly
             var filtered = items.filter(function(row){
               if (filterTrend.length    && filterTrend.indexOf(row.trend)    ===-1) return false;
-              if (filterMomentum.length && filterMomentum.indexOf(row.momentum)===-1) return false;
+              if (filterMomentum.length) {
+                var _rowMom = (row.momentumProfile&&row.momentumProfile.profile) ? row.momentumProfile.profile : row.momentum;
+                if (filterMomentum.indexOf(_rowMom) === -1) return false;
+              }
               if (filterReversal.length && filterReversal.indexOf(row.reversal)===-1) return false;
               if (filterSMF.length      && filterSMF.indexOf(row.moneyFlow)  ===-1) return false;
               return true;
@@ -2240,7 +2296,7 @@ function Screener() {
                   var revC   = revStatusColor(row.reversal,'main');
                   var smfC   = smfStatusColor(row.moneyFlow,'main');
                   var tC     = summaryCardDark(row.trend).text;
-                  var mC     = momentumStateColor(row.momentum);
+                  var mC     = row.momentumProfile&&row.momentumProfile.profile ? summaryCardDark(row.momentumProfile.profile).text : momentumStateColor(row.momentum);
                   var setupC = ruleSetupColor(row.ruleScenarioId);
                   return (
                     <div key={row.ticker} style={{ display:'grid', gridTemplateColumns:GRID, columnGap:12, padding:'10px 14px', borderBottom:i<enriched.length-1?'1px solid #1a1a16':'none', background:i%2===0?'#111':'#131311', alignItems:'center' }}>
@@ -2250,7 +2306,7 @@ function Screener() {
                       <div style={{ fontSize:11, fontWeight:600, color:row.changePct>=0?'#7abd00':'#e05050' }}>{(row.changePct>=0?'+':'')+row.changePct.toFixed(2)+'%'}</div>
                       <div style={{ fontSize:11, color:'#888' }}>{fmtVol(row.volume)}</div>
                       <div style={{ fontSize:11, fontWeight:600, color:tC }}>{row.trend}</div>
-                      <div style={{ fontSize:11, fontWeight:600, color:mC }}>{row.momentum}</div>
+                      <div style={{ fontSize:11, fontWeight:600, color:mC }}>{row.momentumProfile&&row.momentumProfile.profile?row.momentumProfile.profile:row.momentum}</div>
                       <div style={{ fontSize:10, fontWeight:700, color:revC, lineHeight:1.3 }} title={row.reversal}>{cRev(row.reversal)}</div>
                       <div style={{ fontSize:10, fontWeight:700, color:smfC, lineHeight:1.3 }} title={row.moneyFlow}>{cSmf(row.moneyFlow)}</div>
                       <div title={row.ruleVerdict||''}>
@@ -4908,7 +4964,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.97</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.101</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4962,7 +5018,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.97</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.101</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5319,7 +5375,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {aiFundResult.summary&&<div style={{fontSize:11,color:"#c0bdb4",lineHeight:1.6,marginBottom:6}}>{aiFundResult.summary}</div>}
                           {aiFundResult.strength&&<div style={{marginBottom:3}}><span style={{fontSize:9,fontWeight:700,color:"#7abd00",marginRight:4}}>STRENGTH</span><span style={{fontSize:11,color:"#aaa"}}>{aiFundResult.strength}</span></div>}
                           {aiFundResult.risk&&<div style={{marginBottom:8}}><span style={{fontSize:9,fontWeight:700,color:"#e05050",marginRight:4}}>RISK</span><span style={{fontSize:11,color:"#aaa"}}>{aiFundResult.risk}</span></div>}
-                          <button onClick={function(){window.__goToTab&&window.__goToTab("aianalysis");setExpanded(null);}} style={{fontSize:10,padding:"4px 12px",border:"0.5px solid "+fc.bd,borderRadius:10,background:"none",color:fc.text,cursor:"pointer"}}>Full Analysis</button>
+                          {isMobileView()&&<button onClick={function(){window.__goToTab&&window.__goToTab("aianalysis");setExpanded(null);}} style={{fontSize:10,padding:"4px 12px",border:"0.5px solid "+fc.bd,borderRadius:10,background:"none",color:fc.text,cursor:"pointer"}}>Full Analysis</button>}
                         </div>);
                       })()}
                       {expanded==="tech" && !ruleAnalytics && <div style={{padding:"8px 0",fontSize:11,color:"#555"}}>Technical analysis not yet available.</div>}
@@ -5344,7 +5400,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           <div style={{borderTop:"0.5px solid #2a2a2a",paddingTop:8}}>
                             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
                               <span style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase"}}>Historical Confidence</span>
-                              {!rbaConfResult&&!rbaConfLoading&&<button onClick={function(e){e.stopPropagation();if(window.__doRbaConfCheck)window.__doRbaConfCheck();}} style={{fontSize:9,padding:"3px 10px",border:"0.5px solid #555",borderRadius:8,background:"none",color:"#ccc",cursor:"pointer"}}>Check</button>}
+                              {!rbaConfResult&&!rbaConfLoading&&<button onClick={function(e){e.stopPropagation();
+                                if(window.__doRbaConfCheck){ window.__doRbaConfCheck(); }
+                                else { window.__goToTab&&window.__goToTab("technical"); setTimeout(function(){ if(window.__doRbaConfCheck)window.__doRbaConfCheck(); },300); }
+                              }} style={{fontSize:9,padding:"3px 10px",border:"0.5px solid #555",borderRadius:8,background:"none",color:"#ccc",cursor:"pointer"}}>Check</button>}
                               {rbaConfLoading&&<span style={{fontSize:9,color:"#555"}}>Computing...</span>}
                             </div>
                             {rbaConfResult&&rbaConfResult.ticker===sym&&(<div>
@@ -5356,7 +5415,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               </div>):(<div style={{fontSize:10,color:"#555"}}>No historical data.</div>)}
                             </div>)}
                           </div>
-                          <button onClick={function(){window.__goToTab&&window.__goToTab("technical");setExpanded(null);}} style={{fontSize:10,marginTop:8,padding:"4px 12px",border:"0.5px solid "+tc.bd,borderRadius:10,background:"none",color:tc.text,cursor:"pointer"}}>Full Analysis</button>
+                          {isMobileView()&&<button onClick={function(){window.__goToTab&&window.__goToTab("technical");setExpanded(null);}} style={{fontSize:10,marginTop:8,padding:"4px 12px",border:"0.5px solid "+tc.bd,borderRadius:10,background:"none",color:tc.text,cursor:"pointer"}}>Full Analysis</button>}
                         </div>);
                       })()}
                     </div>
@@ -5452,7 +5511,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             })}
                             {secs.length === 0 && <div style={{fontSize:10,color:"#555",marginBottom:4}}>Driver details available in Full Moat Analysis.</div>}
                             <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether moat is supported by stable margins and pricing power.</div>
-                            <button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("moat");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Moat Analysis</button>
+                            {isMobileView()&&<button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("moat");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Moat Analysis</button>}
                           </div>);
                         })()}
                         <FRow label="Financial Strength" value={finRating} score={finScore} dotCol={finColors.dot} valCol={finColors.fg} loading={false} tab="financial" />
@@ -5503,7 +5562,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:700,color:r.c}}>{r.v}</span></div>);})}
                             {!rows.length&&<div style={{fontSize:10,color:"#555"}}>Financial data not yet loaded.</div>}
                             <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether earnings growth and cash flow continue to support the valuation.</div>
-                            <button onClick={function(){window.__goToTab&&window.__goToTab("financial");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Financials</button>
+                            {isMobileView()&&<button onClick={function(){window.__goToTab&&window.__goToTab("financial");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Financials</button>}
                           </div>);
                         })()}
                         <FRow label="Intrinsic Value" value={ivSublabel||ivLabel||"--"} score={ivScore} dotCol={ivColors.dot} valCol={ivColors.fg} loading={!ivOracle&&!ov} tab="intrinsic" />
@@ -5562,7 +5621,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               <span style={{fontSize:10,fontWeight:700,color:discColor}}>{(disc >= 0 ? "+" : "") + disc.toFixed(1) + "%"}</span>
                             </div>}
                             <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether the valuation gap remains supported by earnings and cash flow assumptions.</div>
-                            <button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("intrinsic");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full IV Analysis</button>
+                            {isMobileView()&&<button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("intrinsic");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full IV Analysis</button>}
                           </div>);
                         })()}
                       </div>
@@ -5658,7 +5717,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {rows.map(function(r,i){return(<div key={i} style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>{r.l}</span><span style={{fontSize:10,fontWeight:700,color:r.c}}>{r.v}</span></div>);})}
                           {!rows.length&&<div style={{fontSize:10,color:"#555"}}>No indicator data yet.</div>}
                           <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether price holds above the 20-day EMA and 50-day SMA.</div>
-                          <button onClick={function(){window.__goToTab&&window.__goToTab("trend");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
+                          {isMobileView()&&<button onClick={function(){window.__goToTab&&window.__goToTab("trend");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>}
                         </div>);
                       })()}
                       {(function(){
@@ -5712,7 +5771,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {cH!=null&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>MACD Histogram</span><span style={{fontSize:10,fontWeight:700,color:hCol}}>{hDir+(cH>0?" (Pos)":cH<0?" (Neg)":"")}</span></div>}
                           {!rsi&&cH==null&&<div style={{fontSize:10,color:"#555"}}>No indicator data yet.</div>}
                           <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether daily momentum stabilises or continues to weaken.</div>
-                          <button onClick={function(){window.__goToTab&&window.__goToTab("momentum");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
+                          {isMobileView()&&<button onClick={function(){window.__goToTab&&window.__goToTab("momentum");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>}
                         </div>);
                       })()}
                     </div>
@@ -5942,8 +6001,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {isBull&&!isMixed&&bearEvidence.length>0&&null}
                           {isBear&&!isMixed&&bullEvidence.length>0&&null}
                           <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>{_watch}</div>
-                          <button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("reversal");setExpanded(null);}}
-                            style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
+                          {isMobileView()&&<button onClick={function(e){e.stopPropagation();window.__goToTab&&window.__goToTab("reversal");setExpanded(null);}}
+                            style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>}
                         </div>);
                       })()}
                         {(function(){
@@ -6023,7 +6082,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {dL&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>30D Flow</span><span style={{fontSize:10,fontWeight:700,color:fC(dL)}}>{dL}</span></div>}
                           {bst&&<div style={{display:"flex",padding:"4px 0",borderBottom:"0.5px solid #2a2a2a"}}><span style={{fontSize:10,color:"#888",flex:1}}>Base Signal</span><span style={{fontSize:10,fontWeight:700,color:bstC}}>{bst}</span></div>}
                           <div style={{fontSize:9,color:"#666",lineHeight:1.4,marginTop:8}}>Watch whether 5D flow improves before the 30D signal confirms accumulation.</div>
-                          <button onClick={function(){window.__goToTab&&window.__goToTab("whale");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>
+                          {isMobileView()&&<button onClick={function(){window.__goToTab&&window.__goToTab("whale");setExpanded(null);}} style={{fontSize:9,padding:"4px 10px",border:"0.5px solid #333",borderRadius:6,background:"none",color:"#aaa",cursor:"pointer",marginTop:8}}>Full Detail</button>}
                         </div>);
                       })()}
                       </div>
@@ -6110,9 +6169,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     {/* 5-Tab Insight Panel */}
           {(function() {
             var ALL_TABS = [
+              { id:"business",   label:"Business Overview" },
               { id:"aianalysis", label:"Fundamental Analysis" },
               { id:"technical",  label:"Technical Analysis" },
-              { id:"business",   label:"Business Overview" },
               { id:"moat",       label:"Economic MOAT" },
               { id:"intrinsic",  label:"Intrinsic Value" },
               { id:"financial",  label:"Financial Strength" },
@@ -7328,8 +7387,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 var map={};
                                 rows3.forEach(function(r){
                                   if (!r.momentumStatus||!r.reversalStatus||!r.smartMoneyStatus) return;
-                                  var k=r.momentumStatus+'|'+r.reversalStatus+'|'+r.smartMoneyStatus+'|'+(r.rawResult||'?');
-                                  if (!map[k]) map[k]={momentumStatus:r.momentumStatus,reversalStatus:r.reversalStatus,smartMoneyStatus:r.smartMoneyStatus,rawResult:r.rawResult||'—',rets:[]};
+                                  var k=(r.trendCondition||'N/A')+'|'+r.momentumStatus+'|'+r.reversalStatus+'|'+r.smartMoneyStatus+'|'+(r.rawResult||'?');
+                                  if (!map[k]) map[k]={trendCondition:r.trendCondition||'N/A',momentumStatus:r.momentumStatus,reversalStatus:r.reversalStatus,smartMoneyStatus:r.smartMoneyStatus,rawResult:r.rawResult||'—',rets:[]};
                                   var v=getPeriodReturn(r,period); if(v!=null&&!isNaN(v)){ map[k].rets.push(v); }
                                 });
                                 return Object.values(map).map(function(g){
@@ -7346,7 +7405,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               var rcGroups  = hasConf ? buildRCGroups(confRows)   : [];
                               var sigGroups = hasConf ? build3SigGroups(confRows) : [];
                               var curKeyRC  = curRaw+'|'+curTrend;
-                              var curKey3   = curMom+'|'+curRev+'|'+curSmf+'|'+curRaw;
+                              var cur3sig   = hasConf ? confRows.filter(function(r){ return r.trendCondition===curTrend && r.momentumStatus===curMom && r.reversalStatus===curRev && r.smartMoneyStatus===curSmf && r.rawResult===curRaw; }) : [];
+                              var cur3Sum   = summariseRows(cur3sig, period);
+                              var curKey3   = (curTrend||'N/A')+'|'+curMom+'|'+curRev+'|'+curSmf+'|'+curRaw;
                               function StatRow(props) {
                                 var s=props.stats;
                                 if (!s) return <div style={{fontSize:11,color:'#555'}}>{'No matching data for this period.'}</div>;
@@ -7394,9 +7455,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                             <div style={{fontSize:10,color:'#555',padding:'8px'}}>{'No historical matches for this signal.'}</div>}
                                           {curMatchRC.length < 5 && curMatchRC.length >= 1 && <div style={{fontSize:9,color:'#b88000',marginTop:4}}>{'Low sample size. Treat this as directional only.'}</div>}
                                         </div>
-                                        {/* Current 3-signal combination */}
+                                        {/* Current 4-signal combination */}
                                         <div style={{marginBottom:14}}>
-                                          <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:4}}>{'3-Signal Combination: ' + (curMom||'—') + ' · ' + (curRev||'—') + ' · ' + (curSmf||'—')}</div>
+                                          <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:4}}>{'4-Signal Combination: ' + (curTrend||'—') + ' · ' + (curMom||'—') + ' · ' + (curRev||'—') + ' · ' + (curSmf||'—')}</div>
                                           {cur3sig.length >= 1 ? <StatRow stats={cur3Sum} /> :
                                             <div style={{fontSize:10,color:'#555',padding:'8px'}}>{'No historical matches for this combination.'}</div>}
                                           {cur3sig.length < 5 && cur3sig.length >= 1 && <div style={{fontSize:9,color:'#b88000',marginTop:4}}>{'Low sample size. Treat this as directional only.'}</div>}
@@ -7427,19 +7488,21 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                             </table>
                                           </div> : <div style={{fontSize:10,color:'#555'}}>{'Not enough data for this period.'}</div>}
                                         </div>
-                                        {/* Top 10 3-Signal table */}
+                                        {/* Top 10 4-Signal table */}
                                         <div>
-                                          <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>{'Top 3-Signal Combinations (' + period + ')'}</div>
+                                          <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>{'Top 4-Signal Combinations (' + period + ')'}</div>
                                           {sigGroups.length ? <div style={{overflowX:'auto'}}>
                                             <table style={{width:'100%',borderCollapse:'collapse',fontSize:10}}>
-                                              <thead><tr>{['#','Mom','Rev','SMF','Result','Sigs','Win%','Avg','Median','Conf','Quality'].map(function(h){ return <th key={h} style={{textAlign:'left',color:'#555',fontWeight:700,fontSize:8,padding:'3px 6px',borderBottom:'0.5px solid #ddd',whiteSpace:'nowrap'}}>{h}</th>; })}</tr></thead>
+                                              <thead><tr>{['#','Trend','Mom','Rev','Flow','Result','Sigs','Win%','Avg','Median','Conf','Quality'].map(function(h){ return <th key={h} style={{textAlign:'left',color:'#555',fontWeight:700,fontSize:8,padding:'3px 6px',borderBottom:'0.5px solid #ddd',whiteSpace:'nowrap'}}>{h}</th>; })}</tr></thead>
                                               <tbody>{sigGroups.slice(0,10).map(function(g,i){
-                                                var isCur = (g.momentumStatus+'|'+g.reversalStatus+'|'+g.smartMoneyStatus+'|'+g.rawResult)===curKey3;
+                                                var isCur = ((g.trendCondition||'N/A')+'|'+g.momentumStatus+'|'+g.reversalStatus+'|'+g.smartMoneyStatus+'|'+g.rawResult)===curKey3;
                                                 var ql=qualLabel(g.signals,g.winRate,g.medianReturn,g.avgReturn),qc=qualColor(ql);
                                                 var cl=confLabel(g.signals),cc=confColor(g.signals);
                                                 function sC(s){ return s==='bullish'?'#7abd00':s==='bearish'?'#e05050':'#b88000'; }
+                                                var tc=g.trendCondition||'N/A'; var tcol=tc.indexOf('Uptrend')>-1?'#7abd00':tc.indexOf('Down')>-1?'#e05050':tc==='N/A'?'#555':'#b88000';
                                                 return <tr key={i} style={{borderBottom:'0.5px solid #f0ede6',background:isCur?'rgba(122,189,0,0.1)':'transparent'}}>
                                                   <td style={{padding:'4px 6px',color:isCur?'#7abd00':'#555'}}>{isCur?'\u2605':(i+1)}</td>
+                                                  <td style={{padding:'4px 6px',fontWeight:700,color:tcol,fontSize:9}}>{tc.replace(' Conditions','')}</td>
                                                   <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.momentumStatus)}}>{g.momentumStatus}</td>
                                                   <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.reversalStatus)}}>{g.reversalStatus}</td>
                                                   <td style={{padding:'4px 6px',fontWeight:700,color:sC(g.smartMoneyStatus)}}>{g.smartMoneyStatus}</td>
@@ -12185,7 +12248,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.97</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.101</span>
           </div>
         </div>
 
