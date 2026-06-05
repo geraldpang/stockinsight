@@ -4969,7 +4969,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.106</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.107</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5023,7 +5023,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.106</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.107</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11898,12 +11898,18 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
   // ── Render helpers ─────────────────────────────────────────────────────────
   function Sig({ label, rank, prevRows, field }) {
-    if (!label) return <span style={{color:'#555'}}>—</span>;
+    if (!label) return <span style={{color:'#555',fontSize:10}}>—</span>;
     var history = [rank].concat((prevRows||[]).map(function(r){ return r[field]; }));
     var arrow = wlArrow(rank, history);
-    var ac    = wlArrowColor(arrow);
-    var lc    = summaryCardDark(label).text || '#aaa';
-    return <span><span style={{color:lc,fontWeight:700,fontSize:10}}>{label}</span>{' '}<span style={{color:ac,fontWeight:700}}>{arrow}</span></span>;
+    var showArrow = arrow !== String.fromCharCode(0x2014); // only show ↑ → ↓, not —
+    var ac  = wlArrowColor(arrow);
+    var lc  = summaryCardDark(label).text || '#aaa';
+    return (
+      <div style={{display:'flex',alignItems:'center',gap:3,whiteSpace:'nowrap',overflow:'hidden'}}>
+        <span style={{color:lc,fontWeight:700,fontSize:10,overflow:'hidden',textOverflow:'ellipsis'}}>{label}</span>
+        {showArrow && <span style={{color:ac,fontWeight:700,fontSize:11,flexShrink:0}}>{arrow}</span>}
+      </div>
+    );
   }
 
   function Range52({ price, lo52, hi52 }) {
@@ -12042,22 +12048,22 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 <div>{price&&hi52&&lo52 ? <Range52 price={price} lo52={lo52} hi52={hi52} /> : <span style={{color:'#555',fontSize:11}}>—</span>}</div>
 
                 {/* Technical View (RBA) */}
-                <div><Sig label={rbaV} rank={snap?snap.rba_rank:0} prevRows={prevRows} field="rba_rank" /></div>
+                <div style={{overflow:'hidden'}}><Sig label={rbaV} rank={snap?snap.rba_rank:0} prevRows={prevRows} field="rba_rank" /></div>
 
-                {/* 3M Trend sparkline */}
-                <div style={{fontSize:11,letterSpacing:0,color:'#6090d0',overflow:'hidden',whiteSpace:'nowrap'}}>{sparkline}</div>
+                {/* 3M Trend sparkline — colour follows trend status */}
+                <div style={{fontSize:11,letterSpacing:0,color:trendV?summaryCardDark(trendV).text:'#6090d0',overflow:'hidden',whiteSpace:'nowrap'}}>{sparkline}</div>
 
                 {/* Trend */}
-                <div><Sig label={trendV} rank={snap?snap.trend_rank:0} prevRows={prevRows} field="trend_rank" /></div>
+                <div style={{overflow:'hidden'}}><Sig label={trendV} rank={snap?snap.trend_rank:0} prevRows={prevRows} field="trend_rank" /></div>
 
                 {/* Momentum */}
-                <div><Sig label={momV} rank={snap?snap.momentum_rank:0} prevRows={prevRows} field="momentum_rank" /></div>
+                <div style={{overflow:'hidden'}}><Sig label={momV} rank={snap?snap.momentum_rank:0} prevRows={prevRows} field="momentum_rank" /></div>
 
                 {/* Reversal */}
-                <div><Sig label={revV} rank={snap?snap.reversal_rank:0} prevRows={prevRows} field="reversal_rank" /></div>
+                <div style={{overflow:'hidden'}}><Sig label={revV} rank={snap?snap.reversal_rank:0} prevRows={prevRows} field="reversal_rank" /></div>
 
                 {/* Money Flow */}
-                <div><Sig label={smfV} rank={snap?snap.money_flow_rank:0} prevRows={prevRows} field="money_flow_rank" /></div>
+                <div style={{overflow:'hidden'}}><Sig label={smfV} rank={snap?snap.money_flow_rank:0} prevRows={prevRows} field="money_flow_rank" /></div>
 
                 {/* View */}
                 <button onClick={function(){ window.location.hash=item.ticker; }}
@@ -12598,7 +12604,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.106</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.107</span>
           </div>
         </div>
 
