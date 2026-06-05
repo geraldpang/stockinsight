@@ -39,7 +39,7 @@ export async function onRequest(context) {
   try {
 
     // Only handle specific API routes -- pass everything else to the React app
-    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache", "/simfin", "/stripe", "/options", "/journal"];
+    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache", "/simfin", "/stripe", "/options", "/journal", "/watchlist"];
     var isApiRoute  = false;
     for (var ri = 0; ri < knownRoutes.length; ri++) {
       if (url.pathname === knownRoutes[ri] || url.pathname.startsWith(knownRoutes[ri])) {
@@ -889,98 +889,41 @@ export async function onRequest(context) {
 
         // POST update future returns
         if (context.request.method === "POST" && jAction === "updateFutureReturns") {
-          var body3   = await context.request.json();
+          var body3 = await context.request.json();
           var ticker3 = (body3.ticker || "").toUpperCase();
-
-          // Fetch all snapshots for this ticker
-          var snaps = await DB.prepare(
-            "SELECT id, snapshot_date, close_price FROM technical_signal_journal WHERE ticker = ? ORDER BY snapshot_date ASC"
-          ).bind(ticker3).all();
+          // Fetch all snapshots for ticker ordered by date
+          var snaps = await DB.prepare("SELECT id, snapshot_date, close_price FROM technical_signal_journal WHERE ticker = ? ORDER BY snapshot_date ASC").bind(ticker3).all();
           var rows3 = snaps.results;
-          if (rows3.length === 0) return new Response(JSON.stringify({ ok:true, updated:0 }), { headers: jHeaders });
-
-          // Fetch 2 years of daily closes from Yahoo Finance for this ticker
-          // This gives us real market prices for any calendar date — independent of snapshots
-          var yahooUrl = "https://query2.finance.yahoo.com/v8/finance/chart/" + ticker3 + "?interval=1d&range=2y";
-          var priceByDate = {};
-          try {
-            var yRes = await fetch(yahooUrl);
-            var yJson = await yRes.json();
-            var result = yJson && yJson.chart && yJson.chart.result && yJson.chart.result[0];
-            if (result) {
-              var timestamps = result.timestamp || [];
-              var closes     = (result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].close) || [];
-              for (var ti = 0; ti < timestamps.length; ti++) {
-                if (closes[ti] != null) {
-                  var dateStr = new Date(timestamps[ti] * 1000).toISOString().split("T")[0];
-                  priceByDate[dateStr] = closes[ti];
-                }
-              }
-            }
-          } catch(e) { /* Yahoo fetch failed — fall through, updates will be skipped */ }
-
-          var DAY_MS  = 24 * 60 * 60 * 1000;
           var updated = 0;
-
-          // Helper: find the closing price on or nearest to a target date (within maxDays tolerance)
-          // Searches forward through calendar days — accounts for weekends and holidays
-          function priceNearDate(targetMs, maxDays) {
-            for (var d = 0; d <= maxDays; d++) {
-              // Try same day, then next day, then previous day, alternating
-              var offsets = d === 0 ? [0] : [d, -d];
-              for (var oi = 0; oi < offsets.length; oi++) {
-                var ds = new Date(targetMs + offsets[oi] * DAY_MS).toISOString().split("T")[0];
-                if (priceByDate[ds] != null) return priceByDate[ds];
-              }
-            }
-            return null;
-          }
-
           for (var si = 0; si < rows3.length; si++) {
-            var row   = rows3[si];
-            var rowMs = new Date(row.snapshot_date).getTime();
-            var basePrice = row.close_price;
-            var updates   = {};
-
-            // Return windows: use actual market price N trading days after snapshot date
-            var windows = [1, 3, 5, 10, 20, 30, 45, 60, 90];
+            var row = rows3[si];
+            var windows = [1,3,5,10,20,30,45,60,90];
+            var updates = {};
             for (var wi = 0; wi < windows.length; wi++) {
               var w = windows[wi];
-              // Convert trading days to approximate calendar days (×1.4 accounts for weekends)
-              var calDays   = Math.round(w * 1.4);
-              var targetMs  = rowMs + calDays * DAY_MS;
-              var futPrice  = priceNearDate(targetMs, 5); // ±5 calendar day search
-              if (futPrice != null) {
-                updates["future_return_" + w + "d"] = parseFloat(((futPrice - basePrice) / basePrice * 100).toFixed(2));
+              var futIdx = si + w;
+              if (futIdx < rows3.length) {
+                var futClose = rows3[futIdx].close_price;
+                var ret = parseFloat(((futClose - row.close_price) / row.close_price * 100).toFixed(2));
+                updates["future_return_" + w + "d"] = ret;
               }
             }
-
-            // Max gain / max drawdown over calendar windows
-            var _maxWindows = [30, 60, 90];
-            for (var wi2 = 0; wi2 < _maxWindows.length; wi2++) {
-              var ww       = _maxWindows[wi2];
-              var calEnd   = Math.round(ww * 1.4);
-              var prices   = [];
-              for (var cd = 1; cd <= calEnd + 5; cd++) {
-                var ds2 = new Date(rowMs + cd * DAY_MS).toISOString().split("T")[0];
-                if (priceByDate[ds2] != null) prices.push(priceByDate[ds2]);
-                if (prices.length >= ww) break; // collected enough trading days
-              }
-              if (prices.length > 0) {
-                var maxG = Math.max.apply(null, prices);
-                var minG = Math.min.apply(null, prices);
-                updates["max_gain_"     + ww + "d"] = parseFloat(((maxG - basePrice) / basePrice * 100).toFixed(2));
-                updates["max_drawdown_" + ww + "d"] = parseFloat(((minG - basePrice) / basePrice * 100).toFixed(2));
+            // Max gain/drawdown 30/60/90d
+            var _windows2 = [30, 60, 90]; for (var wi2 = 0; wi2 < _windows2.length; wi2++) { var ww = _windows2[wi2];
+              var futSlice = rows3.slice(si + 1, si + ww + 1).map(function(r){ return r.close_price; });
+              if (futSlice.length > 0) {
+                var maxG = Math.max.apply(null, futSlice);
+                var minG = Math.min.apply(null, futSlice);
+                updates["max_gain_" + ww + "d"]     = parseFloat(((maxG - row.close_price) / row.close_price * 100).toFixed(2));
+                updates["max_drawdown_" + ww + "d"] = parseFloat(((minG - row.close_price) / row.close_price * 100).toFixed(2));
               }
             }
-
-            // Outcome label based on 20D return
+            // Outcome labels
             if (updates.future_return_20d !== undefined) {
               var r20 = updates.future_return_20d;
               updates.bullish_outcome_label = r20 >= 10 ? "Strong Win" : r20 >= 5 ? "Win" : r20 > -5 ? "Neutral" : r20 > -10 ? "Failed" : "Strong Failed";
               updates.bearish_outcome_label = r20 <= -10 ? "Strong Bearish Win" : r20 <= -5 ? "Bearish Win" : r20 < 5 ? "Neutral" : r20 < 10 ? "Bearish Failed" : "Strong Bearish Failed";
             }
-
             if (Object.keys(updates).length > 0) {
               var setClauses = Object.keys(updates).map(function(k){ return k + "=?"; }).join(", ");
               var vals = Object.values(updates);
@@ -1020,7 +963,145 @@ export async function onRequest(context) {
       }
     }
 
-    if (!target) return new Response("Missing url", { status: 400 });
+    // ── Watchlist API (D1 database, per-user) ─────────────────────────────────
+    if (url.pathname.startsWith("/watchlist")) {
+      var wDB = context.env.DB;
+      var wHeaders = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
+      if (!wDB) return new Response(JSON.stringify({ error: "D1 not configured" }), { status: 500, headers: wHeaders });
+
+      // Extract Clerk user_id directly from Bearer JWT (same logic as getClerkUserId)
+      var wUserId = null;
+      try {
+        var wAuthHeader = context.request.headers.get("Authorization") || "";
+        var wToken = wAuthHeader.startsWith("Bearer ") ? wAuthHeader.slice(7) : null;
+        if (wToken) {
+          var wParts = wToken.split(".");
+          if (wParts.length === 3) {
+            var wPayload = JSON.parse(atob(wParts[1].replace(/-/g,"+").replace(/_/g,"/")));
+            wUserId = wPayload.sub || null;
+          }
+        }
+      } catch(e) { wUserId = null; }
+      if (!wUserId) return new Response(JSON.stringify({ error: "Not signed in" }), { status: 401, headers: wHeaders });
+
+      // Premium gate: check Stripe subscription status or admin key
+      var wAdminKey = context.env.ADMIN_KEY || "stockinsight-admin";
+      var wReqAdmin = context.request.headers.get("X-Admin-Key") || "";
+      var wIsAdmin  = wReqAdmin === wAdminKey;
+      if (!wIsAdmin) {
+        var wCACHE    = context.env.CACHE;
+        var wSubStatus = wCACHE ? await wCACHE.get("stripe:sub:" + wUserId) : null;
+        var wIsPaid    = wSubStatus === "active" || wSubStatus === "cancelling";
+        if (!wIsPaid) return new Response(JSON.stringify({ error: "Premium required", code: "PREMIUM_REQUIRED" }), { status: 403, headers: wHeaders });
+      }
+
+      var wAction = url.searchParams.get("action");
+
+      try {
+        // GET — return watchlist items + latest snapshot per ticker
+        if (context.request.method === "GET") {
+          var wItems = await wDB.prepare(
+            "SELECT * FROM watchlist_items WHERE user_id = ? ORDER BY created_at DESC"
+          ).bind(wUserId).all();
+          var tickers = (wItems.results || []).map(function(r){ return r.ticker; });
+          var snapMap = {};
+          if (tickers.length > 0) {
+            // Latest snapshot per ticker for this user
+            var placeholders = tickers.map(function(){ return "?"; }).join(",");
+            var snaps = await wDB.prepare(
+              "SELECT wss.* FROM watchlist_signal_snapshots wss " +
+              "INNER JOIN (SELECT ticker, MAX(snapshot_date) AS md FROM watchlist_signal_snapshots WHERE user_id=? AND ticker IN (" + placeholders + ") GROUP BY ticker) latest " +
+              "ON wss.user_id=? AND wss.ticker=latest.ticker AND wss.snapshot_date=latest.md"
+            ).bind.apply(
+              wDB.prepare(
+                "SELECT wss.* FROM watchlist_signal_snapshots wss " +
+                "INNER JOIN (SELECT ticker, MAX(snapshot_date) AS md FROM watchlist_signal_snapshots WHERE user_id=? AND ticker IN (" + placeholders + ") GROUP BY ticker) latest " +
+                "ON wss.user_id=? AND wss.ticker=latest.ticker AND wss.snapshot_date=latest.md"
+              ),
+              [wUserId].concat(tickers).concat([wUserId])
+            ).all();
+            (snaps.results || []).forEach(function(s){ snapMap[s.ticker] = s; });
+
+            // Previous 5 snapshots per ticker for arrow calculation
+            var prevMap = {};
+            for (var ti = 0; ti < tickers.length; ti++) {
+              var prevSnaps = await wDB.prepare(
+                "SELECT snapshot_date,rba_rank,trend_rank,momentum_rank,reversal_rank,money_flow_rank " +
+                "FROM watchlist_signal_snapshots WHERE user_id=? AND ticker=? " +
+                "ORDER BY snapshot_date DESC LIMIT 6"
+              ).bind(wUserId, tickers[ti]).all();
+              prevMap[tickers[ti]] = (prevSnaps.results || []);
+            }
+            snapMap["__prev"] = prevMap;
+          }
+          return new Response(JSON.stringify({ items: wItems.results || [], snapshots: snapMap }), { headers: wHeaders });
+        }
+
+        var wBody = {};
+        try { wBody = await context.request.json(); } catch(e) {}
+
+        // POST add
+        if (wAction === "add") {
+          var addTicker = (wBody.ticker || "").toUpperCase().trim();
+          if (!addTicker) return new Response(JSON.stringify({ error: "ticker required" }), { status: 400, headers: wHeaders });
+          await wDB.prepare(
+            "INSERT INTO watchlist_items (user_id, ticker, company_name) VALUES (?,?,?) " +
+            "ON CONFLICT(user_id, ticker) DO UPDATE SET company_name=excluded.company_name"
+          ).bind(wUserId, addTicker, wBody.companyName || null).run();
+          return new Response(JSON.stringify({ ok: true, ticker: addTicker }), { headers: wHeaders });
+        }
+
+        // POST remove
+        if (wAction === "remove") {
+          var remTicker = (wBody.ticker || "").toUpperCase().trim();
+          if (!remTicker) return new Response(JSON.stringify({ error: "ticker required" }), { status: 400, headers: wHeaders });
+          await wDB.prepare("DELETE FROM watchlist_items WHERE user_id=? AND ticker=?").bind(wUserId, remTicker).run();
+          return new Response(JSON.stringify({ ok: true }), { headers: wHeaders });
+        }
+
+        // POST snapshot — store today's signal snapshot for one ticker
+        if (wAction === "snapshot") {
+          var sTicker = (wBody.ticker || "").toUpperCase().trim();
+          var sDate   = new Date().toISOString().split("T")[0];
+          if (!sTicker || !wBody.snap) return new Response(JSON.stringify({ error: "ticker and snap required" }), { status: 400, headers: wHeaders });
+          var s = wBody.snap;
+          await wDB.prepare(
+            "INSERT INTO watchlist_signal_snapshots " +
+            "(user_id,ticker,snapshot_date,close_price,price_change_pct,hi52,lo52," +
+            "rba_verdict,rba_rank,trend_status,trend_score,trend_rank," +
+            "momentum_status,momentum_score,momentum_rank," +
+            "reversal_status,reversal_score,reversal_rank," +
+            "money_flow_status,money_flow_score,money_flow_rank,signal_snapshot_json) " +
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) " +
+            "ON CONFLICT(user_id,ticker,snapshot_date) DO UPDATE SET " +
+            "close_price=excluded.close_price,price_change_pct=excluded.price_change_pct," +
+            "hi52=excluded.hi52,lo52=excluded.lo52," +
+            "rba_verdict=excluded.rba_verdict,rba_rank=excluded.rba_rank," +
+            "trend_status=excluded.trend_status,trend_score=excluded.trend_score,trend_rank=excluded.trend_rank," +
+            "momentum_status=excluded.momentum_status,momentum_score=excluded.momentum_score,momentum_rank=excluded.momentum_rank," +
+            "reversal_status=excluded.reversal_status,reversal_score=excluded.reversal_score,reversal_rank=excluded.reversal_rank," +
+            "money_flow_status=excluded.money_flow_status,money_flow_score=excluded.money_flow_score,money_flow_rank=excluded.money_flow_rank," +
+            "signal_snapshot_json=excluded.signal_snapshot_json,created_at=datetime('now')"
+          ).bind(
+            wUserId, sTicker, sDate,
+            s.closePrice||null, s.priceChangePct||null, s.hi52||null, s.lo52||null,
+            s.rbaVerdict||null, s.rbaRank||null,
+            s.trendStatus||null, s.trendScore||null, s.trendRank||null,
+            s.momentumStatus||null, s.momentumScore||null, s.momentumRank||null,
+            s.reversalStatus||null, s.reversalScore||null, s.reversalRank||null,
+            s.moneyFlowStatus||null, s.moneyFlowScore||null, s.moneyFlowRank||null,
+            JSON.stringify(s)
+          ).run();
+          return new Response(JSON.stringify({ ok: true }), { headers: wHeaders });
+        }
+
+        return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: wHeaders });
+      } catch(wErr) {
+        return new Response(JSON.stringify({ error: "Watchlist DB error: " + wErr.message }), { status: 500, headers: wHeaders });
+      }
+    }
+
+
 
     if (target.includes("financialmodelingprep.com")) {
       const fmpKey = context.env.FMP_KEY;
