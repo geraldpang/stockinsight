@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { calculateTechnicalSignalSnapshot, calcRSI,
          calcReversalWatch,
          getReversalDirectionStatus, getOverallReversalStatus,
@@ -4969,7 +4969,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.107</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.108</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5023,7 +5023,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.107</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.108</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11772,14 +11772,16 @@ function makeSparkline(values) {
 
 function WatchlistPage({ clerkUser, isPaid }) {
   var LIME = '#c8f000';
-  var [items,     setItems]     = useState([]);
-  var [snapshots, setSnapshots] = useState({});
-  var [loading,   setLoading]   = useState(true);
-  var [addInput,  setAddInput]  = useState('');
-  var [addLoading,setAddLoading]= useState(false);
-  var [refreshing,setRefreshing]= useState(false);
-  var [msg,       setMsg]       = useState('');
-  var [lastUpdated,setLastUpdated] = useState(null);
+  var [items,        setItems]       = useState([]);
+  var [snapshots,    setSnapshots]   = useState({});
+  var [locks,        setLocks]       = useState({});
+  var [loading,      setLoading]     = useState(true);
+  var [addInput,     setAddInput]    = useState('');
+  var [addLoading,   setAddLoading]  = useState(false);
+  var [refreshing,   setRefreshing]  = useState(false);
+  var [msg,          setMsg]         = useState('');
+  var [lastUpdated,  setLastUpdated] = useState(null);
+  var [viewLockTicker,setViewLockTicker] = useState(null); // ticker whose lock detail panel is open
 
   var isAdmin = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === 'admin');
   var canAccess = isPaid || isAdmin;
@@ -11797,7 +11799,10 @@ function WatchlistPage({ clerkUser, isPaid }) {
       .then(function(r){ return r.json(); })
       .then(function(d){
         setItems(d.items || []);
-        setSnapshots(d.snapshots || {});
+        var snaps = d.snapshots || {};
+        var lockMap = snaps['__locks'] || {};
+        setLocks(lockMap);
+        setSnapshots(snaps);
         setLastUpdated(new Date().toLocaleTimeString());
       })
       .catch(function(e){ setMsg('Load failed: ' + e.message); })
@@ -11805,6 +11810,35 @@ function WatchlistPage({ clerkUser, isPaid }) {
   }
 
   useEffect(function(){ if(canAccess && clerkUser) loadWatchlist(); }, [clerkUser, isPaid]);
+
+  function lockSignal(item, snap) {
+    if (!snap) { setMsg('No signal data for ' + item.ticker + ' — Refresh Signals first.'); return; }
+    var payload = {
+      closePrice:      snap.close_price,
+      priceChangePct:  snap.price_change_pct,
+      hi52:            snap.hi52, lo52: snap.lo52,
+      rbaVerdict:      snap.rba_verdict,    rbaRank:      snap.rba_rank,
+      trendStatus:     snap.trend_status,   trendScore:   snap.trend_score,   trendRank:   snap.trend_rank,
+      momentumStatus:  snap.momentum_status,momentumScore:snap.momentum_score,momentumRank:snap.momentum_rank,
+      reversalStatus:  snap.reversal_status,reversalScore:snap.reversal_score,reversalRank:snap.reversal_rank,
+      moneyFlowStatus: snap.money_flow_status,moneyFlowScore:snap.money_flow_score,moneyFlowRank:snap.money_flow_rank,
+    };
+    fetch('/watchlist?action=lock', {
+      method: 'POST', headers: wlHeaders(),
+      body: JSON.stringify({ ticker: item.ticker, currentSnapshot: payload })
+    }).then(function(r){ return r.json(); })
+      .then(function(d){ if(d.ok) loadWatchlist(); else setMsg(d.error||'Lock failed'); })
+      .catch(function(e){ setMsg('Lock failed: '+e.message); });
+  }
+
+  function resetLock(ticker) {
+    fetch('/watchlist?action=resetLock', {
+      method: 'POST', headers: wlHeaders(),
+      body: JSON.stringify({ ticker: ticker })
+    }).then(function(r){ return r.json(); })
+      .then(function(d){ if(d.ok){ if(viewLockTicker===ticker)setViewLockTicker(null); loadWatchlist(); } })
+      .catch(function(e){ setMsg('Reset failed: '+e.message); });
+  }
 
   function addTicker() {
     var sym = addInput.trim().toUpperCase();
@@ -11953,8 +11987,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
   );
 
   // ── Paid user UI ───────────────────────────────────────────────────────────
-  var COL = '70px 85px 150px 120px 80px 90px 90px 130px 150px 44px 36px';
-  var HEAD = ['Ticker','Price','52W Range','Technical View','3M Trend','Trend','Momentum','Reversal','Money Flow','',''];
+  var COL = '70px 85px 150px 120px 80px 90px 90px 130px 150px 130px 44px 36px';
+  var HEAD = ['Ticker','Price','52W Range','Technical View','3M Trend','Trend','Momentum','Reversal','Money Flow','Lock','',''];
 
   return (
     <div style={{minHeight:'100vh',background:'#0e0e0c',padding:'24px 20px',maxWidth:1400,margin:'0 auto'}}>
@@ -12024,9 +12058,10 @@ function WatchlistPage({ clerkUser, isPaid }) {
             var revV       = snap ? snap.reversal_status : null;
             var smfV       = snap ? snap.money_flow_status : null;
             return (
-              <div key={item.ticker}
+              <React.Fragment key={item.ticker}>
+              <div
                 style={{display:'grid',gridTemplateColumns:COL,columnGap:12,padding:'10px 14px',
-                  borderBottom:idx<items.length-1?'1px solid #1a1a16':'none',
+                  borderBottom:'none',
                   background:idx%2===0?'#111':'#131311',alignItems:'center'}}>
 
                 {/* Ticker */}
@@ -12065,6 +12100,44 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 {/* Money Flow */}
                 <div style={{overflow:'hidden'}}><Sig label={smfV} rank={snap?snap.money_flow_rank:0} prevRows={prevRows} field="money_flow_rank" /></div>
 
+                {/* Lock column */}
+                {(function(){
+                  var lock = locks[item.ticker] || null;
+                  if (!lock) {
+                    return <div>
+                      <button onClick={function(){ lockSignal(item, snap); }}
+                        style={{fontSize:9,padding:'3px 8px',background:'none',border:'0.5px solid #444',borderRadius:5,color:'#888',cursor:'pointer',whiteSpace:'nowrap'}}>
+                        Lock Signal
+                      </button>
+                    </div>;
+                  }
+                  var lPrice  = lock.locked_price;
+                  var curPrice= price;
+                  var pctChg  = (lPrice && curPrice) ? ((curPrice-lPrice)/lPrice*100) : null;
+                  // Overall signal delta
+                  var curTotal = (snap ? ((snap.rba_rank||0)+(snap.trend_rank||0)+(snap.momentum_rank||0)+(snap.reversal_rank||0)+(snap.money_flow_rank||0)) : 0);
+                  var lkTotal  = ((lock.locked_rba_rank||0)+(lock.locked_trend_rank||0)+(lock.locked_momentum_rank||0)+(lock.locked_reversal_rank||0)+(lock.locked_money_flow_rank||0));
+                  var delta    = curTotal - lkTotal;
+                  var sigStatus = delta >= 1 ? 'Signal Improved' : delta <= -1 ? 'Signal Weakened' : 'Signal Stable';
+                  var sigColor  = delta >= 1 ? '#7abd00' : delta <= -1 ? '#e05050' : '#EF9F27';
+                  var lockedDate = lock.locked_at ? lock.locked_at.split('T')[0] : '—';
+                  return <div style={{fontSize:9,lineHeight:1.5}}>
+                    <div style={{color:'#888',whiteSpace:'nowrap'}}>{'Locked @ $'+(lPrice?lPrice.toFixed(2):'—')}</div>
+                    {pctChg!=null&&<div style={{color:pctChg>=0?'#7abd00':'#e05050',fontWeight:700}}>{(pctChg>=0?'+':'')+pctChg.toFixed(1)+'% since lock'}</div>}
+                    <div style={{color:sigColor,fontWeight:700}}>{sigStatus}</div>
+                    <div style={{display:'flex',gap:4,marginTop:3}}>
+                      <button onClick={function(){ setViewLockTicker(viewLockTicker===item.ticker?null:item.ticker); }}
+                        style={{fontSize:8,padding:'2px 6px',background:'none',border:'0.5px solid #444',borderRadius:4,color:'#aaa',cursor:'pointer'}}>
+                        {viewLockTicker===item.ticker?'Close':'View Lock'}
+                      </button>
+                      <button onClick={function(){ resetLock(item.ticker); }}
+                        style={{fontSize:8,padding:'2px 6px',background:'none',border:'0.5px solid #3a1a1a',borderRadius:4,color:'#e05050',cursor:'pointer'}}>
+                        Reset
+                      </button>
+                    </div>
+                  </div>;
+                })()}
+
                 {/* View */}
                 <button onClick={function(){ window.location.hash=item.ticker; }}
                   style={{fontSize:10,padding:'3px 6px',background:'none',border:'0.5px solid #333',borderRadius:5,color:'#888',cursor:'pointer'}}>
@@ -12077,12 +12150,56 @@ function WatchlistPage({ clerkUser, isPaid }) {
                   ✕
                 </button>
               </div>
+
+              {/* View Lock expanded panel — full-width below the row */}
+              {viewLockTicker===item.ticker && locks[item.ticker] && (function(){
+                var lock = locks[item.ticker];
+                var lkDate = lock.locked_at ? lock.locked_at.split('T')[0] : '—';
+                var lPrice = lock.locked_price;
+                var pctChg = (lPrice && price) ? ((price-lPrice)/lPrice*100) : null;
+                function sigChange(curRank, lkRank) {
+                  if (curRank == null || lkRank == null) return {label:'—', color:'#555'};
+                  var d = (curRank||0) - (lkRank||0);
+                  return d >= 0.5 ? {label:'Improved',color:'#7abd00'} : d <= -0.5 ? {label:'Weakened',color:'#e05050'} : {label:'Stable',color:'#EF9F27'};
+                }
+                var fields = [
+                  ['Technical View', snap?snap.rba_verdict:null,       snap?snap.rba_rank:null,       lock.locked_rba_verdict,       lock.locked_rba_rank],
+                  ['Trend',          snap?snap.trend_status:null,       snap?snap.trend_rank:null,     lock.locked_trend_status,      lock.locked_trend_rank],
+                  ['Momentum',       snap?snap.momentum_status:null,    snap?snap.momentum_rank:null,  lock.locked_momentum_status,   lock.locked_momentum_rank],
+                  ['Reversal',       snap?snap.reversal_status:null,    snap?snap.reversal_rank:null,  lock.locked_reversal_status,   lock.locked_reversal_rank],
+                  ['Money Flow',     snap?snap.money_flow_status:null,  snap?snap.money_flow_rank:null,lock.locked_money_flow_status, lock.locked_money_flow_rank],
+                ];
+                return <div style={{gridColumn:'1/-1',background:'#161614',border:'0.5px solid #2a2a28',borderRadius:8,padding:'14px 16px',marginTop:2,marginBottom:4}}>
+                  <div style={{fontSize:11,fontWeight:700,color:LIME,marginBottom:10}}>Signal Lock — {item.ticker}</div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 24px',marginBottom:12}}>
+                    <div style={{fontSize:10,color:'#888'}}>Locked on: <span style={{color:'#aaa'}}>{lkDate}</span></div>
+                    <div style={{fontSize:10,color:'#888'}}>Locked price: <span style={{color:'#aaa'}}>{lPrice?'$'+lPrice.toFixed(2):'—'}</span></div>
+                    <div style={{fontSize:10,color:'#888'}}>Current price: <span style={{color:'#f0ede6'}}>{price?'$'+price.toFixed(2):'—'}</span></div>
+                    <div style={{fontSize:10,color:'#888'}}>Price change: <span style={{color:pctChg!=null?(pctChg>=0?'#7abd00':'#e05050'):'#555',fontWeight:700}}>{pctChg!=null?(pctChg>=0?'+':'')+pctChg.toFixed(2)+'%':'—'}</span></div>
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'100px 1fr 1fr 80px',columnGap:12,marginBottom:4}}>
+                    {['Signal','At Lock','Current','Change'].map(function(h){ return <div key={h} style={{fontSize:8,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>; })}
+                  </div>
+                  {fields.map(function(f,i){
+                    var chg = sigChange(f[2],f[4]);
+                    return <div key={i} style={{display:'grid',gridTemplateColumns:'100px 1fr 1fr 80px',columnGap:12,padding:'4px 0',borderBottom:'0.5px solid #222'}}>
+                      <div style={{fontSize:10,color:'#555'}}>{f[0]}</div>
+                      <div style={{fontSize:10,color:summaryCardDark(f[3]).text||'#888',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f[3]||'—'}</div>
+                      <div style={{fontSize:10,color:summaryCardDark(f[1]).text||'#aaa',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:700}}>{f[1]||'—'}</div>
+                      <div style={{fontSize:10,fontWeight:700,color:chg.color}}>{chg.label}</div>
+                    </div>;
+                  })}
+                  <div style={{fontSize:9,color:'#444',marginTop:8}}>Signal arrows beside each label compare current signal versus 5-day average. Lock status compares current signal versus the day you locked it.</div>
+                </div>;
+              })()}
+              <div style={{borderBottom:idx<items.length-1?'1px solid #1a1a16':'none'}}></div>
+              </React.Fragment>
             );
-          })}
+          })()}
         </div>
       )}
 
-      {items.length > 0 && !loading && !refreshing && !Object.keys(snapshots).filter(function(k){return k!=='__prev';}).length && (
+      {items.length > 0 && !loading && !refreshing && !Object.keys(snapshots).filter(function(k){return k!=='__prev'&&k!=='__locks';}).length && (
         <div style={{fontSize:11,color:'#444',marginTop:12,textAlign:'center'}}>
           No signal data yet — click Refresh Signals to fetch the latest technical signals.
         </div>
@@ -12604,7 +12721,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.107</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.108</span>
           </div>
         </div>
 
