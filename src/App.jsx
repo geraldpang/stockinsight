@@ -4969,7 +4969,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.109</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.110</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5023,7 +5023,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.109</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.110</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11877,13 +11877,22 @@ function WatchlistPage({ clerkUser, isPaid }) {
         if (!mRes.ok) continue;
         var mData = await mRes.json();
         if (!mData || !mData.aggs || mData.aggs.length < 10) continue;
-        var snap = buildScreenerSnapshot(ticker, mData, { hi52: items[i].hi52||0, lo52: items[i].lo52||0, price: 0 });
+        var snap = buildScreenerSnapshot(ticker, mData, { hi52: 0, lo52: 0, price: 0 });
         if (!snap) continue;
         var ms  = mData.snapshot || {};
-        var price = ms.close || 0;
-        var chg   = ms.change != null ? parseFloat(ms.change) : null;
+        var aggs = mData.aggs || [];
+        // Price: prefer live snapshot, fall back to most recent agg close
+        var price = (ms.close && ms.close > 0) ? ms.close
+                  : (aggs.length > 0 ? (aggs[0].c || 0) : 0);
+        // Change %: prefer snapshot todaysChangePerc, compute from last 2 aggs as fallback
+        var chg = (ms.change != null) ? parseFloat(ms.change) : null;
+        if (chg == null && aggs.length >= 2) {
+          var c0 = aggs[0].c, c1 = aggs[1].c;
+          if (c0 && c1) chg = (c0 - c1) / c1 * 100;
+        }
+        // hi52/lo52 from aggs window (best available without Yahoo 52W call)
         var hi52raw = 0, lo52raw = Infinity;
-        (mData.aggs||[]).forEach(function(b){ if(b.h>hi52raw) hi52raw=b.h; if(b.l>0&&b.l<lo52raw) lo52raw=b.l; });
+        aggs.forEach(function(b){ if(b.h>hi52raw) hi52raw=b.h; if(b.l>0&&b.l<lo52raw) lo52raw=b.l; });
         if (lo52raw===Infinity) lo52raw = 0;
         // Build RBA snap with decision objects
         var rbaSnap = buildRuleSnapshotFromRow({
@@ -12721,7 +12730,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.109</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.110</span>
           </div>
         </div>
 
