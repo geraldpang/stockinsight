@@ -1034,14 +1034,16 @@ export async function onRequest(context) {
             }
             snapMap["__prev"] = prevMap;
 
-            // Active signal locks per ticker
+            // Active signal locks per ticker — graceful fallback if table not yet created
             var lockMap = {};
-            for (var li = 0; li < tickers.length; li++) {
-              var lockRow = await wDB.prepare(
-                "SELECT * FROM watchlist_signal_locks WHERE user_id=? AND ticker=? AND is_active=1 ORDER BY locked_at DESC LIMIT 1"
-              ).bind(wUserId, tickers[li]).first();
-              if (lockRow) lockMap[tickers[li]] = lockRow;
-            }
+            try {
+              for (var li = 0; li < tickers.length; li++) {
+                var lockRow = await wDB.prepare(
+                  "SELECT * FROM watchlist_signal_locks WHERE user_id=? AND ticker=? AND is_active=1 ORDER BY locked_at DESC LIMIT 1"
+                ).bind(wUserId, tickers[li]).first();
+                if (lockRow) lockMap[tickers[li]] = lockRow;
+              }
+            } catch(lockErr) { lockMap = {}; /* table may not exist yet */ }
             snapMap["__locks"] = lockMap;
           }
           return new Response(JSON.stringify({ items: wItems.results || [], snapshots: snapMap }), { headers: wHeaders });
@@ -1111,30 +1113,32 @@ export async function onRequest(context) {
           if (!lTicker) return new Response(JSON.stringify({ error: "ticker required" }), { status: 400, headers: wHeaders });
           var ls = wBody.currentSnapshot || {};
           var lPrice = ls.closePrice || ls.close_price || null;
-          // Deactivate any existing active lock for this user+ticker
-          await wDB.prepare(
-            "UPDATE watchlist_signal_locks SET is_active=0 WHERE user_id=? AND ticker=? AND is_active=1"
-          ).bind(wUserId, lTicker).run();
-          // Insert new active lock
-          await wDB.prepare(
-            "INSERT INTO watchlist_signal_locks " +
-            "(user_id,ticker,locked_price," +
-            "locked_rba_verdict,locked_rba_rank," +
-            "locked_trend_status,locked_trend_score,locked_trend_rank," +
-            "locked_momentum_status,locked_momentum_score,locked_momentum_rank," +
-            "locked_reversal_status,locked_reversal_score,locked_reversal_rank," +
-            "locked_money_flow_status,locked_money_flow_score,locked_money_flow_rank," +
-            "locked_snapshot_json,is_active) " +
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)"
-          ).bind(
-            wUserId, lTicker, lPrice,
-            ls.rbaVerdict||null, ls.rbaRank||null,
-            ls.trendStatus||null, ls.trendScore||null, ls.trendRank||null,
-            ls.momentumStatus||null, ls.momentumScore||null, ls.momentumRank||null,
-            ls.reversalStatus||null, ls.reversalScore||null, ls.reversalRank||null,
-            ls.moneyFlowStatus||null, ls.moneyFlowScore||null, ls.moneyFlowRank||null,
-            JSON.stringify(ls)
-          ).run();
+          try {
+            await wDB.prepare(
+              "UPDATE watchlist_signal_locks SET is_active=0 WHERE user_id=? AND ticker=? AND is_active=1"
+            ).bind(wUserId, lTicker).run();
+            await wDB.prepare(
+              "INSERT INTO watchlist_signal_locks " +
+              "(user_id,ticker,locked_price," +
+              "locked_rba_verdict,locked_rba_rank," +
+              "locked_trend_status,locked_trend_score,locked_trend_rank," +
+              "locked_momentum_status,locked_momentum_score,locked_momentum_rank," +
+              "locked_reversal_status,locked_reversal_score,locked_reversal_rank," +
+              "locked_money_flow_status,locked_money_flow_score,locked_money_flow_rank," +
+              "locked_snapshot_json,is_active) " +
+              "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)"
+            ).bind(
+              wUserId, lTicker, lPrice,
+              ls.rbaVerdict||null, ls.rbaRank||null,
+              ls.trendStatus||null, ls.trendScore||null, ls.trendRank||null,
+              ls.momentumStatus||null, ls.momentumScore||null, ls.momentumRank||null,
+              ls.reversalStatus||null, ls.reversalScore||null, ls.reversalRank||null,
+              ls.moneyFlowStatus||null, ls.moneyFlowScore||null, ls.moneyFlowRank||null,
+              JSON.stringify(ls)
+            ).run();
+          } catch(lockWriteErr) {
+            return new Response(JSON.stringify({ error: "Lock table not ready. Run DB migration first: watchlist_signal_locks" }), { status: 500, headers: wHeaders });
+          }
           return new Response(JSON.stringify({ ok: true }), { headers: wHeaders });
         }
 
@@ -1142,9 +1146,11 @@ export async function onRequest(context) {
         if (wAction === "resetLock") {
           var rlTicker = (wBody.ticker || "").toUpperCase().trim();
           if (!rlTicker) return new Response(JSON.stringify({ error: "ticker required" }), { status: 400, headers: wHeaders });
-          await wDB.prepare(
-            "UPDATE watchlist_signal_locks SET is_active=0 WHERE user_id=? AND ticker=? AND is_active=1"
-          ).bind(wUserId, rlTicker).run();
+          try {
+            await wDB.prepare(
+              "UPDATE watchlist_signal_locks SET is_active=0 WHERE user_id=? AND ticker=? AND is_active=1"
+            ).bind(wUserId, rlTicker).run();
+          } catch(rlErr) { /* ignore if table doesn't exist */ }
           return new Response(JSON.stringify({ ok: true }), { headers: wHeaders });
         }
 
