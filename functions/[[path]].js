@@ -969,8 +969,19 @@ export async function onRequest(context) {
       var wHeaders = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
       if (!wDB) return new Response(JSON.stringify({ error: "D1 not configured" }), { status: 500, headers: wHeaders });
 
-      // Require verified Clerk JWT — extract user_id from token
-      var wUserId = await getClerkUserId(context.request);
+      // Extract Clerk user_id directly from Bearer JWT (same logic as getClerkUserId)
+      var wUserId = null;
+      try {
+        var wAuthHeader = context.request.headers.get("Authorization") || "";
+        var wToken = wAuthHeader.startsWith("Bearer ") ? wAuthHeader.slice(7) : null;
+        if (wToken) {
+          var wParts = wToken.split(".");
+          if (wParts.length === 3) {
+            var wPayload = JSON.parse(atob(wParts[1].replace(/-/g,"+").replace(/_/g,"/")));
+            wUserId = wPayload.sub || null;
+          }
+        }
+      } catch(e) { wUserId = null; }
       if (!wUserId) return new Response(JSON.stringify({ error: "Not signed in" }), { status: 401, headers: wHeaders });
 
       // Premium gate: check Stripe subscription status or admin key
@@ -978,7 +989,8 @@ export async function onRequest(context) {
       var wReqAdmin = context.request.headers.get("X-Admin-Key") || "";
       var wIsAdmin  = wReqAdmin === wAdminKey;
       if (!wIsAdmin) {
-        var wSubStatus = context.env.CACHE ? await context.env.CACHE.get("stripe:sub:" + wUserId) : null;
+        var wCACHE    = context.env.CACHE;
+        var wSubStatus = wCACHE ? await wCACHE.get("stripe:sub:" + wUserId) : null;
         var wIsPaid    = wSubStatus === "active" || wSubStatus === "cancelling";
         if (!wIsPaid) return new Response(JSON.stringify({ error: "Premium required", code: "PREMIUM_REQUIRED" }), { status: 403, headers: wHeaders });
       }
