@@ -998,7 +998,7 @@ export async function onRequest(context) {
       var wAction = url.searchParams.get("action");
 
       try {
-        // GET — return watchlist items + latest snapshot per ticker
+        // GET — return watchlist items + latest snapshot per ticker + active locks
         if (context.request.method === "GET") {
           var wItems = await wDB.prepare(
             "SELECT * FROM watchlist_items WHERE user_id = ? ORDER BY created_at DESC"
@@ -1033,6 +1033,16 @@ export async function onRequest(context) {
               prevMap[tickers[ti]] = (prevSnaps.results || []);
             }
             snapMap["__prev"] = prevMap;
+
+            // Active signal locks per ticker
+            var lockMap = {};
+            for (var li = 0; li < tickers.length; li++) {
+              var lockRow = await wDB.prepare(
+                "SELECT * FROM watchlist_signal_locks WHERE user_id=? AND ticker=? AND is_active=1 ORDER BY locked_at DESC LIMIT 1"
+              ).bind(wUserId, tickers[li]).first();
+              if (lockRow) lockMap[tickers[li]] = lockRow;
+            }
+            snapMap["__locks"] = lockMap;
           }
           return new Response(JSON.stringify({ items: wItems.results || [], snapshots: snapMap }), { headers: wHeaders });
         }
@@ -1092,6 +1102,49 @@ export async function onRequest(context) {
             s.moneyFlowStatus||null, s.moneyFlowScore||null, s.moneyFlowRank||null,
             JSON.stringify(s)
           ).run();
+          return new Response(JSON.stringify({ ok: true }), { headers: wHeaders });
+        }
+
+        // POST lock — save current snapshot as active signal lock baseline
+        if (wAction === "lock") {
+          var lTicker = (wBody.ticker || "").toUpperCase().trim();
+          if (!lTicker) return new Response(JSON.stringify({ error: "ticker required" }), { status: 400, headers: wHeaders });
+          var ls = wBody.currentSnapshot || {};
+          var lPrice = ls.closePrice || ls.close_price || null;
+          // Deactivate any existing active lock for this user+ticker
+          await wDB.prepare(
+            "UPDATE watchlist_signal_locks SET is_active=0 WHERE user_id=? AND ticker=? AND is_active=1"
+          ).bind(wUserId, lTicker).run();
+          // Insert new active lock
+          await wDB.prepare(
+            "INSERT INTO watchlist_signal_locks " +
+            "(user_id,ticker,locked_price," +
+            "locked_rba_verdict,locked_rba_rank," +
+            "locked_trend_status,locked_trend_score,locked_trend_rank," +
+            "locked_momentum_status,locked_momentum_score,locked_momentum_rank," +
+            "locked_reversal_status,locked_reversal_score,locked_reversal_rank," +
+            "locked_money_flow_status,locked_money_flow_score,locked_money_flow_rank," +
+            "locked_snapshot_json,is_active) " +
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)"
+          ).bind(
+            wUserId, lTicker, lPrice,
+            ls.rbaVerdict||null, ls.rbaRank||null,
+            ls.trendStatus||null, ls.trendScore||null, ls.trendRank||null,
+            ls.momentumStatus||null, ls.momentumScore||null, ls.momentumRank||null,
+            ls.reversalStatus||null, ls.reversalScore||null, ls.reversalRank||null,
+            ls.moneyFlowStatus||null, ls.moneyFlowScore||null, ls.moneyFlowRank||null,
+            JSON.stringify(ls)
+          ).run();
+          return new Response(JSON.stringify({ ok: true }), { headers: wHeaders });
+        }
+
+        // POST resetLock — deactivate the active lock for a ticker
+        if (wAction === "resetLock") {
+          var rlTicker = (wBody.ticker || "").toUpperCase().trim();
+          if (!rlTicker) return new Response(JSON.stringify({ error: "ticker required" }), { status: 400, headers: wHeaders });
+          await wDB.prepare(
+            "UPDATE watchlist_signal_locks SET is_active=0 WHERE user_id=? AND ticker=? AND is_active=1"
+          ).bind(wUserId, rlTicker).run();
           return new Response(JSON.stringify({ ok: true }), { headers: wHeaders });
         }
 
