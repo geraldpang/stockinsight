@@ -1173,12 +1173,19 @@ function buildRuleSnapshotFromRow(row) {
       score:  row.momentumScore   || row.momentum_score,
     },
     reversalWatch: (row.reversalWatch && row.reversalWatch.status) ? row.reversalWatch : {
-      status: row.reversalStatus  || row.reversal_status  || row.reversalWatch || row.reversal,
-      score:  row.reversalScore   || row.reversal_score,
+      status:           row.reversalStatus  || row.reversal_status  || row.reversalWatch || row.reversal,
+      score:            row.reversalScore   || row.reversal_score,
+      reversalDecision: row.reversalDecision || null,
+      bullishScore:     row.bullishScore     || 0,
+      bearishScore:     row.bearishScore     || 0,
     },
     smartMoneyFlow: (row.smartMoneyFlow && row.smartMoneyFlow.status) ? row.smartMoneyFlow : {
-      status: row.smartMoneyStatus  || row.smart_money_status  || row.moneyFlow,
-      score:  row.smartMoneyScore   || row.smart_money_score   || row.moneyFlowScore,
+      status:                     row.smartMoneyStatus  || row.smart_money_status  || row.moneyFlow,
+      score:                      row.smartMoneyScore   || row.smart_money_score   || row.moneyFlowScore,
+      smartMoneyDecision:         row.smartMoneyDecision         || null,
+      todayActivityScore:         row.todayActivityScore         || null,
+      fiveDayFlowScore:           row.fiveDayFlowScore           || null,
+      thirtyDayAccumulationScore: row.thirtyDayAccumulationScore || null,
     },
   };
 }
@@ -1744,16 +1751,22 @@ function buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200) {
 }
 
 // ── Screener: data adapter — converts Massive data to snapshot (no tech calc) ──
-function buildScreenerSnapshot(sym, massiveInfo) {
+function buildScreenerSnapshot(sym, massiveInfo, metaOverride) {
   if (!massiveInfo || !massiveInfo.aggs || massiveInfo.aggs.length < 10) return null;
   var rawAggs = massiveInfo.aggs;
   var ind     = massiveInfo.indicators || {};
   var mSnap   = massiveInfo.snapshot   || {};
-  var price   = mSnap.close || (rawAggs[0] && rawAggs[0].c) || 0;
-  var hi52 = 0, lo52 = Infinity;
-  rawAggs.forEach(function(b){ if (b.h>hi52) hi52=b.h; if (b.l>0&&b.l<lo52) lo52=b.l; });
-  if (lo52===Infinity) lo52=0;
-  var ohlcv = rawAggs.filter(function(b){ return b&&b.c>0; }).slice().reverse()
+  var price   = (metaOverride && metaOverride.price > 0 ? metaOverride.price : 0)
+                || mSnap.close || (rawAggs[0] && rawAggs[0].c) || 0;
+  // Compute aggs-based hi52/lo52 as fallback (30-bar window)
+  var computedHi52 = 0, computedLo52 = Infinity;
+  rawAggs.forEach(function(b){ if (b.h>computedHi52) computedHi52=b.h; if (b.l>0&&b.l<computedLo52) computedLo52=b.l; });
+  if (computedLo52===Infinity) computedLo52=0;
+  // Prefer Yahoo 52-week values when supplied via metaOverride (true 52-week window)
+  var hi52 = (metaOverride && metaOverride.hi52 > 0) ? metaOverride.hi52 : computedHi52;
+  var lo52 = (metaOverride && metaOverride.lo52 > 0) ? metaOverride.lo52 : computedLo52;
+  // OHLCV filter aligned with detail page (b.c>0 AND b.h>0 AND b.l>0 AND b.v>=0)
+  var ohlcv = rawAggs.filter(function(b){ return b&&b.c>0&&b.h>0&&b.l>0&&b.v>=0; }).slice().reverse()
     .map(function(b){ return { date:'',open:b.o||0,high:b.h||0,low:b.l||0,close:b.c||0,volume:b.v||0 }; });
   try {
     return calculateTechnicalSignalSnapshot({ ticker:sym, date:new Date().toISOString().split('T')[0],
@@ -1775,7 +1788,7 @@ function Screener() {
         if (d && d.hit && d.value) {
           var parsed = JSON.parse(d.value);
           var ageHrs = (Date.now() - new Date(parsed.cachedAt).getTime()) / 3600000;
-          if (ageHrs < 12 && parsed.results && parsed.screenerSchemaVersion === 'v3') { setResults(parsed); setScanStatus('done'); return; }
+          if (ageHrs < 12 && parsed.results && parsed.screenerSchemaVersion === 'v4') { setResults(parsed); setScanStatus('done'); return; }
         }
         setScanStatus('idle');
       })
@@ -1812,7 +1825,8 @@ function Screener() {
 
         function toCandidate(q){
           return { sym:q.symbol, name:q.longName||q.shortName||q.symbol,
-                   price:q.regularMarketPrice, changePct:q.regularMarketChangePercent, volume:q.regularMarketVolume };
+                   price:q.regularMarketPrice, changePct:q.regularMarketChangePercent, volume:q.regularMarketVolume,
+                   hi52:q.fiftyTwoWeekHigh||0, lo52:q.fiftyTwoWeekLow||0 };
         }
 
         // Stage 1: preferred — positive day, solid volume
@@ -1860,7 +1874,7 @@ function Screener() {
         scanNote = 'Using fallback ticker list (Yahoo screener unavailable).';
       }
 
-      if (!candidates.length){ setScanMsg('No candidates after filtering.'); setScanStatus('done'); setResults({ cachedAt:new Date().toISOString(), screenerSchemaVersion:'v3', results:[] }); return; }
+      if (!candidates.length){ setScanMsg('No candidates after filtering.'); setScanStatus('done'); setResults({ cachedAt:new Date().toISOString(), screenerSchemaVersion:'v4', results:[] }); return; }
       setScanMsg(scanNote+' Scanning '+candidates.length+' candidates...');
 
       // Step 2: Batch technical scans, 5 at a time
@@ -1877,7 +1891,7 @@ function Screener() {
             if (!mRes.ok) { failedCount++; return null; }
             var mData = await mRes.json();
             if (!mData||!mData.aggs||mData.aggs.length<10) { failedCount++; return null; }
-            var snap = buildScreenerSnapshot(c.sym, mData);
+            var snap = buildScreenerSnapshot(c.sym, mData, { hi52:c.hi52||0, lo52:c.lo52||0, price:c.price||0 });
             if (!snap) { failedCount++; return null; }
             var ms = mData.snapshot||{};
             var smf = snap.smartMoneyFlow;
@@ -1908,7 +1922,7 @@ function Screener() {
       matched.sort(function(a,b){ return (b.reversalScore+b.moneyFlowScore)-(a.reversalScore+a.moneyFlowScore); });
 
       var finalMsg = matched.length+' of '+candidates.length+' candidates scanned successfully'+(failedCount>0?' ('+failedCount+' failed — missing data)':'')+'.';
-      var cacheObj = { cachedAt:new Date().toISOString(), screenerSchemaVersion:'v3', candidateCount:candidates.length, failedCount:failedCount, results:matched };
+      var cacheObj = { cachedAt:new Date().toISOString(), screenerSchemaVersion:'v4', candidateCount:candidates.length, failedCount:failedCount, results:matched };
       var postHdrs = { 'Content-Type':'text/plain' };
       if (window.__clerkToken) postHdrs['Authorization']='Bearer '+window.__clerkToken;
       fetch('/cache?sym=__SCREENER&tab=results', { method:'POST', headers:postHdrs, body:JSON.stringify(cacheObj) }).catch(function(){});
@@ -2054,6 +2068,9 @@ function Screener() {
         <div style={{ fontSize:11, color:'#444', marginTop:6, lineHeight:1.6 }}>
           {'Results reflect the current technical signal model. Cached for 12 hours. Research use only — not financial advice.'}
         </div>
+        <div style={{ fontSize:10, color:'#444', marginTop:3 }}>
+          {'Momentum shown is daily momentum. Full Momentum Profile is available on the stock detail page.'}
+        </div>
       </div>
 
       <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:24, flexWrap:'wrap' }}>
@@ -2115,7 +2132,7 @@ function Screener() {
             ];
             var FILTER_GROUPS = [
               ['Trend',                filterTrend,    setFilterTrend,    ['Strong Uptrend','Uptrend','Sideways','Downtrend','Strong Downtrend']],
-              ['Momentum',             filterMomentum, setFilterMomentum, ['Strong','Building','Neutral','Fading','Weak']],
+              ['Daily Momentum',      filterMomentum, setFilterMomentum, ['Strong','Building','Neutral','Fading','Weak']],
               ['Reversal',             filterReversal, setFilterReversal, REV_OPTS],
               ['Money Flow',           filterSMF,      setFilterSMF,      SMF_OPTS],
               ['Rule Based Analytics', filterSetupSc,  setFilterSetupSc,  SETUP_OPTS],
@@ -2125,7 +2142,7 @@ function Screener() {
             // Semantic pill colour on selection — use platform helpers
             function pillSelColor(groupLbl, v) {
               if (groupLbl === 'Trend')      return summaryCardDark(v).text;
-              if (groupLbl === 'Momentum')   return momentumStateColor(v);
+              if (groupLbl === 'Daily Momentum') return momentumStateColor(v);
               if (groupLbl === 'Reversal')   return revStatusColor(v, 'main');
               if (groupLbl === 'Money Flow') return smfStatusColor(v, 'main');
               if (groupLbl === 'Rule Based Analytics') return summaryCardDark(v).text;
@@ -2236,7 +2253,7 @@ function Screener() {
               <div style={{ border:'0.5px solid #2a2a28', borderRadius:10, overflow:'hidden' }}>
                 <div style={{ display:'grid', gridTemplateColumns:GRID, columnGap:12, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
                   {ScTh('ticker','Ticker')}{ScTh('company','Company')}{ScTh('price','Price')}{ScTh('chg','Chg%')}
-                  {ScTh('vol','Volume')}{ScTh('trend','Trend')}{ScTh('momentum','Momentum')}
+                  {ScTh('vol','Volume')}{ScTh('trend','Trend')}{ScTh('momentum','Daily Mom')}
                   {ScTh('reversal','Reversal')}{ScTh('moneyFlow','Money Flow')}{ScTh('setup','Rule BA')}
                   <div></div><div></div>
                 </div>
@@ -4912,7 +4929,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.99</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.100</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -4966,7 +4983,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.99</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.100</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12196,7 +12213,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.99</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.100</span>
           </div>
         </div>
 
