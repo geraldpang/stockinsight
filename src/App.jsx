@@ -1902,7 +1902,7 @@ function Screener() {
         if (d && d.hit && d.value) {
           var parsed = JSON.parse(d.value);
           var ageHrs = (Date.now() - new Date(parsed.cachedAt).getTime()) / 3600000;
-          if (ageHrs < 12 && parsed.results && parsed.screenerSchemaVersion === 'v5') { setResults(parsed); setScanStatus('done'); return; }
+          if (ageHrs < 12 && parsed.results && parsed.screenerSchemaVersion === 'v6') { setResults(parsed); setScanStatus('done'); return; }
         }
         setScanStatus('idle');
       })
@@ -1988,7 +1988,7 @@ function Screener() {
         scanNote = 'Using fallback ticker list (Yahoo screener unavailable).';
       }
 
-      if (!candidates.length){ setScanMsg('No candidates after filtering.'); setScanStatus('done'); setResults({ cachedAt:new Date().toISOString(), screenerSchemaVersion:'v5', results:[] }); return; }
+      if (!candidates.length){ setScanMsg('No candidates after filtering.'); setScanStatus('done'); setResults({ cachedAt:new Date().toISOString(), screenerSchemaVersion:'v6', results:[] }); return; }
       setScanMsg(scanNote+' Scanning '+candidates.length+' candidates...');
 
       // Step 2: Batch technical scans, 5 at a time
@@ -2042,9 +2042,17 @@ function Screener() {
               }
             } catch(mpErr) { momProfile = null; }
 
+            // Build sparkline from aggs close values (oldest-first after reverse)
+            var _aggs = mData.aggs || [];
+            var _closes = _aggs.slice().reverse().map(function(b){ return b.c; }).filter(Boolean);
+            var _sparkline = makeSparkline(_closes.slice(-16));
+
             return {
               ticker:c.sym, company:(mData.ticker&&mData.ticker.name)||c.name||c.sym,
               price:c.price||ms.close||0, changePct:c.changePct||ms.change||0, volume:c.volume||ms.volume||0,
+              hi52: snap.meta ? (snap.meta.hi52||0) : (c.hi52||0),
+              lo52: snap.meta ? (snap.meta.lo52||0) : (c.lo52||0),
+              sparkline: _sparkline,
               trend:snap.trend.status, trendScore:snap.trend.score||0,
               momentum:snap.momentum.status, momentumScore:snap.momentum.score||0,
               momentumProfile: momProfile,
@@ -2069,7 +2077,7 @@ function Screener() {
       matched.sort(function(a,b){ return (b.reversalScore+b.moneyFlowScore)-(a.reversalScore+a.moneyFlowScore); });
 
       var finalMsg = matched.length+' of '+candidates.length+' candidates scanned successfully'+(failedCount>0?' ('+failedCount+' failed — missing data)':'')+'.';
-      var cacheObj = { cachedAt:new Date().toISOString(), screenerSchemaVersion:'v5', candidateCount:candidates.length, failedCount:failedCount, results:matched };
+      var cacheObj = { cachedAt:new Date().toISOString(), screenerSchemaVersion:'v6', candidateCount:candidates.length, failedCount:failedCount, results:matched };
       var postHdrs = { 'Content-Type':'text/plain' };
       if (window.__clerkToken) postHdrs['Authorization']='Bearer '+window.__clerkToken;
       fetch('/cache?sym=__SCREENER&tab=results', { method:'POST', headers:postHdrs, body:JSON.stringify(cacheObj) }).catch(function(){});
@@ -2394,14 +2402,23 @@ function Screener() {
                 {label}{active?(scSortDir==='asc'?' ▲':' ▼'):''}
               </div>;
             }
-            // Column order: Ticker|Company|Price|Chg%|Volume|Trend|Momentum|Reversal|Money Flow|Rule BA|View|+Journal
-            var GRID = '65px 150px 70px 58px 68px 90px 85px minmax(80px,130px) minmax(80px,110px) 110px 48px 70px';
+            // Column order: Ticker|Price|52W Range|Technical View|3M Trend|Trend|Daily Mom|Reversal|Money Flow|View|+Journal
+            var GRID = '70px 90px 155px 120px 72px 78px 78px 105px 115px 46px 66px';
+            // Inline dot for supporting signals (matches Watchlist SigDot style)
+            function ScDot(dotColor, label, type) {
+              var shortLbl = shortSignalLabel(label, type);
+              return <div style={{display:'flex',alignItems:'center',gap:4,overflow:'hidden',whiteSpace:'nowrap'}}>
+                <span style={{width:6,height:6,borderRadius:'50%',background:dotColor||'#555',flexShrink:0,opacity:0.8,display:'inline-block'}}></span>
+                <span title={label||''} style={{fontSize:10,fontWeight:600,color:'#b8b8b8',overflow:'hidden',textOverflow:'ellipsis'}}>{shortLbl}</span>
+              </div>;
+            }
             return (
               <div style={{ border:'0.5px solid #2a2a28', borderRadius:10, overflow:'hidden' }}>
                 <div style={{ display:'grid', gridTemplateColumns:GRID, columnGap:12, padding:'8px 14px', borderBottom:'1px solid #222', background:'#1a1a18' }}>
-                  {ScTh('ticker','Ticker')}{ScTh('company','Company')}{ScTh('price','Price')}{ScTh('chg','Chg%')}
-                  {ScTh('vol','Volume')}{ScTh('trend','Trend')}{ScTh('momentum','Momentum')}
-                  {ScTh('reversal','Reversal')}{ScTh('moneyFlow','Money Flow')}{ScTh('setup','Rule BA')}
+                  {ScTh('ticker','Ticker')}{ScTh('price','Price')}{ScTh('rangePct','52W Range')}
+                  {ScTh('setup','Tech View')}{ScTh('sparkline','3M Trend')}
+                  {ScTh('trend','Trend')}{ScTh('momentum','Daily Mom')}
+                  {ScTh('reversal','Reversal')}{ScTh('moneyFlow','Money Flow')}
                   <div></div><div></div>
                 </div>
                 {enriched.map(function(row,i){
@@ -2410,21 +2427,52 @@ function Screener() {
                   var tC     = summaryCardDark(row.trend).text;
                   var mC     = row.momentumProfile&&row.momentumProfile.profile ? summaryCardDark(row.momentumProfile.profile).text : momentumStateColor(row.momentum);
                   var setupC = ruleSetupColor(row.ruleScenarioId);
+                  var momDisp = row.momentumProfile&&row.momentumProfile.profile ? row.momentumProfile.profile : row.momentum;
+                  // 52W Range
+                  var hi52  = row.hi52 || 0;
+                  var lo52  = row.lo52 || 0;
+                  var price = row.price || 0;
+                  var rangePct = (hi52>lo52&&price>0) ? Math.min(100,Math.max(0,(price-lo52)/(hi52-lo52)*100)) : null;
                   return (
                     <div key={row.ticker} style={{ display:'grid', gridTemplateColumns:GRID, columnGap:12, padding:'10px 14px', borderBottom:i<enriched.length-1?'1px solid #1a1a16':'none', background:i%2===0?'#111':'#131311', alignItems:'center' }}>
-                      <div style={{ fontSize:13, fontWeight:800, color:LIME }}>{row.ticker}</div>
-                      <div style={{ fontSize:11, color:'#666', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.company}</div>
-                      <div style={{ fontSize:12, fontWeight:600, color:'#f0ede6' }}>{'$'+row.price.toFixed(2)}</div>
-                      <div style={{ fontSize:11, fontWeight:600, color:row.changePct>=0?'#7abd00':'#e05050' }}>{(row.changePct>=0?'+':'')+row.changePct.toFixed(2)+'%'}</div>
-                      <div style={{ fontSize:11, color:'#888' }}>{fmtVol(row.volume)}</div>
-                      <div style={{ fontSize:11, fontWeight:600, color:tC }} title={row.trend}>{shortSignalLabel(row.trend,'trend')}</div>
-                      <div style={{ fontSize:11, fontWeight:600, color:mC }} title={row.momentumProfile&&row.momentumProfile.profile?row.momentumProfile.profile:row.momentum}>{shortSignalLabel(row.momentumProfile&&row.momentumProfile.profile?row.momentumProfile.profile:row.momentum,'momentum')}</div>
-                      <div style={{ fontSize:10, fontWeight:700, color:revC, lineHeight:1.3 }} title={row.reversal}>{shortSignalLabel(row.reversal,'reversal')}</div>
-                      <div style={{ fontSize:10, fontWeight:700, color:smfC, lineHeight:1.3 }} title={row.moneyFlow}>{shortSignalLabel(row.moneyFlow,'moneyFlow')}</div>
-                      <div title={row.ruleVerdict||''}>
-                        <div style={{ fontSize:11, fontWeight:700, color:setupC.text, lineHeight:1.3 }}>{row.ruleShortVerdict ? shortSignalLabel(row.ruleShortVerdict,'technicalView') : String.fromCharCode(0x2014)}</div>
-                        {row.ruleSubtitle && <div style={{ fontSize:9, color:setupC.text+'99', lineHeight:1.3, marginTop:2 }}>{row.ruleSubtitle}</div>}
+                      {/* Ticker */}
+                      <div>
+                        <div style={{ fontSize:13, fontWeight:800, color:LIME }}>{row.ticker}</div>
+                        {row.company && <div style={{ fontSize:9, color:'#444', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:65 }}>{row.company}</div>}
                       </div>
+                      {/* Price */}
+                      <div>
+                        <div style={{ fontSize:12, fontWeight:600, color:'#f0ede6' }}>{'$'+price.toFixed(2)}</div>
+                        <div style={{ fontSize:10, color:row.changePct>=0?'#7abd00':'#e05050' }}>{(row.changePct>=0?'+':'')+row.changePct.toFixed(2)+'%'}</div>
+                      </div>
+                      {/* 52W Range */}
+                      <div>
+                        {rangePct!=null ? <div>
+                          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                            <span style={{ fontSize:9, color:'#3a3a38' }}>{lo52>0?'$'+lo52.toFixed(0):''}</span>
+                            <span style={{ fontSize:9, color:'#666' }}>{rangePct.toFixed(0)+'%'}</span>
+                            <span style={{ fontSize:9, color:'#3a3a38' }}>{hi52>0?'$'+hi52.toFixed(0):''}</span>
+                          </div>
+                          <div style={{ height:3, background:'#1e1e18', borderRadius:3, position:'relative', minWidth:60 }}>
+                            <div style={{ position:'absolute', left:0, top:0, height:'100%', width:rangePct+'%', background:'#333', borderRadius:3 }}></div>
+                            <div style={{ position:'absolute', top:'-3px', height:9, width:2, background:'#888', borderRadius:1, left:'calc('+rangePct+'% - 1px)', zIndex:1 }}></div>
+                          </div>
+                        </div> : <span style={{ color:'#555', fontSize:11 }}>{String.fromCharCode(0x2014)}</span>}
+                      </div>
+                      {/* Technical View — main coloured signal */}
+                      <div title={row.ruleVerdict||''} style={{ overflow:'hidden' }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:setupC.text, lineHeight:1.3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{row.ruleShortVerdict ? shortSignalLabel(row.ruleShortVerdict,'technicalView') : String.fromCharCode(0x2014)}</div>
+                      </div>
+                      {/* 3M Trend sparkline — muted */}
+                      <div style={{ fontSize:11, color:'#555', letterSpacing:0, overflow:'hidden', whiteSpace:'nowrap' }}>{row.sparkline || String.fromCharCode(0x2014)}</div>
+                      {/* Trend — dot + neutral */}
+                      {ScDot(tC, row.trend, 'trend')}
+                      {/* Daily Momentum — dot + neutral */}
+                      {ScDot(mC, momDisp, 'momentum')}
+                      {/* Reversal — dot + neutral */}
+                      {ScDot(revC, row.reversal, 'reversal')}
+                      {/* Money Flow — dot + neutral */}
+                      {ScDot(smfC, row.moneyFlow, 'moneyFlow')}
                       <button onClick={function(){ window.location.hash=row.ticker; }}
                         style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#888', fontSize:10, cursor:'pointer', padding:'4px 6px' }}>View</button>
                       <button onClick={function(){ addToJournal(row); }}
@@ -5081,7 +5129,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.114</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.115</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5135,7 +5183,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.114</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.115</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12860,7 +12908,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.114</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.115</span>
           </div>
         </div>
 
