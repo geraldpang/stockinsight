@@ -4969,7 +4969,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.110</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.111</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5023,7 +5023,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.110</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.111</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11940,17 +11940,34 @@ function WatchlistPage({ clerkUser, isPaid }) {
   }
 
   // ── Render helpers ─────────────────────────────────────────────────────────
+  // Technical View — full label colour (primary signal)
   function Sig({ label, rank, prevRows, field }) {
     if (!label) return <span style={{color:'#555',fontSize:10}}>—</span>;
     var history = [rank].concat((prevRows||[]).map(function(r){ return r[field]; }));
     var arrow = wlArrow(rank, history);
-    var showArrow = arrow !== String.fromCharCode(0x2014); // only show ↑ → ↓, not —
+    var showArrow = arrow !== String.fromCharCode(0x2014);
     var ac  = wlArrowColor(arrow);
     var lc  = summaryCardDark(label).text || '#aaa';
     return (
       <div style={{display:'flex',alignItems:'center',gap:3,whiteSpace:'nowrap',overflow:'hidden'}}>
         <span style={{color:lc,fontWeight:700,fontSize:10,overflow:'hidden',textOverflow:'ellipsis'}}>{label}</span>
-        {showArrow && <span style={{color:ac,fontWeight:700,fontSize:11,flexShrink:0}}>{arrow}</span>}
+        {showArrow && <span style={{color:ac,fontWeight:800,fontSize:11,flexShrink:0}}>{arrow}</span>}
+      </div>
+    );
+  }
+
+  // Supporting signals — coloured dot + neutral label + coloured arrow
+  function SigDot({ label, dotColor, rank, prevRows, field }) {
+    if (!label) return <span style={{color:'#555',fontSize:10}}>—</span>;
+    var history = [rank].concat((prevRows||[]).map(function(r){ return r[field]; }));
+    var arrow = wlArrow(rank, history);
+    var showArrow = arrow !== String.fromCharCode(0x2014);
+    var ac = wlArrowColor(arrow);
+    return (
+      <div style={{display:'flex',alignItems:'center',gap:4,whiteSpace:'nowrap',overflow:'hidden'}}>
+        <span style={{width:6,height:6,borderRadius:'50%',background:dotColor||'#555',flexShrink:0,opacity:0.8,display:'inline-block'}}></span>
+        <span style={{color:'#b8b8b8',fontWeight:600,fontSize:10,overflow:'hidden',textOverflow:'ellipsis'}}>{label}</span>
+        {showArrow && <span style={{color:ac,fontWeight:800,fontSize:11,flexShrink:0,marginLeft:2}}>{arrow}</span>}
       </div>
     );
   }
@@ -11961,13 +11978,13 @@ function WatchlistPage({ clerkUser, isPaid }) {
     return (
       <div>
         <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
-          <span style={{fontSize:9,color:'#444'}}>${lo52 < 10 ? lo52.toFixed(2) : lo52.toFixed(0)}</span>
-          <span style={{fontSize:9,color:'#888',fontWeight:700}}>{pct.toFixed(0)+'%'}</span>
-          <span style={{fontSize:9,color:'#444'}}>${hi52 < 10 ? hi52.toFixed(2) : hi52.toFixed(0)}</span>
+          <span style={{fontSize:9,color:'#3a3a38'}}>${lo52 < 10 ? lo52.toFixed(2) : lo52.toFixed(0)}</span>
+          <span style={{fontSize:9,color:'#666',fontWeight:600}}>{pct.toFixed(0)+'%'}</span>
+          <span style={{fontSize:9,color:'#3a3a38'}}>${hi52 < 10 ? hi52.toFixed(2) : hi52.toFixed(0)}</span>
         </div>
-        <div style={{height:4,background:'#1e1e18',borderRadius:3,position:'relative',minWidth:80}}>
-          <div style={{position:'absolute',left:0,top:0,height:'100%',width:pct+'%',background:'#555',borderRadius:3}}></div>
-          <div style={{position:'absolute',top:'-3px',height:10,width:3,background:'#fff',borderRadius:1,left:'calc('+pct+'% - 1px)',zIndex:1}}></div>
+        <div style={{height:3,background:'#1e1e18',borderRadius:3,position:'relative',minWidth:80}}>
+          <div style={{position:'absolute',left:0,top:0,height:'100%',width:pct+'%',background:'#333',borderRadius:3}}></div>
+          <div style={{position:'absolute',top:'-3px',height:9,width:2,background:'#888',borderRadius:1,left:'calc('+pct+'% - 1px)',zIndex:1}}></div>
         </div>
       </div>
     );
@@ -12091,23 +12108,23 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 {/* 52W Range */}
                 <div>{price&&hi52&&lo52 ? <Range52 price={price} lo52={lo52} hi52={hi52} /> : <span style={{color:'#555',fontSize:11}}>—</span>}</div>
 
-                {/* Technical View (RBA) */}
+                {/* Technical View (RBA) — full colour */}
                 <div style={{overflow:'hidden'}}><Sig label={rbaV} rank={snap?snap.rba_rank:0} prevRows={prevRows} field="rba_rank" /></div>
 
-                {/* 3M Trend sparkline — colour follows trend status */}
-                <div style={{fontSize:11,letterSpacing:0,color:trendV?summaryCardDark(trendV).text:'#6090d0',overflow:'hidden',whiteSpace:'nowrap'}}>{sparkline}</div>
+                {/* 3M Trend sparkline — muted single colour */}
+                <div style={{fontSize:11,letterSpacing:0,color:'#555',overflow:'hidden',whiteSpace:'nowrap'}}>{sparkline}</div>
 
-                {/* Trend */}
-                <div style={{overflow:'hidden'}}><Sig label={trendV} rank={snap?snap.trend_rank:0} prevRows={prevRows} field="trend_rank" /></div>
+                {/* Trend — dot + neutral */}
+                <div style={{overflow:'hidden'}}><SigDot label={trendV} dotColor={summaryCardDark(trendV).text} rank={snap?snap.trend_rank:0} prevRows={prevRows} field="trend_rank" /></div>
 
-                {/* Momentum */}
-                <div style={{overflow:'hidden'}}><Sig label={momV} rank={snap?snap.momentum_rank:0} prevRows={prevRows} field="momentum_rank" /></div>
+                {/* Momentum — dot + neutral */}
+                <div style={{overflow:'hidden'}}><SigDot label={momV} dotColor={momentumStateColor(momV)} rank={snap?snap.momentum_rank:0} prevRows={prevRows} field="momentum_rank" /></div>
 
-                {/* Reversal */}
-                <div style={{overflow:'hidden'}}><Sig label={revV} rank={snap?snap.reversal_rank:0} prevRows={prevRows} field="reversal_rank" /></div>
+                {/* Reversal — dot + neutral */}
+                <div style={{overflow:'hidden'}}><SigDot label={revV} dotColor={revStatusColor(revV,'main')} rank={snap?snap.reversal_rank:0} prevRows={prevRows} field="reversal_rank" /></div>
 
-                {/* Money Flow */}
-                <div style={{overflow:'hidden'}}><Sig label={smfV} rank={snap?snap.money_flow_rank:0} prevRows={prevRows} field="money_flow_rank" /></div>
+                {/* Money Flow — dot + neutral */}
+                <div style={{overflow:'hidden'}}><SigDot label={smfV} dotColor={smfStatusColor(smfV,'main')} rank={snap?snap.money_flow_rank:0} prevRows={prevRows} field="money_flow_rank" /></div>
 
                 {/* Lock column */}
                 {(function(){
@@ -12193,8 +12210,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     var chg = sigChange(f[2],f[4]);
                     return <div key={i} style={{display:'grid',gridTemplateColumns:'100px 1fr 1fr 80px',columnGap:12,padding:'4px 0',borderBottom:'0.5px solid #222'}}>
                       <div style={{fontSize:10,color:'#555'}}>{f[0]}</div>
-                      <div style={{fontSize:10,color:summaryCardDark(f[3]).text||'#888',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f[3]||'—'}</div>
-                      <div style={{fontSize:10,color:summaryCardDark(f[1]).text||'#aaa',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:700}}>{f[1]||'—'}</div>
+                      <div style={{fontSize:10,color:'#888',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f[3]||'—'}</div>
+                      <div style={{fontSize:10,color:'#b8b8b8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:600}}>{f[1]||'—'}</div>
                       <div style={{fontSize:10,fontWeight:700,color:chg.color}}>{chg.label}</div>
                     </div>;
                   })}
@@ -12730,7 +12747,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.110</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.111</span>
           </div>
         </div>
 
