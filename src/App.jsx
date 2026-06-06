@@ -4969,7 +4969,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.112</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.113</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5023,7 +5023,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.112</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.113</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12503,7 +12503,7 @@ export default function App() {
               }
 
 
-              return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:price, changePct:changePct, change:change, mc:mc, hi52:hi52, lo52:lo52, sma50:sma50, sma200:sma200, rsi:rsi, targetMean:targetMean, analystUp:analystUp, sig:sigData, trendSig:trendSigData };
+              return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:price, changePct:changePct, change:change, mc:mc, hi52:hi52, lo52:lo52, sma50:sma50, sma200:sma200, rsi:rsi, targetMean:targetMean, analystUp:analystUp, sig:sigData, trendSig:trendSigData, priceHistory:vc.slice(-65) };
             }).catch(function(){ return { sym:sym, fundV:parsed.fundV, isStrongBuy:parsed.isStrongBuy, price:0, changePct:0, change:0, mc:0, hi52:0, lo52:0, sma50:0, sma200:0, rsi:null, targetMean:null, analystUp:null, sig:null, trendSig:null }; });
         }).catch(function(){ return null; });
     }
@@ -12747,7 +12747,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.112</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.113</span>
           </div>
         </div>
 
@@ -12916,81 +12916,40 @@ export default function App() {
                 <div style={{ fontSize:12, color:"#555" }}>Stocks our AI rated Exceptional or Good in the last 7 days</div>
               </div>
               <div style={{ border:"1px solid #1e1e18", borderRadius:10, overflow:"hidden" }}>
-                <div style={{ display:"grid", gridTemplateColumns:"70px 1fr 1fr 1fr 1.6fr 1fr 1fr 1.2fr 1.4fr", columnGap:20, rowGap:0, background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px" }}>
-                  {["Ticker","Moat","Fin.","IV Disc.","52W Range","Trend","Momentum","Reversal","Money Flow"].map(function(h,i) {
+                <div style={{ display:"grid", gridTemplateColumns:"70px 1fr 1fr 1fr 1.6fr 1.4fr 1fr", columnGap:20, rowGap:0, background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px" }}>
+                  {["Ticker","Moat","Fin.","IV Disc.","52W Range","Technical View","3M Trend"].map(function(h,i) {
                     return <div key={i} style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em" }}>{h}</div>;
                   })}
                 </div>
                 {(function() {
-                  // Compact display label helpers — UI mapping only, no technical calculation
-                  function cRevLbl(status) {
-                    if (!status) return String.fromCharCode(0x2014);
-                    var sl = status.toLowerCase();
-                    if (sl.indexOf('no clear')!==-1 || sl==='not enough data') return String.fromCharCode(0x2014);
-                    if (sl.indexOf('spark')!==-1)      return 'Spark';
-                    if (sl.indexOf('confirming')!==-1) return 'Confirming';
-                    if (sl.indexOf('confirmed')!==-1&&sl.indexOf('bull')!==-1) return 'Confirmed';
-                    if (sl.indexOf('triggered')!==-1&&sl.indexOf('bull')!==-1) return 'Triggered';
-                    if (sl.indexOf('forming')!==-1&&sl.indexOf('bull')!==-1)   return 'Forming';
-                    if (sl.indexOf('watch')!==-1&&sl.indexOf('bull')!==-1)     return 'Bull Watch';
-                    if (sl.indexOf('confirmed')!==-1&&sl.indexOf('bear')!==-1) return 'Bear Conf.';
-                    if (sl.indexOf('triggered')!==-1&&sl.indexOf('bear')!==-1) return 'Bear Trig.';
-                    if (sl.indexOf('forming')!==-1&&sl.indexOf('bear')!==-1)   return 'Bear Form.';
-                    if (sl.indexOf('watch')!==-1&&sl.indexOf('bear')!==-1)     return 'Bear Watch';
-                    if (sl.indexOf('mixed')!==-1) return 'Mixed';
-                    return status;
-                  }
-                  function cSmfLbl(status) {
-                    if (!status) return String.fromCharCode(0x2014);
-                    var sl = status.toLowerCase();
-                    if (sl.indexOf('no clear')!==-1||sl.indexOf('no sustained')!==-1) return String.fromCharCode(0x2014);
-                    if (sl.indexOf('strong accumulation')!==-1) return 'Strong Accum.';
-                    if (sl.indexOf('steady accumulation')!==-1) return 'Steady Accum.';
-                    if (sl.indexOf('long-term accumulation')!==-1) return 'LT Accum.';
-                    if (sl.indexOf('early accumulation')!==-1) return 'Early Accum.';
-                    if (sl.indexOf('mixed flow')!==-1) return 'Mixed Flow';
-                    if (sl.indexOf('cooling accumulation')!==-1) return 'Cooling';
-                    if (sl.indexOf('short-term flow spike')!==-1) return 'ST Spike';
-                    if (sl.indexOf('short-term flow watch')!==-1) return 'ST Watch';
-                    if (sl.indexOf('strong multi')!==-1) return 'Strong Flow';
-                    if (sl.indexOf('accumulation trend')!==-1) return 'Accumulating';
-                    if (sl.indexOf('early accumulation')!==-1) return 'Early Accum.';
-                    if (sl.indexOf('constructive')!==-1) return 'Constructive';
-                    if (sl.indexOf('short-term spike')!==-1) return 'ST Spike';
-                    return status.length > 16 ? status.slice(0,14) + String.fromCharCode(0x2026) : status;
-                  }
                   return tickerSignals.map(function(sig, i) {
                   var price    = sig.price || 0;
                   var hi52     = sig.hi52  || 0;
                   var lo52     = sig.lo52  || 0;
                   var rangePct = (hi52>lo52&&price>0)?Math.min(100,Math.max(0,((price-lo52)/(hi52-lo52))*100)):null;
-                  var sma50    = sig.sma50  || 0;
-                  var sma200   = sig.sma200 || 0;
-                  // Use cached detail-page trend/momentum if available (1-day TTL, exact formula)
                   var ts = sig.trendSig || {};
                   var sd = sig.sig || {};
-                  // Only show Reversal if sourced from Massive data (detail page visit)
-                  // Yahoo-derived reversal is unreliable — no RSI/MACD/WSMA history
-                  var _revToShow = (ts.revSource !== 'yahoo') ? ts.revStatus : null;
-                  var trendUp  = sma50>0&&sma200>0&&price>sma50&&sma50>sma200;
-                  var trendUp  = sma50>0&&sma200>0&&price>sma50&&sma50>sma200;
-                  var trendDn  = sma50>0&&sma200>0&&price<sma50&&sma50<sma200;
-                  var trendColor = trendUp?"#7abd00":trendDn?"#e05050":"#888";
-                  var trendLabel = trendUp?String.fromCharCode(0x2191)+" Up":trendDn?String.fromCharCode(0x2193)+" Down":sma50>0?String.fromCharCode(0x2192)+" Mixed":String.fromCharCode(0x2014);
-                  var rsi      = sig.rsi;
-                  var momLabel = rsi===null?String.fromCharCode(0x2014):rsi>70?"Overbought":rsi>=55?"Strong":rsi>=45?"Neutral":rsi>=30?"Weak":"Oversold";
-                  var momColor = rsi===null?"#555":rsi>70?"#EF9F27":rsi>=55?"#7abd00":rsi>=45?"#888":rsi>=30?"#e07020":"#60b8f0";
-                  // Override with cached detail-page values if present
-                  if (ts.trendLabel) {
-                    var tl = ts.trendLabel.toLowerCase();
-                    trendLabel = ts.trendLabel;
-                    trendColor = (tl==="strong uptrend"||tl==="uptrend") ? "#7abd00" : tl==="sideways" ? "#EF9F27" : (tl==="downtrend"||tl==="strong downtrend") ? "#e05050" : "#888";
+
+                  // Technical View — compute RBA from cached trendSig data
+                  var rbaShort = null;
+                  if (ts.trendLabel || ts.momLabel) {
+                    try {
+                      var _rbaSnap = buildRuleSnapshotFromRow({
+                        trend:    ts.trendLabel || 'Sideways', trendScore:  ts.trendScore  || 50,
+                        momentum: ts.momLabel   || 'Neutral',  momentumScore: ts.momScore  || 50,
+                        reversal: (ts.revSource !== 'yahoo' && ts.revStatus) ? ts.revStatus : 'No Clear Reversal', reversalScore: ts.revScore || 0,
+                        moneyFlow: ts.smfStatus || 'No Clear Signal', moneyFlowScore: 0,
+                      });
+                      var _rba = generateRuleBasedAnalytics(_rbaSnap);
+                      rbaShort = _rba ? shortRuleVerdict(_rba.verdict) : null;
+                    } catch(e) { rbaShort = null; }
                   }
-                  if (ts.momLabel) {
-                    var ml = ts.momLabel.toLowerCase();
-                    momLabel = ts.momLabel;
-                    momColor = (ml==="strong"||ml==="building") ? "#7abd00" : ml==="neutral" ? "#EF9F27" : (ml==="fading"||ml==="weak"||ml==="very weak") ? "#e05050" : "#888";
-                  }
+                  var rbaColor = rbaShort ? (summaryCardDark(rbaShort).text || '#aaa') : '#555';
+
+                  // 3M Trend sparkline from price history
+                  var ph = sig.priceHistory;
+                  var sparkline3m = (ph && ph.length >= 10) ? makeSparkline(ph.slice(-60)) : String.fromCharCode(0x2014);
+
                   var moatLbl  = sd.moat || null;
                   var finLbl   = sd.fin  || null;
                   var ivDisc   = sd.ivDiscount != null ? sd.ivDiscount : null;
@@ -13005,7 +12964,7 @@ export default function App() {
                   return (
                     <div key={i}
                       onClick={function(){ window.location.hash = sig.sym; }}
-                      style={{ display:"grid", gridTemplateColumns:"70px 1fr 1fr 1fr 1.6fr 1fr 1fr 1.2fr 1.4fr", columnGap:20, rowGap:0, padding:"10px 14px", borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111" }}
+                      style={{ display:"grid", gridTemplateColumns:"70px 1fr 1fr 1fr 1.6fr 1.4fr 1fr", columnGap:20, rowGap:0, padding:"10px 14px", borderBottom:i<tickerSignals.length-1?"1px solid #1a1a16":"none", cursor:"pointer", alignItems:"center", background:"#111" }}
                       onMouseEnter={function(e){ e.currentTarget.style.background="#161614"; }}
                       onMouseLeave={function(e){ e.currentTarget.style.background="#111"; }}>
                       <div>
@@ -13027,36 +12986,29 @@ export default function App() {
                           </div>
                         ):<span style={{ fontSize:11, color:"#444" }}>{String.fromCharCode(0x2014)}</span>}
                       </div>
-                      {/* 52W Range */}
+                      {/* 52W Range — muted */}
                       <div>
                         {rangePct!==null?(
                           <div>
                             <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
-                              <span style={{ fontSize:9, color:"#444" }}>{lo52>0?"$"+lo52.toFixed(0):""}</span>
-                              <span style={{ fontSize:9, color:"#888", fontWeight:700 }}>{rangePct.toFixed(0)+"%"}</span>
-                              <span style={{ fontSize:9, color:"#444" }}>{hi52>0?"$"+hi52.toFixed(0):""}</span>
+                              <span style={{ fontSize:9, color:"#3a3a38" }}>{lo52>0?"$"+lo52.toFixed(0):""}</span>
+                              <span style={{ fontSize:9, color:"#666" }}>{rangePct.toFixed(0)+"%"}</span>
+                              <span style={{ fontSize:9, color:"#3a3a38" }}>{hi52>0?"$"+hi52.toFixed(0):""}</span>
                             </div>
-                            <div style={{ height:4, background:"#1e1e18", borderRadius:3, position:"relative" }}>
-                              <div style={{ position:"absolute", left:0, top:0, height:"100%", width:rangePct+"%", background:"#555", borderRadius:3 }}></div>
-                              <div style={{ position:"absolute", top:"-3px", height:10, width:3, background:"#fff", borderRadius:1, left:"calc("+rangePct+"% - 1px)", zIndex:1 }}></div>
+                            <div style={{ height:3, background:"#1e1e18", borderRadius:3, position:"relative" }}>
+                              <div style={{ position:"absolute", left:0, top:0, height:"100%", width:rangePct+"%", background:"#333", borderRadius:3 }}></div>
+                              <div style={{ position:"absolute", top:"-3px", height:9, width:2, background:"#888", borderRadius:1, left:"calc("+rangePct+"% - 1px)", zIndex:1 }}></div>
                             </div>
                           </div>
                         ):<span style={{ fontSize:11, color:"#444" }}>{String.fromCharCode(0x2014)}</span>}
                       </div>
-                      {/* Trend */}
-                      <div style={{ fontSize:11, fontWeight:700, color:trendColor }}>{trendLabel}</div>
-                      {/* Momentum */}
-                      <div>
-                        <div style={{ fontSize:11, fontWeight:700, color:momColor }}>{momLabel}</div>
-                        {rsi!==null && !ts.momLabel && <div style={{ fontSize:9, color:"#444", marginTop:1 }}>{"RSI "+rsi.toFixed(0)}</div>}
+                      {/* Technical View — full colour, primary signal */}
+                      <div style={{ fontSize:11, fontWeight:700, color:rbaColor, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {rbaShort || String.fromCharCode(0x2014)}
                       </div>
-                      {/* Reversal — compact label; colour from canonical revStatusColor() matching tab + sidebar */}
-                      <div style={{ fontSize:10, fontWeight:700, color:revStatusColor(_revToShow, "main") }}>
-                        {cRevLbl(_revToShow)}
-                      </div>
-                      {/* Money Flow — compact label; colour from canonical smfStatusColor() matching tab + sidebar */}
-                      <div style={{ fontSize:10, fontWeight:700, color:smfStatusColor(ts.smfStatus, "main") }}>
-                        {cSmfLbl(ts.smfStatus)}
+                      {/* 3M Trend sparkline — muted */}
+                      <div style={{ fontSize:11, color:"#555", letterSpacing:0, overflow:'hidden', whiteSpace:'nowrap' }}>
+                        {sparkline3m}
                       </div>
                     </div>
                   );
