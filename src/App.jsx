@@ -1125,6 +1125,118 @@ function summaryCardDark(verdict) {
 
 // ── Run 5: Rule Based Analytics Setup helpers ─────────────────────────────────
 
+// ── Central short-label helper for compact table views ───────────────────────
+function shortSignalLabel(label, type) {
+  if (!label || label === 'Not Enough Data' || label === 'N/A') return String.fromCharCode(0x2014);
+  var l = label.toLowerCase().trim();
+
+  if (type === 'technicalView' || type === 'rba') {
+    if (l.indexOf('strong bullish') !== -1) return 'Strong Bull';
+    if (l.indexOf('bullish watch')  !== -1) return 'Bull Watch';
+    if (l.indexOf('bullish')        !== -1) return 'Bullish';
+    if (l.indexOf('risky bounce')   !== -1) return 'Risky Bounce';
+    if (l.indexOf('mixed')          !== -1) return 'Caution';
+    if (l.indexOf('caution')        !== -1) return 'Caution';
+    if (l.indexOf('neutral')        !== -1) return 'Neutral';
+    if (l.indexOf('bearish watch')  !== -1) return 'Bear Watch';
+    if (l.indexOf('strong bearish') !== -1) return 'Strong Bear';
+    if (l.indexOf('bearish')        !== -1) return 'Bearish';
+    return label;
+  }
+
+  if (type === 'trend') {
+    if (l === 'strong uptrend')   return 'Strong Up';
+    if (l === 'uptrend')          return 'Uptrend';
+    if (l === 'sideways')         return 'Sideways';
+    if (l === 'downtrend')        return 'Downtrend';
+    if (l === 'strong downtrend') return 'Strong Down';
+    return label;
+  }
+
+  if (type === 'momentum') {
+    if (l === 'momentum continuation')       return 'Continuation';
+    if (l === 'early recovery attempt')      return 'Early Recovery';
+    if (l === 'waiting for daily trigger')   return 'Waiting';
+    if (l === 'pullback in larger momentum') return 'Pullback';
+    if (l === 'weak weekly bounce')          return 'Weak Bounce';
+    if (l === 'bearish momentum')            return 'Bear Mom.';
+    if (l === 'no clear momentum profile')   return 'No Profile';
+    if (l === 'strong')   return 'Strong';
+    if (l === 'building') return 'Building';
+    if (l === 'neutral')  return 'Neutral';
+    if (l === 'fading')   return 'Fading';
+    if (l === 'weak')     return 'Weak';
+    return label;
+  }
+
+  if (type === 'reversal') {
+    if (l.indexOf('no clear') !== -1) return 'No Signal';
+    if (l.indexOf('mixed')    !== -1) return 'Mixed';
+    var dir = l.indexOf('bull') !== -1 ? 'Bull' : l.indexOf('bear') !== -1 ? 'Bear' : null;
+    if (!dir) return label;
+    if (l.indexOf('spark')      !== -1) return dir + ' Spark';
+    if (l.indexOf('watch')      !== -1) return dir + ' Watch';
+    if (l.indexOf('setup')      !== -1) return dir + ' Setup';
+    if (l.indexOf('forming')    !== -1) return dir + ' Forming';
+    if (l.indexOf('triggered')  !== -1) return dir + ' Triggered';
+    if (l.indexOf('confirming') !== -1) return dir + ' Confirming';
+    if (l.indexOf('confirmed')  !== -1) return dir + ' Confirmed';
+    return label;
+  }
+
+  if (type === 'moneyFlow') {
+    // Daily prefix
+    var prefix = '';
+    if (l.indexOf('daily spike')   !== -1) prefix = 'Spike + ';
+    else if (l.indexOf('daily support') !== -1) prefix = 'Support + ';
+    else if (l.indexOf('quiet day')     !== -1) prefix = 'Quiet + ';
+    // Base status
+    var base = '';
+    if (l.indexOf('strong accumulation')    !== -1) base = 'Strong';
+    else if (l.indexOf('steady accumulation')     !== -1) base = 'Steady';
+    else if (l.indexOf('long-term accumulation')  !== -1) base = 'LT Accum.';
+    else if (l.indexOf('early accumulation')      !== -1) base = 'Early';
+    else if (l.indexOf('mixed flow')              !== -1) base = 'Mixed';
+    else if (l.indexOf('cooling accumulation')    !== -1) base = 'Cooling';
+    else if (l.indexOf('short-term flow spike')   !== -1) base = 'ST Spike';
+    else if (l.indexOf('short-term flow watch')   !== -1) base = 'ST Watch';
+    else if (l.indexOf('no sustained flow')       !== -1) base = 'No Sustained';
+    else if (l.indexOf('no clear signal')         !== -1) { if (!prefix) return 'No Signal'; base = 'No Signal'; }
+    // Legacy
+    else if (l.indexOf('strong multi')            !== -1) base = 'Strong';
+    else if (l.indexOf('accumulation trend')      !== -1) base = 'Steady';
+    else if (l.indexOf('constructive')            !== -1) base = 'Cooling';
+    else if (l.indexOf('short-term spike')        !== -1) base = 'ST Spike';
+    else if (l.indexOf('no clear flow')           !== -1) base = 'No Signal';
+    if (base) return prefix + base;
+    // Unprefixed fallback — truncate if long
+    return label.length > 18 ? label.slice(0, 16) + String.fromCharCode(0x2026) : label;
+  }
+
+  if (type === 'moat') {
+    if (l === 'wide')     return 'Wide';
+    if (l === 'strong'||l.indexOf('strong moat')!== -1) return 'Strong';
+    if (l === 'moderate') return 'Moderate';
+    if (l === 'narrow')   return 'Narrow';
+    if (l === 'weak')     return 'Weak';
+    if (l.indexOf('no clear') !== -1) return 'No Clear';
+    return label;
+  }
+
+  if (type === 'financial') {
+    if (l === 'exceptional') return 'Exceptional';
+    if (l === 'strong')      return 'Strong';
+    if (l === 'good')        return 'Good';
+    if (l === 'moderate')    return 'Moderate';
+    if (l === 'stretched')   return 'Stretched';
+    if (l === 'weak')        return 'Weak';
+    if (l === 'poor')        return 'Poor';
+    return label;
+  }
+
+  return label;
+}
+
 function shortRuleVerdict(verdict) {
   if (!verdict) return 'N/A';
   // First try em-dash split (most verdicts use this format)
@@ -2305,12 +2417,12 @@ function Screener() {
                       <div style={{ fontSize:12, fontWeight:600, color:'#f0ede6' }}>{'$'+row.price.toFixed(2)}</div>
                       <div style={{ fontSize:11, fontWeight:600, color:row.changePct>=0?'#7abd00':'#e05050' }}>{(row.changePct>=0?'+':'')+row.changePct.toFixed(2)+'%'}</div>
                       <div style={{ fontSize:11, color:'#888' }}>{fmtVol(row.volume)}</div>
-                      <div style={{ fontSize:11, fontWeight:600, color:tC }}>{row.trend}</div>
-                      <div style={{ fontSize:11, fontWeight:600, color:mC }}>{row.momentumProfile&&row.momentumProfile.profile?row.momentumProfile.profile:row.momentum}</div>
-                      <div style={{ fontSize:10, fontWeight:700, color:revC, lineHeight:1.3 }} title={row.reversal}>{cRev(row.reversal)}</div>
-                      <div style={{ fontSize:10, fontWeight:700, color:smfC, lineHeight:1.3 }} title={row.moneyFlow}>{cSmf(row.moneyFlow)}</div>
+                      <div style={{ fontSize:11, fontWeight:600, color:tC }} title={row.trend}>{shortSignalLabel(row.trend,'trend')}</div>
+                      <div style={{ fontSize:11, fontWeight:600, color:mC }} title={row.momentumProfile&&row.momentumProfile.profile?row.momentumProfile.profile:row.momentum}>{shortSignalLabel(row.momentumProfile&&row.momentumProfile.profile?row.momentumProfile.profile:row.momentum,'momentum')}</div>
+                      <div style={{ fontSize:10, fontWeight:700, color:revC, lineHeight:1.3 }} title={row.reversal}>{shortSignalLabel(row.reversal,'reversal')}</div>
+                      <div style={{ fontSize:10, fontWeight:700, color:smfC, lineHeight:1.3 }} title={row.moneyFlow}>{shortSignalLabel(row.moneyFlow,'moneyFlow')}</div>
                       <div title={row.ruleVerdict||''}>
-                        <div style={{ fontSize:11, fontWeight:700, color:setupC.text, lineHeight:1.3 }}>{row.ruleShortVerdict}</div>
+                        <div style={{ fontSize:11, fontWeight:700, color:setupC.text, lineHeight:1.3 }}>{row.ruleShortVerdict ? shortSignalLabel(row.ruleShortVerdict,'technicalView') : String.fromCharCode(0x2014)}</div>
                         {row.ruleSubtitle && <div style={{ fontSize:9, color:setupC.text+'99', lineHeight:1.3, marginTop:2 }}>{row.ruleSubtitle}</div>}
                       </div>
                       <button onClick={function(){ window.location.hash=row.ticker; }}
@@ -4969,7 +5081,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.113</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.114</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5023,7 +5135,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.113</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.114</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11950,23 +12062,24 @@ function WatchlistPage({ clerkUser, isPaid }) {
     var lc  = summaryCardDark(label).text || '#aaa';
     return (
       <div style={{display:'flex',alignItems:'center',gap:3,whiteSpace:'nowrap',overflow:'hidden'}}>
-        <span style={{color:lc,fontWeight:700,fontSize:10,overflow:'hidden',textOverflow:'ellipsis'}}>{label}</span>
+        <span title={label} style={{color:lc,fontWeight:700,fontSize:10,overflow:'hidden',textOverflow:'ellipsis'}}>{shortSignalLabel(label,'technicalView')}</span>
         {showArrow && <span style={{color:ac,fontWeight:800,fontSize:11,flexShrink:0}}>{arrow}</span>}
       </div>
     );
   }
 
   // Supporting signals — coloured dot + neutral label + coloured arrow
-  function SigDot({ label, dotColor, rank, prevRows, field }) {
+  function SigDot({ label, dotColor, rank, prevRows, field, type }) {
     if (!label) return <span style={{color:'#555',fontSize:10}}>—</span>;
     var history = [rank].concat((prevRows||[]).map(function(r){ return r[field]; }));
     var arrow = wlArrow(rank, history);
     var showArrow = arrow !== String.fromCharCode(0x2014);
     var ac = wlArrowColor(arrow);
+    var shortLbl = type ? shortSignalLabel(label, type) : label;
     return (
       <div style={{display:'flex',alignItems:'center',gap:4,whiteSpace:'nowrap',overflow:'hidden'}}>
         <span style={{width:6,height:6,borderRadius:'50%',background:dotColor||'#555',flexShrink:0,opacity:0.8,display:'inline-block'}}></span>
-        <span style={{color:'#b8b8b8',fontWeight:600,fontSize:10,overflow:'hidden',textOverflow:'ellipsis'}}>{label}</span>
+        <span title={label} style={{color:'#b8b8b8',fontWeight:600,fontSize:10,overflow:'hidden',textOverflow:'ellipsis'}}>{shortLbl}</span>
         {showArrow && <span style={{color:ac,fontWeight:800,fontSize:11,flexShrink:0,marginLeft:2}}>{arrow}</span>}
       </div>
     );
@@ -12115,16 +12228,16 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 <div style={{fontSize:11,letterSpacing:0,color:'#555',overflow:'hidden',whiteSpace:'nowrap'}}>{sparkline}</div>
 
                 {/* Trend — dot + neutral */}
-                <div style={{overflow:'hidden'}}><SigDot label={trendV} dotColor={summaryCardDark(trendV).text} rank={snap?snap.trend_rank:0} prevRows={prevRows} field="trend_rank" /></div>
+                <div style={{overflow:'hidden'}}><SigDot label={trendV} type="trend" dotColor={summaryCardDark(trendV).text} rank={snap?snap.trend_rank:0} prevRows={prevRows} field="trend_rank" /></div>
 
                 {/* Momentum — dot + neutral */}
-                <div style={{overflow:'hidden'}}><SigDot label={momV} dotColor={momentumStateColor(momV)} rank={snap?snap.momentum_rank:0} prevRows={prevRows} field="momentum_rank" /></div>
+                <div style={{overflow:'hidden'}}><SigDot label={momV} type="momentum" dotColor={momentumStateColor(momV)} rank={snap?snap.momentum_rank:0} prevRows={prevRows} field="momentum_rank" /></div>
 
                 {/* Reversal — dot + neutral */}
-                <div style={{overflow:'hidden'}}><SigDot label={revV} dotColor={revStatusColor(revV,'main')} rank={snap?snap.reversal_rank:0} prevRows={prevRows} field="reversal_rank" /></div>
+                <div style={{overflow:'hidden'}}><SigDot label={revV} type="reversal" dotColor={revStatusColor(revV,'main')} rank={snap?snap.reversal_rank:0} prevRows={prevRows} field="reversal_rank" /></div>
 
                 {/* Money Flow — dot + neutral */}
-                <div style={{overflow:'hidden'}}><SigDot label={smfV} dotColor={smfStatusColor(smfV,'main')} rank={snap?snap.money_flow_rank:0} prevRows={prevRows} field="money_flow_rank" /></div>
+                <div style={{overflow:'hidden'}}><SigDot label={smfV} type="moneyFlow" dotColor={smfStatusColor(smfV,'main')} rank={snap?snap.money_flow_rank:0} prevRows={prevRows} field="money_flow_rank" /></div>
 
                 {/* Lock column */}
                 {(function(){
@@ -12747,7 +12860,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.113</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.114</span>
           </div>
         </div>
 
@@ -12972,9 +13085,9 @@ export default function App() {
                         <div style={{ fontSize:9, color:"#444", marginTop:1, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:58 }}>{price>0?"$"+price.toFixed(2):""}</div>
                       </div>
                       {/* Moat */}
-                      <div style={{ fontSize:11, fontWeight:700, color:sigColor(moatLbl) }}>{moatLbl||String.fromCharCode(0x2014)}</div>
+                      <div title={moatLbl||''} style={{ fontSize:11, fontWeight:700, color:sigColor(moatLbl) }}>{shortSignalLabel(moatLbl,'moat')||String.fromCharCode(0x2014)}</div>
                       {/* Financial Strength */}
-                      <div style={{ fontSize:11, fontWeight:700, color:sigColor(finLbl) }}>{finLbl||String.fromCharCode(0x2014)}</div>
+                      <div title={finLbl||''} style={{ fontSize:11, fontWeight:700, color:sigColor(finLbl) }}>{shortSignalLabel(finLbl,'financial')||String.fromCharCode(0x2014)}</div>
                       {/* IV Discount */}
                       <div>
                         {ivDisc!==null?(
@@ -13003,8 +13116,8 @@ export default function App() {
                         ):<span style={{ fontSize:11, color:"#444" }}>{String.fromCharCode(0x2014)}</span>}
                       </div>
                       {/* Technical View — full colour, primary signal */}
-                      <div style={{ fontSize:11, fontWeight:700, color:rbaColor, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                        {rbaShort || String.fromCharCode(0x2014)}
+                      <div title={rbaShort||''} style={{ fontSize:11, fontWeight:700, color:rbaColor, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {rbaShort ? shortSignalLabel(rbaShort,'technicalView') : String.fromCharCode(0x2014)}
                       </div>
                       {/* 3M Trend sparkline — muted */}
                       <div style={{ fontSize:11, color:"#555", letterSpacing:0, overflow:'hidden', whiteSpace:'nowrap' }}>
