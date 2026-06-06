@@ -4969,7 +4969,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.111</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.112</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5023,7 +5023,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.111</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.112</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12145,7 +12145,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                   var lkTotal  = ((lock.locked_rba_rank||0)+(lock.locked_trend_rank||0)+(lock.locked_momentum_rank||0)+(lock.locked_reversal_rank||0)+(lock.locked_money_flow_rank||0));
                   var delta    = curTotal - lkTotal;
                   var sigStatus = delta >= 1 ? 'Signal Improved' : delta <= -1 ? 'Signal Weakened' : 'Signal Stable';
-                  var sigColor  = delta >= 1 ? '#7abd00' : delta <= -1 ? '#e05050' : '#EF9F27';
+                  var sigColor  = delta >= 1 ? '#7abd00' : delta <= -1 ? '#e05050' : '#666';
                   var lockedDate = lock.locked_at ? lock.locked_at.split('T')[0] : '—';
                   return <div style={{fontSize:9,lineHeight:1.5}}>
                     <div style={{color:'#888',whiteSpace:'nowrap'}}>{'Locked @ $'+(lPrice?lPrice.toFixed(2):'—')}</div>
@@ -12157,7 +12157,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                         {viewLockTicker===item.ticker?'Close':'View Lock'}
                       </button>
                       <button onClick={function(){ resetLock(item.ticker); }}
-                        style={{fontSize:8,padding:'2px 6px',background:'none',border:'0.5px solid #3a1a1a',borderRadius:4,color:'#e05050',cursor:'pointer'}}>
+                        style={{fontSize:8,padding:'2px 6px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#777',cursor:'pointer'}}>
                         Reset
                       </button>
                     </div>
@@ -12197,11 +12197,11 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 ];
                 return <div style={{gridColumn:'1/-1',background:'#161614',border:'0.5px solid #2a2a28',borderRadius:8,padding:'14px 16px',marginTop:2,marginBottom:4}}>
                   <div style={{fontSize:11,fontWeight:700,color:LIME,marginBottom:10}}>Signal Lock — {item.ticker}</div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 24px',marginBottom:12}}>
+                  <div style={{display:'flex',flexDirection:'column',gap:4,marginBottom:12}}>
                     <div style={{fontSize:10,color:'#888'}}>Locked on: <span style={{color:'#aaa'}}>{lkDate}</span></div>
                     <div style={{fontSize:10,color:'#888'}}>Locked price: <span style={{color:'#aaa'}}>{lPrice?'$'+lPrice.toFixed(2):'—'}</span></div>
                     <div style={{fontSize:10,color:'#888'}}>Current price: <span style={{color:'#f0ede6'}}>{price?'$'+price.toFixed(2):'—'}</span></div>
-                    <div style={{fontSize:10,color:'#888'}}>Price change: <span style={{color:pctChg!=null?(pctChg>=0?'#7abd00':'#e05050'):'#555',fontWeight:700}}>{pctChg!=null?(pctChg>=0?'+':'')+pctChg.toFixed(2)+'%':'—'}</span></div>
+                    <div style={{fontSize:10,color:'#888'}}>Price change: <span style={{color:pctChg!=null?(pctChg>=0?'#7abd00':pctChg<0?'#e05050':'#555'):'#555',fontWeight:700}}>{pctChg!=null?(pctChg>=0?'+':'')+pctChg.toFixed(2)+'%':'—'}</span></div>
                   </div>
                   <div style={{display:'grid',gridTemplateColumns:'100px 1fr 1fr 80px',columnGap:12,marginBottom:4}}>
                     {['Signal','At Lock','Current','Change'].map(function(h){ return <div key={h} style={{fontSize:8,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>; })}
@@ -12747,7 +12747,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.111</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.112</span>
           </div>
         </div>
 
