@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.130</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.133</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.130</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.133</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12573,6 +12573,29 @@ function ForceStrikePage({ isPaid, clerkUser }) {
   var isAdmin  = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === 'admin');
   var canAccess= isPaid || isAdmin;
 
+  // Auto-load cache on mount — no need to click Run Scan if fresh cache exists
+  useEffect(function() {
+    if (!canAccess) return;
+    var FS_TTL = 12 * 60 * 60 * 1000;
+    fetch('/cache?sym=__FORCESTRIKE&tab=results')
+      .then(function(r){ return r.ok ? r.text() : null; })
+      .then(function(text){
+        if (!text || !text.trim()) return;
+        var cached = JSON.parse(text);
+        if (cached && cached.ts && (Date.now() - cached.ts) < FS_TTL) {
+          setResults(cached.results||[]);
+          setAllAudit(cached.allAudit||[]);
+          setStoppedEarly(cached.stoppedEarly||false);
+          setGeneratedAt(cached.generatedAt||'');
+          setStatus('done');
+          var cAge = new Date(cached.ts);
+          setMsg('\u26A1 Cached result from ' + cAge.toLocaleDateString() + ' ' + cAge.toLocaleTimeString() + ' \u2014 click Force Rescan to refresh.');
+        }
+        // If cache expired or missing, stay idle — user clicks Run Scan
+      })
+      .catch(function(){}); // cache miss is fine
+  }, [canAccess]);
+
   async function runScan() {
     setStatus('scanning'); setMsg('Fetching universe\u2026'); setResults([]); setAllAudit([]); setExpandedRow(null);
     var hdrs = window.__clerkToken ? { Authorization: 'Bearer ' + window.__clerkToken } : {};
@@ -12600,84 +12623,89 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       }
     } catch(e) { /* cache miss — proceed with fresh scan */ }
 
-    // Fetch universe (Yahoo most-actives, up to 250 raw quotes)
-    var candidates = [];
-    try {
-      var rawQuotes = [];
-      for (var pi = 0; pi < 3; pi++) {
-        try {
-          var pUrl = 'https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&start=' + (pi*100) + '&count=100&lang=en-US&region=US';
-          var pRes = await fetch('/proxy?url=' + encodeURIComponent(pUrl));
-          var pData = await pRes.json();
-          var pQ = (pData.finance&&pData.finance.result&&pData.finance.result[0]&&pData.finance.result[0].quotes)||[];
-          if (!pQ.length) break;
-          rawQuotes = rawQuotes.concat(pQ);
-          if (pQ.length < 100) break;
-        } catch(e) { break; }
-      }
-      var seen = {};
-      rawQuotes = rawQuotes.filter(function(q){ if(seen[q.symbol])return false; seen[q.symbol]=true; return true; });
-      candidates = rawQuotes
-        .filter(function(q){ return q.regularMarketPrice>5&&q.regularMarketVolume>500000&&q.quoteType==='EQUITY'; })
-        .map(function(q){ return { sym:q.symbol, name:q.longName||q.shortName||q.symbol, volume:q.regularMarketVolume||0 }; });
-    } catch(e) {
-      ['NVDA','AAPL','MSFT','AMZN','GOOGL','META','TSLA','AMD','AVGO','PLTR',
-       'COIN','MARA','RIOT','HOOD','SOFI','NFLX','DIS','NOW','SNOW','UBER']
-        .forEach(function(s){ candidates.push({ sym:s, name:s, volume:0 }); });
+    // Fetch universe incrementally — start with 20, fetch next page only when needed
+    var universeSource  = 'Yahoo';
+    var allRawQuotes    = [];
+    var yahooPage       = 0;
+    var yahooExhausted  = false;
+    var PAGE_SIZE       = 20;
+
+    async function fetchNextYahooPage() {
+      if (yahooExhausted) return [];
+      try {
+        var pUrl = 'https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&start=' + (yahooPage * PAGE_SIZE) + '&count=' + PAGE_SIZE + '&lang=en-US&region=US';
+        var pRes = await fetch('/proxy?url=' + encodeURIComponent(pUrl));
+        var pData = await pRes.json();
+        var pQ = (pData.finance&&pData.finance.result&&pData.finance.result[0]&&pData.finance.result[0].quotes)||[];
+        yahooPage++;
+        if (pQ.length < PAGE_SIZE) yahooExhausted = true;
+        return pQ;
+      } catch(e) { yahooExhausted = true; return []; }
     }
 
+    var seenSyms = {};
+    function buildCandidates(quotes) {
+      return quotes
+        .filter(function(q){ return q.regularMarketPrice>5&&q.regularMarketVolume>500000&&q.quoteType==='EQUITY'; })
+        .filter(function(q){ if(seenSyms[q.symbol])return false; return true; })
+        .map(function(q){ return { sym:q.symbol, name:q.longName||q.shortName||q.symbol, volume:q.regularMarketVolume||0 }; });
+    }
+
+    var FALLBACK_LIST = ['NVDA','AAPL','MSFT','AMZN','GOOGL','META','TSLA','AMD','AVGO','PLTR',
+      'COIN','MARA','RIOT','HOOD','SOFI','NFLX','DIS','NOW','SNOW','UBER',
+      'INTC','MU','MRVL','SMCI','ARM','QCOM','TSM','ORCL','CRM','ADBE',
+      'PYPL','SQ','SHOP','RBLX','SNAP','PINS','TWLO','ZM','DDOG','NET',
+      'ABNB','DASH','LYFT','RIVN','LCID','NIO','XPEV','BABA','JD','PDD',
+      'JPM','BAC','WFC','GS','MS','C','USB','PNC','TFC','COF',
+      'XOM','CVX','COP','SLB','HAL','MPC','VLO','OXY','DVN','EOG',
+      'KO','PEP','MCD','SBUX','CMG','YUM','COST','WMT','TGT','HIMS',
+      'IONQ','QUBT','SOUN','RKLB','ASTS','CRSP','EDIT','BEAM','RXRX','ACMR'];
+
+    // Fetch first page before scanning
+    var firstPage = await fetchNextYahooPage();
+    allRawQuotes = allRawQuotes.concat(firstPage);
+    if (!firstPage.length) { universeSource = 'Fallback'; yahooExhausted = true; }
+
+    var pendingCandidates = buildCandidates(allRawQuotes);
     var validFound = 0, allResults = [], stopped = false;
-    var BATCH = 10; // larger batch = more parallelism
-    var GOAL  = 10;  // stop only after GOAL valid (non-expired) setups
+    var BATCH = 5;   // gentle batching
+    var GOAL  = 10;
+    var MAX_SCAN = 300;
+    var totalScanned = 0;
 
-    // Lightweight OHLCV fetch — Force Strike only needs price bars
-    // Use Yahoo chart endpoint (same as fetchYahooHistoricalBars) — no news/financials/options
-    var today    = new Date();
-    var from90d  = new Date(today.getTime() - 90 * 24 * 3600 * 1000);
-    var fmt      = function(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); };
-    var fromStr  = fmt(from90d);
-    var toStr    = fmt(today);
+    if (universeSource==='Fallback') setMsg('\u26A0\uFE0F Yahoo unavailable \u2014 using fallback list. Results may differ.');
 
-    for (var bi = 0; bi < candidates.length; bi += BATCH) {
-      if (validFound >= GOAL) { stopped = true; break; }
-      var batch = candidates.slice(bi, bi + BATCH);
-      setMsg('Scanned ' + (bi + batch.length) + ' / ' + candidates.length + ' \u00B7 Valid: ' + validFound + ' \u00B7 Expired: ' + allResults.filter(function(r){ return r.result==='Expired'; }).length);
-
-      var bRes = await Promise.all(batch.map(async function(c) {
+    async function scanBatch(batch) {
+      return Promise.all(batch.map(async function(c) {
+        seenSyms[c.sym] = true;
         try {
-          // Lightweight: fetch only OHLCV via Yahoo chart (60 trading days ~= 90 calendar days)
           var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + c.sym + '?interval=1d&range=3mo';
           var cRes = await fetch('/proxy?url=' + encodeURIComponent(chartUrl));
           if (!cRes.ok) return null;
           var cData = await cRes.json();
           var cr = cData&&cData.chart&&cData.chart.result&&cData.chart.result[0];
           if (!cr) return null;
-          var ts    = cr.timestamp || [];
-          var q     = (cr.indicators&&cr.indicators.quote&&cr.indicators.quote[0]) || {};
-          var opens = q.open||[], highs = q.high||[], lows = q.low||[], closes = q.close||[], vols = q.volume||[];
+          var ts2 = cr.timestamp||[];
+          var q2  = (cr.indicators&&cr.indicators.quote&&cr.indicators.quote[0])||{};
           var daily = [];
-          for (var di = 0; di < ts.length; di++) {
-            var o=opens[di],h=highs[di],l=lows[di],cv=closes[di],v=vols[di];
-            if (o&&h&&l&&cv&&o>0&&h>0&&l>0&&cv>0) {
-              daily.push({ date: ts[di]*1000, open:o, high:h, low:l, close:cv, volume:v||0 });
-            }
+          for (var di=0; di<ts2.length; di++) {
+            var o=q2.open&&q2.open[di], h=q2.high&&q2.high[di],
+                l=q2.low&&q2.low[di],  cv=q2.close&&q2.close[di];
+            if (o&&h&&l&&cv&&o>0) daily.push({ date:ts2[di]*1000, open:o, high:h, low:l, close:cv, volume:(q2.volume&&q2.volume[di])||0 });
           }
           if (daily.length < 14) return null;
-
-          // Simple trend from last close vs 50/200d SMA approximation from available bars
-          var closes50  = daily.slice(-50).map(function(b){ return b.close; });
-          var closes200 = daily.slice(-Math.min(200, daily.length)).map(function(b){ return b.close; });
-          var sma50  = closes50.length  >= 20 ? closes50.reduce(function(s,v){return s+v;},0)/closes50.length   : 0;
-          var sma200 = closes200.length >= 20 ? closes200.reduce(function(s,v){return s+v;},0)/closes200.length : 0;
-          var price  = daily[daily.length-1].close;
-          var trendStatus = 'Sideways';
+          var cls50  = daily.slice(-50).map(function(b){ return b.close; });
+          var cls200 = daily.map(function(b){ return b.close; });
+          var sma50  = cls50.length>=20  ? cls50.reduce(function(s,v){return s+v;},0)/cls50.length   : 0;
+          var sma200 = cls200.length>=20 ? cls200.reduce(function(s,v){return s+v;},0)/cls200.length : 0;
+          var pr2    = daily[daily.length-1].close;
+          var tst    = 'Sideways';
           if (sma50>0&&sma200>0) {
-            if (price>sma50&&sma50>sma200) trendStatus = price>sma50*1.03?'Strong Uptrend':'Uptrend';
-            else if (price<sma50&&sma50<sma200) trendStatus = 'Downtrend';
+            if (pr2>sma50&&sma50>sma200) tst = pr2>sma50*1.03?'Strong Uptrend':'Uptrend';
+            else if (pr2<sma50&&sma50<sma200) tst = 'Downtrend';
           }
-
-          var fsResult = scanForceStrike(c.sym, daily, trendStatus);
-          fsResult.name   = c.name||c.sym;
+          var fsResult = scanForceStrike(c.sym, daily, tst);
+          fsResult.name = c.name||c.sym;
           fsResult.volume = fsResult.volume||c.volume||0;
           return fsResult;
         } catch(e) {
@@ -12685,13 +12713,38 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                    audit:{ finalReason:'Error: '+(e.message||''), steps:{} } };
         }
       }));
+    }
 
+    while (validFound < GOAL && totalScanned < MAX_SCAN) {
+      // Refill candidates from Yahoo if running low
+      if (pendingCandidates.length < BATCH && !yahooExhausted) {
+        var nextPage = await fetchNextYahooPage();
+        allRawQuotes = allRawQuotes.concat(nextPage);
+        var fresh = buildCandidates(allRawQuotes);
+        pendingCandidates = pendingCandidates.concat(fresh);
+      }
+      // Fall back to hardcoded list if Yahoo exhausted and no candidates left
+      if (!pendingCandidates.length && yahooExhausted) {
+        if (universeSource !== 'Fallback') {
+          universeSource = 'Fallback';
+          FALLBACK_LIST.forEach(function(s){
+            if (!seenSyms[s]) pendingCandidates.push({ sym:s, name:s, volume:0 });
+          });
+        }
+        if (!pendingCandidates.length) break;
+      }
+      if (!pendingCandidates.length) break;
+
+      var batch = pendingCandidates.splice(0, BATCH);
+      setMsg('Scanned ' + totalScanned + ' \u00B7 Valid: ' + validFound + ' \u00B7 Checking: ' + batch.map(function(c){ return c.sym; }).join(', '));
+
+      var bRes = await scanBatch(batch);
       bRes.forEach(function(r){
         if (!r) return;
+        totalScanned++;
         allResults.push(r);
-        if (r.triggered) validFound++;
-        // Progressive UI: show valid results as they are found
         if (r.triggered) {
+          validFound++;
           setResults(function(prev){
             var next = prev.concat([r]).sort(function(a,b){ return (b.volume||0)-(a.volume||0); });
             return next.slice(0, GOAL);
@@ -12706,7 +12759,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     var now = new Date().toISOString();
     setResults(validResults); setAllAudit(allResults); setStoppedEarly(stopped); setGeneratedAt(now);
     setStatus('done');
-    setMsg(validFound + ' valid Force Strike setup' + (validFound!==1?'s':'') + ' found from ' + allResults.length + ' scanned.' + (stopped?' Stopped after '+GOAL+' valid setups.':' Full universe scanned.'));
+    setMsg(validFound + ' valid Force Strike setup' + (validFound!==1?'s':'') + ' found from ' + totalScanned + ' scanned.' + (stopped?' Stopped after '+GOAL+' valid setups.':' Full universe scanned.'));
 
     // Write to shared KV cache (all visitors will see this result)
     try {
@@ -13622,7 +13675,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.130</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.133</span>
           </div>
         </div>
 
