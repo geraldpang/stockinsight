@@ -128,8 +128,11 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
     if (babyBar.high > bar.high || babyBar.low < bar.low) continue; // Baby must be inside
 
     var babyObj = { index: mi+1, date: babyBar.date, date1: babyBar.date1, dateLabel: babyBar.dateLabel,
-                    high: babyBar.high, low: babyBar.low, open: babyBar.open, close: babyBar.close,
-                    volume: babyBar.volume, inside: true };
+                    open: babyBar.open, high: babyBar.high, low: babyBar.low, close: babyBar.close,
+                    volume: babyBar.volume, inside: true,
+                    motherHigh: bar.high, motherLow: bar.low,
+                    highValid: babyBar.high <= bar.high,
+                    lowValid:  babyBar.low  >= bar.low };
 
     var trigResult = detectTrigger(aggs, mi + 1);
     var motherObj  = { index: mi, date: bar.date, date1: bar.date1, dateLabel: bar.dateLabel,
@@ -223,15 +226,23 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
 
 // ── Audit TXT formatter ──────────────────────────────────────────────────────
 export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
+  var TARGET    = 10;
   var triggered = allResults.filter(function(r){ return r.triggered; });
+  var expired   = allResults.filter(function(r){ return !r.triggered && r.result === 'Expired'; });
+  var invalid   = allResults.filter(function(r){ return !r.triggered && r.result !== 'Expired'; });
+  var displayed = Math.min(triggered.length, TARGET);
   var lines = [
     'Force Strike Audit Export', '',
-    'Generated:          ' + generatedAt,
-    'Total Stocks Scanned: ' + allResults.length,
-    'Triggered Count:    ' + triggered.length,
-    'Displayed Count:    ' + Math.min(triggered.length, 5),
-    'Stopped Early:      ' + (stoppedEarly ? 'Yes (5 found)' : 'No'),
-    'Mother Threshold:   1.20x (range or body expansion)',
+    'Generated:              ' + generatedAt,
+    'Total Stocks Scanned:   ' + allResults.length,
+    'Valid Triggered Count:  ' + triggered.length,
+    'Displayed Count:        ' + displayed,
+    'Expired / Too Old:      ' + expired.length,
+    'Invalid / No Pattern:   ' + invalid.length,
+    'Stopped Early:          ' + (stoppedEarly ? 'Yes (' + TARGET + ' valid setups found)' : 'No — full universe scanned'),
+    'Target Valid Setups:    ' + TARGET,
+    'Mother Threshold:       1.20x (range or body expansion)',
+    'Baby Bar Rule:          Baby High <= Mother High AND Baby Low >= Mother Low (strict, no tolerance)',
   ];
 
   allResults.forEach(function(r) {
@@ -242,25 +253,27 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
 
     if (r.triggered) {
       lines.push('', 'Summary:');
-      lines.push('  Pattern:          ' + (r.pattern || '—'));
-      lines.push('  Pattern Age:      ' + (r.patternAge != null ? r.patternAge + ' bars since Mother' : '—'));
-      lines.push('  Mother Bar:       ' + (r.motherBar  ? fmtDate(r.motherBar.date1  || r.motherBar.date)  : '—'));
-      lines.push('  Baby Bar:         ' + (r.babyBar    ? fmtDate(r.babyBar.date1    || r.babyBar.date)    : '—'));
-      lines.push('  Trigger:          ' + (r.triggerBar ? fmtDate(r.triggerBar.date1 || r.triggerBar.date) : '—'));
-      lines.push('  Trigger Type:     ' + (r.triggerType || '—'));
-      lines.push('  Scenario:         ' + (r.scenario   || '—'));
+      lines.push('  Pattern:      ' + (r.pattern || '—'));
+      lines.push('  Pattern Age:  ' + (r.patternAge != null ? r.patternAge + ' bars since Mother' : '—'));
+      lines.push('  Mother Bar:   ' + (r.motherBar  ? fmtDate(r.motherBar.date1  || r.motherBar.date)  : '—'));
+      lines.push('  Baby Bar:     ' + (r.babyBar    ? fmtDate(r.babyBar.date1    || r.babyBar.date)    : '—'));
+      lines.push('  Trigger:      ' + (r.triggerBar ? fmtDate(r.triggerBar.date1 || r.triggerBar.date) : '—'));
+      lines.push('  Trigger Type: ' + (r.triggerType || '—'));
+      lines.push('  Scenario:     ' + (r.scenario   || '—'));
     }
 
     var a = r.audit || {}, s = a.steps || {};
+
+    // Mother Bar — full OHLCV
     if (s.mother) {
       var m = s.mother;
       lines.push('', '------------------------------------------------', 'Mother Bar', '');
       lines.push('Index:            ' + m.index);
       lines.push('Date:             ' + fmtDate(m.date1 || m.date));
-      lines.push('Open:             ' + (m.open  != null ? m.open.toFixed(2)  : 'N/A'));
-      lines.push('High:             ' + (m.high  != null ? m.high.toFixed(2)  : 'N/A'));
-      lines.push('Low:              ' + (m.low   != null ? m.low.toFixed(2)   : 'N/A'));
-      lines.push('Close:            ' + (m.close != null ? m.close.toFixed(2) : 'N/A'));
+      lines.push('Open:             ' + (m.open   != null ? m.open.toFixed(2)   : 'N/A'));
+      lines.push('High:             ' + (m.high   != null ? m.high.toFixed(2)   : 'N/A'));
+      lines.push('Low:              ' + (m.low    != null ? m.low.toFixed(2)    : 'N/A'));
+      lines.push('Close:            ' + (m.close  != null ? m.close.toFixed(2)  : 'N/A'));
       lines.push('Volume:           ' + (m.volume != null ? Number(m.volume).toLocaleString() : 'N/A'));
       lines.push('');
       lines.push('Range:            ' + (m.range != null ? m.range.toFixed(4) : 'N/A'));
@@ -271,23 +284,40 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
       lines.push('Body Expansion:   ' + (m.bodyExpansion  != null ? m.bodyExpansion.toFixed(2)+'x'  : 'N/A'));
       lines.push('Qualified By:     ' + (m.qualifiedBy || 'N/A'));
     }
+
+    // Baby Bar — full OHLCV + explicit validation
     if (s.baby) {
       var b = s.baby;
       lines.push('', '------------------------------------------------', 'Baby Bar', '');
-      lines.push('Index:         ' + b.index);
-      lines.push('Date:          ' + fmtDate(b.date1 || b.date));
-      lines.push('High:          ' + (b.high != null ? b.high.toFixed(2) : 'N/A'));
-      lines.push('Low:           ' + (b.low  != null ? b.low.toFixed(2)  : 'N/A'));
-      lines.push('Inside Mother: ' + (b.inside ? 'true' : 'false'));
+      lines.push('Index:                   ' + b.index);
+      lines.push('Date:                    ' + fmtDate(b.date1 || b.date));
+      lines.push('Open:                    ' + (b.open   != null ? b.open.toFixed(2)   : 'N/A'));
+      lines.push('High:                    ' + (b.high   != null ? b.high.toFixed(2)   : 'N/A'));
+      lines.push('Low:                     ' + (b.low    != null ? b.low.toFixed(2)    : 'N/A'));
+      lines.push('Close:                   ' + (b.close  != null ? b.close.toFixed(2)  : 'N/A'));
+      lines.push('Volume:                  ' + (b.volume != null ? Number(b.volume).toLocaleString() : 'N/A'));
+      lines.push('');
+      lines.push('Mother High:             ' + (b.motherHigh != null ? b.motherHigh.toFixed(2) : 'N/A'));
+      lines.push('Mother Low:              ' + (b.motherLow  != null ? b.motherLow.toFixed(2)  : 'N/A'));
+      lines.push('Baby High:               ' + (b.high != null ? b.high.toFixed(2) : 'N/A'));
+      lines.push('Baby Low:                ' + (b.low  != null ? b.low.toFixed(2)  : 'N/A'));
+      lines.push('Baby High <= Mother High: ' + (b.highValid != null ? String(b.highValid) : (b.high <= b.motherHigh ? 'true' : 'false')));
+      lines.push('Baby Low >= Mother Low:   ' + (b.lowValid  != null ? String(b.lowValid)  : (b.low  >= b.motherLow  ? 'true' : 'false')));
+      lines.push('Baby Inside Mother:       ' + (b.inside ? 'true' : 'false'));
     }
 
+    // Trigger Search — full OHLCV per bar
     lines.push('', '------------------------------------------------', 'Trigger Search', '');
     var checked = s.triggerChecked || [];
     lines.push('Bars Checked: ' + checked.length);
     checked.forEach(function(c, ci) {
       lines.push('', 'Bar ' + (ci+1) + ':');
       lines.push('  Date:         ' + fmtDate(c.date1 || c.date));
-      lines.push('  OHLC:         ' + [c.open,c.high,c.low,c.close].map(function(v){ return v!=null?v.toFixed(2):'N/A'; }).join(' / '));
+      lines.push('  Open:         ' + (c.open   != null ? c.open.toFixed(2)   : 'N/A'));
+      lines.push('  High:         ' + (c.high   != null ? c.high.toFixed(2)   : 'N/A'));
+      lines.push('  Low:          ' + (c.low    != null ? c.low.toFixed(2)    : 'N/A'));
+      lines.push('  Close:        ' + (c.close  != null ? c.close.toFixed(2)  : 'N/A'));
+      lines.push('  Volume:       ' + (c.volume != null ? Number(c.volume).toLocaleString() : 'N/A'));
       lines.push('  Trigger Type: ' + (c.triggerType || 'NONE'));
     });
     lines.push('', 'Trigger Found: ' + (r.triggered ? 'true' : 'false'));
@@ -300,7 +330,7 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
     if (r.patternAge != null) lines.push('Pattern Age:  ' + r.patternAge + ' bars since Mother');
 
     lines.push('', '------------------------------------------------', 'Final Decision', '');
-    lines.push('Included In Top 5: ' + (r.triggered && triggered.indexOf(r) < 5 ? 'true' : 'false'));
+    lines.push('Included In Top ' + TARGET + ': ' + (r.triggered && triggered.indexOf(r) < TARGET ? 'true' : 'false'));
     lines.push('Reason: ' + (a.finalReason || 'N/A'));
   });
   return lines.join('\n');
