@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.118</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.119</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.118</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.119</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12405,7 +12405,11 @@ function ForceStrikePage({ isPaid, clerkUser }) {
   var [allAudit,     setAllAudit]     = useState([]);
   var [stoppedEarly, setStoppedEarly] = useState(false);
   var [generatedAt,  setGeneratedAt]  = useState('');
-  var [expandedRow,  setExpandedRow]  = useState(null); // symbol of expanded row
+  var [expandedRow,  setExpandedRow]  = useState(null);
+  // Filters (Improvement 7/8)
+  var [filterTrigger,  setFilterTrigger]  = useState('All');
+  var [filterScenario, setFilterScenario] = useState('All');
+  var [filterAge,      setFilterAge]      = useState('0-5');  // default: recent only
 
   var isAdmin  = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === 'admin');
   var canAccess= isPaid || isAdmin;
@@ -12437,7 +12441,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
         .forEach(function(s){ candidates.push({ sym:s, name:s, volume:0 }); });
     }
 
-    setMsg('Scanning ' + candidates.length + ' candidates for Force Strike setups\u2026');
+    setMsg('Scanning ' + candidates.length + ' candidates\u2026');
     var triggered = [], allResults = [], stopped = false, BATCH = 5;
 
     for (var bi = 0; bi < candidates.length; bi += BATCH) {
@@ -12451,11 +12455,10 @@ function ForceStrikePage({ isPaid, clerkUser }) {
           var mData = await mRes.json();
           if (!mData||!mData.aggs||mData.aggs.length < 14) return null;
           var daily = mData.aggs.slice().reverse().map(function(b){
-            return { date: b.t||b.date||'', open:b.o||0, high:b.h||0, low:b.l||0, close:b.c||0, volume:b.v||0 };
+            return { date:b.t||b.date||'', open:b.o||0, high:b.h||0, low:b.l||0, close:b.c||0, volume:b.v||0 };
           }).filter(function(b){ return b.open>0&&b.high>0&&b.low>0&&b.close>0; });
           if (daily.length < 14) return null;
-          var ind   = mData.indicators || {};
-          var sma50 = ind.sma50||0, sma200 = ind.sma200||0;
+          var ind = mData.indicators||{}, sma50=ind.sma50||0, sma200=ind.sma200||0;
           var price = (mData.snapshot&&mData.snapshot.close)||daily[daily.length-1].close||0;
           var trendStatus = 'Sideways';
           if (sma50>0&&sma200>0) {
@@ -12463,7 +12466,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
             else if (price<sma50&&sma50<sma200) trendStatus = 'Downtrend';
           }
           var fsResult = scanForceStrike(c.sym, daily, trendStatus);
-          fsResult.name   = c.name||c.sym;
+          fsResult.name = c.name||c.sym;
           fsResult.volume = fsResult.volume||c.volume||0;
           return fsResult;
         } catch(e) { return { triggered:false, result:'Invalid', symbol:c.sym, audit:{ finalReason:'Error: '+(e.message||''), steps:{} } }; }
@@ -12472,99 +12475,106 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     }
 
     triggered.sort(function(a,b){ return (b.volume||0)-(a.volume||0); });
-    var top5 = triggered.slice(0, 5);
-    var now  = new Date().toISOString();
-    setResults(top5); setAllAudit(allResults); setStoppedEarly(stopped); setGeneratedAt(now);
+    var top5 = triggered.slice(0,5);
+    setResults(top5); setAllAudit(allResults); setStoppedEarly(stopped);
+    setGeneratedAt(new Date().toISOString());
     setStatus('done');
-    setMsg(top5.length + ' Force Strike setup' + (top5.length !== 1 ? 's' : '') + ' found from ' + allResults.length + ' scanned.');
+    setMsg(top5.length + ' Force Strike setup' + (top5.length!==1?'s':'') + ' found from ' + allResults.length + ' scanned.');
   }
 
   function downloadAudit() {
     var txt  = formatAuditTxt(allAudit, generatedAt, stoppedEarly);
     var blob = new Blob([txt], { type: 'text/plain' });
     var url  = URL.createObjectURL(blob);
-    var a    = document.createElement('a');
-    a.href   = url;
+    var a    = document.createElement('a'); a.href=url;
     a.download = 'forcestrike-audit-' + new Date().toISOString().split('T')[0] + '.txt';
-    a.click();
-    URL.revokeObjectURL(url);
+    a.click(); URL.revokeObjectURL(url);
   }
 
   // ── Display helpers ────────────────────────────────────────────────────────
   function triggerInfo(type) {
-    if (type === 'PIN') return { label: 'Bullish Pin',  desc: 'Long lower wick rejection' };
-    if (type === 'MU')  return { label: 'Mark Up',      desc: 'Strong bullish expansion bar' };
-    if (type === 'ICE') return { label: 'Ice Cream',    desc: 'Bullish continuation setup' };
-    return { label: type || '\u2014', desc: '' };
+    if (type==='PIN') return { label:'Bullish Pin',  desc:'Long lower wick rejection' };
+    if (type==='MU')  return { label:'Mark Up',      desc:'Strong bullish expansion bar' };
+    if (type==='ICE') return { label:'Ice Cream',    desc:'Bullish continuation setup' };
+    return { label:type||'\u2014', desc:'' };
   }
   function scenarioInfo(s) {
-    if (s === 'Trend Pullback')    return { color:'#7abd00', desc:'Existing uptrend resumed after pullback' };
-    if (s === 'Recovery Reversal') return { color:'#6090d0', desc:'Price recovered after breaking support' };
-    if (s === 'Shakeout Reversal') return { color:'#EF9F27', desc:'Support flush followed by recovery' };
+    if (s==='Trend Pullback')    return { color:'#7abd00', desc:'Existing uptrend resumed after pullback' };
+    if (s==='Recovery Reversal') return { color:'#6090d0', desc:'Price recovered after breaking support' };
+    if (s==='Shakeout Reversal') return { color:'#EF9F27', desc:'Support flush followed by recovery' };
     return { color:'#555', desc:'No scenario classification' };
   }
 
-  // ── Mini SVG candlestick chart ─────────────────────────────────────────────
-  function MiniChart({ chartBars }) {
-    if (!chartBars || chartBars.length < 2) return <div style={{color:'#444',fontSize:10}}>No chart</div>;
-    var W = 130, H = 56, pad = 4;
-    var allH = chartBars.map(function(b){ return b.high; });
-    var allL = chartBars.map(function(b){ return b.low;  });
-    var hi   = Math.max.apply(null, allH);
-    var lo   = Math.min.apply(null, allL);
-    var rng  = hi - lo || 1;
-    var n    = chartBars.length;
-    var bw   = Math.floor((W - pad * 2) / n) - 1;
-    if (bw < 3) bw = 3;
-    function yp(v) { return pad + (1 - (v - lo) / rng) * (H - pad * 2); }
-    var roleColor = { mother:'#6090d0', baby:'#EF9F27', trigger:'#7abd00', normal:'#555' };
-    var roleStroke= { mother:'#6090d0', baby:'#EF9F27', trigger:'#7abd00', normal:'#333' };
+  // ── Mini SVG candlestick chart with Mother zone ────────────────────────────
+  function MiniChart({ chartBars, motherHigh, motherLow }) {
+    if (!chartBars||chartBars.length<2) return <div style={{color:'#444',fontSize:10}}>No chart</div>;
+    var W=130, H=56, pad=4;
+    var hi = Math.max.apply(null, chartBars.map(function(b){ return b.high; }));
+    var lo = Math.min.apply(null, chartBars.map(function(b){ return b.low;  }));
+    var rng = hi-lo||1;
+    var n   = chartBars.length;
+    var bw  = Math.max(3, Math.floor((W-pad*2)/n)-1);
+    function yp(v){ return pad+(1-(v-lo)/rng)*(H-pad*2); }
+    var roleStroke = { mother:'#6090d0', baby:'#EF9F27', trigger:'#7abd00', normal:'#333' };
+    var roleColor  = { mother:'#6090d0', baby:'#EF9F27', trigger:'#7abd00', normal:'#555' };
     return (
       <svg width={W} height={H} style={{display:'block',overflow:'visible'}}>
         {/* Mother range shading */}
-        {(function(){
-          var mi = chartBars.findIndex(function(b){ return b.role==='mother'; });
-          if (mi < 0) return null;
-          var mb = chartBars[mi];
-          var x  = pad + mi * (bw + 1);
-          return <rect x={x} y={yp(mb.high)} width={bw} height={Math.max(1, yp(mb.low)-yp(mb.high))}
-                    fill="rgba(96,144,208,0.08)" stroke="none" />;
-        })()}
-        {chartBars.map(function(b, ci) {
-          var x    = pad + ci * (bw + 1) + Math.floor(bw / 2);
+        {motherHigh&&motherLow&&<rect x={pad} y={yp(motherHigh)} width={W-pad*2}
+          height={Math.max(1,yp(motherLow)-yp(motherHigh))}
+          fill="rgba(96,144,208,0.10)" stroke="rgba(96,144,208,0.35)" strokeWidth="0.5" strokeDasharray="2,2" />}
+        {/* Mother High/Low lines */}
+        {motherHigh&&<line x1={pad} y1={yp(motherHigh)} x2={W-pad} y2={yp(motherHigh)} stroke="#6090d0" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.6" />}
+        {motherLow&&<line x1={pad} y1={yp(motherLow)} x2={W-pad} y2={yp(motherLow)} stroke="#6090d0" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.6" />}
+        {/* Candles */}
+        {chartBars.map(function(b,ci){
+          var x    = pad + ci*(bw+1) + Math.floor(bw/2);
           var bull = b.close >= b.open;
-          var top  = yp(Math.max(b.open, b.close));
-          var bot  = yp(Math.min(b.open, b.close));
-          var bodyH= Math.max(1, bot - top);
-          var rc   = roleColor[b.role]  || '#555';
-          var rs   = roleStroke[b.role] || '#333';
-          var fill = b.role !== 'normal' ? (bull ? rc : 'transparent') : (bull ? '#3a4a2a' : '#4a2a2a');
-          return (
-            <g key={ci}>
-              <line x1={x} y1={yp(b.high)} x2={x} y2={yp(b.low)} stroke={rc} strokeWidth="1" />
-              <rect x={x - Math.floor(bw/2)} y={top} width={bw} height={bodyH}
-                fill={fill} stroke={rs} strokeWidth={b.role!=='normal'?1.5:0.5} />
-            </g>
-          );
+          var top  = yp(Math.max(b.open,b.close));
+          var bot  = yp(Math.min(b.open,b.close));
+          var bodyH= Math.max(1,bot-top);
+          var rc   = roleColor[b.role]||'#555';
+          var rs   = roleStroke[b.role]||'#333';
+          var fill = b.role!=='normal'?(bull?rc:'transparent'):(bull?'#3a4a2a':'#4a2a2a');
+          return <g key={ci}>
+            <line x1={x} y1={yp(b.high)} x2={x} y2={yp(b.low)} stroke={rc} strokeWidth="1"/>
+            <rect x={x-Math.floor(bw/2)} y={top} width={bw} height={bodyH}
+              fill={fill} stroke={rs} strokeWidth={b.role!=='normal'?1.5:0.5}/>
+          </g>;
         })}
-        {/* Role legend dots */}
-        {[['mother','M','#6090d0'],['baby','B','#EF9F27'],['trigger','T','#7abd00']].map(function(rl, i){
-          return <text key={rl[0]} x={pad + i*20} y={H-1} fontSize="6" fill={rl[2]}>{rl[1]}</text>;
+        {[['M','#6090d0'],['B','#EF9F27'],['T','#7abd00']].map(function(rl,i){
+          return <text key={rl[0]} x={pad+i*18} y={H-1} fontSize="6" fill={rl[1]}>{rl[0]}</text>;
         })}
       </svg>
     );
   }
 
+  // ── Apply filters ──────────────────────────────────────────────────────────
+  var ageMax = filterAge==='0-1'?1:filterAge==='0-3'?3:filterAge==='0-5'?5:999;
+  var filtered = results.filter(function(r){
+    if (filterTrigger!=='All' && r.triggerType!==filterTrigger) return false;
+    if (filterScenario!=='All') {
+      var s = r.scenario||'None';
+      if (filterScenario==='Unclassified'&&s!=='None') return false;
+      if (filterScenario!=='Unclassified'&&s!==filterScenario) return false;
+    }
+    if (r.patternAge!=null && r.patternAge > ageMax) return false;
+    return true;
+  });
+
   // ── Summary stats ──────────────────────────────────────────────────────────
-  var summaryStats = (function(){
-    if (!allAudit.length) return null;
-    var trig  = allAudit.filter(function(r){ return r.triggered; }).length;
-    var tp    = results.filter(function(r){ return r.scenario==='Trend Pullback'; }).length;
-    var rr    = results.filter(function(r){ return r.scenario==='Recovery Reversal'; }).length;
-    var sr    = results.filter(function(r){ return r.scenario==='Shakeout Reversal'; }).length;
-    var unc   = results.filter(function(r){ return !r.scenario||r.scenario==='None'; }).length;
-    return { scanned:allAudit.length, triggered:trig, tp:tp, rr:rr, sr:sr, unc:unc };
-  })();
+  var stats = allAudit.length ? {
+    scanned:   allAudit.length,
+    triggered: allAudit.filter(function(r){ return r.triggered; }).length,
+    tp:    results.filter(function(r){ return r.scenario==='Trend Pullback'; }).length,
+    rr:    results.filter(function(r){ return r.scenario==='Recovery Reversal'; }).length,
+    sr:    results.filter(function(r){ return r.scenario==='Shakeout Reversal'; }).length,
+    unc:   results.filter(function(r){ return !r.scenario||r.scenario==='None'; }).length,
+  } : null;
+
+  // ── Select style helper ────────────────────────────────────────────────────
+  var selStyle = { fontSize:10, padding:'4px 8px', background:'#1a1a18', border:'0.5px solid #333',
+                   borderRadius:5, color:'#aaa', cursor:'pointer', outline:'none' };
 
   // ── Gates ──────────────────────────────────────────────────────────────────
   if (!clerkUser) return (
@@ -12588,13 +12598,11 @@ function ForceStrikePage({ isPaid, clerkUser }) {
   return (
     <div style={{minHeight:'100vh',background:'#0e0e0c',padding:'24px 20px',maxWidth:1200,margin:'0 auto'}}>
       {/* Header */}
-      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:12}}>
+      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14,flexWrap:'wrap',gap:12}}>
         <div>
           <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:4}}>Force Strike Screener</div>
-          <div style={{fontSize:12,color:'#555',lineHeight:1.6}}>Mother \u2192 Baby \u2192 Trigger setups on 2-day aggregated bars. Top 5 by volume.</div>
-          <div style={{fontSize:10,color:'#444',marginTop:3}}>
-            {'M=Mother bar \u00B7 B=Baby bar inside Mother range \u00B7 PIN=Bullish Pin \u00B7 MU=Mark Up \u00B7 Age=bars since trigger'}
-          </div>
+          <div style={{fontSize:12,color:'#555',lineHeight:1.6}}>Mother \u2192 Baby \u2192 Trigger on 2-day bars. Mother must expand 1.2\u00D7 vs prior 5 bars. Top 5 by volume.</div>
+          <div style={{fontSize:10,color:'#444',marginTop:3}}>{'M=Mother \u00B7 B=Baby inside Mother range \u00B7 PIN=Bullish Pin \u00B7 MU=Mark Up \u00B7 Pattern Age=bars since Mother'}</div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
           <button onClick={runScan} disabled={status==='scanning'}
@@ -12602,90 +12610,85 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                     color:status==='scanning'?LIME:'#0e0e0c',fontWeight:700,cursor:status==='scanning'?'default':'pointer'}}>
             {status==='scanning' ? 'Scanning\u2026' : 'Run Scan'}
           </button>
-          {allAudit.length > 0 && <button onClick={downloadAudit}
-            style={{fontSize:12,padding:'7px 14px',background:'none',border:'0.5px solid #444',borderRadius:6,color:'#888',cursor:'pointer'}}>
-            Download Audit TXT
-          </button>}
-          <button onClick={function(){ window.location.hash=''; }}
-            style={{fontSize:11,padding:'6px 12px',background:'none',border:'0.5px solid #2a2a28',borderRadius:6,color:'#555',cursor:'pointer'}}>
-            {'\u2190 Back'}
-          </button>
+          {allAudit.length>0&&<button onClick={downloadAudit} style={{fontSize:12,padding:'7px 14px',background:'none',border:'0.5px solid #444',borderRadius:6,color:'#888',cursor:'pointer'}}>Download Audit TXT</button>}
+          <button onClick={function(){ window.location.hash=''; }} style={{fontSize:11,padding:'6px 12px',background:'none',border:'0.5px solid #2a2a28',borderRadius:6,color:'#555',cursor:'pointer'}}>{'\u2190 Back'}</button>
         </div>
       </div>
 
-      {msg && <div style={{fontSize:11,color:status==='scanning'?'#EF9F27':'#7abd00',marginBottom:10,padding:'6px 10px',background:'rgba(0,0,0,0.3)',borderRadius:6}}>{msg}</div>}
+      {msg&&<div style={{fontSize:11,color:status==='scanning'?'#EF9F27':'#7abd00',marginBottom:10,padding:'6px 10px',background:'rgba(0,0,0,0.3)',borderRadius:6}}>{msg}</div>}
 
       {/* Summary stats */}
-      {summaryStats && <div style={{display:'flex',gap:16,marginBottom:14,flexWrap:'wrap'}}>
-        {[
-          ['Scanned',   summaryStats.scanned,   '#555'],
-          ['Triggered', summaryStats.triggered, '#7abd00'],
-          ['Trend Pullback', summaryStats.tp,   '#7abd00'],
-          ['Recovery Reversal', summaryStats.rr,'#6090d0'],
-          ['Shakeout Reversal', summaryStats.sr,'#EF9F27'],
-          ['Unclassified', summaryStats.unc,    '#555'],
+      {stats&&<div style={{display:'flex',gap:14,marginBottom:10,flexWrap:'wrap',fontSize:10,color:'#555',alignItems:'center'}}>
+        {[['Scanned',stats.scanned,'#666'],['Triggered',stats.triggered,'#7abd00'],
+          ['Trend Pullback',stats.tp,'#7abd00'],['Recovery Reversal',stats.rr,'#6090d0'],
+          ['Shakeout Reversal',stats.sr,'#EF9F27'],['Unclassified',stats.unc,'#555'],
         ].map(function(item,i){
-          return <div key={i} style={{fontSize:10,color:'#555'}}>
-            <span style={{color:item[2],fontWeight:700}}>{item[1]}</span>
-            {' '}{item[0]}
-          </div>;
+          return <span key={i}><span style={{color:item[2],fontWeight:700}}>{item[1]}</span>{' '+item[0]}</span>;
         })}
-        {stoppedEarly && <div style={{fontSize:10,color:'#555'}}>Stopped early (5 found)</div>}
+        {stoppedEarly&&<span style={{color:'#444'}}>Stopped early</span>}
       </div>}
 
-      {status === 'idle' && <div style={{color:'#444',fontSize:13,padding:40,textAlign:'center',border:'0.5px solid #222',borderRadius:10}}>
+      {/* Filters */}
+      {results.length>0&&<div style={{display:'flex',gap:10,marginBottom:12,alignItems:'center',flexWrap:'wrap'}}>
+        <span style={{fontSize:10,color:'#555'}}>Filter:</span>
+        <select value={filterTrigger} onChange={function(e){ setFilterTrigger(e.target.value); }} style={selStyle}>
+          {['All','MU','PIN','ICE'].map(function(v){ return <option key={v} value={v}>{v==='All'?'All Triggers':v==='MU'?'Mark Up':v==='PIN'?'Bullish Pin':'Ice Cream'}</option>; })}
+        </select>
+        <select value={filterScenario} onChange={function(e){ setFilterScenario(e.target.value); }} style={selStyle}>
+          {['All','Trend Pullback','Recovery Reversal','Shakeout Reversal','Unclassified'].map(function(v){ return <option key={v} value={v}>{v==='All'?'All Scenarios':v}</option>; })}
+        </select>
+        <select value={filterAge} onChange={function(e){ setFilterAge(e.target.value); }} style={selStyle}>
+          {[['0-1','Pattern Age 0–1'],['0-3','Pattern Age 0–3'],['0-5','Pattern Age 0–5 (Recent)'],['all','All Ages']].map(function(v){
+            return <option key={v[0]} value={v[0]}>{v[1]}</option>;
+          })}
+        </select>
+        <span style={{fontSize:9,color:'#444'}}>{filtered.length+' shown'}</span>
+      </div>}
+
+      {status==='idle'&&<div style={{color:'#444',fontSize:13,padding:40,textAlign:'center',border:'0.5px solid #222',borderRadius:10}}>
         Click <strong style={{color:LIME}}>Run Scan</strong> to scan the most-active universe for Force Strike setups.
       </div>}
-
-      {status === 'done' && results.length === 0 && <div style={{color:'#555',fontSize:13,padding:40,textAlign:'center',border:'0.5px solid #222',borderRadius:10}}>
-        No Force Strike setups found. Try again later or during active market hours.
+      {status==='done'&&filtered.length===0&&<div style={{color:'#555',fontSize:13,padding:40,textAlign:'center',border:'0.5px solid #222',borderRadius:10}}>
+        No Force Strike setups match the current filters. Adjust filters or run a new scan.
       </div>}
 
-      {results.length > 0 && (
+      {filtered.length>0&&(
         <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflow:'hidden'}}>
-          {/* Column header */}
-          <div style={{display:'grid',gridTemplateColumns:'70px 140px 120px 1fr 1fr 80px 52px 60px',columnGap:14,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
-            {['Ticker','Pattern Chart','Pattern','Trigger','Scenario','Volume','Signal Age',''].map(function(h,i){
+          <div style={{display:'grid',gridTemplateColumns:'70px 140px 110px 1fr 1fr 80px 60px 60px',columnGap:14,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
+            {['Ticker','Pattern Chart','Pattern','Trigger','Scenario','Volume','Pat. Age',''].map(function(h,i){
               return <div key={i} style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>;
             })}
           </div>
 
-          {results.map(function(r, i) {
-            var ti  = triggerInfo(r.triggerType);
-            var si  = scenarioInfo(r.scenario);
-            var isExp = expandedRow === r.symbol;
+          {filtered.map(function(r,i){
+            var ti = triggerInfo(r.triggerType), si = scenarioInfo(r.scenario);
+            var isExp = expandedRow===r.symbol;
+            var mh = r.motherBar ? r.motherBar.high : null;
+            var ml = r.motherBar ? r.motherBar.low  : null;
             return (
               <React.Fragment key={r.symbol}>
-              <div style={{display:'grid',gridTemplateColumns:'70px 140px 120px 1fr 1fr 80px 52px 60px',columnGap:14,padding:'11px 14px',
-                borderBottom:(!isExp&&i<results.length-1)?'1px solid #1a1a16':'none',
+              <div style={{display:'grid',gridTemplateColumns:'70px 140px 110px 1fr 1fr 80px 60px 60px',columnGap:14,padding:'11px 14px',
+                borderBottom:(!isExp&&i<filtered.length-1)?'1px solid #1a1a16':'none',
                 background:i%2===0?'#111':'#131311',alignItems:'center'}}>
-                {/* Ticker */}
                 <div>
                   <div style={{fontSize:13,fontWeight:800,color:LIME}}>{r.symbol}</div>
                   <div style={{fontSize:9,color:'#444',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:65}}>{r.name||r.symbol}</div>
                 </div>
-                {/* Mini Chart */}
-                <div><MiniChart chartBars={r.chartBars} /></div>
-                {/* Pattern code */}
+                <div><MiniChart chartBars={r.chartBars} motherHigh={mh} motherLow={ml} /></div>
                 <div style={{fontSize:11,fontWeight:700,color:'#6090d0',letterSpacing:'0.03em'}}>{r.pattern||'\u2014'}</div>
-                {/* Trigger */}
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:'#7abd00'}}>{ti.label}</div>
                   {ti.desc&&<div style={{fontSize:9,color:'#555',marginTop:1}}>{ti.desc}</div>}
                 </div>
-                {/* Scenario */}
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:si.color}}>{r.scenario||'\u2014'}</div>
                   {si.desc&&<div style={{fontSize:9,color:'#555',marginTop:1}}>{si.desc}</div>}
                 </div>
-                {/* Volume */}
                 <div style={{fontSize:10,color:'#888'}}>{r.volume?(r.volume/1e6).toFixed(1)+'M':'\u2014'}</div>
-                {/* Signal Age */}
-                <div title="Number of 2-day aggregated bars since trigger was detected">
-                  <div style={{fontSize:11,fontWeight:600,color:'#aaa'}}>{r.age!=null?r.age:'\u2014'}</div>
+                <div title="Aggregated 2-day bars since Mother Bar detected">
+                  <div style={{fontSize:11,fontWeight:600,color:r.patternAge!=null&&r.patternAge<=3?'#7abd00':r.patternAge!=null&&r.patternAge<=5?'#EF9F27':'#e05050'}}>{r.patternAge!=null?r.patternAge:'\u2014'}</div>
                   <div style={{fontSize:8,color:'#444'}}>bars</div>
                 </div>
-                {/* Actions */}
                 <div style={{display:'flex',flexDirection:'column',gap:4}}>
                   <button onClick={function(){ window.open(window.location.origin+'/#'+r.symbol,'_blank','noopener,noreferrer'); }}
                     style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#888',cursor:'pointer'}}>View</button>
@@ -12696,22 +12699,25 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                 </div>
               </div>
 
-              {/* Expanded details panel */}
-              {isExp && (function(){
-                var m = r.motherBar, b = r.babyBar, t = r.triggerBar;
-                return <div style={{gridColumn:'1/-1',background:'#161614',borderBottom:i<results.length-1?'1px solid #1a1a16':'none',padding:'14px 16px'}}>
+              {/* Expanded details */}
+              {isExp&&(function(){
+                var m=r.motherBar, b=r.babyBar, t=r.triggerBar;
+                return <div style={{background:'#161614',borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none',padding:'14px 16px'}}>
                   <div style={{fontSize:11,fontWeight:700,color:LIME,marginBottom:10}}>Force Strike Details \u2014 {r.symbol}</div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16,marginBottom:12}}>
-                    {/* Pattern Summary */}
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16,marginBottom:8}}>
+                    {/* Scorecard */}
                     <div>
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Pattern Scorecard</div>
                       {[
-                        [true,  'Mother Bar Found'],
-                        [true,  'Baby Bar Inside Range'],
+                        [true,  'Mother Bar Found (1.2\u00D7 expansion)'],
+                        [m&&m.qualByRange, 'Qualified by Range (' + (m&&m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'—') + ')'],
+                        [m&&m.qualByBody,  'Qualified by Body ('  + (m&&m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'—')  + ')'],
+                        [true,  'Baby Bar Inside Mother Range'],
                         [true,  'Trigger Within 3 Bars'],
-                        [r.scenario==='Trend Pullback',     'Trend Pullback'],
-                        [r.scenario==='Recovery Reversal',  'Recovery Reversal'],
-                        [r.scenario==='Shakeout Reversal',  'Shakeout Reversal'],
+                        [true,  'Trigger: ' + ti.label],
+                        [r.scenario==='Trend Pullback',    'Trend Pullback'],
+                        [r.scenario==='Recovery Reversal', 'Recovery Reversal'],
+                        [r.scenario==='Shakeout Reversal', 'Shakeout Reversal'],
                       ].map(function(row,ri){
                         return <div key={ri} style={{fontSize:10,color:row[0]?'#7abd00':'#444',marginBottom:2}}>
                           {row[0]?'\u2713':'\u2717'}{' '}{row[1]}
@@ -12721,20 +12727,19 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                     {/* Bar dates */}
                     <div>
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Bar Dates</div>
-                      {[
-                        ['Mother', m, '#6090d0'],
-                        ['Baby',   b, '#EF9F27'],
-                        ['Trigger',t, '#7abd00'],
-                      ].map(function(row,ri){
-                        var bar = row[1];
+                      {[['Mother',m,'#6090d0'],['Baby',b,'#EF9F27'],['Trigger',t,'#7abd00']].map(function(row,ri){
+                        var bar=row[1];
                         return <div key={ri} style={{marginBottom:6}}>
                           <div style={{fontSize:9,fontWeight:700,color:row[2]}}>{row[0]}</div>
-                          <div style={{fontSize:10,color:'#888'}}>{bar ? (bar.dateLabel||bar.date||'\u2014') : '\u2014'}</div>
-                          {bar && <div style={{fontSize:9,color:'#555'}}>{'H:'+(bar.high?bar.high.toFixed(2):'\u2014')+' L:'+(bar.low?bar.low.toFixed(2):'\u2014')}</div>}
+                          <div style={{fontSize:10,color:'#888'}}>{bar?(bar.dateLabel||bar.date||'\u2014'):'\u2014'}</div>
+                          {bar&&<div style={{fontSize:9,color:'#555'}}>H:{bar.high?bar.high.toFixed(2):'\u2014'} L:{bar.low?bar.low.toFixed(2):'\u2014'}</div>}
                         </div>;
                       })}
+                      {m&&<div style={{fontSize:9,color:'#555',marginTop:4}}>
+                        {'Mother Range: '+(m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'—')+' \u00B7 Body: '+(m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'—')}
+                      </div>}
                     </div>
-                    {/* Trigger & Scenario reason */}
+                    {/* Trigger & Scenario */}
                     <div>
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Trigger</div>
                       <div style={{fontSize:11,fontWeight:700,color:'#7abd00',marginBottom:2}}>{ti.label}</div>
@@ -12743,6 +12748,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                       <div style={{fontSize:11,fontWeight:700,color:si.color,marginBottom:2}}>{r.scenario||'\u2014'}</div>
                       <div style={{fontSize:10,color:'#555',marginBottom:4}}>{si.desc}</div>
                       <div style={{fontSize:9,color:'#444'}}>{'Trend at scan: '+(r.audit&&r.audit.trendStatus||'Unknown')}</div>
+                      <div style={{fontSize:9,color:'#444',marginTop:2}}>{'Pattern Age: '+(r.patternAge!=null?r.patternAge+' bars':'\u2014')}</div>
                     </div>
                   </div>
                 </div>;
@@ -12753,7 +12759,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
         </div>
       )}
 
-      {status === 'done' && allAudit.length > 0 && (
+      {status==='done'&&allAudit.length>0&&(
         <div style={{fontSize:10,color:'#444',marginTop:10}}>
           {allAudit.length + ' stocks scanned \u00B7 Research use only. Not financial advice.'}
         </div>
@@ -12761,6 +12767,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     </div>
   );
 }
+
 
 
 
@@ -13282,7 +13289,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.118</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.119</span>
           </div>
         </div>
 
