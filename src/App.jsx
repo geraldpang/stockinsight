@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.134</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.136</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.134</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.136</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12647,19 +12647,43 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     function buildCandidates(quotes) {
       return quotes
         .filter(function(q){ return q.regularMarketPrice>5&&q.regularMarketVolume>500000&&q.quoteType==='EQUITY'; })
-        .filter(function(q){ if(seenSyms[q.symbol])return false; return true; })
+        .filter(function(q){ if(seenSyms[q.symbol])return false; seenSyms[q.symbol]=true; return true; })
         .map(function(q){ return { sym:q.symbol, name:q.longName||q.shortName||q.symbol, volume:q.regularMarketVolume||0 }; });
     }
 
-    var FALLBACK_LIST = ['NVDA','AAPL','MSFT','AMZN','GOOGL','META','TSLA','AMD','AVGO','PLTR',
-      'COIN','MARA','RIOT','HOOD','SOFI','NFLX','DIS','NOW','SNOW','UBER',
-      'INTC','MU','MRVL','SMCI','ARM','QCOM','TSM','ORCL','CRM','ADBE',
-      'PYPL','SQ','SHOP','RBLX','SNAP','PINS','TWLO','ZM','DDOG','NET',
-      'ABNB','DASH','LYFT','RIVN','LCID','NIO','XPEV','BABA','JD','PDD',
+    var FALLBACK_LIST = [
+      // Mega cap / large cap tech
+      'NVDA','AAPL','MSFT','AMZN','GOOGL','META','TSLA','AMD','AVGO','ORCL',
+      'INTC','QCOM','ARM','MU','MRVL','SMCI','TSM','AMAT','LRCX','KLAC',
+      'CRM','ADBE','NOW','SNOW','DDOG','NET','TWLO','ZM','PINS','SNAP',
+      'PYPL','SQ','COIN','HOOD','SOFI','AFRM','UPST','LC','OPEN','OPFI',
+      // Consumer / retail
+      'AMZN','WMT','COST','TGT','HD','LOW','SBUX','MCD','CMG','YUM',
+      'KO','PEP','PG','CL','KMB','GIS','CPB','SJM','MKC','CAG',
+      // Crypto / blockchain
+      'MARA','RIOT','CLSK','BTBT','HUT','CIFR','IREN','WULF','CORZ','BTDR',
+      // Biotech / healthcare
+      'MRNA','BNTX','NVAX','HIMS','RXRX','CRSP','EDIT','NTLA','BEAM','PACB',
+      'ILMN','IONS','ARWR','ALNY','BMRN','SRPT','RARE','FOLD','ACMR','ARRY',
+      'LLY','PFE','ABBV','MRK','BMY','AMGN','GILD','BIIB','REGN','VRTX',
+      // Financials
       'JPM','BAC','WFC','GS','MS','C','USB','PNC','TFC','COF',
-      'XOM','CVX','COP','SLB','HAL','MPC','VLO','OXY','DVN','EOG',
-      'KO','PEP','MCD','SBUX','CMG','YUM','COST','WMT','TGT','HIMS',
-      'IONQ','QUBT','SOUN','RKLB','ASTS','CRSP','EDIT','BEAM','RXRX','ACMR'];
+      'AXP','V','MA','DFS','SYF','BX','KKR','APO','ARES','CG',
+      // Energy
+      'XOM','CVX','COP','SLB','HAL','MPC','VLO','PSX','OXY','DVN',
+      'EOG','PXD','FANG','APA','MRO','HES','NOV','BKR','CTRA','SM',
+      // Industrial / defense
+      'GE','HON','MMM','CAT','DE','BA','LMT','RTX','NOC','GD',
+      'LHX','LDOS','SAIC','KTOS','PLTR','BWXT','HII','TDG','SPR','HWM',
+      // Space / innovation
+      'RKLB','ASTS','LUNR','ACHR','JOBY','SPCE','IONQ','QUBT','SOUN','ARQQ',
+      // China ADRs
+      'BABA','JD','PDD','BIDU','NIO','XPEV','LI','NTES','TME','BILI',
+      // Semis / hardware
+      'WOLF','ON','SWKS','QRVO','MCHP','MPWR','ENTG','MKSI','FORM','ACLS',
+      // ETF proxies often volatile
+      'SOFI','HOOD','OPEN','DKNG','PENN','MGM','WYNN','LVS','CZR','VICI',
+    ];
 
     // Fetch first page before scanning
     var firstPage = await fetchNextYahooPage();
@@ -12677,7 +12701,6 @@ function ForceStrikePage({ isPaid, clerkUser }) {
 
     async function scanBatch(batch) {
       return Promise.all(batch.map(async function(c) {
-        seenSyms[c.sym] = true;
         try {
           var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + c.sym + '?interval=1d&range=3mo';
           var cRes = await fetch('/proxy?url=' + encodeURIComponent(chartUrl));
@@ -12727,9 +12750,12 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       if (!pendingCandidates.length && yahooExhausted) {
         if (universeSource !== 'Fallback') {
           universeSource = 'Fallback';
-          FALLBACK_LIST.forEach(function(s){
-            if (!seenSyms[s]) pendingCandidates.push({ sym:s, name:s, volume:0 });
-          });
+          var fallbackQuotes = FALLBACK_LIST
+            .filter(function(s){ return !seenSyms[s]; })
+            .map(function(s){ return { symbol:s, regularMarketPrice:10, regularMarketVolume:1000000, quoteType:'EQUITY', longName:s }; });
+          allRawQuotes = allRawQuotes.concat(fallbackQuotes);
+          var fresh = buildCandidates(fallbackQuotes);
+          pendingCandidates = pendingCandidates.concat(fresh);
         }
         if (!pendingCandidates.length) break;
       }
@@ -13675,7 +13701,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.134</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.136</span>
           </div>
         </div>
 
