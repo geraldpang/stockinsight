@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.125</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.126</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.125</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.126</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11936,6 +11936,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
   var [items,        setItems]       = useState([]);
   var [snapshots,    setSnapshots]   = useState({});
   var [locks,        setLocks]       = useState({});
+  var [fsCache,      setFsCache]     = useState({}); // ticker -> fsResult from KV cache
   var [loading,      setLoading]     = useState(true);
   var [addInput,     setAddInput]    = useState('');
   var [addLoading,   setAddLoading]  = useState(false);
@@ -11974,6 +11975,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
   function lockSignal(item, snap) {
     if (!snap) { setMsg('No signal data for ' + item.ticker + ' — Refresh Signals first.'); return; }
+    // Extract FS data from snapshot JSON
+    var sj = {};
+    try { if (snap.signal_snapshot_json) sj = JSON.parse(snap.signal_snapshot_json); } catch(e) {}
     var payload = {
       closePrice:      snap.close_price,
       priceChangePct:  snap.price_change_pct,
@@ -11983,6 +11987,15 @@ function WatchlistPage({ clerkUser, isPaid }) {
       momentumStatus:  snap.momentum_status,momentumScore:snap.momentum_score,momentumRank:snap.momentum_rank,
       reversalStatus:  snap.reversal_status,reversalScore:snap.reversal_score,reversalRank:snap.reversal_rank,
       moneyFlowStatus: snap.money_flow_status,moneyFlowScore:snap.money_flow_score,moneyFlowRank:snap.money_flow_rank,
+      // Force Strike snapshot at lock time
+      fsStatus:        sj.fsStatus      || null,
+      fsPattern:       sj.fsPattern     || null,
+      fsScenario:      sj.fsScenario    || null,
+      fsAge:           sj.fsAge         != null ? sj.fsAge : null,
+      fsTriggerType:   sj.fsTriggerType || null,
+      fsTriggerDate:   sj.fsTriggerDate || null,
+      fsMotherDate:    sj.fsMotherDate  || null,
+      fsBabyDate:      sj.fsBabyDate    || null,
     };
     fetch('/watchlist?action=lock', {
       method: 'POST', headers: wlHeaders(),
@@ -12030,6 +12043,25 @@ function WatchlistPage({ clerkUser, isPaid }) {
     if (!items.length) return;
     setRefreshing(true); setMsg('Refreshing signals...');
     var hdrs = wlHeaders();
+
+    // Try to load Force Strike KV cache for all tickers at once (shared cache)
+    var fsCacheMap = {};
+    try {
+      var fcRes = await fetch('/cache?sym=__FORCESTRIKE&tab=results');
+      if (fcRes.ok) {
+        var fcText = await fcRes.text();
+        if (fcText && fcText.trim()) {
+          var fcData = JSON.parse(fcText);
+          var FS_TTL = 12 * 60 * 60 * 1000;
+          if (fcData && fcData.ts && (Date.now() - fcData.ts) < FS_TTL) {
+            // Build lookup: ticker -> fsResult
+            var allFsResults = (fcData.results||[]).concat(fcData.allAudit||[]);
+            allFsResults.forEach(function(r){ if(r && r.symbol) fsCacheMap[r.symbol] = r; });
+          }
+        }
+      }
+    } catch(e) { /* cache miss is fine */ }
+
     for (var i = 0; i < items.length; i++) {
       var ticker = items[i].ticker;
       try {
@@ -12042,20 +12074,16 @@ function WatchlistPage({ clerkUser, isPaid }) {
         if (!snap) continue;
         var ms  = mData.snapshot || {};
         var aggs = mData.aggs || [];
-        // Price: prefer live snapshot, fall back to most recent agg close
         var price = (ms.close && ms.close > 0) ? ms.close
                   : (aggs.length > 0 ? (aggs[0].c || 0) : 0);
-        // Change %: prefer snapshot todaysChangePerc, compute from last 2 aggs as fallback
         var chg = (ms.change != null) ? parseFloat(ms.change) : null;
         if (chg == null && aggs.length >= 2) {
           var c0 = aggs[0].c, c1 = aggs[1].c;
           if (c0 && c1) chg = (c0 - c1) / c1 * 100;
         }
-        // hi52/lo52 from aggs window (best available without Yahoo 52W call)
         var hi52raw = 0, lo52raw = Infinity;
         aggs.forEach(function(b){ if(b.h>hi52raw) hi52raw=b.h; if(b.l>0&&b.l<lo52raw) lo52raw=b.l; });
         if (lo52raw===Infinity) lo52raw = 0;
-        // Build RBA snap with decision objects
         var rbaSnap = buildRuleSnapshotFromRow({
           trend: snap.trend.status, trendScore: snap.trend.score,
           momentum: snap.momentum.status, momentumScore: snap.momentum.score,
@@ -12068,6 +12096,48 @@ function WatchlistPage({ clerkUser, isPaid }) {
         var rba = generateRuleBasedAnalytics(rbaSnap);
         var rbaVerdict = rba ? (rba.verdict || '') : '';
         var rbaShort   = shortRuleVerdict(rbaVerdict);
+
+        // Force Strike: use KV cache if available, else compute from aggs
+        var fsResult = fsCacheMap[ticker] || null;
+        if (!fsResult) {
+          try {
+            var daily = aggs.slice().reverse().map(function(b){
+              return { date: b.t||b.date||'', open:b.o||0, high:b.h||0, low:b.l||0, close:b.c||0, volume:b.v||0 };
+            }).filter(function(b){ return b.open>0&&b.high>0&&b.low>0&&b.close>0; });
+            if (daily.length >= 14) {
+              var ind = mData.indicators||{}, sma50=ind.sma50||0, sma200=ind.sma200||0;
+              var trendStatus = 'Sideways';
+              if (sma50>0&&sma200>0) {
+                if (price>sma50&&sma50>sma200) trendStatus = price>sma50*1.03?'Strong Uptrend':'Uptrend';
+                else if (price<sma50&&sma50<sma200) trendStatus = 'Downtrend';
+              }
+              fsResult = scanForceStrike(ticker, daily, trendStatus);
+            }
+          } catch(fsErr) { fsResult = null; }
+        }
+
+        // Determine FS display status
+        var fsStatus = 'none', fsPattern = null, fsScenario = null, fsAge = null,
+            fsTriggerType = null, fsTriggerDate = null, fsMotherDate = null, fsBabyDate = null;
+        if (fsResult) {
+          if (fsResult.triggered) {
+            fsStatus      = 'active';
+            fsPattern     = fsResult.pattern;
+            fsScenario    = fsResult.scenario;
+            fsAge         = fsResult.patternAge;
+            fsTriggerType = fsResult.triggerType;
+            fsTriggerDate = fsResult.triggerBar ? (fsResult.triggerBar.dateLabel||fsResult.triggerBar.date||null) : null;
+            fsMotherDate  = fsResult.motherBar  ? (fsResult.motherBar.dateLabel||fsResult.motherBar.date||null)   : null;
+            fsBabyDate    = fsResult.babyBar    ? (fsResult.babyBar.dateLabel||fsResult.babyBar.date||null)       : null;
+          } else if (fsResult.result === 'Expired') {
+            fsStatus  = 'expired';
+            fsPattern = fsResult.pattern || (fsResult.motherBar ? 'M\u2192B\u2192?' : null);
+            fsAge     = fsResult.patternAge;
+          } else if (fsResult.motherBar && fsResult.babyBar && !fsResult.triggerBar) {
+            fsStatus = 'watch'; // Mother + Baby found, no trigger yet
+          }
+        }
+
         var snapPayload = {
           closePrice:      price,
           priceChangePct:  chg,
@@ -12088,6 +12158,14 @@ function WatchlistPage({ clerkUser, isPaid }) {
           moneyFlowScore:  snap.smartMoneyFlow.score,
           moneyFlowRank:   wlSmfRank(snap.smartMoneyFlow.status),
           priceHistory:    (mData.aggs||[]).slice().reverse().map(function(b){return b.c||0;}),
+          fsStatus:        fsStatus,
+          fsPattern:       fsPattern,
+          fsScenario:      fsScenario,
+          fsAge:           fsAge,
+          fsTriggerType:   fsTriggerType,
+          fsTriggerDate:   fsTriggerDate,
+          fsMotherDate:    fsMotherDate,
+          fsBabyDate:      fsBabyDate,
         };
         await fetch('/watchlist?action=snapshot', {
           method: 'POST', headers: hdrs,
@@ -12175,8 +12253,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
   );
 
   // ── Paid user UI ───────────────────────────────────────────────────────────
-  var COL = '70px 85px 150px 120px 80px 90px 90px 130px 150px 130px 44px 36px';
-  var HEAD = ['Ticker','Price','52W Range','Technical View','3M Trend','Trend','Momentum','Reversal','Money Flow','Lock','',''];
+  var COL = '70px 85px 150px 120px 100px 80px 90px 90px 130px 150px 130px 44px 36px';
+  var HEAD = ['Ticker','Price','52W Range','Technical View','Force Strike','3M Trend','Trend','Momentum','Reversal','Money Flow','Lock','',''];
 
   return (
     <div style={{minHeight:'100vh',background:'#0e0e0c',padding:'24px 20px',maxWidth:1400,margin:'0 auto'}}>
@@ -12245,6 +12323,70 @@ function WatchlistPage({ clerkUser, isPaid }) {
             var momV       = snap ? snap.momentum_status : null;
             var revV       = snap ? snap.reversal_status : null;
             var smfV       = snap ? snap.money_flow_status : null;
+            // Extract Force Strike fields from snapshot JSON
+            var snapJson = {};
+            try { if (snap && snap.signal_snapshot_json) snapJson = JSON.parse(snap.signal_snapshot_json); } catch(e){}
+            var fsStatus      = snapJson.fsStatus      || 'none';
+            var fsPattern     = snapJson.fsPattern     || null;
+            var fsScenario    = snapJson.fsScenario    || null;
+            var fsAge         = snapJson.fsAge         != null ? snapJson.fsAge : null;
+            var fsTriggerType = snapJson.fsTriggerType || null;
+            var fsTriggerDate = snapJson.fsTriggerDate || null;
+            // Locked FS — from lock record
+            var lock = locks[item.ticker] || null;
+            var lockedSnapJson = {};
+            try { if (lock && lock.locked_snapshot_json) lockedSnapJson = JSON.parse(lock.locked_snapshot_json); } catch(e){}
+            var lockedFsStatus  = lockedSnapJson.fsStatus  || null;
+            var lockedFsPattern = lockedSnapJson.fsPattern || null;
+            var lockedFsScenario= lockedSnapJson.fsScenario|| null;
+            var lockedFsAge     = lockedSnapJson.fsAge     != null ? lockedSnapJson.fsAge : null;
+            // FS display: if locked, show frozen value; else show live
+            var displayFsStatus  = lock ? lockedFsStatus  : fsStatus;
+            var displayFsPattern = lock ? lockedFsPattern : fsPattern;
+            var displayFsScenario= lock ? lockedFsScenario: fsScenario;
+            var displayFsAge     = lock ? lockedFsAge     : fsAge;
+            // FS cell renderer
+            function FsCell() {
+              var tooltipParts = [];
+              if (displayFsStatus==='active') {
+                tooltipParts = ['Status: Active FS', 'Pattern: '+(displayFsPattern||'—'),
+                  'Scenario: '+(displayFsScenario||'—'), 'Pattern Age: '+(displayFsAge!=null?displayFsAge+' bars':'—'),
+                  fsTriggerDate?'Trigger: '+fsTriggerDate:''];
+              } else if (displayFsStatus==='watch') {
+                tooltipParts = ['Status: FS Watch', 'Mother + Baby found', 'Waiting for trigger'];
+              } else if (displayFsStatus==='expired') {
+                tooltipParts = ['Status: Expired FS', 'Pattern: '+(displayFsPattern||'—'),
+                  'Age: '+(displayFsAge!=null?displayFsAge+' bars':'—')];
+              }
+              var tip = tooltipParts.filter(Boolean).join('\n');
+              var isLocked = !!lock;
+              if (displayFsStatus==='active') return (
+                <div title={tip} style={{cursor:'default'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#7abd00'}}>
+                    {isLocked?'\uD83D\uDD12':'\uD83D\uDFE2'}{' Active FS'}
+                  </div>
+                  <div style={{fontSize:9,color:'#555'}}>{displayFsPattern||'—'}</div>
+                  {displayFsScenario&&displayFsScenario!=='None'&&<div style={{fontSize:8,color:'#444'}}>{displayFsScenario}</div>}
+                </div>
+              );
+              if (displayFsStatus==='watch') return (
+                <div title={tip} style={{cursor:'default'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#EF9F27'}}>
+                    {'\uD83D\uDFE1'}{' FS Watch'}
+                  </div>
+                  <div style={{fontSize:9,color:'#555'}}>Waiting for trigger</div>
+                </div>
+              );
+              if (displayFsStatus==='expired') return (
+                <div title={tip} style={{cursor:'default'}}>
+                  <div style={{fontSize:10,fontWeight:600,color:'#555'}}>
+                    {'\u26AA'}{' Expired FS'}
+                  </div>
+                  <div style={{fontSize:9,color:'#444'}}>Pattern too old</div>
+                </div>
+              );
+              return <div style={{fontSize:10,color:'#444',cursor:'default'}}>{String.fromCharCode(0x2014)}</div>;
+            }
             return (
               <React.Fragment key={item.ticker}>
               <div
@@ -12272,6 +12414,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
                 {/* Technical View (RBA) — full colour */}
                 <div style={{overflow:'hidden'}}><Sig label={rbaV} rank={snap?snap.rba_rank:0} prevRows={prevRows} field="rba_rank" /></div>
+
+                {/* Force Strike */}
+                <div style={{overflow:'hidden'}}><FsCell /></div>
 
                 {/* 3M Trend sparkline — muted single colour */}
                 <div style={{fontSize:11,letterSpacing:0,color:'#555',overflow:'hidden',whiteSpace:'nowrap'}}>{sparkline}</div>
@@ -12378,6 +12523,17 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     </div>;
                   })}
                   <div style={{fontSize:9,color:'#444',marginTop:8}}>Signal arrows beside each label compare current signal versus 5-day average. Lock status compares current signal versus the day you locked it.</div>
+                  {/* Force Strike section in lock panel */}
+                  {(lockedFsStatus||fsStatus!=='none')&&<div style={{marginTop:10,paddingTop:10,borderTop:'0.5px solid #222'}}>
+                    <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Force Strike</div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'4px 20px',fontSize:10}}>
+                      <div style={{color:'#888'}}>At Lock: <span style={{color:lockedFsStatus==='active'?'#7abd00':lockedFsStatus==='watch'?'#EF9F27':'#555',fontWeight:700}}>{lockedFsStatus==='active'?'Active FS':lockedFsStatus==='watch'?'FS Watch':lockedFsStatus==='expired'?'Expired FS':'—'}</span></div>
+                      <div style={{color:'#888'}}>Current: <span style={{color:fsStatus==='active'?'#7abd00':fsStatus==='watch'?'#EF9F27':'#555',fontWeight:700}}>{fsStatus==='active'?'Active FS':fsStatus==='watch'?'FS Watch':fsStatus==='expired'?'Expired FS':'—'}</span></div>
+                      {lockedFsPattern&&<div style={{color:'#555'}}>Pattern: <span style={{color:'#6090d0'}}>{lockedFsPattern}</span></div>}
+                      {lockedFsScenario&&lockedFsScenario!=='None'&&<div style={{color:'#555'}}>Scenario: <span style={{color:'#aaa'}}>{lockedFsScenario}</span></div>}
+                      {lockedFsAge!=null&&<div style={{color:'#555'}}>Age at lock: <span style={{color:'#aaa'}}>{lockedFsAge} bars</span></div>}
+                    </div>
+                  </div>}
                 </div>;
               })()}
               <div style={{borderBottom:idx<items.length-1?'1px solid #1a1a16':'none'}}></div>
@@ -13377,7 +13533,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.125</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.126</span>
           </div>
         </div>
 
