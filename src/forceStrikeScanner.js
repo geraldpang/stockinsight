@@ -163,9 +163,30 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
              audit: Object.assign({ finalReason: 'Trigger not found within 3 bars' }, audit) };
   }
 
-  var latestIdx = aggs.length - 1;
-  var patternAge= latestIdx - mother.index; // Improvement 2: measured from Mother
-  var volume    = aggs[latestIdx].volume;
+  var latestIdx  = aggs.length - 1;
+  var patternAge = latestIdx - mother.index; // bars since Mother
+  var volume     = aggs[latestIdx].volume;
+
+  // Pattern Age is a scan criterion — setups older than 5 bars are Expired
+  var MAX_PATTERN_AGE = 5;
+  if (patternAge > MAX_PATTERN_AGE) {
+    return {
+      triggered:  false,
+      result:     'Expired',
+      symbol:     symbol,
+      patternAge: patternAge,
+      volume:     volume,
+      motherBar:  mother,
+      babyBar:    baby,
+      triggerBar: trigger,
+      audit:      Object.assign({
+        finalReason: 'Pattern Age exceeded ' + MAX_PATTERN_AGE + ' bars (age = ' + patternAge + ')',
+        trendStatus: trendStatus || 'Unknown',
+        steps:       Object.assign({}, audit.steps, { mother: mother, baby: baby,
+                       trigger: trigger, scenario: scenario }),
+      }, audit),
+    };
+  }
 
   audit.steps.mother   = mother;
   audit.steps.baby     = baby;
@@ -217,7 +238,7 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
     lines.push('', '================================================', '');
     lines.push('Ticker: ' + r.symbol);
     lines.push('Volume: ' + (r.volume != null ? Number(r.volume).toLocaleString() : 'N/A'));
-    lines.push('Result: ' + r.result);
+    lines.push('Result: ' + r.result + (r.result === 'Expired' && r.patternAge != null && r.patternAge > 5 ? ' (Too Old — Age ' + r.patternAge + ')' : ''));
 
     if (r.triggered) {
       lines.push('', 'Summary:');
