@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.127</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.128</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.127</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.128</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12366,47 +12366,13 @@ function WatchlistPage({ clerkUser, isPaid }) {
             var displayFsScenario= lock ? lockedFsScenario: fsScenario;
             var displayFsAge     = lock ? lockedFsAge     : fsAge;
             // FS cell renderer
-            function FsCell() {
-              var tooltipParts = [];
-              if (displayFsStatus==='active') {
-                tooltipParts = ['Status: Active FS', 'Pattern: '+(displayFsPattern||'—'),
-                  'Scenario: '+(displayFsScenario||'—'), 'Pattern Age: '+(displayFsAge!=null?displayFsAge+' bars':'—'),
-                  fsTriggerDate?'Trigger: '+fsTriggerDate:''];
-              } else if (displayFsStatus==='watch') {
-                tooltipParts = ['Status: FS Watch', 'Mother + Baby found', 'Waiting for trigger'];
-              } else if (displayFsStatus==='expired') {
-                tooltipParts = ['Status: Expired FS', 'Pattern: '+(displayFsPattern||'—'),
-                  'Age: '+(displayFsAge!=null?displayFsAge+' bars':'—')];
-              }
-              var tip = tooltipParts.filter(Boolean).join('\n');
-              var isLocked = !!lock;
-              if (displayFsStatus==='active') return (
-                <div title={tip} style={{cursor:'default'}}>
-                  <div style={{fontSize:10,fontWeight:700,color:'#7abd00'}}>
-                    {isLocked?'\uD83D\uDD12':'\uD83D\uDFE2'}{' Active FS'}
-                  </div>
-                  <div style={{fontSize:9,color:'#555'}}>{displayFsPattern||'—'}</div>
-                  {displayFsScenario&&displayFsScenario!=='None'&&<div style={{fontSize:8,color:'#444'}}>{displayFsScenario}</div>}
-                </div>
-              );
-              if (displayFsStatus==='watch') return (
-                <div title={tip} style={{cursor:'default'}}>
-                  <div style={{fontSize:10,fontWeight:700,color:'#EF9F27'}}>
-                    {'\uD83D\uDFE1'}{' FS Watch'}
-                  </div>
-                  <div style={{fontSize:9,color:'#555'}}>Waiting for trigger</div>
-                </div>
-              );
-              if (displayFsStatus==='expired') return (
-                <div title={tip} style={{cursor:'default'}}>
-                  <div style={{fontSize:10,fontWeight:600,color:'#555'}}>
-                    {'\u26AA'}{' Expired FS'}
-                  </div>
-                  <div style={{fontSize:9,color:'#444'}}>Pattern too old</div>
-                </div>
-              );
-              return <div style={{fontSize:10,color:'#444',cursor:'default'}}>{String.fromCharCode(0x2014)}</div>;
-            }
+            var fsTip = (displayFsStatus==='active'
+              ? ['Status: Active FS','Pattern: '+(displayFsPattern||'—'),'Scenario: '+(displayFsScenario||'—'),'Age: '+(displayFsAge!=null?displayFsAge+' bars':'—'),fsTriggerDate?'Trigger: '+fsTriggerDate:'']
+              : displayFsStatus==='watch'
+              ? ['Status: FS Watch','Mother + Baby found','Waiting for trigger']
+              : displayFsStatus==='expired'
+              ? ['Status: Expired FS','Pattern: '+(displayFsPattern||'—'),'Age: '+(displayFsAge!=null?displayFsAge+' bars':'—')]
+              : []).filter(Boolean).join('\n');
             return (
               <React.Fragment key={item.ticker}>
               <div
@@ -12435,8 +12401,23 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 {/* Technical View (RBA) — full colour */}
                 <div style={{overflow:'hidden'}}><Sig label={rbaV} rank={snap?snap.rba_rank:0} prevRows={prevRows} field="rba_rank" /></div>
 
-                {/* Force Strike */}
-                <div style={{overflow:'hidden'}}><FsCell /></div>
+                {/* Force Strike — inline render, no nested component */}
+                <div style={{overflow:'hidden'}} title={fsTip}>
+                  {displayFsStatus==='active' && <div>
+                    <div style={{fontSize:10,fontWeight:700,color:'#7abd00'}}>{(lock?'\uD83D\uDD12':'\uD83D\uDFE2')+' Active FS'}</div>
+                    <div style={{fontSize:9,color:'#555'}}>{displayFsPattern||'—'}</div>
+                    {displayFsScenario&&displayFsScenario!=='None'&&<div style={{fontSize:8,color:'#444'}}>{displayFsScenario}</div>}
+                  </div>}
+                  {displayFsStatus==='watch' && <div>
+                    <div style={{fontSize:10,fontWeight:700,color:'#EF9F27'}}>{'\uD83D\uDFE1 FS Watch'}</div>
+                    <div style={{fontSize:9,color:'#555'}}>Waiting for trigger</div>
+                  </div>}
+                  {displayFsStatus==='expired' && <div>
+                    <div style={{fontSize:10,fontWeight:600,color:'#555'}}>{'\u26AA Expired FS'}</div>
+                    <div style={{fontSize:9,color:'#444'}}>Pattern too old</div>
+                  </div>}
+                  {(displayFsStatus==='none'||!displayFsStatus) && <span style={{fontSize:10,color:'#444'}}>{String.fromCharCode(0x2014)}</span>}
+                </div>
 
                 {/* 3M Trend sparkline — muted single colour */}
                 <div style={{fontSize:11,letterSpacing:0,color:'#555',overflow:'hidden',whiteSpace:'nowrap'}}>{sparkline}</div>
@@ -13553,7 +13534,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.127</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.128</span>
           </div>
         </div>
 
