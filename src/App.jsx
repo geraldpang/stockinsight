@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.122</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.123</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.122</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.123</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12418,7 +12418,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     var hdrs = window.__clerkToken ? { Authorization: 'Bearer ' + window.__clerkToken } : {};
 
     // Check localStorage cache (2-hour TTL)
-    var FS_CACHE_KEY = 'fs_scan_cache';
+    var FS_CACHE_KEY = 'fs_scan_cache_v2';
     var FS_CACHE_TTL = 2 * 60 * 60 * 1000;
     try {
       var cached = JSON.parse(localStorage.getItem(FS_CACHE_KEY)||'null');
@@ -12459,7 +12459,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
 
     var validFound = 0, allResults = [], stopped = false;
     var BATCH = 10; // larger batch = more parallelism
-    var GOAL  = 5;  // stop only after GOAL valid (non-expired) setups
+    var GOAL  = 10;  // stop only after GOAL valid (non-expired) setups
 
     // Lightweight OHLCV fetch — Force Strike only needs price bars
     // Use Yahoo chart endpoint (same as fetchYahooHistoricalBars) — no news/financials/options
@@ -12631,6 +12631,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     scanned:   allAudit.length,
     valid:     allAudit.filter(function(r){ return r.triggered; }).length,
     expired:   allAudit.filter(function(r){ return !r.triggered && r.result==='Expired'; }).length,
+    invalid:   allAudit.filter(function(r){ return !r.triggered && r.result!=='Expired'; }).length,
     tp:    results.filter(function(r){ return r.scenario==='Trend Pullback'; }).length,
     rr:    results.filter(function(r){ return r.scenario==='Recovery Reversal'; }).length,
     sr:    results.filter(function(r){ return r.scenario==='Shakeout Reversal'; }).length,
@@ -12666,7 +12667,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14,flexWrap:'wrap',gap:12}}>
         <div>
           <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:4}}>Force Strike Screener</div>
-          <div style={{fontSize:12,color:'#555',lineHeight:1.6}}>Mother \u2192 Baby \u2192 Trigger on 2-day bars. Mother must expand 1.2\u00D7 vs prior 5 bars. Top 5 by volume.</div>
+          <div style={{fontSize:12,color:'#555',lineHeight:1.6}}>{'Mother \u2192 Baby \u2192 Trigger on 2-day bars. Mother must expand 1.2\u00D7 vs prior 5 bars. Top 10 by volume.'}</div>
           <div style={{fontSize:10,color:'#444',marginTop:3}}>{'M=Mother \u00B7 B=Baby inside Mother range \u00B7 PIN=Bullish Pin \u00B7 MU=Mark Up \u00B7 Pattern Age=bars since Mother'}</div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
@@ -12676,7 +12677,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
             {status==='scanning' ? 'Scanning\u2026' : 'Run Scan'}
           </button>
           {allAudit.length>0&&status==='done'&&<button onClick={function(){
-            try{localStorage.removeItem('fs_scan_cache');}catch(e){}
+            try{localStorage.removeItem('fs_scan_cache_v2');}catch(e){}
             runScan();
           }} style={{fontSize:11,padding:'7px 12px',background:'none',border:'0.5px solid #333',borderRadius:6,color:'#666',cursor:'pointer'}}>Force Rescan</button>}
           {allAudit.length>0&&<button onClick={downloadAudit} style={{fontSize:12,padding:'7px 14px',background:'none',border:'0.5px solid #444',borderRadius:6,color:'#888',cursor:'pointer'}}>Download Audit TXT</button>}
@@ -12690,13 +12691,14 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       {stats&&<div style={{display:'flex',gap:14,marginBottom:10,flexWrap:'wrap',fontSize:10,color:'#555',alignItems:'center'}}>
         <span><span style={{color:'#7abd00',fontWeight:700}}>{stats.valid}</span>{' Valid Force Strike'+(stats.valid!==1?'s':'')}</span>
         <span><span style={{color:'#e05050',fontWeight:700}}>{stats.expired}</span>{' Expired (too old)'}</span>
+        <span><span style={{color:'#555',fontWeight:700}}>{stats.invalid}</span>{' Invalid / No Pattern'}</span>
         <span><span style={{color:'#666',fontWeight:700}}>{stats.scanned}</span>{' Scanned'}</span>
         {stats.valid>0&&<span style={{color:'#444'}}>{'\u00B7'}</span>}
         {stats.tp>0&&<span><span style={{color:'#7abd00',fontWeight:700}}>{stats.tp}</span>{' Trend Pullback'}</span>}
         {stats.rr>0&&<span><span style={{color:'#6090d0',fontWeight:700}}>{stats.rr}</span>{' Recovery Reversal'}</span>}
         {stats.sr>0&&<span><span style={{color:'#EF9F27',fontWeight:700}}>{stats.sr}</span>{' Shakeout Reversal'}</span>}
         {stats.unc>0&&stats.valid>0&&<span><span style={{color:'#555',fontWeight:700}}>{stats.unc}</span>{' Unclassified'}</span>}
-        {stoppedEarly&&<span style={{color:'#7abd00'}}>Stopped after 5 valid setups</span>}
+        {stoppedEarly&&<span style={{color:'#7abd00'}}>Stopped after 10 valid setups</span>}
         {!stoppedEarly&&allAudit.length>0&&<span style={{color:'#444'}}>Full universe scanned</span>}
       </div>}
 
@@ -13356,7 +13358,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.122</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.123</span>
           </div>
         </div>
 
