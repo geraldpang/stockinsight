@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.136</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.138</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.136</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.138</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12643,6 +12643,32 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       } catch(e) { yahooExhausted = true; return []; }
     }
 
+    // FMP most-actives — returns [{symbol, name, price, changesPercentage, volume}]
+    async function fetchFmpActives() {
+      try {
+        var fUrl = 'https://financialmodelingprep.com/api/v3/stock_market/actives';
+        var fRes = await fetch('/proxy?url=' + encodeURIComponent(fUrl));
+        var fData = await fRes.json();
+        if (!Array.isArray(fData) || !fData.length) return [];
+        // Normalise to Yahoo quote shape for buildCandidates
+        return fData.map(function(q){
+          return { symbol: q.symbol, regularMarketPrice: q.price||10,
+                   regularMarketVolume: q.volume||1000000, quoteType: 'EQUITY',
+                   longName: q.name||q.symbol };
+        });
+      } catch(e) { return []; }
+    }
+
+    // Polygon most-actives via /mostactive backend route (uses MASSIVE_KEY server-side)
+    async function fetchPolygonActives() {
+      try {
+        var pRes2 = await fetch('/mostactive');
+        if (!pRes2.ok) return [];
+        var pData2 = await pRes2.json();
+        return (pData2.tickers || []);
+      } catch(e) { return []; }
+    }
+
     var seenSyms = {};
     function buildCandidates(quotes) {
       return quotes
@@ -12658,7 +12684,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       'CRM','ADBE','NOW','SNOW','DDOG','NET','TWLO','ZM','PINS','SNAP',
       'PYPL','SQ','COIN','HOOD','SOFI','AFRM','UPST','LC','OPEN','OPFI',
       // Consumer / retail
-      'AMZN','WMT','COST','TGT','HD','LOW','SBUX','MCD','CMG','YUM',
+      'WMT','COST','TGT','HD','LOW','SBUX','MCD','CMG','YUM','NKE',
       'KO','PEP','PG','CL','KMB','GIS','CPB','SJM','MKC','CAG',
       // Crypto / blockchain
       'MARA','RIOT','CLSK','BTBT','HUT','CIFR','IREN','WULF','CORZ','BTDR',
@@ -12671,7 +12697,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       'AXP','V','MA','DFS','SYF','BX','KKR','APO','ARES','CG',
       // Energy
       'XOM','CVX','COP','SLB','HAL','MPC','VLO','PSX','OXY','DVN',
-      'EOG','PXD','FANG','APA','MRO','HES','NOV','BKR','CTRA','SM',
+      'EOG','APA','MRO','HES','NOV','BKR','CTRA','SM','MTDR','CHRD',
       // Industrial / defense
       'GE','HON','MMM','CAT','DE','BA','LMT','RTX','NOC','GD',
       'LHX','LDOS','SAIC','KTOS','PLTR','BWXT','HII','TDG','SPR','HWM',
@@ -12681,23 +12707,48 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       'BABA','JD','PDD','BIDU','NIO','XPEV','LI','NTES','TME','BILI',
       // Semis / hardware
       'WOLF','ON','SWKS','QRVO','MCHP','MPWR','ENTG','MKSI','FORM','ACLS',
-      // ETF proxies often volatile
-      'SOFI','HOOD','OPEN','DKNG','PENN','MGM','WYNN','LVS','CZR','VICI',
+      // Gaming / entertainment
+      'DKNG','PENN','MGM','WYNN','LVS','CZR','VICI','EA','TTWO','RBLX',
+      // EV / clean energy
+      'RIVN','LCID','NKLA','CHPT','BLNK','EVGO','FSR','GOEV','AYRO','SOLO',
     ];
 
-    // Fetch first page before scanning
+    // Fetch first Yahoo page
     var firstPage = await fetchNextYahooPage();
     allRawQuotes = allRawQuotes.concat(firstPage);
-    if (!firstPage.length) { universeSource = 'Fallback'; yahooExhausted = true; }
+
+    // If Yahoo failed entirely on first page, try FMP then Polygon immediately
+    if (!firstPage.length) {
+      setMsg('Yahoo unavailable \u2014 trying FMP\u2026');
+      var fmpQuotes = await fetchFmpActives();
+      if (fmpQuotes.length) {
+        universeSource = 'FMP';
+        allRawQuotes = allRawQuotes.concat(fmpQuotes);
+        yahooExhausted = true; fmpTried = true;
+      } else {
+        setMsg('FMP unavailable \u2014 trying Polygon\u2026');
+        var polyQuotes = await fetchPolygonActives();
+        if (polyQuotes.length) {
+          universeSource = 'Polygon';
+          allRawQuotes = allRawQuotes.concat(polyQuotes);
+          yahooExhausted = true; fmpTried = true; polygonTried = true;
+        } else {
+          universeSource = 'Fallback';
+          yahooExhausted = true; fmpTried = true; polygonTried = true;
+        }
+      }
+    }
 
     var pendingCandidates = buildCandidates(allRawQuotes);
     var validFound = 0, allResults = [], stopped = false;
-    var BATCH = 5;   // gentle batching
+    var BATCH = 5;
     var GOAL  = 20;
     var MAX_SCAN = 300;
     var totalScanned = 0;
+    var fmpTried     = universeSource === 'FMP';
+    var polygonTried = false;
 
-    if (universeSource==='Fallback') setMsg('\u26A0\uFE0F Yahoo unavailable \u2014 using fallback list. Results may differ.');
+    if (universeSource==='Fallback') setMsg('\u26A0\uFE0F Yahoo and FMP unavailable \u2014 using fallback list.');
 
     async function scanBatch(batch) {
       return Promise.all(batch.map(async function(c) {
@@ -12739,25 +12790,44 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     }
 
     while (validFound < GOAL && totalScanned < MAX_SCAN) {
-      // Refill candidates from Yahoo if running low
-      if (pendingCandidates.length < BATCH && !yahooExhausted) {
-        var nextPage = await fetchNextYahooPage();
-        allRawQuotes = allRawQuotes.concat(nextPage);
-        var fresh = buildCandidates(allRawQuotes);
-        pendingCandidates = pendingCandidates.concat(fresh);
-      }
-      // Fall back to hardcoded list if Yahoo exhausted and no candidates left
-      if (!pendingCandidates.length && yahooExhausted) {
-        if (universeSource !== 'Fallback') {
-          universeSource = 'Fallback';
+      // Refill candidates — Yahoo → FMP → Polygon → hardcoded
+      if (pendingCandidates.length < BATCH) {
+        if (!yahooExhausted) {
+          var nextPage = await fetchNextYahooPage();
+          if (nextPage.length) {
+            allRawQuotes = allRawQuotes.concat(nextPage);
+            pendingCandidates = pendingCandidates.concat(buildCandidates(nextPage));
+          }
+        }
+        // Yahoo exhausted — try FMP once
+        if (!pendingCandidates.length && yahooExhausted && !fmpTried) {
+          fmpTried = true;
+          setMsg('Yahoo exhausted \u2014 trying FMP\u2026');
+          var fmpQ = await fetchFmpActives();
+          if (fmpQ.length) {
+            universeSource = 'Yahoo+FMP';
+            pendingCandidates = pendingCandidates.concat(buildCandidates(fmpQ));
+          }
+        }
+        // FMP exhausted — try Polygon once
+        if (!pendingCandidates.length && yahooExhausted && fmpTried && !polygonTried) {
+          polygonTried = true;
+          setMsg('FMP exhausted \u2014 trying Polygon\u2026');
+          var polyQ = await fetchPolygonActives();
+          if (polyQ.length) {
+            universeSource = (universeSource==='Yahoo+FMP') ? 'Yahoo+FMP+Polygon' : 'Polygon';
+            pendingCandidates = pendingCandidates.concat(buildCandidates(polyQ));
+          }
+        }
+        // All APIs exhausted — use hardcoded fallback
+        if (!pendingCandidates.length && yahooExhausted && fmpTried && polygonTried && universeSource.indexOf('Fallback')===-1) {
+          universeSource = universeSource + '+Fallback';
           var fallbackQuotes = FALLBACK_LIST
             .filter(function(s){ return !seenSyms[s]; })
             .map(function(s){ return { symbol:s, regularMarketPrice:10, regularMarketVolume:1000000, quoteType:'EQUITY', longName:s }; });
-          allRawQuotes = allRawQuotes.concat(fallbackQuotes);
-          var fresh = buildCandidates(fallbackQuotes);
-          pendingCandidates = pendingCandidates.concat(fresh);
+          pendingCandidates = pendingCandidates.concat(buildCandidates(fallbackQuotes));
+          if (pendingCandidates.length) setMsg('\u26A0\uFE0F All APIs exhausted \u2014 using hardcoded fallback list.');
         }
-        if (!pendingCandidates.length) break;
       }
       if (!pendingCandidates.length) break;
 
@@ -12785,7 +12855,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     var now = new Date().toISOString();
     setResults(validResults); setAllAudit(allResults); setStoppedEarly(stopped); setGeneratedAt(now);
     setStatus('done');
-    setMsg(validFound + ' valid Force Strike setup' + (validFound!==1?'s':'') + ' found from ' + totalScanned + ' scanned.' + (stopped?' Stopped after '+GOAL+' valid setups.':' Full universe scanned.'));
+    setMsg(validFound + ' valid Force Strike setup' + (validFound!==1?'s':'') + ' found from ' + totalScanned + ' scanned' + (universeSource!=='Yahoo'?' ('+universeSource+')':'') + '.' + (stopped?' Stopped after '+GOAL+' valid setups.':' Full universe scanned.'));
 
     // Write to shared KV cache (all visitors will see this result)
     try {
@@ -13701,7 +13771,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.136</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.138</span>
           </div>
         </div>
 
