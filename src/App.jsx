@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.119</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.121</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.119</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.121</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12409,7 +12409,6 @@ function ForceStrikePage({ isPaid, clerkUser }) {
   // Filters (Improvement 7/8)
   var [filterTrigger,  setFilterTrigger]  = useState('All');
   var [filterScenario, setFilterScenario] = useState('All');
-  var [filterAge,      setFilterAge]      = useState('0-5');  // default: recent only
 
   var isAdmin  = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === 'admin');
   var canAccess= isPaid || isAdmin;
@@ -12479,7 +12478,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     setResults(top5); setAllAudit(allResults); setStoppedEarly(stopped);
     setGeneratedAt(new Date().toISOString());
     setStatus('done');
-    setMsg(top5.length + ' Force Strike setup' + (top5.length!==1?'s':'') + ' found from ' + allResults.length + ' scanned.');
+    setMsg(top5.length + ' valid Force Strike setup' + (top5.length!==1?'s':'') + ' found from ' + allResults.length + ' scanned.');
   }
 
   function downloadAudit() {
@@ -12550,7 +12549,6 @@ function ForceStrikePage({ isPaid, clerkUser }) {
   }
 
   // ── Apply filters ──────────────────────────────────────────────────────────
-  var ageMax = filterAge==='0-1'?1:filterAge==='0-3'?3:filterAge==='0-5'?5:999;
   var filtered = results.filter(function(r){
     if (filterTrigger!=='All' && r.triggerType!==filterTrigger) return false;
     if (filterScenario!=='All') {
@@ -12558,14 +12556,14 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       if (filterScenario==='Unclassified'&&s!=='None') return false;
       if (filterScenario!=='Unclassified'&&s!==filterScenario) return false;
     }
-    if (r.patternAge!=null && r.patternAge > ageMax) return false;
     return true;
   });
 
   // ── Summary stats ──────────────────────────────────────────────────────────
   var stats = allAudit.length ? {
     scanned:   allAudit.length,
-    triggered: allAudit.filter(function(r){ return r.triggered; }).length,
+    valid:     allAudit.filter(function(r){ return r.triggered; }).length,
+    expired:   allAudit.filter(function(r){ return !r.triggered && r.result==='Expired'; }).length,
     tp:    results.filter(function(r){ return r.scenario==='Trend Pullback'; }).length,
     rr:    results.filter(function(r){ return r.scenario==='Recovery Reversal'; }).length,
     sr:    results.filter(function(r){ return r.scenario==='Shakeout Reversal'; }).length,
@@ -12619,12 +12617,14 @@ function ForceStrikePage({ isPaid, clerkUser }) {
 
       {/* Summary stats */}
       {stats&&<div style={{display:'flex',gap:14,marginBottom:10,flexWrap:'wrap',fontSize:10,color:'#555',alignItems:'center'}}>
-        {[['Scanned',stats.scanned,'#666'],['Triggered',stats.triggered,'#7abd00'],
-          ['Trend Pullback',stats.tp,'#7abd00'],['Recovery Reversal',stats.rr,'#6090d0'],
-          ['Shakeout Reversal',stats.sr,'#EF9F27'],['Unclassified',stats.unc,'#555'],
-        ].map(function(item,i){
-          return <span key={i}><span style={{color:item[2],fontWeight:700}}>{item[1]}</span>{' '+item[0]}</span>;
-        })}
+        <span><span style={{color:'#7abd00',fontWeight:700}}>{stats.valid}</span>{' Valid Force Strike'+(stats.valid!==1?'s':'')}</span>
+        <span><span style={{color:'#e05050',fontWeight:700}}>{stats.expired}</span>{' Expired (too old)'}</span>
+        <span><span style={{color:'#666',fontWeight:700}}>{stats.scanned}</span>{' Scanned'}</span>
+        {stats.valid>0&&<span style={{color:'#444'}}>{'\u00B7'}</span>}
+        {stats.tp>0&&<span><span style={{color:'#7abd00',fontWeight:700}}>{stats.tp}</span>{' Trend Pullback'}</span>}
+        {stats.rr>0&&<span><span style={{color:'#6090d0',fontWeight:700}}>{stats.rr}</span>{' Recovery Reversal'}</span>}
+        {stats.sr>0&&<span><span style={{color:'#EF9F27',fontWeight:700}}>{stats.sr}</span>{' Shakeout Reversal'}</span>}
+        {stats.unc>0&&stats.valid>0&&<span><span style={{color:'#555',fontWeight:700}}>{stats.unc}</span>{' Unclassified'}</span>}
         {stoppedEarly&&<span style={{color:'#444'}}>Stopped early</span>}
       </div>}
 
@@ -12636,11 +12636,6 @@ function ForceStrikePage({ isPaid, clerkUser }) {
         </select>
         <select value={filterScenario} onChange={function(e){ setFilterScenario(e.target.value); }} style={selStyle}>
           {['All','Trend Pullback','Recovery Reversal','Shakeout Reversal','Unclassified'].map(function(v){ return <option key={v} value={v}>{v==='All'?'All Scenarios':v}</option>; })}
-        </select>
-        <select value={filterAge} onChange={function(e){ setFilterAge(e.target.value); }} style={selStyle}>
-          {[['0-1','Pattern Age 0–1'],['0-3','Pattern Age 0–3'],['0-5','Pattern Age 0–5 (Recent)'],['all','All Ages']].map(function(v){
-            return <option key={v[0]} value={v[0]}>{v[1]}</option>;
-          })}
         </select>
         <span style={{fontSize:9,color:'#444'}}>{filtered.length+' shown'}</span>
       </div>}
@@ -13289,7 +13284,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.119</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.121</span>
           </div>
         </div>
 
