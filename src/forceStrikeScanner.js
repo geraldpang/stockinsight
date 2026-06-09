@@ -248,7 +248,7 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
 
 // ── Audit TXT formatter ──────────────────────────────────────────────────────
 export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
-  var TARGET    = 10;
+  var TARGET    = 20;
   var triggered = allResults.filter(function(r){ return r.triggered; });
   var expired   = allResults.filter(function(r){ return !r.triggered && r.result === 'Expired'; });
   var invalid   = allResults.filter(function(r){ return !r.triggered && r.result !== 'Expired'; });
