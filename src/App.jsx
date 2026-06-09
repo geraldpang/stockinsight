@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.123</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.124</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.123</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.124</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12417,19 +12417,28 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     setStatus('scanning'); setMsg('Fetching universe\u2026'); setResults([]); setAllAudit([]); setExpandedRow(null);
     var hdrs = window.__clerkToken ? { Authorization: 'Bearer ' + window.__clerkToken } : {};
 
-    // Check localStorage cache (2-hour TTL)
-    var FS_CACHE_KEY = 'fs_scan_cache_v2';
-    var FS_CACHE_TTL = 2 * 60 * 60 * 1000;
+    var FS_CACHE_SYM = '__FORCESTRIKE';
+    var FS_CACHE_TAB = 'results';
+    var FS_CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours in ms
+
+    // Check server-side KV cache (shared across all visitors)
     try {
-      var cached = JSON.parse(localStorage.getItem(FS_CACHE_KEY)||'null');
-      if (cached && cached.ts && (Date.now() - cached.ts) < FS_CACHE_TTL) {
-        setResults(cached.results||[]); setAllAudit(cached.allAudit||[]);
-        setStoppedEarly(cached.stoppedEarly||false); setGeneratedAt(cached.generatedAt||'');
-        setStatus('done');
-        setMsg('\u26A1 Cached result from ' + new Date(cached.ts).toLocaleTimeString() + ' \u2014 click Run Scan to refresh.');
-        return;
+      var cRes = await fetch('/cache?sym=' + FS_CACHE_SYM + '&tab=' + FS_CACHE_TAB);
+      if (cRes.ok) {
+        var cText = await cRes.text();
+        if (cText && cText.trim()) {
+          var cached = JSON.parse(cText);
+          if (cached && cached.ts && (Date.now() - cached.ts) < FS_CACHE_TTL) {
+            setResults(cached.results||[]); setAllAudit(cached.allAudit||[]);
+            setStoppedEarly(cached.stoppedEarly||false); setGeneratedAt(cached.generatedAt||'');
+            setStatus('done');
+            var cAge = new Date(cached.ts);
+            setMsg('\u26A1 Cached result from ' + cAge.toLocaleDateString() + ' ' + cAge.toLocaleTimeString() + ' \u2014 click Run Scan to refresh.');
+            return;
+          }
+        }
       }
-    } catch(e) {}
+    } catch(e) { /* cache miss — proceed with fresh scan */ }
 
     // Fetch universe (Yahoo most-actives, up to 250 raw quotes)
     var candidates = [];
@@ -12539,12 +12548,16 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     setStatus('done');
     setMsg(validFound + ' valid Force Strike setup' + (validFound!==1?'s':'') + ' found from ' + allResults.length + ' scanned.' + (stopped?' Stopped after '+GOAL+' valid setups.':' Full universe scanned.'));
 
-    // Write cache
+    // Write to shared KV cache (all visitors will see this result)
     try {
-      localStorage.setItem(FS_CACHE_KEY, JSON.stringify({
+      var cachePayload = JSON.stringify({
         ts: Date.now(), results: validResults, allAudit: allResults,
         stoppedEarly: stopped, generatedAt: now,
-      }));
+      });
+      var postHdrs = { 'Content-Type': 'text/plain' };
+      if (window.__clerkToken) postHdrs['Authorization'] = 'Bearer ' + window.__clerkToken;
+      fetch('/cache?sym=' + FS_CACHE_SYM + '&tab=' + FS_CACHE_TAB,
+        { method: 'POST', headers: postHdrs, body: cachePayload }).catch(function(){});
     } catch(e) {}
   }
 
@@ -12677,7 +12690,13 @@ function ForceStrikePage({ isPaid, clerkUser }) {
             {status==='scanning' ? 'Scanning\u2026' : 'Run Scan'}
           </button>
           {allAudit.length>0&&status==='done'&&<button onClick={function(){
-            try{localStorage.removeItem('fs_scan_cache_v2');}catch(e){}
+            // Invalidate KV cache by posting an expired timestamp
+            try {
+              var postHdrs = { 'Content-Type':'text/plain' };
+              if (window.__clerkToken) postHdrs['Authorization']='Bearer '+window.__clerkToken;
+              fetch('/cache?sym=__FORCESTRIKE&tab=results',
+                { method:'POST', headers:postHdrs, body:JSON.stringify({ ts:0 }) }).catch(function(){});
+            } catch(e) {}
             runScan();
           }} style={{fontSize:11,padding:'7px 12px',background:'none',border:'0.5px solid #333',borderRadius:6,color:'#666',cursor:'pointer'}}>Force Rescan</button>}
           {allAudit.length>0&&<button onClick={downloadAudit} style={{fontSize:12,padding:'7px 14px',background:'none',border:'0.5px solid #444',borderRadius:6,color:'#888',cursor:'pointer'}}>Download Audit TXT</button>}
@@ -13358,7 +13377,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.123</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.124</span>
           </div>
         </div>
 
