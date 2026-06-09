@@ -282,6 +282,24 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
       lines.push('  Trigger:      ' + (r.triggerBar ? fmtDate(r.triggerBar.date1 || r.triggerBar.date) : '—'));
       lines.push('  Trigger Type: ' + (r.triggerType || '—'));
       lines.push('  Scenario:     ' + (r.scenario   || '—'));
+      // Force Strike Score
+      var tPts = r.triggerType==='PIN'?3:r.triggerType==='MU'?2:r.triggerType==='ICE'?2:0;
+      var sPts = r.scenario==='Shakeout Reversal'?4:r.scenario==='Recovery Reversal'?3:r.scenario==='Trend Pullback'?2:0;
+      var aPts = r.patternAge!=null&&r.patternAge<=2?2:r.patternAge!=null&&r.patternAge<=4?1:0;
+      var mExp = r.motherBar&&r.motherBar.rangeExpansion!=null?r.motherBar.rangeExpansion:0;
+      var mPts = mExp>=2.5?0.5:mExp>=1.5?1:mExp>=1.2?0.5:0;
+      var iPts = r.triggerBar&&r.triggerBar.interactsWithMother===true?2:0;
+      var totalPts = tPts+sPts+aPts+mPts+iPts;
+      var stars = totalPts<=2?1:totalPts<=4?2:totalPts<=6?3:totalPts<=8?4:5;
+      lines.push('');
+      lines.push('  Force Strike Score:');
+      lines.push('    Stars:              ' + stars + '/5');
+      lines.push('    Total Points:       ' + totalPts);
+      lines.push('    Trigger Type:       +' + tPts);
+      lines.push('    Scenario:           +' + sPts);
+      lines.push('    Pattern Age:        +' + aPts);
+      lines.push('    Mother Expansion:   +' + mPts + (mExp>0?' ('+mExp.toFixed(2)+'x)':''));
+      lines.push('    Mother Interaction: +' + iPts);
     }
 
     var a = r.audit || {}, s = a.steps || {};
