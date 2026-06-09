@@ -147,14 +147,19 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
 
     var babyBar = (mi + 1 < aggs.length) ? aggs[mi + 1] : null;
     if (!babyBar) continue;
-    if (babyBar.high > bar.high || babyBar.low < bar.low) continue; // Baby must be inside
+
+    // Baby must be fully contained within Mother BODY (not wicks)
+    var motherBodyHigh = Math.max(bar.open, bar.close);
+    var motherBodyLow  = Math.min(bar.open, bar.close);
+    if (babyBar.high > motherBodyHigh || babyBar.low < motherBodyLow) continue;
 
     var babyObj = { index: mi+1, date: babyBar.date, date1: babyBar.date1, dateLabel: babyBar.dateLabel,
                     open: babyBar.open, high: babyBar.high, low: babyBar.low, close: babyBar.close,
                     volume: babyBar.volume, inside: true,
-                    motherHigh: bar.high, motherLow: bar.low,
-                    highValid: babyBar.high <= bar.high,
-                    lowValid:  babyBar.low  >= bar.low };
+                    motherBodyHigh: motherBodyHigh, motherBodyLow: motherBodyLow,
+                    motherOpen: bar.open, motherClose: bar.close,
+                    highValid: babyBar.high <= motherBodyHigh,
+                    lowValid:  babyBar.low  >= motherBodyLow };
 
     var trigResult = detectTrigger(aggs, mi + 1, bar.high, bar.low);
     var motherObj  = { index: mi, date: bar.date, date1: bar.date1, dateLabel: bar.dateLabel,
@@ -264,7 +269,7 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
     'Stopped Early:          ' + (stoppedEarly ? 'Yes (' + TARGET + ' valid setups found)' : 'No — full universe scanned'),
     'Target Valid Setups:    ' + TARGET,
     'Mother Threshold:       1.20x (range or body expansion)',
-    'Baby Bar Rule:          Baby High <= Mother High AND Baby Low >= Mother Low (strict, no tolerance)',
+    'Baby Bar Rule:          Baby High <= max(Mother Open, Mother Close) AND Baby Low >= min(Mother Open, Mother Close) — body containment, wicks ignored',
   ];
 
   allResults.forEach(function(r) {
@@ -325,25 +330,27 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
       lines.push('Qualified By:     ' + (m.qualifiedBy || 'N/A'));
     }
 
-    // Baby Bar — full OHLCV + explicit validation
+    // Baby Bar — full OHLCV + explicit body validation
     if (s.baby) {
       var b = s.baby;
       lines.push('', '------------------------------------------------', 'Baby Bar', '');
-      lines.push('Index:                   ' + b.index);
-      lines.push('Date:                    ' + fmtDate(b.date1 || b.date));
-      lines.push('Open:                    ' + (b.open   != null ? b.open.toFixed(2)   : 'N/A'));
-      lines.push('High:                    ' + (b.high   != null ? b.high.toFixed(2)   : 'N/A'));
-      lines.push('Low:                     ' + (b.low    != null ? b.low.toFixed(2)    : 'N/A'));
-      lines.push('Close:                   ' + (b.close  != null ? b.close.toFixed(2)  : 'N/A'));
-      lines.push('Volume:                  ' + (b.volume != null ? Number(b.volume).toLocaleString() : 'N/A'));
+      lines.push('Index:                        ' + b.index);
+      lines.push('Date:                         ' + fmtDate(b.date1 || b.date));
+      lines.push('Open:                         ' + (b.open   != null ? b.open.toFixed(2)   : 'N/A'));
+      lines.push('High:                         ' + (b.high   != null ? b.high.toFixed(2)   : 'N/A'));
+      lines.push('Low:                          ' + (b.low    != null ? b.low.toFixed(2)    : 'N/A'));
+      lines.push('Close:                        ' + (b.close  != null ? b.close.toFixed(2)  : 'N/A'));
+      lines.push('Volume:                       ' + (b.volume != null ? Number(b.volume).toLocaleString() : 'N/A'));
       lines.push('');
-      lines.push('Mother High:             ' + (b.motherHigh != null ? b.motherHigh.toFixed(2) : 'N/A'));
-      lines.push('Mother Low:              ' + (b.motherLow  != null ? b.motherLow.toFixed(2)  : 'N/A'));
-      lines.push('Baby High:               ' + (b.high != null ? b.high.toFixed(2) : 'N/A'));
-      lines.push('Baby Low:                ' + (b.low  != null ? b.low.toFixed(2)  : 'N/A'));
-      lines.push('Baby High <= Mother High: ' + (b.highValid != null ? String(b.highValid) : (b.high <= b.motherHigh ? 'true' : 'false')));
-      lines.push('Baby Low >= Mother Low:   ' + (b.lowValid  != null ? String(b.lowValid)  : (b.low  >= b.motherLow  ? 'true' : 'false')));
-      lines.push('Baby Inside Mother:       ' + (b.inside ? 'true' : 'false'));
+      lines.push('Mother Open:                  ' + (b.motherOpen      != null ? b.motherOpen.toFixed(2)      : 'N/A'));
+      lines.push('Mother Close:                 ' + (b.motherClose     != null ? b.motherClose.toFixed(2)     : 'N/A'));
+      lines.push('Mother Body High:             ' + (b.motherBodyHigh  != null ? b.motherBodyHigh.toFixed(2)  : 'N/A'));
+      lines.push('Mother Body Low:              ' + (b.motherBodyLow   != null ? b.motherBodyLow.toFixed(2)   : 'N/A'));
+      lines.push('Baby High:                    ' + (b.high != null ? b.high.toFixed(2) : 'N/A'));
+      lines.push('Baby Low:                     ' + (b.low  != null ? b.low.toFixed(2)  : 'N/A'));
+      lines.push('Baby High <= Mother Body High: ' + (b.highValid != null ? String(b.highValid) : 'N/A'));
+      lines.push('Baby Low >= Mother Body Low:   ' + (b.lowValid  != null ? String(b.lowValid)  : 'N/A'));
+      lines.push('Baby Inside Mother Body:       ' + (b.inside ? 'true' : 'false'));
     }
 
     // Trigger Search — full OHLCV per bar
