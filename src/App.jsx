@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.126</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.127</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.126</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.127</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12097,23 +12097,43 @@ function WatchlistPage({ clerkUser, isPaid }) {
         var rbaVerdict = rba ? (rba.verdict || '') : '';
         var rbaShort   = shortRuleVerdict(rbaVerdict);
 
-        // Force Strike: use KV cache if available, else compute from aggs
+        // Force Strike: check KV cache first, then fetch Yahoo chart for fresh scan
+        // Uses same Yahoo chart endpoint as Force Strike Screener for consistency
         var fsResult = fsCacheMap[ticker] || null;
-        if (!fsResult) {
+        // If not in cache, or cache shows non-triggered for this ticker, do a fresh scan
+        // using Yahoo chart (same source as Force Strike Screener — 3mo of daily bars)
+        if (!fsResult || !fsResult.triggered) {
           try {
-            var daily = aggs.slice().reverse().map(function(b){
-              return { date: b.t||b.date||'', open:b.o||0, high:b.h||0, low:b.l||0, close:b.c||0, volume:b.v||0 };
-            }).filter(function(b){ return b.open>0&&b.high>0&&b.low>0&&b.close>0; });
-            if (daily.length >= 14) {
-              var ind = mData.indicators||{}, sma50=ind.sma50||0, sma200=ind.sma200||0;
-              var trendStatus = 'Sideways';
-              if (sma50>0&&sma200>0) {
-                if (price>sma50&&sma50>sma200) trendStatus = price>sma50*1.03?'Strong Uptrend':'Uptrend';
-                else if (price<sma50&&sma50<sma200) trendStatus = 'Downtrend';
+            var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=3mo';
+            var cRes2 = await fetch('/proxy?url=' + encodeURIComponent(chartUrl));
+            if (cRes2.ok) {
+              var cData2 = await cRes2.json();
+              var cr2 = cData2&&cData2.chart&&cData2.chart.result&&cData2.chart.result[0];
+              if (cr2) {
+                var ts2    = cr2.timestamp||[];
+                var q2     = (cr2.indicators&&cr2.indicators.quote&&cr2.indicators.quote[0])||{};
+                var daily2 = [];
+                for (var di2=0; di2<ts2.length; di2++) {
+                  var o2=q2.open&&q2.open[di2], h2=q2.high&&q2.high[di2],
+                      l2=q2.low&&q2.low[di2],   cv2=q2.close&&q2.close[di2];
+                  if (o2&&h2&&l2&&cv2&&o2>0) daily2.push({ date:ts2[di2]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di2])||0 });
+                }
+                if (daily2.length >= 14) {
+                  var closes2 = daily2.slice(-50).map(function(b){ return b.close; });
+                  var sma50b  = closes2.length>=20 ? closes2.reduce(function(s,v){return s+v;},0)/closes2.length : 0;
+                  var closes200b = daily2.map(function(b){ return b.close; });
+                  var sma200b = closes200b.length>=20 ? closes200b.reduce(function(s,v){return s+v;},0)/closes200b.length : 0;
+                  var pr2     = daily2[daily2.length-1].close;
+                  var ts2status = 'Sideways';
+                  if (sma50b>0&&sma200b>0) {
+                    if (pr2>sma50b&&sma50b>sma200b) ts2status = pr2>sma50b*1.03?'Strong Uptrend':'Uptrend';
+                    else if (pr2<sma50b&&sma50b<sma200b) ts2status = 'Downtrend';
+                  }
+                  fsResult = scanForceStrike(ticker, daily2, ts2status);
+                }
               }
-              fsResult = scanForceStrike(ticker, daily, trendStatus);
             }
-          } catch(fsErr) { fsResult = null; }
+          } catch(fsErr) { /* use whatever fsResult we have */ }
         }
 
         // Determine FS display status
@@ -13533,7 +13553,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.126</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.127</span>
           </div>
         </div>
 
