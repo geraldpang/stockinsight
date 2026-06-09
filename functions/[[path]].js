@@ -1224,7 +1224,7 @@ export async function onRequest(context) {
       }
     }
 
-
+    if (target.includes("financialmodelingprep.com")) {
       const fmpKey = context.env.FMP_KEY;
       if (!fmpKey) return new Response(JSON.stringify({ error: "FMP_KEY not configured" }), {
         status: 500,
