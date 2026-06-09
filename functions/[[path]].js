@@ -39,7 +39,7 @@ export async function onRequest(context) {
   try {
 
     // Only handle specific API routes -- pass everything else to the React app
-    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache", "/simfin", "/stripe", "/options", "/journal", "/watchlist"];
+    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache", "/simfin", "/stripe", "/options", "/journal", "/watchlist", "/mostactive"];
     var isApiRoute  = false;
     for (var ri = 0; ri < knownRoutes.length; ri++) {
       if (url.pathname === knownRoutes[ri] || url.pathname.startsWith(knownRoutes[ri])) {
@@ -1160,9 +1160,32 @@ export async function onRequest(context) {
       }
     }
 
+    // ── Most Active Tickers (Polygon) ─────────────────────────────────────────
+    if (url.pathname === "/mostactive") {
+      var maKey = context.env.MASSIVE_KEY;
+      var maHeaders = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
+      if (!maKey) return new Response(JSON.stringify({ error: "MASSIVE_KEY not configured" }), { status: 500, headers: maHeaders });
+      try {
+        var maRes = await fetch(
+          "https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/most_active?apiKey=" + maKey,
+          { headers: { "User-Agent": UA } }
+        );
+        var maData = await maRes.json();
+        var tickers = (maData.tickers || []).map(function(t) {
+          return {
+            symbol: t.ticker, name: t.ticker,
+            regularMarketPrice:  (t.day && t.day.c) || (t.lastTrade && t.lastTrade.p) || 10,
+            regularMarketVolume: (t.day && t.day.v) || 0,
+            quoteType: "EQUITY",
+          };
+        }).filter(function(t){ return t.regularMarketPrice > 5 && t.regularMarketVolume > 500000; });
+        return new Response(JSON.stringify({ tickers: tickers }), { headers: maHeaders });
+      } catch(e) {
+        return new Response(JSON.stringify({ error: "Polygon most-active failed: " + e.message }), { status: 500, headers: maHeaders });
+      }
+    }
 
 
-    if (target.includes("financialmodelingprep.com")) {
       const fmpKey = context.env.FMP_KEY;
       if (!fmpKey) return new Response(JSON.stringify({ error: "FMP_KEY not configured" }), {
         status: 500,
