@@ -9,6 +9,7 @@ import { calculateTechnicalSignalSnapshot, calcRSI,
          buildWeeklyBars, buildMonthlyBars,
          calcWeeklyMomentum, calcMonthlyMomentum,
          classifyMomentumProfile, classifyMonthlyRegime } from "./technicalSignals.js";
+import { scanForceStrike, buildAggregateBars, formatAuditTxt } from "./forceStrikeScanner.js";
 import { generateRuleBasedAnalytics } from "./ruleBasedAnalytics.js";
 
 // ─── Central signal colour system ─────────────────────────────────────────────
@@ -5129,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.116</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.125</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5183,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.116</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.125</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12395,7 +12396,471 @@ function WatchlistPage({ clerkUser, isPaid }) {
   );
 }
 
+// ── Force Strike Screener Page ────────────────────────────────────────────────
+function ForceStrikePage({ isPaid, clerkUser }) {
+  var LIME = '#c8f000';
+  var [status,       setStatus]       = useState('idle');
+  var [msg,          setMsg]          = useState('');
+  var [results,      setResults]      = useState([]);
+  var [allAudit,     setAllAudit]     = useState([]);
+  var [stoppedEarly, setStoppedEarly] = useState(false);
+  var [generatedAt,  setGeneratedAt]  = useState('');
+  var [expandedRow,  setExpandedRow]  = useState(null);
+  // Filters (Improvement 7/8)
+  var [filterTrigger,  setFilterTrigger]  = useState('All');
+  var [filterScenario, setFilterScenario] = useState('All');
+
+  var isAdmin  = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === 'admin');
+  var canAccess= isPaid || isAdmin;
+
+  async function runScan() {
+    setStatus('scanning'); setMsg('Fetching universe\u2026'); setResults([]); setAllAudit([]); setExpandedRow(null);
+    var hdrs = window.__clerkToken ? { Authorization: 'Bearer ' + window.__clerkToken } : {};
+
+    var FS_CACHE_SYM = '__FORCESTRIKE';
+    var FS_CACHE_TAB = 'results';
+    var FS_CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours in ms
+
+    // Check server-side KV cache (shared across all visitors)
+    try {
+      var cRes = await fetch('/cache?sym=' + FS_CACHE_SYM + '&tab=' + FS_CACHE_TAB);
+      if (cRes.ok) {
+        var cText = await cRes.text();
+        if (cText && cText.trim()) {
+          var cached = JSON.parse(cText);
+          if (cached && cached.ts && (Date.now() - cached.ts) < FS_CACHE_TTL) {
+            setResults(cached.results||[]); setAllAudit(cached.allAudit||[]);
+            setStoppedEarly(cached.stoppedEarly||false); setGeneratedAt(cached.generatedAt||'');
+            setStatus('done');
+            var cAge = new Date(cached.ts);
+            setMsg('\u26A1 Cached result from ' + cAge.toLocaleDateString() + ' ' + cAge.toLocaleTimeString() + ' \u2014 click Run Scan to refresh.');
+            return;
+          }
+        }
+      }
+    } catch(e) { /* cache miss — proceed with fresh scan */ }
+
+    // Fetch universe (Yahoo most-actives, up to 250 raw quotes)
+    var candidates = [];
+    try {
+      var rawQuotes = [];
+      for (var pi = 0; pi < 3; pi++) {
+        try {
+          var pUrl = 'https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&start=' + (pi*100) + '&count=100&lang=en-US&region=US';
+          var pRes = await fetch('/proxy?url=' + encodeURIComponent(pUrl));
+          var pData = await pRes.json();
+          var pQ = (pData.finance&&pData.finance.result&&pData.finance.result[0]&&pData.finance.result[0].quotes)||[];
+          if (!pQ.length) break;
+          rawQuotes = rawQuotes.concat(pQ);
+          if (pQ.length < 100) break;
+        } catch(e) { break; }
+      }
+      var seen = {};
+      rawQuotes = rawQuotes.filter(function(q){ if(seen[q.symbol])return false; seen[q.symbol]=true; return true; });
+      candidates = rawQuotes
+        .filter(function(q){ return q.regularMarketPrice>5&&q.regularMarketVolume>500000&&q.quoteType==='EQUITY'; })
+        .map(function(q){ return { sym:q.symbol, name:q.longName||q.shortName||q.symbol, volume:q.regularMarketVolume||0 }; });
+    } catch(e) {
+      ['NVDA','AAPL','MSFT','AMZN','GOOGL','META','TSLA','AMD','AVGO','PLTR',
+       'COIN','MARA','RIOT','HOOD','SOFI','NFLX','DIS','NOW','SNOW','UBER']
+        .forEach(function(s){ candidates.push({ sym:s, name:s, volume:0 }); });
+    }
+
+    var validFound = 0, allResults = [], stopped = false;
+    var BATCH = 10; // larger batch = more parallelism
+    var GOAL  = 10;  // stop only after GOAL valid (non-expired) setups
+
+    // Lightweight OHLCV fetch — Force Strike only needs price bars
+    // Use Yahoo chart endpoint (same as fetchYahooHistoricalBars) — no news/financials/options
+    var today    = new Date();
+    var from90d  = new Date(today.getTime() - 90 * 24 * 3600 * 1000);
+    var fmt      = function(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); };
+    var fromStr  = fmt(from90d);
+    var toStr    = fmt(today);
+
+    for (var bi = 0; bi < candidates.length; bi += BATCH) {
+      if (validFound >= GOAL) { stopped = true; break; }
+      var batch = candidates.slice(bi, bi + BATCH);
+      setMsg('Scanned ' + (bi + batch.length) + ' / ' + candidates.length + ' \u00B7 Valid: ' + validFound + ' \u00B7 Expired: ' + allResults.filter(function(r){ return r.result==='Expired'; }).length);
+
+      var bRes = await Promise.all(batch.map(async function(c) {
+        try {
+          // Lightweight: fetch only OHLCV via Yahoo chart (60 trading days ~= 90 calendar days)
+          var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + c.sym + '?interval=1d&range=3mo';
+          var cRes = await fetch('/proxy?url=' + encodeURIComponent(chartUrl));
+          if (!cRes.ok) return null;
+          var cData = await cRes.json();
+          var cr = cData&&cData.chart&&cData.chart.result&&cData.chart.result[0];
+          if (!cr) return null;
+          var ts    = cr.timestamp || [];
+          var q     = (cr.indicators&&cr.indicators.quote&&cr.indicators.quote[0]) || {};
+          var opens = q.open||[], highs = q.high||[], lows = q.low||[], closes = q.close||[], vols = q.volume||[];
+          var daily = [];
+          for (var di = 0; di < ts.length; di++) {
+            var o=opens[di],h=highs[di],l=lows[di],cv=closes[di],v=vols[di];
+            if (o&&h&&l&&cv&&o>0&&h>0&&l>0&&cv>0) {
+              daily.push({ date: ts[di]*1000, open:o, high:h, low:l, close:cv, volume:v||0 });
+            }
+          }
+          if (daily.length < 14) return null;
+
+          // Simple trend from last close vs 50/200d SMA approximation from available bars
+          var closes50  = daily.slice(-50).map(function(b){ return b.close; });
+          var closes200 = daily.slice(-Math.min(200, daily.length)).map(function(b){ return b.close; });
+          var sma50  = closes50.length  >= 20 ? closes50.reduce(function(s,v){return s+v;},0)/closes50.length   : 0;
+          var sma200 = closes200.length >= 20 ? closes200.reduce(function(s,v){return s+v;},0)/closes200.length : 0;
+          var price  = daily[daily.length-1].close;
+          var trendStatus = 'Sideways';
+          if (sma50>0&&sma200>0) {
+            if (price>sma50&&sma50>sma200) trendStatus = price>sma50*1.03?'Strong Uptrend':'Uptrend';
+            else if (price<sma50&&sma50<sma200) trendStatus = 'Downtrend';
+          }
+
+          var fsResult = scanForceStrike(c.sym, daily, trendStatus);
+          fsResult.name   = c.name||c.sym;
+          fsResult.volume = fsResult.volume||c.volume||0;
+          return fsResult;
+        } catch(e) {
+          return { triggered:false, result:'Invalid', symbol:c.sym, name:c.name||c.sym,
+                   audit:{ finalReason:'Error: '+(e.message||''), steps:{} } };
+        }
+      }));
+
+      bRes.forEach(function(r){
+        if (!r) return;
+        allResults.push(r);
+        if (r.triggered) validFound++;
+        // Progressive UI: show valid results as they are found
+        if (r.triggered) {
+          setResults(function(prev){
+            var next = prev.concat([r]).sort(function(a,b){ return (b.volume||0)-(a.volume||0); });
+            return next.slice(0, GOAL);
+          });
+        }
+      });
+    }
+
+    // Final sort and cache
+    var validResults = allResults.filter(function(r){ return r.triggered; })
+      .sort(function(a,b){ return (b.volume||0)-(a.volume||0); }).slice(0, GOAL);
+    var now = new Date().toISOString();
+    setResults(validResults); setAllAudit(allResults); setStoppedEarly(stopped); setGeneratedAt(now);
+    setStatus('done');
+    setMsg(validFound + ' valid Force Strike setup' + (validFound!==1?'s':'') + ' found from ' + allResults.length + ' scanned.' + (stopped?' Stopped after '+GOAL+' valid setups.':' Full universe scanned.'));
+
+    // Write to shared KV cache (all visitors will see this result)
+    try {
+      var cachePayload = JSON.stringify({
+        ts: Date.now(), results: validResults, allAudit: allResults,
+        stoppedEarly: stopped, generatedAt: now,
+      });
+      var postHdrs = { 'Content-Type': 'text/plain' };
+      if (window.__clerkToken) postHdrs['Authorization'] = 'Bearer ' + window.__clerkToken;
+      fetch('/cache?sym=' + FS_CACHE_SYM + '&tab=' + FS_CACHE_TAB,
+        { method: 'POST', headers: postHdrs, body: cachePayload }).catch(function(){});
+    } catch(e) {}
+  }
+
+  function downloadAudit() {
+    var txt  = formatAuditTxt(allAudit, generatedAt, stoppedEarly);
+    var blob = new Blob([txt], { type: 'text/plain' });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a'); a.href=url;
+    a.download = 'forcestrike-audit-' + new Date().toISOString().split('T')[0] + '.txt';
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  // ── Display helpers ────────────────────────────────────────────────────────
+  function triggerInfo(type) {
+    if (type==='PIN') return { label:'Bullish Pin',  desc:'Long lower wick rejection' };
+    if (type==='MU')  return { label:'Mark Up',      desc:'Strong bullish expansion bar' };
+    if (type==='ICE') return { label:'Ice Cream',    desc:'Bullish continuation setup' };
+    return { label:type||'\u2014', desc:'' };
+  }
+  function scenarioInfo(s) {
+    if (s==='Trend Pullback')    return { color:'#7abd00', desc:'Existing uptrend resumed after pullback' };
+    if (s==='Recovery Reversal') return { color:'#6090d0', desc:'Price recovered after breaking support' };
+    if (s==='Shakeout Reversal') return { color:'#EF9F27', desc:'Support flush followed by recovery' };
+    return { color:'#555', desc:'No scenario classification' };
+  }
+
+  // ── Mini SVG candlestick chart with Mother zone ────────────────────────────
+  function MiniChart({ chartBars, motherHigh, motherLow }) {
+    if (!chartBars||chartBars.length<2) return <div style={{color:'#444',fontSize:10}}>No chart</div>;
+    var W=130, H=56, pad=4;
+    var hi = Math.max.apply(null, chartBars.map(function(b){ return b.high; }));
+    var lo = Math.min.apply(null, chartBars.map(function(b){ return b.low;  }));
+    var rng = hi-lo||1;
+    var n   = chartBars.length;
+    var bw  = Math.max(3, Math.floor((W-pad*2)/n)-1);
+    function yp(v){ return pad+(1-(v-lo)/rng)*(H-pad*2); }
+    var roleStroke = { mother:'#6090d0', baby:'#EF9F27', trigger:'#7abd00', normal:'#333' };
+    var roleColor  = { mother:'#6090d0', baby:'#EF9F27', trigger:'#7abd00', normal:'#555' };
+    return (
+      <svg width={W} height={H} style={{display:'block',overflow:'visible'}}>
+        {/* Mother range shading */}
+        {motherHigh&&motherLow&&<rect x={pad} y={yp(motherHigh)} width={W-pad*2}
+          height={Math.max(1,yp(motherLow)-yp(motherHigh))}
+          fill="rgba(96,144,208,0.10)" stroke="rgba(96,144,208,0.35)" strokeWidth="0.5" strokeDasharray="2,2" />}
+        {/* Mother High/Low lines */}
+        {motherHigh&&<line x1={pad} y1={yp(motherHigh)} x2={W-pad} y2={yp(motherHigh)} stroke="#6090d0" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.6" />}
+        {motherLow&&<line x1={pad} y1={yp(motherLow)} x2={W-pad} y2={yp(motherLow)} stroke="#6090d0" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.6" />}
+        {/* Candles */}
+        {chartBars.map(function(b,ci){
+          var x    = pad + ci*(bw+1) + Math.floor(bw/2);
+          var bull = b.close >= b.open;
+          var top  = yp(Math.max(b.open,b.close));
+          var bot  = yp(Math.min(b.open,b.close));
+          var bodyH= Math.max(1,bot-top);
+          var rc   = roleColor[b.role]||'#555';
+          var rs   = roleStroke[b.role]||'#333';
+          var fill = b.role!=='normal'?(bull?rc:'transparent'):(bull?'#3a4a2a':'#4a2a2a');
+          return <g key={ci}>
+            <line x1={x} y1={yp(b.high)} x2={x} y2={yp(b.low)} stroke={rc} strokeWidth="1"/>
+            <rect x={x-Math.floor(bw/2)} y={top} width={bw} height={bodyH}
+              fill={fill} stroke={rs} strokeWidth={b.role!=='normal'?1.5:0.5}/>
+          </g>;
+        })}
+        {[['M','#6090d0'],['B','#EF9F27'],['T','#7abd00']].map(function(rl,i){
+          return <text key={rl[0]} x={pad+i*18} y={H-1} fontSize="6" fill={rl[1]}>{rl[0]}</text>;
+        })}
+      </svg>
+    );
+  }
+
+  // ── Apply filters ──────────────────────────────────────────────────────────
+  var filtered = results.filter(function(r){
+    if (filterTrigger!=='All' && r.triggerType!==filterTrigger) return false;
+    if (filterScenario!=='All') {
+      var s = r.scenario||'None';
+      if (filterScenario==='Unclassified'&&s!=='None') return false;
+      if (filterScenario!=='Unclassified'&&s!==filterScenario) return false;
+    }
+    return true;
+  });
+
+  // ── Summary stats ──────────────────────────────────────────────────────────
+  var stats = allAudit.length ? {
+    scanned:   allAudit.length,
+    valid:     allAudit.filter(function(r){ return r.triggered; }).length,
+    expired:   allAudit.filter(function(r){ return !r.triggered && r.result==='Expired'; }).length,
+    invalid:   allAudit.filter(function(r){ return !r.triggered && r.result!=='Expired'; }).length,
+    tp:    results.filter(function(r){ return r.scenario==='Trend Pullback'; }).length,
+    rr:    results.filter(function(r){ return r.scenario==='Recovery Reversal'; }).length,
+    sr:    results.filter(function(r){ return r.scenario==='Shakeout Reversal'; }).length,
+    unc:   results.filter(function(r){ return !r.scenario||r.scenario==='None'; }).length,
+  } : null;
+
+  // ── Select style helper ────────────────────────────────────────────────────
+  var selStyle = { fontSize:10, padding:'4px 8px', background:'#1a1a18', border:'0.5px solid #333',
+                   borderRadius:5, color:'#aaa', cursor:'pointer', outline:'none' };
+
+  // ── Gates ──────────────────────────────────────────────────────────────────
+  if (!clerkUser) return (
+    <div style={{minHeight:'100vh',background:'#0e0e0c',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{textAlign:'center',color:'#888'}}>
+        <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:12}}>Force Strike Screener</div>
+        <div style={{fontSize:14}}>Sign in to use Force Strike.</div>
+      </div>
+    </div>
+  );
+  if (!canAccess) return (
+    <div style={{minHeight:'100vh',background:'#0e0e0c',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{textAlign:'center',color:'#888',maxWidth:420,padding:24}}>
+        <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:12}}>Force Strike Screener</div>
+        <div style={{fontSize:14,color:'#aaa',marginBottom:8}}>Force Strike is a premium feature.</div>
+        <button onClick={function(){ window.location.hash=''; }} style={{fontSize:12,padding:'8px 18px',background:'none',border:'0.5px solid #444',borderRadius:8,color:'#888',cursor:'pointer'}}>Back</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{minHeight:'100vh',background:'#0e0e0c',padding:'24px 20px',maxWidth:1200,margin:'0 auto'}}>
+      {/* Header */}
+      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14,flexWrap:'wrap',gap:12}}>
+        <div>
+          <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:4}}>Force Strike Screener</div>
+          <div style={{fontSize:12,color:'#555',lineHeight:1.6}}>{'Mother \u2192 Baby \u2192 Trigger on 2-day bars. Mother must expand 1.2\u00D7 vs prior 5 bars. Top 10 by volume.'}</div>
+          <div style={{fontSize:10,color:'#444',marginTop:3}}>{'M=Mother \u00B7 B=Baby inside Mother range \u00B7 PIN=Bullish Pin \u00B7 MU=Mark Up \u00B7 Pattern Age=bars since Mother'}</div>
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          <button onClick={runScan} disabled={status==='scanning'}
+            style={{fontSize:12,padding:'7px 18px',background:status==='scanning'?'#2a3a10':LIME,border:'none',borderRadius:6,
+                    color:status==='scanning'?LIME:'#0e0e0c',fontWeight:700,cursor:status==='scanning'?'default':'pointer'}}>
+            {status==='scanning' ? 'Scanning\u2026' : 'Run Scan'}
+          </button>
+          {allAudit.length>0&&status==='done'&&<button onClick={function(){
+            // Invalidate KV cache by posting an expired timestamp
+            try {
+              var postHdrs = { 'Content-Type':'text/plain' };
+              if (window.__clerkToken) postHdrs['Authorization']='Bearer '+window.__clerkToken;
+              fetch('/cache?sym=__FORCESTRIKE&tab=results',
+                { method:'POST', headers:postHdrs, body:JSON.stringify({ ts:0 }) }).catch(function(){});
+            } catch(e) {}
+            runScan();
+          }} style={{fontSize:11,padding:'7px 12px',background:'none',border:'0.5px solid #333',borderRadius:6,color:'#666',cursor:'pointer'}}>Force Rescan</button>}
+          {allAudit.length>0&&<button onClick={downloadAudit} style={{fontSize:12,padding:'7px 14px',background:'none',border:'0.5px solid #444',borderRadius:6,color:'#888',cursor:'pointer'}}>Download Audit TXT</button>}
+          <button onClick={function(){ window.location.hash=''; }} style={{fontSize:11,padding:'6px 12px',background:'none',border:'0.5px solid #2a2a28',borderRadius:6,color:'#555',cursor:'pointer'}}>{'\u2190 Back'}</button>
+        </div>
+      </div>
+
+      {msg&&<div style={{fontSize:11,color:status==='scanning'?'#EF9F27':'#7abd00',marginBottom:10,padding:'6px 10px',background:'rgba(0,0,0,0.3)',borderRadius:6}}>{msg}</div>}
+
+      {/* Summary stats */}
+      {stats&&<div style={{display:'flex',gap:14,marginBottom:10,flexWrap:'wrap',fontSize:10,color:'#555',alignItems:'center'}}>
+        <span><span style={{color:'#7abd00',fontWeight:700}}>{stats.valid}</span>{' Valid Force Strike'+(stats.valid!==1?'s':'')}</span>
+        <span><span style={{color:'#e05050',fontWeight:700}}>{stats.expired}</span>{' Expired (too old)'}</span>
+        <span><span style={{color:'#555',fontWeight:700}}>{stats.invalid}</span>{' Invalid / No Pattern'}</span>
+        <span><span style={{color:'#666',fontWeight:700}}>{stats.scanned}</span>{' Scanned'}</span>
+        {stats.valid>0&&<span style={{color:'#444'}}>{'\u00B7'}</span>}
+        {stats.tp>0&&<span><span style={{color:'#7abd00',fontWeight:700}}>{stats.tp}</span>{' Trend Pullback'}</span>}
+        {stats.rr>0&&<span><span style={{color:'#6090d0',fontWeight:700}}>{stats.rr}</span>{' Recovery Reversal'}</span>}
+        {stats.sr>0&&<span><span style={{color:'#EF9F27',fontWeight:700}}>{stats.sr}</span>{' Shakeout Reversal'}</span>}
+        {stats.unc>0&&stats.valid>0&&<span><span style={{color:'#555',fontWeight:700}}>{stats.unc}</span>{' Unclassified'}</span>}
+        {stoppedEarly&&<span style={{color:'#7abd00'}}>Stopped after 10 valid setups</span>}
+        {!stoppedEarly&&allAudit.length>0&&<span style={{color:'#444'}}>Full universe scanned</span>}
+      </div>}
+
+      {/* Filters */}
+      {results.length>0&&<div style={{display:'flex',gap:10,marginBottom:12,alignItems:'center',flexWrap:'wrap'}}>
+        <span style={{fontSize:10,color:'#555'}}>Filter:</span>
+        <select value={filterTrigger} onChange={function(e){ setFilterTrigger(e.target.value); }} style={selStyle}>
+          {['All','MU','PIN','ICE'].map(function(v){ return <option key={v} value={v}>{v==='All'?'All Triggers':v==='MU'?'Mark Up':v==='PIN'?'Bullish Pin':'Ice Cream'}</option>; })}
+        </select>
+        <select value={filterScenario} onChange={function(e){ setFilterScenario(e.target.value); }} style={selStyle}>
+          {['All','Trend Pullback','Recovery Reversal','Shakeout Reversal','Unclassified'].map(function(v){ return <option key={v} value={v}>{v==='All'?'All Scenarios':v}</option>; })}
+        </select>
+        <span style={{fontSize:9,color:'#444'}}>{filtered.length+' shown'}</span>
+      </div>}
+
+      {status==='idle'&&<div style={{color:'#444',fontSize:13,padding:40,textAlign:'center',border:'0.5px solid #222',borderRadius:10}}>
+        Click <strong style={{color:LIME}}>Run Scan</strong> to scan the most-active universe for Force Strike setups.
+      </div>}
+      {status==='done'&&filtered.length===0&&<div style={{color:'#555',fontSize:13,padding:40,textAlign:'center',border:'0.5px solid #222',borderRadius:10}}>
+        No Force Strike setups match the current filters. Adjust filters or run a new scan.
+      </div>}
+
+      {filtered.length>0&&(
+        <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflow:'hidden'}}>
+          <div style={{display:'grid',gridTemplateColumns:'70px 140px 110px 1fr 1fr 80px 60px 60px',columnGap:14,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
+            {['Ticker','Pattern Chart','Pattern','Trigger','Scenario','Volume','Pat. Age',''].map(function(h,i){
+              return <div key={i} style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>;
+            })}
+          </div>
+
+          {filtered.map(function(r,i){
+            var ti = triggerInfo(r.triggerType), si = scenarioInfo(r.scenario);
+            var isExp = expandedRow===r.symbol;
+            var mh = r.motherBar ? r.motherBar.high : null;
+            var ml = r.motherBar ? r.motherBar.low  : null;
+            return (
+              <React.Fragment key={r.symbol}>
+              <div style={{display:'grid',gridTemplateColumns:'70px 140px 110px 1fr 1fr 80px 60px 60px',columnGap:14,padding:'11px 14px',
+                borderBottom:(!isExp&&i<filtered.length-1)?'1px solid #1a1a16':'none',
+                background:i%2===0?'#111':'#131311',alignItems:'center'}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:800,color:LIME}}>{r.symbol}</div>
+                  <div style={{fontSize:9,color:'#444',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:65}}>{r.name||r.symbol}</div>
+                </div>
+                <div><MiniChart chartBars={r.chartBars} motherHigh={mh} motherLow={ml} /></div>
+                <div style={{fontSize:11,fontWeight:700,color:'#6090d0',letterSpacing:'0.03em'}}>{r.pattern||'\u2014'}</div>
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:'#7abd00'}}>{ti.label}</div>
+                  {ti.desc&&<div style={{fontSize:9,color:'#555',marginTop:1}}>{ti.desc}</div>}
+                </div>
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:si.color}}>{r.scenario||'\u2014'}</div>
+                  {si.desc&&<div style={{fontSize:9,color:'#555',marginTop:1}}>{si.desc}</div>}
+                </div>
+                <div style={{fontSize:10,color:'#888'}}>{r.volume?(r.volume/1e6).toFixed(1)+'M':'\u2014'}</div>
+                <div title="Aggregated 2-day bars since Mother Bar detected">
+                  <div style={{fontSize:11,fontWeight:600,color:r.patternAge!=null&&r.patternAge<=3?'#7abd00':r.patternAge!=null&&r.patternAge<=5?'#EF9F27':'#e05050'}}>{r.patternAge!=null?r.patternAge:'\u2014'}</div>
+                  <div style={{fontSize:8,color:'#444'}}>bars</div>
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                  <button onClick={function(){ window.open(window.location.origin+'/#'+r.symbol,'_blank','noopener,noreferrer'); }}
+                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#888',cursor:'pointer'}}>View</button>
+                  <button onClick={function(){ setExpandedRow(isExp?null:r.symbol); }}
+                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a4a2a',borderRadius:4,color:'#5a9a60',cursor:'pointer'}}>
+                    {isExp?'Close':'Details'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Expanded details */}
+              {isExp&&(function(){
+                var m=r.motherBar, b=r.babyBar, t=r.triggerBar;
+                return <div style={{background:'#161614',borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none',padding:'14px 16px'}}>
+                  <div style={{fontSize:11,fontWeight:700,color:LIME,marginBottom:10}}>Force Strike Details \u2014 {r.symbol}</div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16,marginBottom:8}}>
+                    {/* Scorecard */}
+                    <div>
+                      <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Pattern Scorecard</div>
+                      {[
+                        [true,  'Mother Bar Found (1.2\u00D7 expansion)'],
+                        [m&&m.qualByRange, 'Qualified by Range (' + (m&&m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'—') + ')'],
+                        [m&&m.qualByBody,  'Qualified by Body ('  + (m&&m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'—')  + ')'],
+                        [true,  'Baby Bar Inside Mother Range'],
+                        [true,  'Trigger Within 3 Bars'],
+                        [true,  'Trigger: ' + ti.label],
+                        [r.scenario==='Trend Pullback',    'Trend Pullback'],
+                        [r.scenario==='Recovery Reversal', 'Recovery Reversal'],
+                        [r.scenario==='Shakeout Reversal', 'Shakeout Reversal'],
+                      ].map(function(row,ri){
+                        return <div key={ri} style={{fontSize:10,color:row[0]?'#7abd00':'#444',marginBottom:2}}>
+                          {row[0]?'\u2713':'\u2717'}{' '}{row[1]}
+                        </div>;
+                      })}
+                    </div>
+                    {/* Bar dates */}
+                    <div>
+                      <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Bar Dates</div>
+                      {[['Mother',m,'#6090d0'],['Baby',b,'#EF9F27'],['Trigger',t,'#7abd00']].map(function(row,ri){
+                        var bar=row[1];
+                        return <div key={ri} style={{marginBottom:6}}>
+                          <div style={{fontSize:9,fontWeight:700,color:row[2]}}>{row[0]}</div>
+                          <div style={{fontSize:10,color:'#888'}}>{bar?(bar.dateLabel||bar.date||'\u2014'):'\u2014'}</div>
+                          {bar&&<div style={{fontSize:9,color:'#555'}}>H:{bar.high?bar.high.toFixed(2):'\u2014'} L:{bar.low?bar.low.toFixed(2):'\u2014'}</div>}
+                        </div>;
+                      })}
+                      {m&&<div style={{fontSize:9,color:'#555',marginTop:4}}>
+                        {'Mother Range: '+(m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'—')+' \u00B7 Body: '+(m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'—')}
+                      </div>}
+                    </div>
+                    {/* Trigger & Scenario */}
+                    <div>
+                      <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Trigger</div>
+                      <div style={{fontSize:11,fontWeight:700,color:'#7abd00',marginBottom:2}}>{ti.label}</div>
+                      <div style={{fontSize:10,color:'#555',marginBottom:10}}>{ti.desc}</div>
+                      <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:4}}>Scenario</div>
+                      <div style={{fontSize:11,fontWeight:700,color:si.color,marginBottom:2}}>{r.scenario||'\u2014'}</div>
+                      <div style={{fontSize:10,color:'#555',marginBottom:4}}>{si.desc}</div>
+                      <div style={{fontSize:9,color:'#444'}}>{'Trend at scan: '+(r.audit&&r.audit.trendStatus||'Unknown')}</div>
+                      <div style={{fontSize:9,color:'#444',marginTop:2}}>{'Pattern Age: '+(r.patternAge!=null?r.patternAge+' bars':'\u2014')}</div>
+                    </div>
+                  </div>
+                </div>;
+              })()}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      )}
+
+      {status==='done'&&allAudit.length>0&&(
+        <div style={{fontSize:10,color:'#444',marginTop:10}}>
+          {allAudit.length + ' stocks scanned \u00B7 Research use only. Not financial advice.'}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+
 export default function App() {
+
   const [input,   setInput]   = useState("");
   const [focused, setFocused] = useState(false);
   const [clerkUser, setClerkUser] = useState(window.__clerkUser || null);
@@ -12783,6 +13248,10 @@ export default function App() {
   return <JournalPage />;
 }
 
+  if (hashSym === "FORCESTRIKE") {
+    return <ForceStrikePage isPaid={isPaid} clerkUser={clerkUser} />;
+  }
+
   if (hashSym === "WATCHLIST") {
     return <WatchlistPage clerkUser={clerkUser} isPaid={isPaid} />;
   }
@@ -12908,7 +13377,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.116</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.125</span>
           </div>
         </div>
 
