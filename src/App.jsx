@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.133</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.134</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.133</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.134</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12669,7 +12669,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     var pendingCandidates = buildCandidates(allRawQuotes);
     var validFound = 0, allResults = [], stopped = false;
     var BATCH = 5;   // gentle batching
-    var GOAL  = 10;
+    var GOAL  = 20;
     var MAX_SCAN = 300;
     var totalScanned = 0;
 
@@ -12933,7 +12933,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14,flexWrap:'wrap',gap:12}}>
         <div>
           <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:4}}>Force Strike Screener</div>
-          <div style={{fontSize:12,color:'#555',lineHeight:1.6}}>{'Mother \u2192 Baby \u2192 Trigger on 2-day bars. Mother must expand 1.2\u00D7 vs prior 5 bars. Top 10 by volume.'}</div>
+          <div style={{fontSize:12,color:'#555',lineHeight:1.6}}>{'Mother \u2192 Baby \u2192 Trigger on 2-day bars. Mother must expand 1.2\u00D7 vs prior 5 bars. Top 20 by volume.'}</div>
           <div style={{fontSize:10,color:'#444',marginTop:3}}>{'M=Mother \u00B7 B=Baby inside Mother range \u00B7 PIN=Bullish Pin \u00B7 MU=Mark Up \u00B7 Pattern Age=bars since Mother'}</div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
@@ -12970,7 +12970,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
         {stats.rr>0&&<span><span style={{color:'#6090d0',fontWeight:700}}>{stats.rr}</span>{' Recovery Reversal'}</span>}
         {stats.sr>0&&<span><span style={{color:'#EF9F27',fontWeight:700}}>{stats.sr}</span>{' Shakeout Reversal'}</span>}
         {stats.unc>0&&stats.valid>0&&<span><span style={{color:'#555',fontWeight:700}}>{stats.unc}</span>{' Unclassified'}</span>}
-        {stoppedEarly&&<span style={{color:'#7abd00'}}>Stopped after 10 valid setups</span>}
+        {stoppedEarly&&<span style={{color:'#7abd00'}}>Stopped after 20 valid setups</span>}
         {!stoppedEarly&&allAudit.length>0&&<span style={{color:'#444'}}>Full universe scanned</span>}
       </div>}
 
@@ -13675,7 +13675,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.133</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.134</span>
           </div>
         </div>
 
