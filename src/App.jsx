@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.129</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.130</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.129</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.130</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12567,6 +12567,8 @@ function ForceStrikePage({ isPaid, clerkUser }) {
   // Filters (Improvement 7/8)
   var [filterTrigger,  setFilterTrigger]  = useState('All');
   var [filterScenario, setFilterScenario] = useState('All');
+  var [sortBy,         setSortBy]         = useState('volume'); // 'volume' | 'score'
+  var [scoreBreakdown, setScoreBreakdown] = useState(null);    // symbol of open score panel
 
   var isAdmin  = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === 'admin');
   var canAccess= isPaid || isAdmin;
@@ -12742,6 +12744,43 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     return { color:'#555', desc:'No scenario classification' };
   }
 
+  // ── Force Strike Score calculator ─────────────────────────────────────────
+  function calcFsScore(r) {
+    var pts = 0, breakdown = [];
+    // 1. Trigger Type
+    var tPts = r.triggerType==='PIN' ? 3 : r.triggerType==='MU' ? 2 : r.triggerType==='ICE' ? 2 : 0;
+    pts += tPts;
+    breakdown.push({ label: 'Trigger: ' + (r.triggerType==='PIN'?'Bullish Pin':r.triggerType==='MU'?'Mark Up':r.triggerType==='ICE'?'Ice Cream':'Unknown'), pts: tPts });
+    // 2. Scenario
+    var sPts = r.scenario==='Shakeout Reversal' ? 4 : r.scenario==='Recovery Reversal' ? 3 : r.scenario==='Trend Pullback' ? 2 : 0;
+    pts += sPts;
+    breakdown.push({ label: 'Scenario: ' + (r.scenario||'Unclassified'), pts: sPts });
+    // 3. Pattern Age
+    var aPts = r.patternAge!=null&&r.patternAge<=2 ? 2 : r.patternAge!=null&&r.patternAge<=4 ? 1 : 0;
+    pts += aPts;
+    breakdown.push({ label: 'Pattern Age: ' + (r.patternAge!=null?r.patternAge+' bars':'—'), pts: aPts });
+    // 4. Mother Bar Expansion (use rangeExpansion)
+    var mExp = r.motherBar && r.motherBar.rangeExpansion != null ? r.motherBar.rangeExpansion : 0;
+    var mPts = mExp >= 2.5 ? 0.5 : mExp >= 1.5 ? 1 : mExp >= 1.2 ? 0.5 : 0;
+    pts += mPts;
+    breakdown.push({ label: 'Mother Expansion: ' + (mExp>0?mExp.toFixed(2)+'x':'—'), pts: mPts });
+    // 5. Trigger interacts with Mother range
+    var tBar = r.triggerBar;
+    var interacts = tBar && tBar.interactsWithMother === true;
+    var iPts = interacts ? 2 : 0;
+    pts += iPts;
+    breakdown.push({ label: 'Mother Range Interaction', pts: iPts });
+    // Star conversion
+    var stars = pts <= 2 ? 1 : pts <= 4 ? 2 : pts <= 6 ? 3 : pts <= 8 ? 4 : 5;
+    return { pts: pts, stars: stars, breakdown: breakdown };
+  }
+  function renderStars(n, size) {
+    var s = size||12;
+    return <span style={{color:'#EF9F27',fontSize:s,letterSpacing:1}}>
+      {[1,2,3,4,5].map(function(i){ return <span key={i} style={{opacity:i<=n?1:0.22}}>{'\u2605'}</span>; })}
+    </span>;
+  }
+
   // ── Mini SVG candlestick chart with Mother zone ────────────────────────────
   function MiniChart({ chartBars, motherHigh, motherLow }) {
     if (!chartBars||chartBars.length<2) return <div style={{color:'#444',fontSize:10}}>No chart</div>;
@@ -12795,6 +12834,9 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       if (filterScenario!=='Unclassified'&&s!==filterScenario) return false;
     }
     return true;
+  }).slice().sort(function(a,b){
+    if (sortBy==='score') return calcFsScore(b).pts - calcFsScore(a).pts;
+    return (b.volume||0) - (a.volume||0);
   });
 
   // ── Summary stats ──────────────────────────────────────────────────────────
@@ -12888,6 +12930,10 @@ function ForceStrikePage({ isPaid, clerkUser }) {
         <select value={filterScenario} onChange={function(e){ setFilterScenario(e.target.value); }} style={selStyle}>
           {['All','Trend Pullback','Recovery Reversal','Shakeout Reversal','Unclassified'].map(function(v){ return <option key={v} value={v}>{v==='All'?'All Scenarios':v}</option>; })}
         </select>
+        <select value={sortBy} onChange={function(e){ setSortBy(e.target.value); }} style={selStyle}>
+          <option value="volume">Sort: Volume</option>
+          <option value="score">Sort: FS Score</option>
+        </select>
         <span style={{fontSize:9,color:'#444'}}>{filtered.length+' shown'}</span>
       </div>}
 
@@ -12900,8 +12946,8 @@ function ForceStrikePage({ isPaid, clerkUser }) {
 
       {filtered.length>0&&(
         <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflow:'hidden'}}>
-          <div style={{display:'grid',gridTemplateColumns:'70px 140px 110px 1fr 1fr 80px 60px 60px',columnGap:14,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
-            {['Ticker','Pattern Chart','Pattern','Trigger','Scenario','Volume','Pat. Age',''].map(function(h,i){
+          <div style={{display:'grid',gridTemplateColumns:'70px 140px 110px 1fr 1fr 70px 80px 60px 60px',columnGap:14,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
+            {['Ticker','Pattern Chart','Pattern','Trigger','Scenario','FS Score','Volume','Pat. Age',''].map(function(h,i){
               return <div key={i} style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>;
             })}
           </div>
@@ -12909,12 +12955,14 @@ function ForceStrikePage({ isPaid, clerkUser }) {
           {filtered.map(function(r,i){
             var ti = triggerInfo(r.triggerType), si = scenarioInfo(r.scenario);
             var isExp = expandedRow===r.symbol;
+            var isSc  = scoreBreakdown===r.symbol;
             var mh = r.motherBar ? r.motherBar.high : null;
             var ml = r.motherBar ? r.motherBar.low  : null;
+            var sc = calcFsScore(r);
             return (
               <React.Fragment key={r.symbol}>
-              <div style={{display:'grid',gridTemplateColumns:'70px 140px 110px 1fr 1fr 80px 60px 60px',columnGap:14,padding:'11px 14px',
-                borderBottom:(!isExp&&i<filtered.length-1)?'1px solid #1a1a16':'none',
+              <div style={{display:'grid',gridTemplateColumns:'70px 140px 110px 1fr 1fr 70px 80px 60px 60px',columnGap:14,padding:'11px 14px',
+                borderBottom:(!isExp&&!isSc&&i<filtered.length-1)?'1px solid #1a1a16':'none',
                 background:i%2===0?'#111':'#131311',alignItems:'center'}}>
                 <div>
                   <div style={{fontSize:13,fontWeight:800,color:LIME}}>{r.symbol}</div>
@@ -12930,6 +12978,15 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                   <div style={{fontSize:11,fontWeight:700,color:si.color}}>{r.scenario||'\u2014'}</div>
                   {si.desc&&<div style={{fontSize:9,color:'#555',marginTop:1}}>{si.desc}</div>}
                 </div>
+                {/* FS Score */}
+                <div>
+                  <button title="Force Strike Quality Score — click for breakdown"
+                    onClick={function(){ setScoreBreakdown(isSc?null:r.symbol); setExpandedRow(null); }}
+                    style={{background:'none',border:'none',padding:0,cursor:'pointer',display:'block',textAlign:'left'}}>
+                    {renderStars(sc.stars, 11)}
+                    <div style={{fontSize:8,color:'#555',marginTop:1}}>{sc.pts+' pts'}</div>
+                  </button>
+                </div>
                 <div style={{fontSize:10,color:'#888'}}>{r.volume?(r.volume/1e6).toFixed(1)+'M':'\u2014'}</div>
                 <div title="Aggregated 2-day bars since Mother Bar detected">
                   <div style={{fontSize:11,fontWeight:600,color:r.patternAge!=null&&r.patternAge<=3?'#7abd00':r.patternAge!=null&&r.patternAge<=5?'#EF9F27':'#e05050'}}>{r.patternAge!=null?r.patternAge:'\u2014'}</div>
@@ -12938,19 +12995,38 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                 <div style={{display:'flex',flexDirection:'column',gap:4}}>
                   <button onClick={function(){ window.open(window.location.origin+'/#'+r.symbol,'_blank','noopener,noreferrer'); }}
                     style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#888',cursor:'pointer'}}>View</button>
-                  <button onClick={function(){ setExpandedRow(isExp?null:r.symbol); }}
+                  <button onClick={function(){ setExpandedRow(isExp?null:r.symbol); setScoreBreakdown(null); }}
                     style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a4a2a',borderRadius:4,color:'#5a9a60',cursor:'pointer'}}>
                     {isExp?'Close':'Details'}
                   </button>
                 </div>
               </div>
 
+              {/* Score Breakdown panel */}
+              {isSc&&<div style={{background:'#161614',borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none',padding:'14px 16px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
+                  <div style={{fontSize:11,fontWeight:700,color:LIME}}>Force Strike Score \u2014 {r.symbol}</div>
+                  {renderStars(sc.stars, 16)}
+                  <div style={{fontSize:11,color:'#888'}}>{sc.pts+' pts'}</div>
+                </div>
+                <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Quality Breakdown</div>
+                {sc.breakdown.map(function(b,bi){
+                  return <div key={bi} style={{display:'flex',justifyContent:'space-between',fontSize:10,padding:'3px 0',borderBottom:'0.5px solid #1e1e1e',color:b.pts>0?'#7abd00':'#444'}}>
+                    <span>{b.pts>0?'\u2713':'\u2212'}{' '}{b.label}</span>
+                    <span style={{fontWeight:700,color:b.pts>0?'#7abd00':'#444'}}>{b.pts>0?'+'+b.pts:'\u2014'}</span>
+                  </div>;
+                })}
+                <div style={{display:'flex',justifyContent:'space-between',fontSize:11,fontWeight:700,marginTop:8,paddingTop:6,borderTop:'0.5px solid #333',color:'#f0ede6'}}>
+                  <span>Total</span><span>{sc.pts} pts \u2014 {['\u2605\u2606\u2606\u2606\u2606','\u2605\u2605\u2606\u2606\u2606','\u2605\u2605\u2605\u2606\u2606','\u2605\u2605\u2605\u2605\u2606','\u2605\u2605\u2605\u2605\u2605'][sc.stars-1]}</span>
+                </div>
+              </div>}
+
               {/* Expanded details */}
               {isExp&&(function(){
                 var m=r.motherBar, b=r.babyBar, t=r.triggerBar;
                 return <div style={{background:'#161614',borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none',padding:'14px 16px'}}>
                   <div style={{fontSize:11,fontWeight:700,color:LIME,marginBottom:10}}>Force Strike Details \u2014 {r.symbol}</div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16,marginBottom:8}}>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:16,marginBottom:8}}>
                     {/* Scorecard */}
                     <div>
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Pattern Scorecard</div>
@@ -12995,6 +13071,17 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                       <div style={{fontSize:10,color:'#555',marginBottom:4}}>{si.desc}</div>
                       <div style={{fontSize:9,color:'#444'}}>{'Trend at scan: '+(r.audit&&r.audit.trendStatus||'Unknown')}</div>
                       <div style={{fontSize:9,color:'#444',marginTop:2}}>{'Pattern Age: '+(r.patternAge!=null?r.patternAge+' bars':'\u2014')}</div>
+                    </div>
+                    {/* FS Score in details */}
+                    <div>
+                      <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>FS Score</div>
+                      {renderStars(sc.stars, 13)}
+                      <div style={{fontSize:9,color:'#888',marginTop:4}}>{sc.pts+' pts'}</div>
+                      {sc.breakdown.map(function(b,bi){
+                        return <div key={bi} style={{fontSize:9,color:b.pts>0?'#7abd00':'#444',marginTop:2}}>
+                          {b.pts>0?'\u2713':'\u2212'}{' '}{b.label}{b.pts>0?' (+'+b.pts+')':''}
+                        </div>;
+                      })}
                     </div>
                   </div>
                 </div>;
@@ -13535,7 +13622,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.129</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.130</span>
           </div>
         </div>
 
