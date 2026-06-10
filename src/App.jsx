@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.139</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.140</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.139</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.140</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12886,10 +12886,11 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     var sPts = r.scenario==='Shakeout Reversal' ? 4 : r.scenario==='Recovery Reversal' ? 3 : r.scenario==='Trend Pullback' ? 2 : 0;
     pts += sPts;
     breakdown.push({ label: 'Scenario: ' + (r.scenario||'Unclassified'), pts: sPts });
-    // 3. Pattern Age
-    var aPts = r.patternAge!=null&&r.patternAge<=2 ? 2 : r.patternAge!=null&&r.patternAge<=4 ? 1 : 0;
-    pts += aPts;
-    breakdown.push({ label: 'Pattern Age: ' + (r.patternAge!=null?r.patternAge+' bars':'—'), pts: aPts });
+    // 3. Trigger Position (Bar 3/4/5 — Bar 5 = most confirmed)
+    var tpPos = r.triggerPosition != null ? r.triggerPosition : 0;
+    var tpPts = tpPos===5 ? 3 : tpPos===4 ? 2 : tpPos===3 ? 1 : 0;
+    pts += tpPts;
+    breakdown.push({ label: 'Trigger Position: Bar ' + (tpPos||'—'), pts: tpPts });
     // 4. Mother Bar Expansion (use rangeExpansion)
     var mExp = r.motherBar && r.motherBar.rangeExpansion != null ? r.motherBar.rangeExpansion : 0;
     var mPts = mExp >= 2.5 ? 0.5 : mExp >= 1.5 ? 1 : mExp >= 1.2 ? 0.5 : 0;
@@ -13012,7 +13013,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
         <div>
           <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:4}}>Force Strike Screener</div>
           <div style={{fontSize:12,color:'#555',lineHeight:1.6}}>{'Mother \u2192 Baby \u2192 Trigger on 2-day bars. Mother must expand 1.2\u00D7 vs prior 5 bars. Top 20 by volume.'}</div>
-          <div style={{fontSize:10,color:'#444',marginTop:3}}>{'M=Mother \u00B7 B=Baby inside Mother range \u00B7 PIN=Bullish Pin \u00B7 MU=Mark Up \u00B7 Pattern Age=bars since Mother'}</div>
+          <div style={{fontSize:10,color:'#444',marginTop:3}}>{'M=Mother \u00B7 B=Baby inside Mother body \u00B7 PIN=Bullish Pin \u00B7 MU=Mark Up \u00B7 Trigger Bar=Bar 3/4/5 when Force Strike triggered'}</div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
           <button onClick={runScan} disabled={status==='scanning'}
@@ -13078,7 +13079,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       {filtered.length>0&&(
         <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflow:'hidden'}}>
           <div style={{display:'grid',gridTemplateColumns:'70px 140px 110px 1fr 1fr 70px 80px 60px 60px',columnGap:14,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
-            {['Ticker','Pattern Chart','Pattern','Trigger','Scenario','FS Score','Volume','Pat. Age',''].map(function(h,i){
+            {['Ticker','Pattern Chart','Pattern','Trigger','Scenario','FS Score','Volume','Trigger Bar',''].map(function(h,i){
               return <div key={i} style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>;
             })}
           </div>
@@ -13119,9 +13120,11 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                   </button>
                 </div>
                 <div style={{fontSize:10,color:'#888'}}>{r.volume?(r.volume/1e6).toFixed(1)+'M':'\u2014'}</div>
-                <div title="Aggregated 2-day bars since Mother Bar detected">
-                  <div style={{fontSize:11,fontWeight:600,color:r.patternAge!=null&&r.patternAge<=3?'#7abd00':r.patternAge!=null&&r.patternAge<=5?'#EF9F27':'#e05050'}}>{r.patternAge!=null?r.patternAge:'\u2014'}</div>
-                  <div style={{fontSize:8,color:'#444'}}>bars</div>
+                <div title="Bar at which the Force Strike trigger occurred (Mother=1, Baby=2, Trigger=Bar 3/4/5)">
+                  <div style={{fontSize:11,fontWeight:600,color:r.triggerPosition===5?'#7abd00':r.triggerPosition===4?'#EF9F27':'#aaa'}}>
+                    {r.triggerPosition!=null?'Bar '+r.triggerPosition:'\u2014'}
+                  </div>
+                  <div style={{fontSize:8,color:'#444'}}>{r.barsSinceTrigger!=null?r.barsSinceTrigger+'d ago':''}</div>
                 </div>
                 <div style={{display:'flex',flexDirection:'column',gap:4}}>
                   <button onClick={function(){ window.open(window.location.origin+'/#'+r.symbol,'_blank','noopener,noreferrer'); }}
@@ -13201,7 +13204,9 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                       <div style={{fontSize:11,fontWeight:700,color:si.color,marginBottom:2}}>{r.scenario||'\u2014'}</div>
                       <div style={{fontSize:10,color:'#555',marginBottom:4}}>{si.desc}</div>
                       <div style={{fontSize:9,color:'#444'}}>{'Trend at scan: '+(r.audit&&r.audit.trendStatus||'Unknown')}</div>
-                      <div style={{fontSize:9,color:'#444',marginTop:2}}>{'Pattern Age: '+(r.patternAge!=null?r.patternAge+' bars':'\u2014')}</div>
+                      <div style={{fontSize:9,color:'#aaa',marginTop:4,fontWeight:700}}>{'Trigger Position: Bar '+(r.triggerPosition!=null?r.triggerPosition:'\u2014')}</div>
+                      <div style={{fontSize:9,color:'#555',marginTop:2}}>{'Bars Since Trigger: '+(r.barsSinceTrigger!=null?r.barsSinceTrigger:'\u2014')}</div>
+                      <div style={{fontSize:8,color:'#444',marginTop:2}}>{'Bars Since Mother: '+(r.patternAge!=null?r.patternAge:'\u2014')+' (audit ref)'}</div>
                     </div>
                     {/* FS Score in details */}
                     <div>
@@ -13753,7 +13758,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.139</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.140</span>
           </div>
         </div>
 
