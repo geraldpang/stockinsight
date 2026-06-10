@@ -193,9 +193,11 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
              audit: Object.assign({ finalReason: 'Trigger not found within 3 bars' }, audit) };
   }
 
-  var latestIdx  = aggs.length - 1;
-  var patternAge = latestIdx - mother.index; // bars since Mother
-  var volume     = aggs[latestIdx].volume;
+  var latestIdx    = aggs.length - 1;
+  var patternAge   = latestIdx - mother.index; // bars since Mother — kept for Expired check only
+  var triggerPos   = trigger.index - mother.index + 1; // Bar 3/4/5 (Mother=1, Baby=2, Trigger=3+)
+  var barsSinceTrig= latestIdx - trigger.index;
+  var volume       = aggs[latestIdx].volume;
 
   // Pattern Age is a scan criterion — setups older than 5 bars are Expired
   var MAX_PATTERN_AGE = 5;
@@ -235,14 +237,16 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
   });
 
   return {
-    triggered:    true,
-    result:       'Triggered',
-    symbol:       symbol,
-    triggerType:  trigger.triggerType,
-    scenario:     scenario,
-    volume:       volume,
-    patternAge:   patternAge,
-    pattern:      'M\u2192B\u2192' + trigger.triggerType,
+    triggered:       true,
+    result:          'Triggered',
+    symbol:          symbol,
+    triggerType:     trigger.triggerType,
+    scenario:        scenario,
+    volume:          volume,
+    patternAge:      patternAge,      // kept for Expired check compatibility
+    triggerPosition: triggerPos,      // Bar 3/4/5 — new primary display field
+    barsSinceTrigger:barsSinceTrig,   // how many bars since trigger fired
+    pattern:         'M\u2192B\u2192' + trigger.triggerType,
     motherBar:    mother,
     babyBar:      baby,
     triggerBar:   trigger,
@@ -280,21 +284,24 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
 
     if (r.triggered) {
       lines.push('', 'Summary:');
-      lines.push('  Pattern:      ' + (r.pattern || '—'));
-      lines.push('  Pattern Age:  ' + (r.patternAge != null ? r.patternAge + ' bars since Mother' : '—'));
-      lines.push('  Mother Bar:   ' + (r.motherBar  ? fmtDate(r.motherBar.date1  || r.motherBar.date)  : '—'));
-      lines.push('  Baby Bar:     ' + (r.babyBar    ? fmtDate(r.babyBar.date1    || r.babyBar.date)    : '—'));
-      lines.push('  Trigger:      ' + (r.triggerBar ? fmtDate(r.triggerBar.date1 || r.triggerBar.date) : '—'));
-      lines.push('  Trigger Type: ' + (r.triggerType || '—'));
-      lines.push('  Scenario:     ' + (r.scenario   || '—'));
-      // Force Strike Score
+      lines.push('  Pattern:            ' + (r.pattern || '—'));
+      lines.push('  Trigger Position:   Bar ' + (r.triggerPosition != null ? r.triggerPosition : '—'));
+      lines.push('  Bars Since Trigger: ' + (r.barsSinceTrigger != null ? r.barsSinceTrigger : '—'));
+      lines.push('  Bars Since Mother:  ' + (r.patternAge != null ? r.patternAge : '—') + ' (audit reference only)');
+      lines.push('  Mother Bar:         ' + (r.motherBar  ? fmtDate(r.motherBar.date1  || r.motherBar.date)  : '—'));
+      lines.push('  Baby Bar:           ' + (r.babyBar    ? fmtDate(r.babyBar.date1    || r.babyBar.date)    : '—'));
+      lines.push('  Trigger:            ' + (r.triggerBar ? fmtDate(r.triggerBar.date1 || r.triggerBar.date) : '—'));
+      lines.push('  Trigger Type:       ' + (r.triggerType || '—'));
+      lines.push('  Scenario:           ' + (r.scenario   || '—'));
+      // Force Strike Score — Trigger Position replaces Pattern Age
       var tPts = r.triggerType==='PIN'?3:r.triggerType==='MU'?2:r.triggerType==='ICE'?2:0;
       var sPts = r.scenario==='Shakeout Reversal'?4:r.scenario==='Recovery Reversal'?3:r.scenario==='Trend Pullback'?2:0;
-      var aPts = r.patternAge!=null&&r.patternAge<=2?2:r.patternAge!=null&&r.patternAge<=4?1:0;
+      var tpPos = r.triggerPosition!=null ? r.triggerPosition : 0;
+      var tpPts = tpPos===5?3:tpPos===4?2:tpPos===3?1:0;
       var mExp = r.motherBar&&r.motherBar.rangeExpansion!=null?r.motherBar.rangeExpansion:0;
       var mPts = mExp>=2.5?0.5:mExp>=1.5?1:mExp>=1.2?0.5:0;
       var iPts = r.triggerBar&&r.triggerBar.interactsWithMother===true?2:0;
-      var totalPts = tPts+sPts+aPts+mPts+iPts;
+      var totalPts = tPts+sPts+tpPts+mPts+iPts;
       var stars = totalPts<=2?1:totalPts<=4?2:totalPts<=6?3:totalPts<=8?4:5;
       lines.push('');
       lines.push('  Force Strike Score:');
@@ -302,7 +309,7 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
       lines.push('    Total Points:       ' + totalPts);
       lines.push('    Trigger Type:       +' + tPts);
       lines.push('    Scenario:           +' + sPts);
-      lines.push('    Pattern Age:        +' + aPts);
+      lines.push('    Trigger Position:   +' + tpPts + ' (Bar ' + (tpPos||'—') + ')');
       lines.push('    Mother Expansion:   +' + mPts + (mExp>0?' ('+mExp.toFixed(2)+'x)':''));
       lines.push('    Mother Interaction: +' + iPts);
     }
@@ -378,7 +385,9 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
     lines.push('', '------------------------------------------------', 'Scenario', '');
     lines.push('Trend Status: ' + (a.trendStatus || 'Unknown'));
     lines.push('Scenario:     ' + (s.scenario || 'None'));
-    if (r.patternAge != null) lines.push('Pattern Age:  ' + r.patternAge + ' bars since Mother');
+    if (r.triggerPosition != null) lines.push('Trigger Position: Bar ' + r.triggerPosition);
+    if (r.barsSinceTrigger != null) lines.push('Bars Since Trigger: ' + r.barsSinceTrigger);
+    if (r.patternAge != null) lines.push('Bars Since Mother:  ' + r.patternAge + ' (audit reference)');
 
     lines.push('', '------------------------------------------------', 'Final Decision', '');
     lines.push('Included In Top ' + TARGET + ': ' + (r.triggered && triggered.indexOf(r) < TARGET ? 'true' : 'false'));
