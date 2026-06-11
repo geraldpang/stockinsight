@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.140</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.141</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.140</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.141</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12567,6 +12567,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
   // Filters (Improvement 7/8)
   var [filterTrigger,  setFilterTrigger]  = useState('All');
   var [filterScenario, setFilterScenario] = useState('All');
+  var [filterTechSupport, setFilterTechSupport] = useState('All');
   var [sortBy,         setSortBy]         = useState('volume'); // 'volume' | 'score'
   var [scoreBreakdown, setScoreBreakdown] = useState(null);    // symbol of open score panel
 
@@ -12765,6 +12766,38 @@ function ForceStrikePage({ isPaid, clerkUser }) {
           var fsResult = scanForceStrike(c.sym, daily, tst);
           fsResult.name = c.name||c.sym;
           fsResult.volume = fsResult.volume||c.volume||0;
+
+          // For valid FS results only: compute technical context using existing signal engine
+          if (fsResult.triggered) {
+            try {
+              var vc2 = daily.map(function(b){ return b.close; });
+              var vv2 = daily.map(function(b){ return b.volume||0; });
+              var techSnap = buildTechSnapshotFromYahoo(c.sym, vc2, vv2, pr2, sma50, sma200);
+              if (techSnap) {
+                var rbaRow = buildRuleSnapshotFromRow({
+                  trend: techSnap.trend.status, trendScore: techSnap.trend.score,
+                  momentum: techSnap.momentum.status, momentumScore: techSnap.momentum.score,
+                  reversal: techSnap.reversalWatch ? techSnap.reversalWatch.status : 'No Clear Reversal',
+                  reversalScore: techSnap.reversalWatch ? techSnap.reversalWatch.score : 0,
+                  moneyFlow: techSnap.smartMoneyFlow ? techSnap.smartMoneyFlow.status : 'No Clear Signal',
+                  moneyFlowScore: techSnap.smartMoneyFlow ? techSnap.smartMoneyFlow.score : 0,
+                });
+                var rba = generateRuleBasedAnalytics(rbaRow);
+                fsResult.techContext = {
+                  trend:       techSnap.trend.status,
+                  trendScore:  techSnap.trend.score,
+                  momentum:    techSnap.momentum.status,
+                  momentumScore: techSnap.momentum.score,
+                  reversal:    techSnap.reversalWatch ? techSnap.reversalWatch.status : 'No Clear Reversal',
+                  reversalScore: techSnap.reversalWatch ? techSnap.reversalWatch.score : 0,
+                  moneyFlow:   techSnap.smartMoneyFlow ? techSnap.smartMoneyFlow.status : 'No Clear Signal',
+                  moneyFlowScore: techSnap.smartMoneyFlow ? techSnap.smartMoneyFlow.score : 0,
+                  technicalView: rba ? shortRuleVerdict(rba.verdict) : null,
+                };
+              }
+            } catch(techErr) { fsResult.techContext = null; }
+          }
+
           return fsResult;
         } catch(e) {
           return { triggered:false, result:'Invalid', symbol:c.sym, name:c.name||c.sym,
@@ -12913,6 +12946,28 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     </span>;
   }
 
+  // ── Technical Support classifier ──────────────────────────────────────────
+  function calcTechSupport(tc) {
+    if (!tc) return { label:'—', color:'#555' };
+    var tl  = (tc.trend||'').toLowerCase();
+    var ml  = (tc.momentum||'').toLowerCase();
+    var rl  = (tc.reversal||'').toLowerCase();
+    var sfl = (tc.moneyFlow||'').toLowerCase();
+    var trendBull  = tl==='uptrend'||tl==='strong uptrend';
+    var trendBear  = tl==='downtrend'||tl==='strong downtrend';
+    var momBull    = ml==='building'||ml==='strong';
+    var momBear    = ml==='fading'||ml==='weak';
+    var revBear    = rl.indexOf('bear')!==-1;
+    var mfBull     = sfl.indexOf('accumulation')!==-1&&sfl.indexOf('cooling')===-1;
+    var score      = (trendBull?1:0)+(momBull?1:0)+(mfBull?1:0)+(!revBear?0.5:0);
+    // Conflicting: bearish trend or momentum while FS is bullish
+    if ((trendBear||momBear)&&revBear) return { label:'Conflicting', color:'#e05050' };
+    if (trendBear||momBear)            return { label:'Conflicting', color:'#e05050' };
+    if (score >= 2.5) return { label:'Strong',   color:'#7abd00' };
+    if (score >= 1.5) return { label:'Moderate', color:'#EF9F27' };
+    return              { label:'Weak',     color:'#888' };
+  }
+
   // ── Mini SVG candlestick chart with Mother zone ────────────────────────────
   function MiniChart({ chartBars, motherHigh, motherLow }) {
     if (!chartBars||chartBars.length<2) return <div style={{color:'#444',fontSize:10}}>No chart</div>;
@@ -12965,9 +13020,18 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       if (filterScenario==='Unclassified'&&s!=='None') return false;
       if (filterScenario!=='Unclassified'&&s!==filterScenario) return false;
     }
+    if (filterTechSupport!=='All') {
+      var ts = calcTechSupport(r.techContext).label;
+      if (ts !== filterTechSupport) return false;
+    }
     return true;
   }).slice().sort(function(a,b){
-    if (sortBy==='score') return calcFsScore(b).pts - calcFsScore(a).pts;
+    if (sortBy==='score')   return calcFsScore(b).pts - calcFsScore(a).pts;
+    if (sortBy==='techsupport') {
+      var order = {'Strong':4,'Moderate':3,'Weak':2,'Conflicting':1,'—':0};
+      return (order[calcTechSupport(b.techContext).label]||0) - (order[calcTechSupport(a.techContext).label]||0);
+    }
+    if (sortBy==='triggerbar') return (a.triggerPosition||9) - (b.triggerPosition||9);
     return (b.volume||0) - (a.volume||0);
   });
 
@@ -13062,9 +13126,14 @@ function ForceStrikePage({ isPaid, clerkUser }) {
         <select value={filterScenario} onChange={function(e){ setFilterScenario(e.target.value); }} style={selStyle}>
           {['All','Trend Pullback','Recovery Reversal','Shakeout Reversal','Unclassified'].map(function(v){ return <option key={v} value={v}>{v==='All'?'All Scenarios':v}</option>; })}
         </select>
+        <select value={filterTechSupport} onChange={function(e){ setFilterTechSupport(e.target.value); }} style={selStyle}>
+          {['All','Strong','Moderate','Weak','Conflicting'].map(function(v){ return <option key={v} value={v}>{v==='All'?'All Tech Support':v+' Support'}</option>; })}
+        </select>
         <select value={sortBy} onChange={function(e){ setSortBy(e.target.value); }} style={selStyle}>
           <option value="volume">Sort: Volume</option>
           <option value="score">Sort: FS Score</option>
+          <option value="techsupport">Sort: Tech Support</option>
+          <option value="triggerbar">Sort: Trigger Bar</option>
         </select>
         <span style={{fontSize:9,color:'#444'}}>{filtered.length+' shown'}</span>
       </div>}
@@ -13078,8 +13147,8 @@ function ForceStrikePage({ isPaid, clerkUser }) {
 
       {filtered.length>0&&(
         <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflow:'hidden'}}>
-          <div style={{display:'grid',gridTemplateColumns:'70px 140px 110px 1fr 1fr 70px 80px 60px 60px',columnGap:14,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
-            {['Ticker','Pattern Chart','Pattern','Trigger','Scenario','FS Score','Volume','Trigger Bar',''].map(function(h,i){
+          <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 55px 60px 80px 80px 90px 100px 80px 60px',columnGap:10,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
+            {['Ticker','Pattern Chart','Pattern','Trigger','Trigger Bar','FS Score','Trend','Momentum','Reversal','Money Flow','Scenario',''].map(function(h,i){
               return <div key={i} style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>;
             })}
           </div>
@@ -13091,59 +13160,80 @@ function ForceStrikePage({ isPaid, clerkUser }) {
             var mh = r.motherBar ? r.motherBar.high : null;
             var ml = r.motherBar ? r.motherBar.low  : null;
             var sc = calcFsScore(r);
+            var tc = r.techContext || null;
+            var tsp = calcTechSupport(tc);
             return (
               <React.Fragment key={r.symbol}>
-              <div style={{display:'grid',gridTemplateColumns:'70px 140px 110px 1fr 1fr 70px 80px 60px 60px',columnGap:14,padding:'11px 14px',
+              <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 55px 60px 80px 80px 90px 100px 80px 60px',columnGap:10,padding:'10px 14px',
                 borderBottom:(!isExp&&!isSc&&i<filtered.length-1)?'1px solid #1a1a16':'none',
                 background:i%2===0?'#111':'#131311',alignItems:'center'}}>
                 <div>
-                  <div style={{fontSize:13,fontWeight:800,color:LIME}}>{r.symbol}</div>
+                  <div style={{fontSize:12,fontWeight:800,color:LIME}}>{r.symbol}</div>
                   <div style={{fontSize:9,color:'#444',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:65}}>{r.name||r.symbol}</div>
                 </div>
                 <div><MiniChart chartBars={r.chartBars} motherHigh={mh} motherLow={ml} /></div>
-                <div style={{fontSize:11,fontWeight:700,color:'#6090d0',letterSpacing:'0.03em'}}>{r.pattern||'\u2014'}</div>
+                <div style={{fontSize:10,fontWeight:700,color:'#6090d0',letterSpacing:'0.03em',whiteSpace:'nowrap'}}>{r.pattern||'\u2014'}</div>
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:'#7abd00'}}>{ti.label}</div>
                   {ti.desc&&<div style={{fontSize:9,color:'#555',marginTop:1}}>{ti.desc}</div>}
                 </div>
-                <div>
-                  <div style={{fontSize:11,fontWeight:700,color:si.color}}>{r.scenario||'\u2014'}</div>
-                  {si.desc&&<div style={{fontSize:9,color:'#555',marginTop:1}}>{si.desc}</div>}
-                </div>
-                {/* FS Score */}
-                <div>
-                  <button title="Force Strike Quality Score — click for breakdown"
-                    onClick={function(){ setScoreBreakdown(isSc?null:r.symbol); setExpandedRow(null); }}
-                    style={{background:'none',border:'none',padding:0,cursor:'pointer',display:'block',textAlign:'left'}}>
-                    {renderStars(sc.stars, 11)}
-                    <div style={{fontSize:8,color:'#555',marginTop:1}}>{sc.pts+' pts'}</div>
-                  </button>
-                </div>
-                <div style={{fontSize:10,color:'#888'}}>{r.volume?(r.volume/1e6).toFixed(1)+'M':'\u2014'}</div>
-                <div title="Bar at which the Force Strike trigger occurred (Mother=1, Baby=2, Trigger=Bar 3/4/5)">
+                <div title="Bar at which trigger occurred">
                   <div style={{fontSize:11,fontWeight:600,color:r.triggerPosition===5?'#7abd00':r.triggerPosition===4?'#EF9F27':'#aaa'}}>
                     {r.triggerPosition!=null?'Bar '+r.triggerPosition:'\u2014'}
                   </div>
-                  <div style={{fontSize:8,color:'#444'}}>{r.barsSinceTrigger!=null?r.barsSinceTrigger+'d ago':''}</div>
                 </div>
-                <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                <div>
+                  <button title="FS Quality Score \u2014 click for breakdown"
+                    onClick={function(){ setScoreBreakdown(isSc?null:r.symbol); setExpandedRow(null); }}
+                    style={{background:'none',border:'none',padding:0,cursor:'pointer',display:'block',textAlign:'left'}}>
+                    {renderStars(sc.stars, 10)}
+                    <div style={{fontSize:8,color:'#555',marginTop:1}}>{sc.pts+'pts'}</div>
+                  </button>
+                </div>
+                <div style={{overflow:'hidden'}}>
+                  {tc ? <div style={{display:'flex',alignItems:'center',gap:3}}>
+                    <span style={{width:5,height:5,borderRadius:'50%',background:summaryCardDark(tc.trend).text||'#555',display:'inline-block',flexShrink:0,opacity:0.8}}></span>
+                    <span title={tc.trend||''} style={{fontSize:9,color:'#b8b8b8',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{shortSignalLabel(tc.trend,'trend')}</span>
+                  </div> : <span style={{color:'#444',fontSize:9}}>{'\u2014'}</span>}
+                </div>
+                <div style={{overflow:'hidden'}}>
+                  {tc ? <div style={{display:'flex',alignItems:'center',gap:3}}>
+                    <span style={{width:5,height:5,borderRadius:'50%',background:momentumStateColor(tc.momentum)||'#555',display:'inline-block',flexShrink:0,opacity:0.8}}></span>
+                    <span title={tc.momentum||''} style={{fontSize:9,color:'#b8b8b8',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{shortSignalLabel(tc.momentum,'momentum')}</span>
+                  </div> : <span style={{color:'#444',fontSize:9}}>{'\u2014'}</span>}
+                </div>
+                <div style={{overflow:'hidden'}}>
+                  {tc ? <div style={{display:'flex',alignItems:'center',gap:3}}>
+                    <span style={{width:5,height:5,borderRadius:'50%',background:revStatusColor(tc.reversal,'main')||'#555',display:'inline-block',flexShrink:0,opacity:0.8}}></span>
+                    <span title={tc.reversal||''} style={{fontSize:9,color:'#b8b8b8',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{shortSignalLabel(tc.reversal,'reversal')}</span>
+                  </div> : <span style={{color:'#444',fontSize:9}}>{'\u2014'}</span>}
+                </div>
+                <div style={{overflow:'hidden'}}>
+                  {tc ? <div style={{display:'flex',alignItems:'center',gap:3}}>
+                    <span style={{width:5,height:5,borderRadius:'50%',background:smfStatusColor(tc.moneyFlow,'main')||'#555',display:'inline-block',flexShrink:0,opacity:0.8}}></span>
+                    <span title={tc.moneyFlow||''} style={{fontSize:9,color:'#b8b8b8',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{shortSignalLabel(tc.moneyFlow,'moneyFlow')}</span>
+                  </div> : <span style={{color:'#444',fontSize:9}}>{'\u2014'}</span>}
+                </div>
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:si.color,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.scenario||'\u2014'}</div>
+                  {tc&&<div style={{fontSize:8,fontWeight:700,color:tsp.color,marginTop:2}}>{tsp.label}</div>}
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:3}}>
                   <button onClick={function(){ window.open(window.location.origin+'/#'+r.symbol,'_blank','noopener,noreferrer'); }}
-                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#888',cursor:'pointer'}}>View</button>
+                    style={{fontSize:9,padding:'3px 6px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#888',cursor:'pointer'}}>View</button>
                   <button onClick={function(){ setExpandedRow(isExp?null:r.symbol); setScoreBreakdown(null); }}
-                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a4a2a',borderRadius:4,color:'#5a9a60',cursor:'pointer'}}>
+                    style={{fontSize:9,padding:'3px 6px',background:'none',border:'0.5px solid #2a4a2a',borderRadius:4,color:'#5a9a60',cursor:'pointer'}}>
                     {isExp?'Close':'Details'}
                   </button>
                 </div>
               </div>
-
-              {/* Score Breakdown panel */}
               {isSc&&<div style={{background:'#161614',borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none',padding:'14px 16px'}}>
                 <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
                   <div style={{fontSize:11,fontWeight:700,color:LIME}}>Force Strike Score \u2014 {r.symbol}</div>
                   {renderStars(sc.stars, 16)}
                   <div style={{fontSize:11,color:'#888'}}>{sc.pts+' pts'}</div>
                 </div>
-                <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Quality Breakdown</div>
+                <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Pattern Quality</div>
                 {sc.breakdown.map(function(b,bi){
                   return <div key={bi} style={{display:'flex',justifyContent:'space-between',fontSize:10,padding:'3px 0',borderBottom:'0.5px solid #1e1e1e',color:b.pts>0?'#7abd00':'#444'}}>
                     <span>{b.pts>0?'\u2713':'\u2212'}{' '}{b.label}</span>
@@ -13153,22 +13243,42 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                 <div style={{display:'flex',justifyContent:'space-between',fontSize:11,fontWeight:700,marginTop:8,paddingTop:6,borderTop:'0.5px solid #333',color:'#f0ede6'}}>
                   <span>Total</span><span>{sc.pts} pts \u2014 {['\u2605\u2606\u2606\u2606\u2606','\u2605\u2605\u2606\u2606\u2606','\u2605\u2605\u2605\u2606\u2606','\u2605\u2605\u2605\u2605\u2606','\u2605\u2605\u2605\u2605\u2605'][sc.stars-1]}</span>
                 </div>
+                {tc&&<div style={{marginTop:12,paddingTop:10,borderTop:'0.5px solid #222'}}>
+                  <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Technical Context <span style={{color:'#444',fontWeight:400,textTransform:'none'}}>(context only \u2014 not scored)</span></div>
+                  {[['Trend', tc.trend],['Momentum', tc.momentum],['Reversal', tc.reversal],['Money Flow', tc.moneyFlow]].map(function(row,ri){
+                    return <div key={ri} style={{display:'flex',justifyContent:'space-between',fontSize:10,padding:'2px 0',color:'#888'}}>
+                      <span style={{color:'#555'}}>{row[0]}</span>
+                      <span style={{color:'#aaa',fontWeight:600}}>{row[1]||'\u2014'}</span>
+                    </div>;
+                  })}
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:10,marginTop:4,paddingTop:4,borderTop:'0.5px solid #1e1e1e'}}>
+                    <span style={{color:'#555'}}>Technical Support</span>
+                    <span style={{fontWeight:700,color:tsp.color}}>{tsp.label}</span>
+                  </div>
+                  <div style={{fontSize:9,color:'#444',marginTop:4}}>Technical context is not included in the star score.</div>
+                </div>}
               </div>}
 
               {/* Expanded details */}
               {isExp&&(function(){
                 var m=r.motherBar, b=r.babyBar, t=r.triggerBar;
+                var tspReason = tc ? (
+                  tsp.label==='Strong'   ? 'Force Strike appears with supportive trend, improving momentum and constructive money flow.' :
+                  tsp.label==='Moderate' ? 'Some technical signals support this setup, though not all are aligned.' :
+                  tsp.label==='Weak'     ? 'Limited technical support. Treat this setup with extra caution.' :
+                  tsp.label==='Conflicting' ? 'Bearish technical signals conflict with this bullish Force Strike setup.' : ''
+                ) : 'Technical context not available for this result.';
                 return <div style={{background:'#161614',borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none',padding:'14px 16px'}}>
                   <div style={{fontSize:11,fontWeight:700,color:LIME,marginBottom:10}}>Force Strike Details \u2014 {r.symbol}</div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:16,marginBottom:8}}>
-                    {/* Scorecard */}
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr',gap:14,marginBottom:8}}>
+                    {/* Pattern Scorecard */}
                     <div>
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Pattern Scorecard</div>
                       {[
                         [true,  'Mother Bar Found (1.2\u00D7 expansion)'],
-                        [m&&m.qualByRange, 'Qualified by Range (' + (m&&m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'—') + ')'],
-                        [m&&m.qualByBody,  'Qualified by Body ('  + (m&&m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'—')  + ')'],
-                        [true,  'Baby Bar Inside Mother Range'],
+                        [m&&m.qualByRange, 'Qualified by Range (' + (m&&m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'\u2014') + ')'],
+                        [m&&m.qualByBody,  'Qualified by Body ('  + (m&&m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'\u2014')  + ')'],
+                        [true,  'Baby Bar Inside Mother Body'],
                         [true,  'Trigger Within 3 Bars'],
                         [true,  'Trigger: ' + ti.label],
                         [r.scenario==='Trend Pullback',    'Trend Pullback'],
@@ -13192,7 +13302,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                         </div>;
                       })}
                       {m&&<div style={{fontSize:9,color:'#555',marginTop:4}}>
-                        {'Mother Range: '+(m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'—')+' \u00B7 Body: '+(m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'—')}
+                        {'Range: '+(m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'\u2014')+' \u00B7 Body: '+(m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'\u2014')}
                       </div>}
                     </div>
                     {/* Trigger & Scenario */}
@@ -13203,12 +13313,11 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:4}}>Scenario</div>
                       <div style={{fontSize:11,fontWeight:700,color:si.color,marginBottom:2}}>{r.scenario||'\u2014'}</div>
                       <div style={{fontSize:10,color:'#555',marginBottom:4}}>{si.desc}</div>
-                      <div style={{fontSize:9,color:'#444'}}>{'Trend at scan: '+(r.audit&&r.audit.trendStatus||'Unknown')}</div>
                       <div style={{fontSize:9,color:'#aaa',marginTop:4,fontWeight:700}}>{'Trigger Position: Bar '+(r.triggerPosition!=null?r.triggerPosition:'\u2014')}</div>
                       <div style={{fontSize:9,color:'#555',marginTop:2}}>{'Bars Since Trigger: '+(r.barsSinceTrigger!=null?r.barsSinceTrigger:'\u2014')}</div>
                       <div style={{fontSize:8,color:'#444',marginTop:2}}>{'Bars Since Mother: '+(r.patternAge!=null?r.patternAge:'\u2014')+' (audit ref)'}</div>
                     </div>
-                    {/* FS Score in details */}
+                    {/* FS Score */}
                     <div>
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>FS Score</div>
                       {renderStars(sc.stars, 13)}
@@ -13218,6 +13327,27 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                           {b.pts>0?'\u2713':'\u2212'}{' '}{b.label}{b.pts>0?' (+'+b.pts+')':''}
                         </div>;
                       })}
+                    </div>
+                    {/* Technical Context */}
+                    <div>
+                      <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Technical Context</div>
+                      {tc ? <div>
+                        {[['Trend',tc.trend,summaryCardDark(tc.trend).text],
+                          ['Momentum',tc.momentum,momentumStateColor(tc.momentum)],
+                          ['Reversal',tc.reversal,revStatusColor(tc.reversal,'main')],
+                          ['Money Flow',tc.moneyFlow,smfStatusColor(tc.moneyFlow,'main')]
+                        ].map(function(row,ri){
+                          return <div key={ri} style={{marginBottom:5}}>
+                            <div style={{fontSize:8,color:'#555',textTransform:'uppercase'}}>{row[0]}</div>
+                            <div style={{fontSize:10,fontWeight:600,color:row[2]||'#aaa'}}>{row[1]||'\u2014'}</div>
+                          </div>;
+                        })}
+                        <div style={{marginTop:6,paddingTop:6,borderTop:'0.5px solid #222'}}>
+                          <div style={{fontSize:8,color:'#555',textTransform:'uppercase',marginBottom:2}}>Technical Support</div>
+                          <div style={{fontSize:11,fontWeight:700,color:tsp.color}}>{tsp.label}</div>
+                          <div style={{fontSize:9,color:'#444',marginTop:4}}>{tspReason}</div>
+                        </div>
+                      </div> : <div style={{fontSize:9,color:'#444'}}>Not available</div>}
                     </div>
                   </div>
                 </div>;
@@ -13758,7 +13888,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.140</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.141</span>
           </div>
         </div>
 
