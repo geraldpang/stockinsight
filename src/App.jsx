@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.131</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.141</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.131</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.141</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12567,6 +12567,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
   // Filters (Improvement 7/8)
   var [filterTrigger,  setFilterTrigger]  = useState('All');
   var [filterScenario, setFilterScenario] = useState('All');
+  var [filterTechSupport, setFilterTechSupport] = useState('All');
   var [sortBy,         setSortBy]         = useState('volume'); // 'volume' | 'score'
   var [scoreBreakdown, setScoreBreakdown] = useState(null);    // symbol of open score panel
 
@@ -12623,98 +12624,238 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       }
     } catch(e) { /* cache miss — proceed with fresh scan */ }
 
-    // Fetch universe (Yahoo most-actives, up to 250 raw quotes)
-    var candidates = [];
-    try {
-      var rawQuotes = [];
-      for (var pi = 0; pi < 3; pi++) {
-        try {
-          var pUrl = 'https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&start=' + (pi*100) + '&count=100&lang=en-US&region=US';
-          var pRes = await fetch('/proxy?url=' + encodeURIComponent(pUrl));
-          var pData = await pRes.json();
-          var pQ = (pData.finance&&pData.finance.result&&pData.finance.result[0]&&pData.finance.result[0].quotes)||[];
-          if (!pQ.length) break;
-          rawQuotes = rawQuotes.concat(pQ);
-          if (pQ.length < 100) break;
-        } catch(e) { break; }
-      }
-      var seen = {};
-      rawQuotes = rawQuotes.filter(function(q){ if(seen[q.symbol])return false; seen[q.symbol]=true; return true; });
-      candidates = rawQuotes
-        .filter(function(q){ return q.regularMarketPrice>5&&q.regularMarketVolume>500000&&q.quoteType==='EQUITY'; })
-        .map(function(q){ return { sym:q.symbol, name:q.longName||q.shortName||q.symbol, volume:q.regularMarketVolume||0 }; });
-    } catch(e) {
-      ['NVDA','AAPL','MSFT','AMZN','GOOGL','META','TSLA','AMD','AVGO','PLTR',
-       'COIN','MARA','RIOT','HOOD','SOFI','NFLX','DIS','NOW','SNOW','UBER']
-        .forEach(function(s){ candidates.push({ sym:s, name:s, volume:0 }); });
+    // Fetch universe incrementally — start with 20, fetch next page only when needed
+    var universeSource  = 'Polygon-Daily';
+    var allRawQuotes    = [];
+    var yahooPage       = 0;
+    var yahooExhausted  = false;
+    var PAGE_SIZE       = 20;
+
+    // PRIMARY: Polygon grouped daily — full market, top 500 by volume
+    async function fetchGroupedDaily() {
+      try {
+        var gRes = await fetch('/groupeddaily');
+        if (!gRes.ok) return [];
+        var gData = await gRes.json();
+        return gData.tickers || [];
+      } catch(e) { return []; }
+    }
+    async function fetchNextYahooPage() {
+      if (yahooExhausted) return [];
+      try {
+        var pUrl = 'https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_actives&start=' + (yahooPage * PAGE_SIZE) + '&count=' + PAGE_SIZE + '&lang=en-US&region=US';
+        var pRes = await fetch('/proxy?url=' + encodeURIComponent(pUrl));
+        var pData = await pRes.json();
+        var pQ = (pData.finance&&pData.finance.result&&pData.finance.result[0]&&pData.finance.result[0].quotes)||[];
+        yahooPage++;
+        if (pQ.length < PAGE_SIZE) yahooExhausted = true;
+        return pQ;
+      } catch(e) { yahooExhausted = true; return []; }
+    }
+    async function fetchFmpActives() {
+      try {
+        var fUrl = 'https://financialmodelingprep.com/api/v3/stock_market/actives';
+        var fRes = await fetch('/proxy?url=' + encodeURIComponent(fUrl));
+        var fData = await fRes.json();
+        if (!Array.isArray(fData) || !fData.length) return [];
+        return fData.map(function(q){ return { symbol:q.symbol, regularMarketPrice:q.price||10, regularMarketVolume:q.volume||1000000, quoteType:'EQUITY', longName:q.name||q.symbol }; });
+      } catch(e) { return []; }
+    }
+    async function fetchPolygonActives() {
+      try {
+        var pRes2 = await fetch('/mostactive');
+        if (!pRes2.ok) return [];
+        var pData2 = await pRes2.json();
+        return (pData2.tickers || []);
+      } catch(e) { return []; }
     }
 
+    var seenSyms = {};
+    function buildCandidates(quotes) {
+      return quotes
+        .filter(function(q){ return q.regularMarketPrice>5&&q.regularMarketVolume>500000&&q.quoteType==='EQUITY'; })
+        .filter(function(q){ if(seenSyms[q.symbol])return false; seenSyms[q.symbol]=true; return true; })
+        .map(function(q){ return { sym:q.symbol, name:q.longName||q.shortName||q.symbol, volume:q.regularMarketVolume||0 }; });
+    }
+
+    var FALLBACK_LIST = [
+      'NVDA','AAPL','MSFT','AMZN','GOOGL','META','TSLA','AMD','AVGO','ORCL',
+      'INTC','QCOM','ARM','MU','MRVL','SMCI','TSM','AMAT','LRCX','KLAC',
+      'CRM','ADBE','NOW','SNOW','DDOG','NET','TWLO','ZM','PINS','SNAP',
+      'PYPL','SQ','COIN','HOOD','SOFI','AFRM','UPST','LC','OPEN','OPFI',
+      'WMT','COST','TGT','HD','LOW','SBUX','MCD','CMG','YUM','NKE',
+      'KO','PEP','PG','CL','KMB','GIS','CPB','SJM','MKC','CAG',
+      'MARA','RIOT','CLSK','BTBT','HUT','CIFR','IREN','WULF','CORZ','BTDR',
+      'MRNA','BNTX','NVAX','HIMS','RXRX','CRSP','EDIT','NTLA','BEAM','PACB',
+      'ILMN','IONS','ARWR','ALNY','BMRN','SRPT','RARE','FOLD','ACMR','ARRY',
+      'LLY','PFE','ABBV','MRK','BMY','AMGN','GILD','BIIB','REGN','VRTX',
+      'JPM','BAC','WFC','GS','MS','C','USB','PNC','TFC','COF',
+      'AXP','V','MA','DFS','SYF','BX','KKR','APO','ARES','CG',
+      'XOM','CVX','COP','SLB','HAL','MPC','VLO','PSX','OXY','DVN',
+      'EOG','APA','MRO','HES','NOV','BKR','CTRA','SM','MTDR','CHRD',
+      'GE','HON','MMM','CAT','DE','BA','LMT','RTX','NOC','GD',
+      'RKLB','ASTS','LUNR','ACHR','JOBY','SPCE','IONQ','QUBT','SOUN','ARQQ',
+      'BABA','JD','PDD','BIDU','NIO','XPEV','LI','NTES','TME','BILI',
+      'WOLF','ON','SWKS','QRVO','MCHP','MPWR','ENTG','MKSI','FORM','ACLS',
+      'DKNG','PENN','MGM','WYNN','LVS','CZR','VICI','EA','TTWO','RBLX',
+      'RIVN','LCID','NKLA','CHPT','BLNK','EVGO','FSR','GOEV','AYRO','SOLO',
+    ];
+
+    // Fetch primary universe — Polygon grouped daily (top 500 by volume, prev trading day)
+    setMsg('Fetching universe from Polygon grouped daily\u2026');
+    var gdQuotes = await fetchGroupedDaily();
+    if (gdQuotes.length >= 50) {
+      allRawQuotes = gdQuotes;
+      universeSource = 'Polygon-Daily';
+    } else {
+      setMsg('Polygon daily unavailable \u2014 trying Yahoo\u2026');
+      var firstPage = await fetchNextYahooPage();
+      if (firstPage.length) { allRawQuotes = firstPage; universeSource = 'Yahoo'; }
+      else {
+        setMsg('Yahoo unavailable \u2014 trying FMP\u2026');
+        var fmpInit = await fetchFmpActives();
+        if (fmpInit.length) { allRawQuotes = fmpInit; universeSource = 'FMP'; yahooExhausted = true; }
+        else {
+          setMsg('FMP unavailable \u2014 trying Polygon actives\u2026');
+          var polyInit = await fetchPolygonActives();
+          if (polyInit.length) { allRawQuotes = polyInit; universeSource = 'Polygon-Actives'; yahooExhausted = true; }
+          else { universeSource = 'Fallback'; yahooExhausted = true; }
+        }
+      }
+    }
+
+    var pendingCandidates = buildCandidates(allRawQuotes);
     var validFound = 0, allResults = [], stopped = false;
-    var BATCH = 10; // larger batch = more parallelism
-    var GOAL  = 10;  // stop only after GOAL valid (non-expired) setups
+    var BATCH = 10;
+    var GOAL  = 20;
+    var MAX_SCAN = 600;
+    var totalScanned = 0;
+    var fmpTried     = (universeSource !== 'Yahoo' && universeSource !== 'Polygon-Daily');
+    var polygonTried = (universeSource === 'Polygon-Actives' || universeSource === 'Fallback');
 
-    // Lightweight OHLCV fetch — Force Strike only needs price bars
-    // Use Yahoo chart endpoint (same as fetchYahooHistoricalBars) — no news/financials/options
-    var today    = new Date();
-    var from90d  = new Date(today.getTime() - 90 * 24 * 3600 * 1000);
-    var fmt      = function(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); };
-    var fromStr  = fmt(from90d);
-    var toStr    = fmt(today);
+    if (universeSource === 'Fallback') setMsg('\u26A0\uFE0F All APIs unavailable \u2014 using fallback list.');
 
-    for (var bi = 0; bi < candidates.length; bi += BATCH) {
-      if (validFound >= GOAL) { stopped = true; break; }
-      var batch = candidates.slice(bi, bi + BATCH);
-      setMsg('Scanned ' + (bi + batch.length) + ' / ' + candidates.length + ' \u00B7 Valid: ' + validFound + ' \u00B7 Expired: ' + allResults.filter(function(r){ return r.result==='Expired'; }).length);
-
-      var bRes = await Promise.all(batch.map(async function(c) {
+    async function scanBatch(batch) {
+      return Promise.all(batch.map(async function(c) {
         try {
-          // Lightweight: fetch only OHLCV via Yahoo chart (60 trading days ~= 90 calendar days)
           var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + c.sym + '?interval=1d&range=3mo';
           var cRes = await fetch('/proxy?url=' + encodeURIComponent(chartUrl));
           if (!cRes.ok) return null;
           var cData = await cRes.json();
           var cr = cData&&cData.chart&&cData.chart.result&&cData.chart.result[0];
           if (!cr) return null;
-          var ts    = cr.timestamp || [];
-          var q     = (cr.indicators&&cr.indicators.quote&&cr.indicators.quote[0]) || {};
-          var opens = q.open||[], highs = q.high||[], lows = q.low||[], closes = q.close||[], vols = q.volume||[];
+          var ts2 = cr.timestamp||[];
+          var q2  = (cr.indicators&&cr.indicators.quote&&cr.indicators.quote[0])||{};
           var daily = [];
-          for (var di = 0; di < ts.length; di++) {
-            var o=opens[di],h=highs[di],l=lows[di],cv=closes[di],v=vols[di];
-            if (o&&h&&l&&cv&&o>0&&h>0&&l>0&&cv>0) {
-              daily.push({ date: ts[di]*1000, open:o, high:h, low:l, close:cv, volume:v||0 });
-            }
+          for (var di=0; di<ts2.length; di++) {
+            var o=q2.open&&q2.open[di], h=q2.high&&q2.high[di],
+                l=q2.low&&q2.low[di],  cv=q2.close&&q2.close[di];
+            if (o&&h&&l&&cv&&o>0) daily.push({ date:ts2[di]*1000, open:o, high:h, low:l, close:cv, volume:(q2.volume&&q2.volume[di])||0 });
           }
           if (daily.length < 14) return null;
-
-          // Simple trend from last close vs 50/200d SMA approximation from available bars
-          var closes50  = daily.slice(-50).map(function(b){ return b.close; });
-          var closes200 = daily.slice(-Math.min(200, daily.length)).map(function(b){ return b.close; });
-          var sma50  = closes50.length  >= 20 ? closes50.reduce(function(s,v){return s+v;},0)/closes50.length   : 0;
-          var sma200 = closes200.length >= 20 ? closes200.reduce(function(s,v){return s+v;},0)/closes200.length : 0;
-          var price  = daily[daily.length-1].close;
-          var trendStatus = 'Sideways';
+          var cls50  = daily.slice(-50).map(function(b){ return b.close; });
+          var cls200 = daily.map(function(b){ return b.close; });
+          var sma50  = cls50.length>=20  ? cls50.reduce(function(s,v){return s+v;},0)/cls50.length   : 0;
+          var sma200 = cls200.length>=20 ? cls200.reduce(function(s,v){return s+v;},0)/cls200.length : 0;
+          var pr2    = daily[daily.length-1].close;
+          var tst    = 'Sideways';
           if (sma50>0&&sma200>0) {
-            if (price>sma50&&sma50>sma200) trendStatus = price>sma50*1.03?'Strong Uptrend':'Uptrend';
-            else if (price<sma50&&sma50<sma200) trendStatus = 'Downtrend';
+            if (pr2>sma50&&sma50>sma200) tst = pr2>sma50*1.03?'Strong Uptrend':'Uptrend';
+            else if (pr2<sma50&&sma50<sma200) tst = 'Downtrend';
+          }
+          var fsResult = scanForceStrike(c.sym, daily, tst);
+          fsResult.name = c.name||c.sym;
+          fsResult.volume = fsResult.volume||c.volume||0;
+
+          // For valid FS results only: compute technical context using existing signal engine
+          if (fsResult.triggered) {
+            try {
+              var vc2 = daily.map(function(b){ return b.close; });
+              var vv2 = daily.map(function(b){ return b.volume||0; });
+              var techSnap = buildTechSnapshotFromYahoo(c.sym, vc2, vv2, pr2, sma50, sma200);
+              if (techSnap) {
+                var rbaRow = buildRuleSnapshotFromRow({
+                  trend: techSnap.trend.status, trendScore: techSnap.trend.score,
+                  momentum: techSnap.momentum.status, momentumScore: techSnap.momentum.score,
+                  reversal: techSnap.reversalWatch ? techSnap.reversalWatch.status : 'No Clear Reversal',
+                  reversalScore: techSnap.reversalWatch ? techSnap.reversalWatch.score : 0,
+                  moneyFlow: techSnap.smartMoneyFlow ? techSnap.smartMoneyFlow.status : 'No Clear Signal',
+                  moneyFlowScore: techSnap.smartMoneyFlow ? techSnap.smartMoneyFlow.score : 0,
+                });
+                var rba = generateRuleBasedAnalytics(rbaRow);
+                fsResult.techContext = {
+                  trend:       techSnap.trend.status,
+                  trendScore:  techSnap.trend.score,
+                  momentum:    techSnap.momentum.status,
+                  momentumScore: techSnap.momentum.score,
+                  reversal:    techSnap.reversalWatch ? techSnap.reversalWatch.status : 'No Clear Reversal',
+                  reversalScore: techSnap.reversalWatch ? techSnap.reversalWatch.score : 0,
+                  moneyFlow:   techSnap.smartMoneyFlow ? techSnap.smartMoneyFlow.status : 'No Clear Signal',
+                  moneyFlowScore: techSnap.smartMoneyFlow ? techSnap.smartMoneyFlow.score : 0,
+                  technicalView: rba ? shortRuleVerdict(rba.verdict) : null,
+                };
+              }
+            } catch(techErr) { fsResult.techContext = null; }
           }
 
-          var fsResult = scanForceStrike(c.sym, daily, trendStatus);
-          fsResult.name   = c.name||c.sym;
-          fsResult.volume = fsResult.volume||c.volume||0;
           return fsResult;
         } catch(e) {
           return { triggered:false, result:'Invalid', symbol:c.sym, name:c.name||c.sym,
                    audit:{ finalReason:'Error: '+(e.message||''), steps:{} } };
         }
       }));
+    }
 
+    while (validFound < GOAL && totalScanned < MAX_SCAN) {
+      // Refill — Polygon-Daily gives full universe upfront, but fall back if exhausted
+      if (pendingCandidates.length < BATCH) {
+        // If using Yahoo (fallback to lazy pages)
+        if (!yahooExhausted && universeSource === 'Yahoo') {
+          var nextPage = await fetchNextYahooPage();
+          if (nextPage.length) pendingCandidates = pendingCandidates.concat(buildCandidates(nextPage));
+        }
+        // Try FMP if not yet tried
+        if (!pendingCandidates.length && !fmpTried) {
+          fmpTried = true;
+          setMsg('Trying FMP for more candidates\u2026');
+          var fmpQ = await fetchFmpActives();
+          if (fmpQ.length) {
+            universeSource += '+FMP';
+            pendingCandidates = pendingCandidates.concat(buildCandidates(fmpQ));
+          }
+        }
+        // Try Polygon actives if not yet tried
+        if (!pendingCandidates.length && !polygonTried) {
+          polygonTried = true;
+          setMsg('Trying Polygon actives for more candidates\u2026');
+          var polyQ = await fetchPolygonActives();
+          if (polyQ.length) {
+            universeSource += '+Polygon';
+            pendingCandidates = pendingCandidates.concat(buildCandidates(polyQ));
+          }
+        }
+        // Final fallback — hardcoded list
+        if (!pendingCandidates.length && universeSource.indexOf('Fallback') === -1) {
+          universeSource += '+Fallback';
+          var fallbackQuotes = FALLBACK_LIST
+            .filter(function(s){ return !seenSyms[s]; })
+            .map(function(s){ return { symbol:s, regularMarketPrice:10, regularMarketVolume:1000000, quoteType:'EQUITY', longName:s }; });
+          pendingCandidates = pendingCandidates.concat(buildCandidates(fallbackQuotes));
+          if (pendingCandidates.length) setMsg('\u26A0\uFE0F Using hardcoded fallback for remaining candidates.');
+        }
+      }
+      if (!pendingCandidates.length) break;
+
+      var batch = pendingCandidates.splice(0, BATCH);
+      setMsg('Scanned ' + totalScanned + ' \u00B7 Valid: ' + validFound + ' \u00B7 Checking: ' + batch.map(function(c){ return c.sym; }).join(', '));
+
+      var bRes = await scanBatch(batch);
       bRes.forEach(function(r){
         if (!r) return;
+        totalScanned++;
         allResults.push(r);
-        if (r.triggered) validFound++;
-        // Progressive UI: show valid results as they are found
         if (r.triggered) {
+          validFound++;
           setResults(function(prev){
             var next = prev.concat([r]).sort(function(a,b){ return (b.volume||0)-(a.volume||0); });
             return next.slice(0, GOAL);
@@ -12729,7 +12870,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     var now = new Date().toISOString();
     setResults(validResults); setAllAudit(allResults); setStoppedEarly(stopped); setGeneratedAt(now);
     setStatus('done');
-    setMsg(validFound + ' valid Force Strike setup' + (validFound!==1?'s':'') + ' found from ' + allResults.length + ' scanned.' + (stopped?' Stopped after '+GOAL+' valid setups.':' Full universe scanned.'));
+    setMsg(validFound + ' valid Force Strike setup' + (validFound!==1?'s':'') + ' found from ' + totalScanned + ' scanned' + (universeSource!=='Yahoo'?' ('+universeSource+')':'') + '.' + (stopped?' Stopped after '+GOAL+' valid setups.':' Full universe scanned.'));
 
     // Write to shared KV cache (all visitors will see this result)
     try {
@@ -12778,10 +12919,11 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     var sPts = r.scenario==='Shakeout Reversal' ? 4 : r.scenario==='Recovery Reversal' ? 3 : r.scenario==='Trend Pullback' ? 2 : 0;
     pts += sPts;
     breakdown.push({ label: 'Scenario: ' + (r.scenario||'Unclassified'), pts: sPts });
-    // 3. Pattern Age
-    var aPts = r.patternAge!=null&&r.patternAge<=2 ? 2 : r.patternAge!=null&&r.patternAge<=4 ? 1 : 0;
-    pts += aPts;
-    breakdown.push({ label: 'Pattern Age: ' + (r.patternAge!=null?r.patternAge+' bars':'—'), pts: aPts });
+    // 3. Trigger Position (Bar 3/4/5 — Bar 5 = most confirmed)
+    var tpPos = r.triggerPosition != null ? r.triggerPosition : 0;
+    var tpPts = tpPos===5 ? 3 : tpPos===4 ? 2 : tpPos===3 ? 1 : 0;
+    pts += tpPts;
+    breakdown.push({ label: 'Trigger Position: Bar ' + (tpPos||'—'), pts: tpPts });
     // 4. Mother Bar Expansion (use rangeExpansion)
     var mExp = r.motherBar && r.motherBar.rangeExpansion != null ? r.motherBar.rangeExpansion : 0;
     var mPts = mExp >= 2.5 ? 0.5 : mExp >= 1.5 ? 1 : mExp >= 1.2 ? 0.5 : 0;
@@ -12802,6 +12944,28 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     return <span style={{color:'#EF9F27',fontSize:s,letterSpacing:1}}>
       {[1,2,3,4,5].map(function(i){ return <span key={i} style={{opacity:i<=n?1:0.22}}>{'\u2605'}</span>; })}
     </span>;
+  }
+
+  // ── Technical Support classifier ──────────────────────────────────────────
+  function calcTechSupport(tc) {
+    if (!tc) return { label:'—', color:'#555' };
+    var tl  = (tc.trend||'').toLowerCase();
+    var ml  = (tc.momentum||'').toLowerCase();
+    var rl  = (tc.reversal||'').toLowerCase();
+    var sfl = (tc.moneyFlow||'').toLowerCase();
+    var trendBull  = tl==='uptrend'||tl==='strong uptrend';
+    var trendBear  = tl==='downtrend'||tl==='strong downtrend';
+    var momBull    = ml==='building'||ml==='strong';
+    var momBear    = ml==='fading'||ml==='weak';
+    var revBear    = rl.indexOf('bear')!==-1;
+    var mfBull     = sfl.indexOf('accumulation')!==-1&&sfl.indexOf('cooling')===-1;
+    var score      = (trendBull?1:0)+(momBull?1:0)+(mfBull?1:0)+(!revBear?0.5:0);
+    // Conflicting: bearish trend or momentum while FS is bullish
+    if ((trendBear||momBear)&&revBear) return { label:'Conflicting', color:'#e05050' };
+    if (trendBear||momBear)            return { label:'Conflicting', color:'#e05050' };
+    if (score >= 2.5) return { label:'Strong',   color:'#7abd00' };
+    if (score >= 1.5) return { label:'Moderate', color:'#EF9F27' };
+    return              { label:'Weak',     color:'#888' };
   }
 
   // ── Mini SVG candlestick chart with Mother zone ────────────────────────────
@@ -12856,9 +13020,18 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       if (filterScenario==='Unclassified'&&s!=='None') return false;
       if (filterScenario!=='Unclassified'&&s!==filterScenario) return false;
     }
+    if (filterTechSupport!=='All') {
+      var ts = calcTechSupport(r.techContext).label;
+      if (ts !== filterTechSupport) return false;
+    }
     return true;
   }).slice().sort(function(a,b){
-    if (sortBy==='score') return calcFsScore(b).pts - calcFsScore(a).pts;
+    if (sortBy==='score')   return calcFsScore(b).pts - calcFsScore(a).pts;
+    if (sortBy==='techsupport') {
+      var order = {'Strong':4,'Moderate':3,'Weak':2,'Conflicting':1,'—':0};
+      return (order[calcTechSupport(b.techContext).label]||0) - (order[calcTechSupport(a.techContext).label]||0);
+    }
+    if (sortBy==='triggerbar') return (a.triggerPosition||9) - (b.triggerPosition||9);
     return (b.volume||0) - (a.volume||0);
   });
 
@@ -12903,8 +13076,8 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14,flexWrap:'wrap',gap:12}}>
         <div>
           <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:4}}>Force Strike Screener</div>
-          <div style={{fontSize:12,color:'#555',lineHeight:1.6}}>{'Mother \u2192 Baby \u2192 Trigger on 2-day bars. Mother must expand 1.2\u00D7 vs prior 5 bars. Top 10 by volume.'}</div>
-          <div style={{fontSize:10,color:'#444',marginTop:3}}>{'M=Mother \u00B7 B=Baby inside Mother range \u00B7 PIN=Bullish Pin \u00B7 MU=Mark Up \u00B7 Pattern Age=bars since Mother'}</div>
+          <div style={{fontSize:12,color:'#555',lineHeight:1.6}}>{'Mother \u2192 Baby \u2192 Trigger on 2-day bars. Mother must expand 1.2\u00D7 vs prior 5 bars. Top 20 by volume.'}</div>
+          <div style={{fontSize:10,color:'#444',marginTop:3}}>{'M=Mother \u00B7 B=Baby inside Mother body \u00B7 PIN=Bullish Pin \u00B7 MU=Mark Up \u00B7 Trigger Bar=Bar 3/4/5 when Force Strike triggered'}</div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
           <button onClick={runScan} disabled={status==='scanning'}
@@ -12940,7 +13113,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
         {stats.rr>0&&<span><span style={{color:'#6090d0',fontWeight:700}}>{stats.rr}</span>{' Recovery Reversal'}</span>}
         {stats.sr>0&&<span><span style={{color:'#EF9F27',fontWeight:700}}>{stats.sr}</span>{' Shakeout Reversal'}</span>}
         {stats.unc>0&&stats.valid>0&&<span><span style={{color:'#555',fontWeight:700}}>{stats.unc}</span>{' Unclassified'}</span>}
-        {stoppedEarly&&<span style={{color:'#7abd00'}}>Stopped after 10 valid setups</span>}
+        {stoppedEarly&&<span style={{color:'#7abd00'}}>Stopped after 20 valid setups</span>}
         {!stoppedEarly&&allAudit.length>0&&<span style={{color:'#444'}}>Full universe scanned</span>}
       </div>}
 
@@ -12953,9 +13126,14 @@ function ForceStrikePage({ isPaid, clerkUser }) {
         <select value={filterScenario} onChange={function(e){ setFilterScenario(e.target.value); }} style={selStyle}>
           {['All','Trend Pullback','Recovery Reversal','Shakeout Reversal','Unclassified'].map(function(v){ return <option key={v} value={v}>{v==='All'?'All Scenarios':v}</option>; })}
         </select>
+        <select value={filterTechSupport} onChange={function(e){ setFilterTechSupport(e.target.value); }} style={selStyle}>
+          {['All','Strong','Moderate','Weak','Conflicting'].map(function(v){ return <option key={v} value={v}>{v==='All'?'All Tech Support':v+' Support'}</option>; })}
+        </select>
         <select value={sortBy} onChange={function(e){ setSortBy(e.target.value); }} style={selStyle}>
           <option value="volume">Sort: Volume</option>
           <option value="score">Sort: FS Score</option>
+          <option value="techsupport">Sort: Tech Support</option>
+          <option value="triggerbar">Sort: Trigger Bar</option>
         </select>
         <span style={{fontSize:9,color:'#444'}}>{filtered.length+' shown'}</span>
       </div>}
@@ -12969,8 +13147,8 @@ function ForceStrikePage({ isPaid, clerkUser }) {
 
       {filtered.length>0&&(
         <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflow:'hidden'}}>
-          <div style={{display:'grid',gridTemplateColumns:'70px 140px 110px 1fr 1fr 70px 80px 60px 60px',columnGap:14,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
-            {['Ticker','Pattern Chart','Pattern','Trigger','Scenario','FS Score','Volume','Pat. Age',''].map(function(h,i){
+          <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 55px 60px 80px 80px 90px 100px 80px 60px',columnGap:10,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
+            {['Ticker','Pattern Chart','Pattern','Trigger','Trigger Bar','FS Score','Trend','Momentum','Reversal','Money Flow','Scenario',''].map(function(h,i){
               return <div key={i} style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>;
             })}
           </div>
@@ -12982,57 +13160,80 @@ function ForceStrikePage({ isPaid, clerkUser }) {
             var mh = r.motherBar ? r.motherBar.high : null;
             var ml = r.motherBar ? r.motherBar.low  : null;
             var sc = calcFsScore(r);
+            var tc = r.techContext || null;
+            var tsp = calcTechSupport(tc);
             return (
               <React.Fragment key={r.symbol}>
-              <div style={{display:'grid',gridTemplateColumns:'70px 140px 110px 1fr 1fr 70px 80px 60px 60px',columnGap:14,padding:'11px 14px',
+              <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 55px 60px 80px 80px 90px 100px 80px 60px',columnGap:10,padding:'10px 14px',
                 borderBottom:(!isExp&&!isSc&&i<filtered.length-1)?'1px solid #1a1a16':'none',
                 background:i%2===0?'#111':'#131311',alignItems:'center'}}>
                 <div>
-                  <div style={{fontSize:13,fontWeight:800,color:LIME}}>{r.symbol}</div>
+                  <div style={{fontSize:12,fontWeight:800,color:LIME}}>{r.symbol}</div>
                   <div style={{fontSize:9,color:'#444',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:65}}>{r.name||r.symbol}</div>
                 </div>
                 <div><MiniChart chartBars={r.chartBars} motherHigh={mh} motherLow={ml} /></div>
-                <div style={{fontSize:11,fontWeight:700,color:'#6090d0',letterSpacing:'0.03em'}}>{r.pattern||'\u2014'}</div>
+                <div style={{fontSize:10,fontWeight:700,color:'#6090d0',letterSpacing:'0.03em',whiteSpace:'nowrap'}}>{r.pattern||'\u2014'}</div>
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:'#7abd00'}}>{ti.label}</div>
                   {ti.desc&&<div style={{fontSize:9,color:'#555',marginTop:1}}>{ti.desc}</div>}
                 </div>
-                <div>
-                  <div style={{fontSize:11,fontWeight:700,color:si.color}}>{r.scenario||'\u2014'}</div>
-                  {si.desc&&<div style={{fontSize:9,color:'#555',marginTop:1}}>{si.desc}</div>}
+                <div title="Bar at which trigger occurred">
+                  <div style={{fontSize:11,fontWeight:600,color:r.triggerPosition===5?'#7abd00':r.triggerPosition===4?'#EF9F27':'#aaa'}}>
+                    {r.triggerPosition!=null?'Bar '+r.triggerPosition:'\u2014'}
+                  </div>
                 </div>
-                {/* FS Score */}
                 <div>
-                  <button title="Force Strike Quality Score — click for breakdown"
+                  <button title="FS Quality Score \u2014 click for breakdown"
                     onClick={function(){ setScoreBreakdown(isSc?null:r.symbol); setExpandedRow(null); }}
                     style={{background:'none',border:'none',padding:0,cursor:'pointer',display:'block',textAlign:'left'}}>
-                    {renderStars(sc.stars, 11)}
-                    <div style={{fontSize:8,color:'#555',marginTop:1}}>{sc.pts+' pts'}</div>
+                    {renderStars(sc.stars, 10)}
+                    <div style={{fontSize:8,color:'#555',marginTop:1}}>{sc.pts+'pts'}</div>
                   </button>
                 </div>
-                <div style={{fontSize:10,color:'#888'}}>{r.volume?(r.volume/1e6).toFixed(1)+'M':'\u2014'}</div>
-                <div title="Aggregated 2-day bars since Mother Bar detected">
-                  <div style={{fontSize:11,fontWeight:600,color:r.patternAge!=null&&r.patternAge<=3?'#7abd00':r.patternAge!=null&&r.patternAge<=5?'#EF9F27':'#e05050'}}>{r.patternAge!=null?r.patternAge:'\u2014'}</div>
-                  <div style={{fontSize:8,color:'#444'}}>bars</div>
+                <div style={{overflow:'hidden'}}>
+                  {tc ? <div style={{display:'flex',alignItems:'center',gap:3}}>
+                    <span style={{width:5,height:5,borderRadius:'50%',background:summaryCardDark(tc.trend).text||'#555',display:'inline-block',flexShrink:0,opacity:0.8}}></span>
+                    <span title={tc.trend||''} style={{fontSize:9,color:'#b8b8b8',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{shortSignalLabel(tc.trend,'trend')}</span>
+                  </div> : <span style={{color:'#444',fontSize:9}}>{'\u2014'}</span>}
                 </div>
-                <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                <div style={{overflow:'hidden'}}>
+                  {tc ? <div style={{display:'flex',alignItems:'center',gap:3}}>
+                    <span style={{width:5,height:5,borderRadius:'50%',background:momentumStateColor(tc.momentum)||'#555',display:'inline-block',flexShrink:0,opacity:0.8}}></span>
+                    <span title={tc.momentum||''} style={{fontSize:9,color:'#b8b8b8',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{shortSignalLabel(tc.momentum,'momentum')}</span>
+                  </div> : <span style={{color:'#444',fontSize:9}}>{'\u2014'}</span>}
+                </div>
+                <div style={{overflow:'hidden'}}>
+                  {tc ? <div style={{display:'flex',alignItems:'center',gap:3}}>
+                    <span style={{width:5,height:5,borderRadius:'50%',background:revStatusColor(tc.reversal,'main')||'#555',display:'inline-block',flexShrink:0,opacity:0.8}}></span>
+                    <span title={tc.reversal||''} style={{fontSize:9,color:'#b8b8b8',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{shortSignalLabel(tc.reversal,'reversal')}</span>
+                  </div> : <span style={{color:'#444',fontSize:9}}>{'\u2014'}</span>}
+                </div>
+                <div style={{overflow:'hidden'}}>
+                  {tc ? <div style={{display:'flex',alignItems:'center',gap:3}}>
+                    <span style={{width:5,height:5,borderRadius:'50%',background:smfStatusColor(tc.moneyFlow,'main')||'#555',display:'inline-block',flexShrink:0,opacity:0.8}}></span>
+                    <span title={tc.moneyFlow||''} style={{fontSize:9,color:'#b8b8b8',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{shortSignalLabel(tc.moneyFlow,'moneyFlow')}</span>
+                  </div> : <span style={{color:'#444',fontSize:9}}>{'\u2014'}</span>}
+                </div>
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:si.color,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.scenario||'\u2014'}</div>
+                  {tc&&<div style={{fontSize:8,fontWeight:700,color:tsp.color,marginTop:2}}>{tsp.label}</div>}
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:3}}>
                   <button onClick={function(){ window.open(window.location.origin+'/#'+r.symbol,'_blank','noopener,noreferrer'); }}
-                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#888',cursor:'pointer'}}>View</button>
+                    style={{fontSize:9,padding:'3px 6px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#888',cursor:'pointer'}}>View</button>
                   <button onClick={function(){ setExpandedRow(isExp?null:r.symbol); setScoreBreakdown(null); }}
-                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a4a2a',borderRadius:4,color:'#5a9a60',cursor:'pointer'}}>
+                    style={{fontSize:9,padding:'3px 6px',background:'none',border:'0.5px solid #2a4a2a',borderRadius:4,color:'#5a9a60',cursor:'pointer'}}>
                     {isExp?'Close':'Details'}
                   </button>
                 </div>
               </div>
-
-              {/* Score Breakdown panel */}
               {isSc&&<div style={{background:'#161614',borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none',padding:'14px 16px'}}>
                 <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
                   <div style={{fontSize:11,fontWeight:700,color:LIME}}>Force Strike Score \u2014 {r.symbol}</div>
                   {renderStars(sc.stars, 16)}
                   <div style={{fontSize:11,color:'#888'}}>{sc.pts+' pts'}</div>
                 </div>
-                <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Quality Breakdown</div>
+                <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Pattern Quality</div>
                 {sc.breakdown.map(function(b,bi){
                   return <div key={bi} style={{display:'flex',justifyContent:'space-between',fontSize:10,padding:'3px 0',borderBottom:'0.5px solid #1e1e1e',color:b.pts>0?'#7abd00':'#444'}}>
                     <span>{b.pts>0?'\u2713':'\u2212'}{' '}{b.label}</span>
@@ -13042,22 +13243,42 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                 <div style={{display:'flex',justifyContent:'space-between',fontSize:11,fontWeight:700,marginTop:8,paddingTop:6,borderTop:'0.5px solid #333',color:'#f0ede6'}}>
                   <span>Total</span><span>{sc.pts} pts \u2014 {['\u2605\u2606\u2606\u2606\u2606','\u2605\u2605\u2606\u2606\u2606','\u2605\u2605\u2605\u2606\u2606','\u2605\u2605\u2605\u2605\u2606','\u2605\u2605\u2605\u2605\u2605'][sc.stars-1]}</span>
                 </div>
+                {tc&&<div style={{marginTop:12,paddingTop:10,borderTop:'0.5px solid #222'}}>
+                  <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Technical Context <span style={{color:'#444',fontWeight:400,textTransform:'none'}}>(context only \u2014 not scored)</span></div>
+                  {[['Trend', tc.trend],['Momentum', tc.momentum],['Reversal', tc.reversal],['Money Flow', tc.moneyFlow]].map(function(row,ri){
+                    return <div key={ri} style={{display:'flex',justifyContent:'space-between',fontSize:10,padding:'2px 0',color:'#888'}}>
+                      <span style={{color:'#555'}}>{row[0]}</span>
+                      <span style={{color:'#aaa',fontWeight:600}}>{row[1]||'\u2014'}</span>
+                    </div>;
+                  })}
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:10,marginTop:4,paddingTop:4,borderTop:'0.5px solid #1e1e1e'}}>
+                    <span style={{color:'#555'}}>Technical Support</span>
+                    <span style={{fontWeight:700,color:tsp.color}}>{tsp.label}</span>
+                  </div>
+                  <div style={{fontSize:9,color:'#444',marginTop:4}}>Technical context is not included in the star score.</div>
+                </div>}
               </div>}
 
               {/* Expanded details */}
               {isExp&&(function(){
                 var m=r.motherBar, b=r.babyBar, t=r.triggerBar;
+                var tspReason = tc ? (
+                  tsp.label==='Strong'   ? 'Force Strike appears with supportive trend, improving momentum and constructive money flow.' :
+                  tsp.label==='Moderate' ? 'Some technical signals support this setup, though not all are aligned.' :
+                  tsp.label==='Weak'     ? 'Limited technical support. Treat this setup with extra caution.' :
+                  tsp.label==='Conflicting' ? 'Bearish technical signals conflict with this bullish Force Strike setup.' : ''
+                ) : 'Technical context not available for this result.';
                 return <div style={{background:'#161614',borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none',padding:'14px 16px'}}>
                   <div style={{fontSize:11,fontWeight:700,color:LIME,marginBottom:10}}>Force Strike Details \u2014 {r.symbol}</div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:16,marginBottom:8}}>
-                    {/* Scorecard */}
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr',gap:14,marginBottom:8}}>
+                    {/* Pattern Scorecard */}
                     <div>
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Pattern Scorecard</div>
                       {[
                         [true,  'Mother Bar Found (1.2\u00D7 expansion)'],
-                        [m&&m.qualByRange, 'Qualified by Range (' + (m&&m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'—') + ')'],
-                        [m&&m.qualByBody,  'Qualified by Body ('  + (m&&m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'—')  + ')'],
-                        [true,  'Baby Bar Inside Mother Range'],
+                        [m&&m.qualByRange, 'Qualified by Range (' + (m&&m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'\u2014') + ')'],
+                        [m&&m.qualByBody,  'Qualified by Body ('  + (m&&m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'\u2014')  + ')'],
+                        [true,  'Baby Bar Inside Mother Body'],
                         [true,  'Trigger Within 3 Bars'],
                         [true,  'Trigger: ' + ti.label],
                         [r.scenario==='Trend Pullback',    'Trend Pullback'],
@@ -13081,7 +13302,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                         </div>;
                       })}
                       {m&&<div style={{fontSize:9,color:'#555',marginTop:4}}>
-                        {'Mother Range: '+(m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'—')+' \u00B7 Body: '+(m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'—')}
+                        {'Range: '+(m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'\u2014')+' \u00B7 Body: '+(m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'\u2014')}
                       </div>}
                     </div>
                     {/* Trigger & Scenario */}
@@ -13092,10 +13313,11 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:4}}>Scenario</div>
                       <div style={{fontSize:11,fontWeight:700,color:si.color,marginBottom:2}}>{r.scenario||'\u2014'}</div>
                       <div style={{fontSize:10,color:'#555',marginBottom:4}}>{si.desc}</div>
-                      <div style={{fontSize:9,color:'#444'}}>{'Trend at scan: '+(r.audit&&r.audit.trendStatus||'Unknown')}</div>
-                      <div style={{fontSize:9,color:'#444',marginTop:2}}>{'Pattern Age: '+(r.patternAge!=null?r.patternAge+' bars':'\u2014')}</div>
+                      <div style={{fontSize:9,color:'#aaa',marginTop:4,fontWeight:700}}>{'Trigger Position: Bar '+(r.triggerPosition!=null?r.triggerPosition:'\u2014')}</div>
+                      <div style={{fontSize:9,color:'#555',marginTop:2}}>{'Bars Since Trigger: '+(r.barsSinceTrigger!=null?r.barsSinceTrigger:'\u2014')}</div>
+                      <div style={{fontSize:8,color:'#444',marginTop:2}}>{'Bars Since Mother: '+(r.patternAge!=null?r.patternAge:'\u2014')+' (audit ref)'}</div>
                     </div>
-                    {/* FS Score in details */}
+                    {/* FS Score */}
                     <div>
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>FS Score</div>
                       {renderStars(sc.stars, 13)}
@@ -13105,6 +13327,27 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                           {b.pts>0?'\u2713':'\u2212'}{' '}{b.label}{b.pts>0?' (+'+b.pts+')':''}
                         </div>;
                       })}
+                    </div>
+                    {/* Technical Context */}
+                    <div>
+                      <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Technical Context</div>
+                      {tc ? <div>
+                        {[['Trend',tc.trend,summaryCardDark(tc.trend).text],
+                          ['Momentum',tc.momentum,momentumStateColor(tc.momentum)],
+                          ['Reversal',tc.reversal,revStatusColor(tc.reversal,'main')],
+                          ['Money Flow',tc.moneyFlow,smfStatusColor(tc.moneyFlow,'main')]
+                        ].map(function(row,ri){
+                          return <div key={ri} style={{marginBottom:5}}>
+                            <div style={{fontSize:8,color:'#555',textTransform:'uppercase'}}>{row[0]}</div>
+                            <div style={{fontSize:10,fontWeight:600,color:row[2]||'#aaa'}}>{row[1]||'\u2014'}</div>
+                          </div>;
+                        })}
+                        <div style={{marginTop:6,paddingTop:6,borderTop:'0.5px solid #222'}}>
+                          <div style={{fontSize:8,color:'#555',textTransform:'uppercase',marginBottom:2}}>Technical Support</div>
+                          <div style={{fontSize:11,fontWeight:700,color:tsp.color}}>{tsp.label}</div>
+                          <div style={{fontSize:9,color:'#444',marginTop:4}}>{tspReason}</div>
+                        </div>
+                      </div> : <div style={{fontSize:9,color:'#444'}}>Not available</div>}
                     </div>
                   </div>
                 </div>;
@@ -13645,7 +13888,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.131</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.141</span>
           </div>
         </div>
 
