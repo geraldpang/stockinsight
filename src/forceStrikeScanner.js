@@ -389,6 +389,35 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
     if (r.barsSinceTrigger != null) lines.push('Bars Since Trigger: ' + r.barsSinceTrigger);
     if (r.patternAge != null) lines.push('Bars Since Mother:  ' + r.patternAge + ' (audit reference)');
 
+    // Technical Context
+    var tc = r.techContext;
+    if (tc) {
+      lines.push('', '------------------------------------------------', 'Technical Context', '');
+      lines.push('Trend:              ' + (tc.trend || 'N/A'));
+      lines.push('Trend Score:        ' + (tc.trendScore != null ? tc.trendScore : 'N/A'));
+      lines.push('Momentum:           ' + (tc.momentum || 'N/A'));
+      lines.push('Momentum Score:     ' + (tc.momentumScore != null ? tc.momentumScore : 'N/A'));
+      lines.push('Reversal:           ' + (tc.reversal || 'N/A'));
+      lines.push('Reversal Score:     ' + (tc.reversalScore != null ? tc.reversalScore : 'N/A'));
+      lines.push('Money Flow:         ' + (tc.moneyFlow || 'N/A'));
+      lines.push('Money Flow Score:   ' + (tc.moneyFlowScore != null ? tc.moneyFlowScore : 'N/A'));
+      // Tech support classification
+      var tl  = (tc.trend||'').toLowerCase();
+      var ml  = (tc.momentum||'').toLowerCase();
+      var rl  = (tc.reversal||'').toLowerCase();
+      var sfl = (tc.moneyFlow||'').toLowerCase();
+      var trendBull  = tl==='uptrend'||tl==='strong uptrend';
+      var trendBear  = tl==='downtrend'||tl==='strong downtrend';
+      var momBull    = ml==='building'||ml==='strong';
+      var momBear    = ml==='fading'||ml==='weak';
+      var revBear    = rl.indexOf('bear')!==-1;
+      var mfBull     = sfl.indexOf('accumulation')!==-1&&sfl.indexOf('cooling')===-1;
+      var score      = (trendBull?1:0)+(momBull?1:0)+(mfBull?1:0)+(!revBear?0.5:0);
+      var tsLabel    = ((trendBear||momBear)&&revBear)||(trendBear||momBear) ? 'Conflicting'
+                     : score>=2.5 ? 'Strong' : score>=1.5 ? 'Moderate' : 'Weak';
+      lines.push('Technical Support:  ' + tsLabel);
+    }
+
     lines.push('', '------------------------------------------------', 'Final Decision', '');
     lines.push('Included In Top ' + TARGET + ': ' + (r.triggered && triggered.indexOf(r) < TARGET ? 'true' : 'false'));
     lines.push('Reason: ' + (a.finalReason || 'N/A'));
