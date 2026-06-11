@@ -39,7 +39,7 @@ export async function onRequest(context) {
   try {
 
     // Only handle specific API routes -- pass everything else to the React app
-    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache", "/simfin", "/stripe", "/options", "/journal", "/watchlist"];
+    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache", "/simfin", "/stripe", "/options", "/journal", "/watchlist", "/mostactive", "/groupeddaily"];
     var isApiRoute  = false;
     for (var ri = 0; ri < knownRoutes.length; ri++) {
       if (url.pathname === knownRoutes[ri] || url.pathname.startsWith(knownRoutes[ri])) {
@@ -1160,7 +1160,69 @@ export async function onRequest(context) {
       }
     }
 
+    // ── Most Active Tickers (Polygon) ─────────────────────────────────────────
+    if (url.pathname === "/mostactive") {
+      var maKey = context.env.MASSIVE_KEY;
+      var maHeaders = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
+      if (!maKey) return new Response(JSON.stringify({ error: "MASSIVE_KEY not configured" }), { status: 500, headers: maHeaders });
+      try {
+        var maRes = await fetch(
+          "https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/most_active?apiKey=" + maKey,
+          { headers: { "User-Agent": UA } }
+        );
+        var maData = await maRes.json();
+        var tickers = (maData.tickers || []).map(function(t) {
+          return {
+            symbol: t.ticker, name: t.ticker,
+            regularMarketPrice:  (t.day && t.day.c) || (t.lastTrade && t.lastTrade.p) || 10,
+            regularMarketVolume: (t.day && t.day.v) || 0,
+            quoteType: "EQUITY",
+          };
+        }).filter(function(t){ return t.regularMarketPrice > 5 && t.regularMarketVolume > 500000; });
+        return new Response(JSON.stringify({ tickers: tickers }), { headers: maHeaders });
+      } catch(e) {
+        return new Response(JSON.stringify({ error: "Polygon most-active failed: " + e.message }), { status: 500, headers: maHeaders });
+      }
+    }
 
+    // ── Grouped Daily (Polygon) — full market snapshot filtered by volume ────
+    if (url.pathname === "/groupeddaily") {
+      var gdKey = context.env.MASSIVE_KEY;
+      var gdHeaders = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
+      if (!gdKey) return new Response(JSON.stringify({ error: "MASSIVE_KEY not configured" }), { status: 500, headers: gdHeaders });
+      try {
+        // Use previous trading day — walk back up to 5 days to find a trading day
+        var gdDate = new Date();
+        for (var di = 1; di <= 5; di++) {
+          gdDate = new Date(Date.now() - di * 86400000);
+          var dow = gdDate.getDay();
+          if (dow !== 0 && dow !== 6) break; // skip weekends
+        }
+        var gdDateStr = gdDate.toISOString().slice(0, 10);
+        var gdRes = await fetch(
+          "https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/" + gdDateStr + "?adjusted=true&apiKey=" + gdKey,
+          { headers: { "User-Agent": UA } }
+        );
+        var gdData = await gdRes.json();
+        var gdResults = gdData.results || [];
+        // Filter: price > 5, volume > 1M, then sort by volume desc, take top 500
+        var filtered = gdResults
+          .filter(function(t){ return t.c > 5 && t.v > 1000000; })
+          .sort(function(a, b){ return b.v - a.v; })
+          .slice(0, 500)
+          .map(function(t){
+            return {
+              symbol: t.T, name: t.T,
+              regularMarketPrice:  t.c || 10,
+              regularMarketVolume: t.v || 0,
+              quoteType: "EQUITY",
+            };
+          });
+        return new Response(JSON.stringify({ tickers: filtered, date: gdDateStr, total: gdResults.length }), { headers: gdHeaders });
+      } catch(e) {
+        return new Response(JSON.stringify({ error: "Grouped daily failed: " + e.message }), { status: 500, headers: gdHeaders });
+      }
+    }
 
     if (target.includes("financialmodelingprep.com")) {
       const fmpKey = context.env.FMP_KEY;
