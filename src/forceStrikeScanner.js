@@ -54,14 +54,36 @@ function isMarkUp(bar, prevBars) {
   return Math.abs(bar.close - bar.open) > avgBody(prevBars);
 }
 
-function detectTrigger(aggs, babyIndex) {
+function triggerInteractsWithMother(bar, motherHigh, motherLow) {
+  // Rule 1: Trigger close is inside Mother range
+  if (bar.close >= motherLow && bar.close <= motherHigh) return true;
+  // Rule 2: Trigger low touches/pierces Mother range and closes inside or above Mother High
+  if (bar.low <= motherHigh && bar.low >= motherLow) return true;  // low touches inside range
+  if (bar.low < motherLow && bar.close >= motherLow) return true;   // low pierces below, closes back
+  // Rule 3: Mark Up — open inside Mother range and breaks above (covered by Rule 1 via open, but
+  //          we capture: open inside range even if close above Mother High)
+  if (bar.open >= motherLow && bar.open <= motherHigh) return true;
+  return false;
+}
+
+function detectTrigger(aggs, babyIndex, motherHigh, motherLow) {
   var checked = [], maxCheck = Math.min(3, aggs.length - babyIndex - 1);
   for (var offset = 1; offset <= maxCheck; offset++) {
     var idx  = babyIndex + offset;
     var bar  = aggs[idx];
     var p5   = aggs.slice(Math.max(0, idx - 5), idx);
+    var interacts = (motherHigh != null && motherLow != null)
+      ? triggerInteractsWithMother(bar, motherHigh, motherLow) : true;
     var info = { index: idx, date: bar.date, date1: bar.date1, dateLabel: bar.dateLabel,
-                 open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume };
+                 open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume,
+                 motherHigh: motherHigh, motherLow: motherLow,
+                 interactsWithMother: interacts };
+    if (!interacts) {
+      info.triggerType = 'NONE';
+      info.skipReason  = 'Trigger does not interact with Mother range';
+      checked.push(info);
+      continue;
+    }
     if (isBullishPin(bar)) {
       info.triggerType = 'PIN'; checked.push(info);
       return { found: true, bar: info, checked: checked };
@@ -125,16 +147,21 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
 
     var babyBar = (mi + 1 < aggs.length) ? aggs[mi + 1] : null;
     if (!babyBar) continue;
-    if (babyBar.high > bar.high || babyBar.low < bar.low) continue; // Baby must be inside
+
+    // Baby must be fully contained within Mother BODY (not wicks)
+    var motherBodyHigh = Math.max(bar.open, bar.close);
+    var motherBodyLow  = Math.min(bar.open, bar.close);
+    if (babyBar.high > motherBodyHigh || babyBar.low < motherBodyLow) continue;
 
     var babyObj = { index: mi+1, date: babyBar.date, date1: babyBar.date1, dateLabel: babyBar.dateLabel,
                     open: babyBar.open, high: babyBar.high, low: babyBar.low, close: babyBar.close,
                     volume: babyBar.volume, inside: true,
-                    motherHigh: bar.high, motherLow: bar.low,
-                    highValid: babyBar.high <= bar.high,
-                    lowValid:  babyBar.low  >= bar.low };
+                    motherBodyHigh: motherBodyHigh, motherBodyLow: motherBodyLow,
+                    motherOpen: bar.open, motherClose: bar.close,
+                    highValid: babyBar.high <= motherBodyHigh,
+                    lowValid:  babyBar.low  >= motherBodyLow };
 
-    var trigResult = detectTrigger(aggs, mi + 1);
+    var trigResult = detectTrigger(aggs, mi + 1, bar.high, bar.low);
     var motherObj  = { index: mi, date: bar.date, date1: bar.date1, dateLabel: bar.dateLabel,
                        open: bar.open, high: bar.high, low: bar.low, close: bar.close,
                        volume: bar.volume, range: barRange, body: barBody,
@@ -166,9 +193,11 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
              audit: Object.assign({ finalReason: 'Trigger not found within 3 bars' }, audit) };
   }
 
-  var latestIdx  = aggs.length - 1;
-  var patternAge = latestIdx - mother.index; // bars since Mother
-  var volume     = aggs[latestIdx].volume;
+  var latestIdx    = aggs.length - 1;
+  var patternAge   = latestIdx - mother.index; // bars since Mother — kept for Expired check only
+  var triggerPos   = trigger.index - mother.index + 1; // Bar 3/4/5 (Mother=1, Baby=2, Trigger=3+)
+  var barsSinceTrig= latestIdx - trigger.index;
+  var volume       = aggs[latestIdx].volume;
 
   // Pattern Age is a scan criterion — setups older than 5 bars are Expired
   var MAX_PATTERN_AGE = 5;
@@ -208,14 +237,16 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
   });
 
   return {
-    triggered:    true,
-    result:       'Triggered',
-    symbol:       symbol,
-    triggerType:  trigger.triggerType,
-    scenario:     scenario,
-    volume:       volume,
-    patternAge:   patternAge,
-    pattern:      'M\u2192B\u2192' + trigger.triggerType,
+    triggered:       true,
+    result:          'Triggered',
+    symbol:          symbol,
+    triggerType:     trigger.triggerType,
+    scenario:        scenario,
+    volume:          volume,
+    patternAge:      patternAge,      // kept for Expired check compatibility
+    triggerPosition: triggerPos,      // Bar 3/4/5 — new primary display field
+    barsSinceTrigger:barsSinceTrig,   // how many bars since trigger fired
+    pattern:         'M\u2192B\u2192' + trigger.triggerType,
     motherBar:    mother,
     babyBar:      baby,
     triggerBar:   trigger,
@@ -226,7 +257,7 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
 
 // ── Audit TXT formatter ──────────────────────────────────────────────────────
 export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
-  var TARGET    = 10;
+  var TARGET    = 20;
   var triggered = allResults.filter(function(r){ return r.triggered; });
   var expired   = allResults.filter(function(r){ return !r.triggered && r.result === 'Expired'; });
   var invalid   = allResults.filter(function(r){ return !r.triggered && r.result !== 'Expired'; });
@@ -242,7 +273,7 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
     'Stopped Early:          ' + (stoppedEarly ? 'Yes (' + TARGET + ' valid setups found)' : 'No — full universe scanned'),
     'Target Valid Setups:    ' + TARGET,
     'Mother Threshold:       1.20x (range or body expansion)',
-    'Baby Bar Rule:          Baby High <= Mother High AND Baby Low >= Mother Low (strict, no tolerance)',
+    'Baby Bar Rule:          Baby High <= max(Mother Open, Mother Close) AND Baby Low >= min(Mother Open, Mother Close) — body containment, wicks ignored',
   ];
 
   allResults.forEach(function(r) {
@@ -253,13 +284,34 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
 
     if (r.triggered) {
       lines.push('', 'Summary:');
-      lines.push('  Pattern:      ' + (r.pattern || '—'));
-      lines.push('  Pattern Age:  ' + (r.patternAge != null ? r.patternAge + ' bars since Mother' : '—'));
-      lines.push('  Mother Bar:   ' + (r.motherBar  ? fmtDate(r.motherBar.date1  || r.motherBar.date)  : '—'));
-      lines.push('  Baby Bar:     ' + (r.babyBar    ? fmtDate(r.babyBar.date1    || r.babyBar.date)    : '—'));
-      lines.push('  Trigger:      ' + (r.triggerBar ? fmtDate(r.triggerBar.date1 || r.triggerBar.date) : '—'));
-      lines.push('  Trigger Type: ' + (r.triggerType || '—'));
-      lines.push('  Scenario:     ' + (r.scenario   || '—'));
+      lines.push('  Pattern:            ' + (r.pattern || '—'));
+      lines.push('  Trigger Position:   Bar ' + (r.triggerPosition != null ? r.triggerPosition : '—'));
+      lines.push('  Bars Since Trigger: ' + (r.barsSinceTrigger != null ? r.barsSinceTrigger : '—'));
+      lines.push('  Bars Since Mother:  ' + (r.patternAge != null ? r.patternAge : '—') + ' (audit reference only)');
+      lines.push('  Mother Bar:         ' + (r.motherBar  ? fmtDate(r.motherBar.date1  || r.motherBar.date)  : '—'));
+      lines.push('  Baby Bar:           ' + (r.babyBar    ? fmtDate(r.babyBar.date1    || r.babyBar.date)    : '—'));
+      lines.push('  Trigger:            ' + (r.triggerBar ? fmtDate(r.triggerBar.date1 || r.triggerBar.date) : '—'));
+      lines.push('  Trigger Type:       ' + (r.triggerType || '—'));
+      lines.push('  Scenario:           ' + (r.scenario   || '—'));
+      // Force Strike Score — Trigger Position replaces Pattern Age
+      var tPts = r.triggerType==='PIN'?3:r.triggerType==='MU'?2:r.triggerType==='ICE'?2:0;
+      var sPts = r.scenario==='Shakeout Reversal'?4:r.scenario==='Recovery Reversal'?3:r.scenario==='Trend Pullback'?2:0;
+      var tpPos = r.triggerPosition!=null ? r.triggerPosition : 0;
+      var tpPts = tpPos===5?3:tpPos===4?2:tpPos===3?1:0;
+      var mExp = r.motherBar&&r.motherBar.rangeExpansion!=null?r.motherBar.rangeExpansion:0;
+      var mPts = mExp>=2.5?0.5:mExp>=1.5?1:mExp>=1.2?0.5:0;
+      var iPts = r.triggerBar&&r.triggerBar.interactsWithMother===true?2:0;
+      var totalPts = tPts+sPts+tpPts+mPts+iPts;
+      var stars = totalPts<=2?1:totalPts<=4?2:totalPts<=6?3:totalPts<=8?4:5;
+      lines.push('');
+      lines.push('  Force Strike Score:');
+      lines.push('    Stars:              ' + stars + '/5');
+      lines.push('    Total Points:       ' + totalPts);
+      lines.push('    Trigger Type:       +' + tPts);
+      lines.push('    Scenario:           +' + sPts);
+      lines.push('    Trigger Position:   +' + tpPts + ' (Bar ' + (tpPos||'—') + ')');
+      lines.push('    Mother Expansion:   +' + mPts + (mExp>0?' ('+mExp.toFixed(2)+'x)':''));
+      lines.push('    Mother Interaction: +' + iPts);
     }
 
     var a = r.audit || {}, s = a.steps || {};
@@ -285,25 +337,27 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
       lines.push('Qualified By:     ' + (m.qualifiedBy || 'N/A'));
     }
 
-    // Baby Bar — full OHLCV + explicit validation
+    // Baby Bar — full OHLCV + explicit body validation
     if (s.baby) {
       var b = s.baby;
       lines.push('', '------------------------------------------------', 'Baby Bar', '');
-      lines.push('Index:                   ' + b.index);
-      lines.push('Date:                    ' + fmtDate(b.date1 || b.date));
-      lines.push('Open:                    ' + (b.open   != null ? b.open.toFixed(2)   : 'N/A'));
-      lines.push('High:                    ' + (b.high   != null ? b.high.toFixed(2)   : 'N/A'));
-      lines.push('Low:                     ' + (b.low    != null ? b.low.toFixed(2)    : 'N/A'));
-      lines.push('Close:                   ' + (b.close  != null ? b.close.toFixed(2)  : 'N/A'));
-      lines.push('Volume:                  ' + (b.volume != null ? Number(b.volume).toLocaleString() : 'N/A'));
+      lines.push('Index:                        ' + b.index);
+      lines.push('Date:                         ' + fmtDate(b.date1 || b.date));
+      lines.push('Open:                         ' + (b.open   != null ? b.open.toFixed(2)   : 'N/A'));
+      lines.push('High:                         ' + (b.high   != null ? b.high.toFixed(2)   : 'N/A'));
+      lines.push('Low:                          ' + (b.low    != null ? b.low.toFixed(2)    : 'N/A'));
+      lines.push('Close:                        ' + (b.close  != null ? b.close.toFixed(2)  : 'N/A'));
+      lines.push('Volume:                       ' + (b.volume != null ? Number(b.volume).toLocaleString() : 'N/A'));
       lines.push('');
-      lines.push('Mother High:             ' + (b.motherHigh != null ? b.motherHigh.toFixed(2) : 'N/A'));
-      lines.push('Mother Low:              ' + (b.motherLow  != null ? b.motherLow.toFixed(2)  : 'N/A'));
-      lines.push('Baby High:               ' + (b.high != null ? b.high.toFixed(2) : 'N/A'));
-      lines.push('Baby Low:                ' + (b.low  != null ? b.low.toFixed(2)  : 'N/A'));
-      lines.push('Baby High <= Mother High: ' + (b.highValid != null ? String(b.highValid) : (b.high <= b.motherHigh ? 'true' : 'false')));
-      lines.push('Baby Low >= Mother Low:   ' + (b.lowValid  != null ? String(b.lowValid)  : (b.low  >= b.motherLow  ? 'true' : 'false')));
-      lines.push('Baby Inside Mother:       ' + (b.inside ? 'true' : 'false'));
+      lines.push('Mother Open:                  ' + (b.motherOpen      != null ? b.motherOpen.toFixed(2)      : 'N/A'));
+      lines.push('Mother Close:                 ' + (b.motherClose     != null ? b.motherClose.toFixed(2)     : 'N/A'));
+      lines.push('Mother Body High:             ' + (b.motherBodyHigh  != null ? b.motherBodyHigh.toFixed(2)  : 'N/A'));
+      lines.push('Mother Body Low:              ' + (b.motherBodyLow   != null ? b.motherBodyLow.toFixed(2)   : 'N/A'));
+      lines.push('Baby High:                    ' + (b.high != null ? b.high.toFixed(2) : 'N/A'));
+      lines.push('Baby Low:                     ' + (b.low  != null ? b.low.toFixed(2)  : 'N/A'));
+      lines.push('Baby High <= Mother Body High: ' + (b.highValid != null ? String(b.highValid) : 'N/A'));
+      lines.push('Baby Low >= Mother Body Low:   ' + (b.lowValid  != null ? String(b.lowValid)  : 'N/A'));
+      lines.push('Baby Inside Mother Body:       ' + (b.inside ? 'true' : 'false'));
     }
 
     // Trigger Search — full OHLCV per bar
@@ -312,13 +366,17 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
     lines.push('Bars Checked: ' + checked.length);
     checked.forEach(function(c, ci) {
       lines.push('', 'Bar ' + (ci+1) + ':');
-      lines.push('  Date:         ' + fmtDate(c.date1 || c.date));
-      lines.push('  Open:         ' + (c.open   != null ? c.open.toFixed(2)   : 'N/A'));
-      lines.push('  High:         ' + (c.high   != null ? c.high.toFixed(2)   : 'N/A'));
-      lines.push('  Low:          ' + (c.low    != null ? c.low.toFixed(2)    : 'N/A'));
-      lines.push('  Close:        ' + (c.close  != null ? c.close.toFixed(2)  : 'N/A'));
-      lines.push('  Volume:       ' + (c.volume != null ? Number(c.volume).toLocaleString() : 'N/A'));
-      lines.push('  Trigger Type: ' + (c.triggerType || 'NONE'));
+      lines.push('  Date:                              ' + fmtDate(c.date1 || c.date));
+      lines.push('  Open:                              ' + (c.open   != null ? c.open.toFixed(2)   : 'N/A'));
+      lines.push('  High:                              ' + (c.high   != null ? c.high.toFixed(2)   : 'N/A'));
+      lines.push('  Low:                               ' + (c.low    != null ? c.low.toFixed(2)    : 'N/A'));
+      lines.push('  Close:                             ' + (c.close  != null ? c.close.toFixed(2)  : 'N/A'));
+      lines.push('  Volume:                            ' + (c.volume != null ? Number(c.volume).toLocaleString() : 'N/A'));
+      lines.push('  Mother High:                       ' + (c.motherHigh != null ? c.motherHigh.toFixed(2) : 'N/A'));
+      lines.push('  Mother Low:                        ' + (c.motherLow  != null ? c.motherLow.toFixed(2)  : 'N/A'));
+      lines.push('  Trigger Interacts With Mother Range: ' + (c.interactsWithMother != null ? String(c.interactsWithMother) : 'N/A'));
+      if (c.skipReason) lines.push('  Skip Reason:                       ' + c.skipReason);
+      lines.push('  Trigger Type:                      ' + (c.triggerType || 'NONE'));
     });
     lines.push('', 'Trigger Found: ' + (r.triggered ? 'true' : 'false'));
     lines.push('Trigger Type:  ' + (r.triggerType || 'NONE'));
@@ -327,7 +385,38 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
     lines.push('', '------------------------------------------------', 'Scenario', '');
     lines.push('Trend Status: ' + (a.trendStatus || 'Unknown'));
     lines.push('Scenario:     ' + (s.scenario || 'None'));
-    if (r.patternAge != null) lines.push('Pattern Age:  ' + r.patternAge + ' bars since Mother');
+    if (r.triggerPosition != null) lines.push('Trigger Position: Bar ' + r.triggerPosition);
+    if (r.barsSinceTrigger != null) lines.push('Bars Since Trigger: ' + r.barsSinceTrigger);
+    if (r.patternAge != null) lines.push('Bars Since Mother:  ' + r.patternAge + ' (audit reference)');
+
+    // Technical Context
+    var tc = r.techContext;
+    if (tc) {
+      lines.push('', '------------------------------------------------', 'Technical Context', '');
+      lines.push('Trend:              ' + (tc.trend || 'N/A'));
+      lines.push('Trend Score:        ' + (tc.trendScore != null ? tc.trendScore : 'N/A'));
+      lines.push('Momentum:           ' + (tc.momentum || 'N/A'));
+      lines.push('Momentum Score:     ' + (tc.momentumScore != null ? tc.momentumScore : 'N/A'));
+      lines.push('Reversal:           ' + (tc.reversal || 'N/A'));
+      lines.push('Reversal Score:     ' + (tc.reversalScore != null ? tc.reversalScore : 'N/A'));
+      lines.push('Money Flow:         ' + (tc.moneyFlow || 'N/A'));
+      lines.push('Money Flow Score:   ' + (tc.moneyFlowScore != null ? tc.moneyFlowScore : 'N/A'));
+      // Tech support classification
+      var tl  = (tc.trend||'').toLowerCase();
+      var ml  = (tc.momentum||'').toLowerCase();
+      var rl  = (tc.reversal||'').toLowerCase();
+      var sfl = (tc.moneyFlow||'').toLowerCase();
+      var trendBull  = tl==='uptrend'||tl==='strong uptrend';
+      var trendBear  = tl==='downtrend'||tl==='strong downtrend';
+      var momBull    = ml==='building'||ml==='strong';
+      var momBear    = ml==='fading'||ml==='weak';
+      var revBear    = rl.indexOf('bear')!==-1;
+      var mfBull     = sfl.indexOf('accumulation')!==-1&&sfl.indexOf('cooling')===-1;
+      var score      = (trendBull?1:0)+(momBull?1:0)+(mfBull?1:0)+(!revBear?0.5:0);
+      var tsLabel    = ((trendBear||momBear)&&revBear)||(trendBear||momBear) ? 'Conflicting'
+                     : score>=2.5 ? 'Strong' : score>=1.5 ? 'Moderate' : 'Weak';
+      lines.push('Technical Support:  ' + tsLabel);
+    }
 
     lines.push('', '------------------------------------------------', 'Final Decision', '');
     lines.push('Included In Top ' + TARGET + ': ' + (r.triggered && triggered.indexOf(r) < TARGET ? 'true' : 'false'));
