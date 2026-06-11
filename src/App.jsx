@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.144</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.145</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.144</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.145</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12732,7 +12732,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     var pendingCandidates = buildCandidates(allRawQuotes);
     var tScanStart = Date.now();
     var validFound = 0, allResults = [], stopped = false;
-    var BATCH = 10;
+    var BATCH = 6;   // 6 parallel fetches — reduces Yahoo rate limit pressure
     var GOAL  = 20;
     var MAX_SCAN = 600;
     var totalScanned = 0;
@@ -12747,7 +12747,11 @@ function ForceStrikePage({ isPaid, clerkUser }) {
         try {
           var tChart0 = Date.now();
           var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + c.sym + '?interval=1d&range=3mo';
-          var cRes = await fetch('/proxy?url=' + encodeURIComponent(chartUrl));
+          // 8-second per-ticker timeout — don't let slow tickers block the batch
+          var tickerAbort = new AbortController();
+          var tickerTimer = setTimeout(function(){ tickerAbort.abort(); }, 8000);
+          var cRes = await fetch('/proxy?url=' + encodeURIComponent(chartUrl), { signal: tickerAbort.signal });
+          clearTimeout(tickerTimer);
           var tChartMs = Date.now() - tChart0;
           if (!cRes.ok) return null;
           var cData = await cRes.json();
@@ -12863,6 +12867,8 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       setMsg('Scanned ' + totalScanned + ' \u00B7 Valid: ' + validFound + ' \u00B7 Checking: ' + batch.map(function(c){ return c.sym; }).join(', '));
 
       var bRes = await scanBatch(batch);
+      // Small delay between batches to avoid Yahoo rate limiting
+      await new Promise(function(res){ setTimeout(res, 300); });
       bRes.forEach(function(r){
         if (!r) return;
         totalScanned++;
@@ -13926,7 +13932,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.144</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.145</span>
           </div>
         </div>
 
