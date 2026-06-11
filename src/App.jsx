@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.145</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.146</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.145</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.146</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12570,7 +12570,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
   var [filterTrigger,  setFilterTrigger]  = useState('All');
   var [filterScenario, setFilterScenario] = useState('All');
   var [filterTechSupport, setFilterTechSupport] = useState('All');
-  var [sortBy,         setSortBy]         = useState('volume'); // 'volume' | 'score'
+  var [sortBy,         setSortBy]         = useState('score'); // default: FS Score
   var [scoreBreakdown, setScoreBreakdown] = useState(null);    // symbol of open score panel
 
   var isAdmin  = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === 'admin');
@@ -12875,10 +12875,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
         allResults.push(r);
         if (r.triggered) {
           validFound++;
-          setResults(function(prev){
-            var next = prev.concat([r]).sort(function(a,b){ return (b.volume||0)-(a.volume||0); });
-            return next.slice(0, GOAL);
-          });
+          setResults(function(prev){ return prev.concat([r]); });
         }
       });
     }
@@ -12893,7 +12890,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       if (t.close < m.low) { r.triggered=false; r.result='Invalid'; return false; }
       if (r.triggerPosition < 3 || r.triggerPosition > 6) { r.triggered=false; r.result='Invalid'; return false; }
       return true;
-    }).sort(function(a,b){ return (b.volume||0)-(a.volume||0); }).slice(0, GOAL);
+    }); // No cap — show all valid results
     var now = new Date().toISOString();
     setScanId(newScanId); setCacheSource('live');
     setResults(validResults); setAllAudit(allResults); setStoppedEarly(stopped); setGeneratedAt(now);
@@ -13056,12 +13053,14 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     }
     return true;
   }).slice().sort(function(a,b){
-    if (sortBy==='score')   return calcFsScore(b).pts - calcFsScore(a).pts;
+    if (sortBy==='score')       return calcFsScore(b).pts - calcFsScore(a).pts;
     if (sortBy==='techsupport') {
-      var order = {'Strong':4,'Moderate':3,'Weak':2,'Conflicting':1,'—':0};
+      var order = {'Strong':4,'Moderate':3,'Weak':2,'Conflicting':1};
       return (order[calcTechSupport(b.techContext).label]||0) - (order[calcTechSupport(a.techContext).label]||0);
     }
     if (sortBy==='triggerbar') return (a.triggerPosition||9) - (b.triggerPosition||9);
+    if (sortBy==='lowestrisk') return (a.tradeRiskATR||99) - (b.tradeRiskATR||99);
+    if (sortBy==='freshest')   return (a.barsSinceTrigger||99) - (b.barsSinceTrigger||99);
     return (b.volume||0) - (a.volume||0);
   });
 
@@ -13106,7 +13105,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14,flexWrap:'wrap',gap:12}}>
         <div>
           <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:4}}>Force Strike Screener</div>
-          <div style={{fontSize:12,color:'#555',lineHeight:1.6}}>{'Mother \u2192 Baby \u2192 Trigger on 2-day bars. Mother must expand 1.2\u00D7 vs prior 5 bars. Top 20 by volume.'}</div>
+          <div style={{fontSize:12,color:'#555',lineHeight:1.6}}>{'Mother \u2192 Baby \u2192 Manipulation \u2192 Reclaim \u2192 EXE on 2-day bars. Mother: Range \u22651.2\u00D7 or Body \u22652.0\u00D7. All valid setups shown.'}</div>
           <div style={{fontSize:10,color:'#444',marginTop:3}}>{'M=Mother \u00B7 B=Baby inside Mother range \u00B7 X=Manipulation below Mother Low \u00B7 T=EXE trigger \u00B7 Trigger Bar=Bar 3/4/5/6'}</div>
           {scanId&&<div style={{fontSize:9,color:'#333',marginTop:2}}>{'Scan ID: '+scanId+(cacheSource?' · Source: '+cacheSource:'')}</div>}
         </div>
@@ -13161,10 +13160,12 @@ function ForceStrikePage({ isPaid, clerkUser }) {
           {['All','Strong','Moderate','Weak','Conflicting'].map(function(v){ return <option key={v} value={v}>{v==='All'?'All Tech Support':v+' Support'}</option>; })}
         </select>
         <select value={sortBy} onChange={function(e){ setSortBy(e.target.value); }} style={selStyle}>
-          <option value="volume">Sort: Volume</option>
-          <option value="score">Sort: FS Score</option>
-          <option value="techsupport">Sort: Tech Support</option>
+          <option value="score">Sort: Highest Score</option>
+          <option value="techsupport">Sort: Best Tech Support</option>
+          <option value="lowestrisk">Sort: Lowest Risk</option>
+          <option value="freshest">Sort: Freshest Trigger</option>
           <option value="triggerbar">Sort: Trigger Bar</option>
+          <option value="volume">Sort: Highest Volume</option>
         </select>
         <span style={{fontSize:9,color:'#444'}}>{filtered.length+' shown'}</span>
       </div>}
@@ -13178,8 +13179,8 @@ function ForceStrikePage({ isPaid, clerkUser }) {
 
       {filtered.length>0&&(
         <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflow:'hidden'}}>
-          <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 55px 60px 80px 80px 90px 100px 80px 60px',columnGap:10,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
-            {['Ticker','Pattern Chart','Pattern','Trigger','Trigger Bar','FS Score','Trend','Momentum','Reversal','Money Flow','Scenario',''].map(function(h,i){
+          <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 55px 60px 80px 80px 90px 100px 80px 70px 60px',columnGap:10,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
+            {['Ticker','Pattern Chart','Pattern','Trigger','Trigger Bar','FS Score','Trend','Momentum','Reversal','Money Flow','Scenario','Trade',''].map(function(h,i){
               return <div key={i} style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>;
             })}
           </div>
@@ -13195,7 +13196,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
             var tsp = calcTechSupport(tc);
             return (
               <React.Fragment key={r.symbol}>
-              <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 55px 60px 80px 80px 90px 100px 80px 60px',columnGap:10,padding:'10px 14px',
+              <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 55px 60px 80px 80px 90px 100px 80px 70px 60px',columnGap:10,padding:'10px 14px',
                 borderBottom:(!isExp&&!isSc&&i<filtered.length-1)?'1px solid #1a1a16':'none',
                 background:i%2===0?'#111':'#131311',alignItems:'center'}}>
                 <div>
@@ -13248,6 +13249,17 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                 <div>
                   <div style={{fontSize:10,fontWeight:700,color:si.color,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.scenario||'\u2014'}</div>
                   {tc&&<div style={{fontSize:8,fontWeight:700,color:tsp.color,marginTop:2}}>{tsp.label}</div>}
+                {/* Trade Quality */}
+                <div title={'Entry: $'+(r.tradeEntry?r.tradeEntry.toFixed(2):'--')+'  Stop: $'+(r.tradeStop?r.tradeStop.toFixed(2):'--')+'  Risk: '+(r.tradeRiskPct?r.tradeRiskPct.toFixed(1)+'%':'--')+'  ATR: '+(r.tradeRiskATR?r.tradeRiskATR.toFixed(2):' --')}>
+                  {r.tradeQualityStars != null
+                    ? <div>
+                        <span style={{color:'#EF9F27',fontSize:9}}>
+                          {[1,2,3,4,5].map(function(sq){ return <span key={sq} style={{opacity:sq<=r.tradeQualityStars?1:0.2}}>{'★'}</span>; })}
+                        </span>
+                        <div style={{fontSize:8,color:'#555',marginTop:1}}>{r.tradeRiskPct?r.tradeRiskPct.toFixed(1)+'%':'—'}</div>
+                      </div>
+                    : <span style={{fontSize:9,color:'#444'}}>{'—'}</span>}
+                </div>
                 </div>
                 <div style={{display:'flex',flexDirection:'column',gap:3}}>
                   <button onClick={function(){ window.open(window.location.origin+'/#'+r.symbol,'_blank','noopener,noreferrer'); }}
@@ -13301,6 +13313,26 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                     <span style={{fontWeight:700,color:tsp.color}}>{tsp.label}</span>
                   </div>
                   <div style={{fontSize:9,color:'#444',marginTop:4}}>{'Technical context is not included in the star score.'}</div>
+                </div>}
+                {r.tradeEntry!=null&&<div style={{marginTop:12,paddingTop:10,borderTop:'0.5px solid #222'}}>
+                  <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>{'Trade Structure'}</div>
+                  {[['Entry (Trigger High)','$'+(r.tradeEntry?r.tradeEntry.toFixed(2):'--'),'#7abd00'],
+                    ['Stop (Mother Low)','$'+(r.tradeStop?r.tradeStop.toFixed(2):'--'),'#e05050'],
+                    ['Risk %',r.tradeRiskPct?r.tradeRiskPct.toFixed(2)+'%':'--','#aaa'],
+                    ['ATR(14)',r.atr14?r.atr14.toFixed(2):'--','#aaa'],
+                    ['Risk vs ATR',r.tradeRiskATR!=null?r.tradeRiskATR.toFixed(2)+' ATR':'--','#aaa'],
+                  ].map(function(row,ri){
+                    return <div key={ri} style={{display:'flex',justifyContent:'space-between',fontSize:10,padding:'2px 0'}}>
+                      <span style={{color:'#555'}}>{row[0]}</span>
+                      <span style={{color:row[2],fontWeight:600}}>{row[1]}</span>
+                    </div>;
+                  })}
+                  <div style={{display:'flex',alignItems:'center',gap:6,marginTop:4}}>
+                    <span style={{fontSize:9,color:'#555'}}>{'Trade Quality'}</span>
+                    <span style={{color:'#EF9F27',fontSize:10}}>
+                      {[1,2,3,4,5].map(function(sq){ return <span key={sq} style={{opacity:sq<=(r.tradeQualityStars||0)?1:0.2}}>{'★'}</span>; })}
+                    </span>
+                  </div>
                 </div>}
               </div>}
 
@@ -13932,7 +13964,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.145</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.146</span>
           </div>
         </div>
 
