@@ -55,46 +55,89 @@ function isMarkUp(bar, prevBars) {
 }
 
 function triggerInteractsWithMother(bar, motherHigh, motherLow) {
-  // Rule 1: Trigger close is inside Mother range
   if (bar.close >= motherLow && bar.close <= motherHigh) return true;
-  // Rule 2: Trigger low touches/pierces Mother range and closes inside or above Mother High
-  if (bar.low <= motherHigh && bar.low >= motherLow) return true;  // low touches inside range
-  if (bar.low < motherLow && bar.close >= motherLow) return true;   // low pierces below, closes back
-  // Rule 3: Mark Up — open inside Mother range and breaks above (covered by Rule 1 via open, but
-  //          we capture: open inside range even if close above Mother High)
+  if (bar.low <= motherHigh && bar.low >= motherLow) return true;
+  if (bar.low < motherLow && bar.close >= motherLow) return true;
   if (bar.open >= motherLow && bar.open <= motherHigh) return true;
   return false;
 }
 
-function detectTrigger(aggs, babyIndex, motherHigh, motherLow) {
-  var checked = [], maxCheck = Math.min(3, aggs.length - babyIndex - 1);
-  for (var offset = 1; offset <= maxCheck; offset++) {
+// ── Unified Force Strike sequence detector ───────────────────────────────────
+// Scans Bar 3–6 (offsets 1–5 after Baby) for:
+//   1. Manipulation: a bar with Low < Mother Low
+//   2. EXE after manipulation: closes >= Mother Low AND is PIN/MU/ICE
+// Both must occur within the Bar 3–6 window in that order.
+function detectForceStrikeSequence(aggs, babyIndex, motherHigh, motherLow) {
+  var checked    = [];
+  var manipFound = false;
+  var manipBar   = null;
+  var maxOffset  = Math.min(5, aggs.length - babyIndex - 1); // offsets 1-5 covers Bar 3-6
+
+  for (var offset = 1; offset <= maxOffset; offset++) {
     var idx  = babyIndex + offset;
     var bar  = aggs[idx];
     var p5   = aggs.slice(Math.max(0, idx - 5), idx);
-    var interacts = (motherHigh != null && motherLow != null)
-      ? triggerInteractsWithMother(bar, motherHigh, motherLow) : true;
     var info = { index: idx, date: bar.date, date1: bar.date1, dateLabel: bar.dateLabel,
                  open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume,
-                 motherHigh: motherHigh, motherLow: motherLow,
-                 interactsWithMother: interacts };
-    if (!interacts) {
-      info.triggerType = 'NONE';
-      info.skipReason  = 'Trigger does not interact with Mother range';
+                 motherHigh: motherHigh, motherLow: motherLow };
+
+    // Is this bar a manipulation bar? (Low < Mother Low)
+    if (bar.low < motherLow) {
+      if (!manipFound) {
+        manipFound = true;
+        manipBar   = { found: true, index: idx,
+                       date: bar.date, date1: bar.date1, dateLabel: bar.dateLabel,
+                       low: bar.low, motherLow: motherLow };
+      }
+      info.isManipulation = true;
+      info.triggerType    = 'NONE';
+      info.skipReason     = 'Manipulation bar — Low ' + bar.low.toFixed(2) + ' < Mother Low ' + motherLow.toFixed(2);
       checked.push(info);
       continue;
     }
+
+    // No manipulation yet — cannot be EXE
+    if (!manipFound) {
+      info.triggerType = 'NONE';
+      info.skipReason  = 'Waiting for manipulation — no bar yet below Mother Low';
+      checked.push(info);
+      continue;
+    }
+
+    // Manipulation has occurred — evaluate EXE (reclaim + PIN/MU)
+    var reclaims = bar.close >= motherLow;
+    info.reclaims = reclaims;
+    if (!reclaims) {
+      info.triggerType = 'NONE';
+      info.skipReason  = 'EXE close ' + bar.close.toFixed(2) + ' below Mother Low ' + motherLow.toFixed(2) + ' — no reclaim';
+      checked.push(info);
+      continue;
+    }
+
+    var interacts = triggerInteractsWithMother(bar, motherHigh, motherLow);
+    info.interactsWithMother = interacts;
+    if (!interacts) {
+      info.triggerType = 'NONE';
+      info.skipReason  = 'EXE does not interact with Mother range';
+      checked.push(info);
+      continue;
+    }
+
     if (isBullishPin(bar)) {
       info.triggerType = 'PIN'; checked.push(info);
-      return { found: true, bar: info, checked: checked };
+      return { found: true, bar: info, checked: checked, manipulation: manipBar };
     }
     if (isMarkUp(bar, p5)) {
       info.triggerType = 'MU'; checked.push(info);
-      return { found: true, bar: info, checked: checked };
+      return { found: true, bar: info, checked: checked, manipulation: manipBar };
     }
-    info.triggerType = 'NONE'; checked.push(info);
+    info.triggerType = 'NONE';
+    info.skipReason  = 'Reclaim confirmed but no PIN or MU pattern';
+    checked.push(info);
   }
-  return { found: false, checked: checked };
+
+  return { found: false, checked: checked,
+           manipulation: manipFound ? manipBar : { found: false, motherLow: motherLow } };
 }
 
 // ── Scenario classification ──────────────────────────────────────────────────
@@ -126,10 +169,10 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
   if (!dailyCandles || dailyCandles.length < 14) return empty('Not enough candles (need 14+)', 'No Pattern');
   var aggs = buildAggregateBars(dailyCandles);
   audit.steps.aggCount = aggs.length;
-  if (aggs.length < 7) return empty('Not enough aggregated bars (need 7+)', 'No Pattern');
+  if (aggs.length < 8) return empty('Not enough aggregated bars (need 8+)', 'No Pattern');
 
-  var mother = null, baby = null, trigger = null, scenario = 'None';
-  var MOTHER_THRESHOLD = 1.20; // Improvement 1: tightened from >1.0× to >=1.2×
+  var mother = null, baby = null, trigger = null, manipResult = null, scenario = 'None';
+  var MOTHER_THRESHOLD = 1.20;
 
   for (var mi = aggs.length - 1; mi >= 5; mi--) {
     var prev5    = aggs.slice(mi - 5, mi);
@@ -143,79 +186,87 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
     var qualByRange = rangeExp >= MOTHER_THRESHOLD;
     var qualByBody  = bodyExp  >= MOTHER_THRESHOLD;
 
-    if (!qualByRange && !qualByBody) continue; // Tightened threshold
+    if (!qualByRange && !qualByBody) continue;
 
     var babyBar = (mi + 1 < aggs.length) ? aggs[mi + 1] : null;
     if (!babyBar) continue;
 
-    // Baby must be fully contained within Mother BODY (not wicks)
-    var motherBodyHigh = Math.max(bar.open, bar.close);
-    var motherBodyLow  = Math.min(bar.open, bar.close);
-    if (babyBar.high > motherBodyHigh || babyBar.low < motherBodyLow) continue;
+    // Baby must be inside Mother RANGE (wicks included — classic Inside Bar rule)
+    if (babyBar.high > bar.high || babyBar.low < bar.low) continue;
 
     var babyObj = { index: mi+1, date: babyBar.date, date1: babyBar.date1, dateLabel: babyBar.dateLabel,
                     open: babyBar.open, high: babyBar.high, low: babyBar.low, close: babyBar.close,
                     volume: babyBar.volume, inside: true,
-                    motherBodyHigh: motherBodyHigh, motherBodyLow: motherBodyLow,
-                    motherOpen: bar.open, motherClose: bar.close,
-                    highValid: babyBar.high <= motherBodyHigh,
-                    lowValid:  babyBar.low  >= motherBodyLow };
+                    motherHigh: bar.high, motherLow: bar.low,
+                    highValid: babyBar.high <= bar.high,
+                    lowValid:  babyBar.low  >= bar.low };
 
-    var trigResult = detectTrigger(aggs, mi + 1, bar.high, bar.low);
-    var motherObj  = { index: mi, date: bar.date, date1: bar.date1, dateLabel: bar.dateLabel,
-                       open: bar.open, high: bar.high, low: bar.low, close: bar.close,
-                       volume: bar.volume, range: barRange, body: barBody,
-                       avgPrev5Range: avgR, avgPrev5Body: avgB,
-                       rangeExpansion: rangeExp, bodyExpansion: bodyExp,
-                       qualifiedBy: qualByRange ? (qualByBody ? 'Both' : 'Range') : 'Body',
-                       qualByRange: qualByRange, qualByBody: qualByBody };
+    var motherObj = { index: mi, date: bar.date, date1: bar.date1, dateLabel: bar.dateLabel,
+                      open: bar.open, high: bar.high, low: bar.low, close: bar.close,
+                      volume: bar.volume, range: barRange, body: barBody,
+                      avgPrev5Range: avgR, avgPrev5Body: avgB,
+                      rangeExpansion: rangeExp, bodyExpansion: bodyExp,
+                      qualifiedBy: qualByRange ? (qualByBody ? 'Both' : 'Range') : 'Body',
+                      qualByRange: qualByRange, qualByBody: qualByBody };
 
-    if (trigResult.found) {
-      mother   = motherObj;
-      baby     = babyObj;
-      trigger  = trigResult.bar;
-      audit.steps.triggerChecked = trigResult.checked;
-      scenario = classifyScenario(aggs, mi, trendStatus);
+    // Unified sequence detection: Manipulation then EXE, both within Bar 3-6
+    var seqResult = detectForceStrikeSequence(aggs, mi + 1, bar.high, bar.low);
+    audit.steps.triggerChecked      = seqResult.checked;
+    audit.steps.manipulationChecked = seqResult.manipulation;
+
+    if (seqResult.found) {
+      mother      = motherObj;
+      baby        = babyObj;
+      trigger     = seqResult.bar;
+      manipResult = seqResult.manipulation;
+      audit.steps.manipulation = seqResult.manipulation;
+      scenario    = classifyScenario(aggs, mi, trendStatus);
       break;
     } else {
-      audit.steps.triggerChecked = trigResult.checked;
       mother = motherObj; baby = babyObj;
+      audit.steps.manipulation = seqResult.manipulation;
     }
   }
 
-  if (!mother) return empty('No Mother Bar found (requires >=1.2× range or body expansion)', 'No Pattern');
+  if (!mother) return empty('No Mother Bar found (requires >=1.2x range or body expansion)', 'No Pattern');
   if (!baby)   return empty('No Baby Bar after Mother', 'No Pattern');
   audit.steps.mother = mother;
   audit.steps.baby   = baby;
   if (!trigger) {
+    // Determine if manipulation was found but EXE didn't fire
+    var hasManip = manipResult && manipResult.found;
+    var noTrigReason = hasManip
+      ? 'Manipulation found but no valid EXE (reclaim + PIN/MU) within Bar 3-6'
+      : 'No manipulation below Mother Low within Bar 3-6 — Force Strike invalid';
     return { triggered: false, result: 'Expired', symbol: symbol,
              motherBar: mother, babyBar: baby,
-             audit: Object.assign({ finalReason: 'Trigger not found within 3 bars' }, audit) };
+             manipulationBar: hasManip ? manipResult : null,
+             audit: Object.assign({ finalReason: noTrigReason }, audit) };
   }
 
-  var latestIdx    = aggs.length - 1;
-  var patternAge   = latestIdx - mother.index; // bars since Mother — kept for Expired check only
-  var triggerPos   = trigger.index - mother.index + 1; // Bar 3/4/5 (Mother=1, Baby=2, Trigger=3+)
-  var barsSinceTrig= latestIdx - trigger.index;
-  var volume       = aggs[latestIdx].volume;
+  var latestIdx     = aggs.length - 1;
+  var patternAge    = latestIdx - mother.index;
+  var triggerPos    = trigger.index - mother.index + 1; // Bar 3-6
+  var barsSinceTrig = latestIdx - trigger.index;
+  var volume        = aggs[latestIdx].volume;
 
-  // Pattern Age is a scan criterion — setups older than 5 bars are Expired
-  var MAX_PATTERN_AGE = 5;
+  var MAX_PATTERN_AGE = 7; // supports Bar 6 trigger + 1 bar since
   if (patternAge > MAX_PATTERN_AGE) {
     return {
-      triggered:  false,
-      result:     'Expired',
-      symbol:     symbol,
-      patternAge: patternAge,
-      volume:     volume,
-      motherBar:  mother,
-      babyBar:    baby,
-      triggerBar: trigger,
-      audit:      Object.assign({
+      triggered:   false,
+      result:      'Expired',
+      symbol:      symbol,
+      patternAge:  patternAge,
+      volume:      volume,
+      motherBar:   mother,
+      babyBar:     baby,
+      triggerBar:  trigger,
+      manipulationBar: manipResult && manipResult.found ? manipResult : null,
+      audit: Object.assign({
         finalReason: 'Pattern Age exceeded ' + MAX_PATTERN_AGE + ' bars (age = ' + patternAge + ')',
         trendStatus: trendStatus || 'Unknown',
-        steps:       Object.assign({}, audit.steps, { mother: mother, baby: baby,
-                       trigger: trigger, scenario: scenario }),
+        steps: Object.assign({}, audit.steps, { mother: mother, baby: baby,
+                 trigger: trigger, scenario: scenario }),
       }, audit),
     };
   }
@@ -226,32 +277,34 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
   audit.steps.scenario = scenario;
   audit.trendStatus    = trendStatus || 'Unknown';
 
-  // Last 10 agg bars for mini chart with role tags
   var chartStart = Math.max(0, aggs.length - 10);
   var chartBars  = aggs.slice(chartStart).map(function(b, ci) {
     var absIdx = chartStart + ci;
-    var role = absIdx === mother.index  ? 'mother'
-             : absIdx === baby.index    ? 'baby'
-             : absIdx === trigger.index ? 'trigger' : 'normal';
+    var manipIdx = manipResult && manipResult.found ? manipResult.index : -1;
+    var role = absIdx === mother.index   ? 'mother'
+             : absIdx === baby.index     ? 'baby'
+             : absIdx === manipIdx       ? 'manip'
+             : absIdx === trigger.index  ? 'trigger' : 'normal';
     return Object.assign({}, b, { role: role });
   });
 
   return {
-    triggered:       true,
-    result:          'Triggered',
-    symbol:          symbol,
-    triggerType:     trigger.triggerType,
-    scenario:        scenario,
-    volume:          volume,
-    patternAge:      patternAge,      // kept for Expired check compatibility
-    triggerPosition: triggerPos,      // Bar 3/4/5 — new primary display field
-    barsSinceTrigger:barsSinceTrig,   // how many bars since trigger fired
-    pattern:         'M\u2192B\u2192' + trigger.triggerType,
-    motherBar:    mother,
-    babyBar:      baby,
-    triggerBar:   trigger,
-    chartBars:    chartBars,
-    audit:        Object.assign({ finalReason: 'Force Strike Triggered' }, audit),
+    triggered:        true,
+    result:           'Triggered',
+    symbol:           symbol,
+    triggerType:      trigger.triggerType,
+    scenario:         scenario,
+    volume:           volume,
+    patternAge:       patternAge,
+    triggerPosition:  triggerPos,
+    barsSinceTrigger: barsSinceTrig,
+    pattern:          'M\u2192B\u2192' + trigger.triggerType,
+    motherBar:        mother,
+    babyBar:          baby,
+    manipulationBar:  manipResult && manipResult.found ? manipResult : null,
+    triggerBar:       trigger,
+    chartBars:        chartBars,
+    audit:            Object.assign({ finalReason: 'Force Strike Triggered' }, audit),
   };
 }
 
@@ -273,7 +326,9 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
     'Stopped Early:          ' + (stoppedEarly ? 'Yes (' + TARGET + ' valid setups found)' : 'No — full universe scanned'),
     'Target Valid Setups:    ' + TARGET,
     'Mother Threshold:       1.20x (range or body expansion)',
-    'Baby Bar Rule:          Baby High <= max(Mother Open, Mother Close) AND Baby Low >= min(Mother Open, Mother Close) — body containment, wicks ignored',
+    'Baby Bar Rule:          Baby High <= Mother High AND Baby Low >= Mother Low (classic Inside Bar — full range including wicks)',
+    'Manipulation Rule:      At least one bar after Baby must have Low < Mother Low (within Bar 3-6)',
+    'Reclaim Rule:           EXE (PIN/MU) must close >= Mother Low — must occur after manipulation',
   ];
 
   allResults.forEach(function(r) {
@@ -297,7 +352,7 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
       var tPts = r.triggerType==='PIN'?3:r.triggerType==='MU'?2:r.triggerType==='ICE'?2:0;
       var sPts = r.scenario==='Shakeout Reversal'?4:r.scenario==='Recovery Reversal'?3:r.scenario==='Trend Pullback'?2:0;
       var tpPos = r.triggerPosition!=null ? r.triggerPosition : 0;
-      var tpPts = tpPos===5?3:tpPos===4?2:tpPos===3?1:0;
+      var tpPts = tpPos>=5?3:tpPos===4?2:tpPos===3?1:0;
       var mExp = r.motherBar&&r.motherBar.rangeExpansion!=null?r.motherBar.rangeExpansion:0;
       var mPts = mExp>=2.5?0.5:mExp>=1.5?1:mExp>=1.2?0.5:0;
       var iPts = r.triggerBar&&r.triggerBar.interactsWithMother===true?2:0;
@@ -337,7 +392,7 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
       lines.push('Qualified By:     ' + (m.qualifiedBy || 'N/A'));
     }
 
-    // Baby Bar — full OHLCV + explicit body validation
+    // Baby Bar — full OHLCV + range validation
     if (s.baby) {
       var b = s.baby;
       lines.push('', '------------------------------------------------', 'Baby Bar', '');
@@ -349,15 +404,13 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
       lines.push('Close:                        ' + (b.close  != null ? b.close.toFixed(2)  : 'N/A'));
       lines.push('Volume:                       ' + (b.volume != null ? Number(b.volume).toLocaleString() : 'N/A'));
       lines.push('');
-      lines.push('Mother Open:                  ' + (b.motherOpen      != null ? b.motherOpen.toFixed(2)      : 'N/A'));
-      lines.push('Mother Close:                 ' + (b.motherClose     != null ? b.motherClose.toFixed(2)     : 'N/A'));
-      lines.push('Mother Body High:             ' + (b.motherBodyHigh  != null ? b.motherBodyHigh.toFixed(2)  : 'N/A'));
-      lines.push('Mother Body Low:              ' + (b.motherBodyLow   != null ? b.motherBodyLow.toFixed(2)   : 'N/A'));
+      lines.push('Mother High:                  ' + (b.motherHigh != null ? b.motherHigh.toFixed(2) : 'N/A'));
+      lines.push('Mother Low:                   ' + (b.motherLow  != null ? b.motherLow.toFixed(2)  : 'N/A'));
       lines.push('Baby High:                    ' + (b.high != null ? b.high.toFixed(2) : 'N/A'));
       lines.push('Baby Low:                     ' + (b.low  != null ? b.low.toFixed(2)  : 'N/A'));
-      lines.push('Baby High <= Mother Body High: ' + (b.highValid != null ? String(b.highValid) : 'N/A'));
-      lines.push('Baby Low >= Mother Body Low:   ' + (b.lowValid  != null ? String(b.lowValid)  : 'N/A'));
-      lines.push('Baby Inside Mother Body:       ' + (b.inside ? 'true' : 'false'));
+      lines.push('Baby High <= Mother High:      ' + (b.highValid != null ? String(b.highValid) : (b.high != null && b.motherHigh != null ? String(b.high <= b.motherHigh) : 'N/A')));
+      lines.push('Baby Low >= Mother Low:        ' + (b.lowValid  != null ? String(b.lowValid)  : (b.low  != null && b.motherLow  != null ? String(b.low  >= b.motherLow)  : 'N/A')));
+      lines.push('Baby Inside Mother Range:      ' + (b.inside ? 'true' : 'false'));
     }
 
     // Trigger Search — full OHLCV per bar
