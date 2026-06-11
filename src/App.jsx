@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.141</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.142</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.141</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.142</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12919,9 +12919,9 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     var sPts = r.scenario==='Shakeout Reversal' ? 4 : r.scenario==='Recovery Reversal' ? 3 : r.scenario==='Trend Pullback' ? 2 : 0;
     pts += sPts;
     breakdown.push({ label: 'Scenario: ' + (r.scenario||'Unclassified'), pts: sPts });
-    // 3. Trigger Position (Bar 3/4/5 — Bar 5 = most confirmed)
+    // 3. Trigger Position (Bar 3/4/5/6 — Bar 5&6 most confirmed)
     var tpPos = r.triggerPosition != null ? r.triggerPosition : 0;
-    var tpPts = tpPos===5 ? 3 : tpPos===4 ? 2 : tpPos===3 ? 1 : 0;
+    var tpPts = tpPos>=5 ? 3 : tpPos===4 ? 2 : tpPos===3 ? 1 : 0;
     pts += tpPts;
     breakdown.push({ label: 'Trigger Position: Bar ' + (tpPos||'—'), pts: tpPts });
     // 4. Mother Bar Expansion (use rangeExpansion)
@@ -13233,7 +13233,21 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                   {renderStars(sc.stars, 16)}
                   <div style={{fontSize:11,color:'#888'}}>{sc.pts+' pts'}</div>
                 </div>
-                <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Pattern Quality</div>
+                {/* Mandatory Conditions */}
+                <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Mandatory Conditions</div>
+                {[
+                  [true,                              'Mother Bar (1.2\u00D7 expansion)'],
+                  [true,                              'Baby Bar inside Mother Range'],
+                  [!!(r.manipulationBar),             'Manipulation below Mother Low'],
+                  [!!(r.triggerBar&&r.triggerBar.reclaims!==false), 'Reclaim above Mother Low'],
+                  [true,                              'Bullish EXE: ' + (r.triggerType==='PIN'?'Bullish Pin':r.triggerType==='MU'?'Mark Up':r.triggerType||'—')],
+                ].map(function(row,ri){
+                  return <div key={ri} style={{display:'flex',alignItems:'center',gap:6,fontSize:10,padding:'2px 0',color:row[0]?'#7abd00':'#e05050'}}>
+                    <span style={{fontWeight:700}}>{row[0]?'\u2713':'\u2717'}</span>
+                    <span>{row[1]}</span>
+                  </div>;
+                })}
+                <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginTop:10,marginBottom:6}}>Pattern Quality</div>
                 {sc.breakdown.map(function(b,bi){
                   return <div key={bi} style={{display:'flex',justifyContent:'space-between',fontSize:10,padding:'3px 0',borderBottom:'0.5px solid #1e1e1e',color:b.pts>0?'#7abd00':'#444'}}>
                     <span>{b.pts>0?'\u2713':'\u2212'}{' '}{b.label}</span>
@@ -13273,32 +13287,36 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr',gap:14,marginBottom:8}}>
                     {/* Pattern Scorecard */}
                     <div>
-                      <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Pattern Scorecard</div>
+                      <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Force Strike Lifecycle</div>
                       {[
-                        [true,  'Mother Bar Found (1.2\u00D7 expansion)'],
-                        [m&&m.qualByRange, 'Qualified by Range (' + (m&&m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'\u2014') + ')'],
-                        [m&&m.qualByBody,  'Qualified by Body ('  + (m&&m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'\u2014')  + ')'],
-                        [true,  'Baby Bar Inside Mother Body'],
-                        [true,  'Trigger Within 3 Bars'],
-                        [true,  'Trigger: ' + ti.label],
-                        [r.scenario==='Trend Pullback',    'Trend Pullback'],
-                        [r.scenario==='Recovery Reversal', 'Recovery Reversal'],
-                        [r.scenario==='Shakeout Reversal', 'Shakeout Reversal'],
+                        [true,                   'Mother Bar (1.2\u00D7 expansion)'],
+                        [m&&m.qualByRange,        '\u2514 Qualified by Range (' + (m&&m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'\u2014') + ')'],
+                        [m&&m.qualByBody,         '\u2514 Qualified by Body ('  + (m&&m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'\u2014')  + ')'],
+                        [true,                   'Baby Bar inside Mother Range'],
+                        [!!(r.manipulationBar),  'Manipulation below Mother Low'],
+                        [!!(r.triggerBar&&r.triggerBar.reclaims!==false), 'Reclaim above Mother Low'],
+                        [true,                   'Bullish EXE: ' + ti.label],
+                        [r.scenario==='Trend Pullback',    'Scenario: Trend Pullback'],
+                        [r.scenario==='Recovery Reversal', 'Scenario: Recovery Reversal'],
+                        [r.scenario==='Shakeout Reversal', 'Scenario: Shakeout Reversal'],
                       ].map(function(row,ri){
                         return <div key={ri} style={{fontSize:10,color:row[0]?'#7abd00':'#444',marginBottom:2}}>
                           {row[0]?'\u2713':'\u2717'}{' '}{row[1]}
                         </div>;
                       })}
                     </div>
-                    {/* Bar dates */}
+                    {/* Bar Dates */}
                     <div>
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Bar Dates</div>
-                      {[['Mother',m,'#6090d0'],['Baby',b,'#EF9F27'],['Trigger',t,'#7abd00']].map(function(row,ri){
+                      {[['Mother',m,'#6090d0'],['Baby',b,'#EF9F27'],
+                        ['Manipulation',r.manipulationBar&&r.manipulationBar.found?r.manipulationBar:null,'#e05050'],
+                        ['EXE Trigger',t,'#7abd00']
+                      ].map(function(row,ri){
                         var bar=row[1];
-                        return <div key={ri} style={{marginBottom:6}}>
+                        return <div key={ri} style={{marginBottom:5}}>
                           <div style={{fontSize:9,fontWeight:700,color:row[2]}}>{row[0]}</div>
-                          <div style={{fontSize:10,color:'#888'}}>{bar?(bar.dateLabel||bar.date||'\u2014'):'\u2014'}</div>
-                          {bar&&<div style={{fontSize:9,color:'#555'}}>H:{bar.high?bar.high.toFixed(2):'\u2014'} L:{bar.low?bar.low.toFixed(2):'\u2014'}</div>}
+                          <div style={{fontSize:10,color:bar?'#888':'#444'}}>{bar?(bar.dateLabel||bar.date1||bar.date||'\u2014'):'\u2014'}</div>
+                          {bar&&bar.high!=null&&<div style={{fontSize:9,color:'#555'}}>H:{bar.high.toFixed(2)} L:{bar.low.toFixed(2)}</div>}
                         </div>;
                       })}
                       {m&&<div style={{fontSize:9,color:'#555',marginTop:4}}>
@@ -13888,7 +13906,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.141</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.142</span>
           </div>
         </div>
 
