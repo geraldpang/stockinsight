@@ -309,7 +309,7 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
 }
 
 // ── Audit TXT formatter ──────────────────────────────────────────────────────
-export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
+export function formatAuditTxt(allResults, generatedAt, stoppedEarly, scanId, cacheSource) {
   var TARGET    = 20;
   var triggered = allResults.filter(function(r){ return r.triggered; });
   var expired   = allResults.filter(function(r){ return !r.triggered && r.result === 'Expired'; });
@@ -317,18 +317,25 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
   var displayed = Math.min(triggered.length, TARGET);
   var lines = [
     'Force Strike Audit Export', '',
+    'Scan ID:                ' + (scanId || 'N/A'),
     'Generated:              ' + generatedAt,
+    'Cache Source:           ' + (cacheSource || 'live'),
+    'Scan Rule Version:      ForceStrike-v9',
     'Total Stocks Scanned:   ' + allResults.length,
     'Valid Triggered Count:  ' + triggered.length,
     'Displayed Count:        ' + displayed,
-    'Expired / Too Old:      ' + expired.length,
+    'Expired / No EXE:       ' + expired.length,
     'Invalid / No Pattern:   ' + invalid.length,
     'Stopped Early:          ' + (stoppedEarly ? 'Yes (' + TARGET + ' valid setups found)' : 'No — full universe scanned'),
     'Target Valid Setups:    ' + TARGET,
-    'Mother Threshold:       1.20x (range or body expansion)',
-    'Baby Bar Rule:          Baby High <= Mother High AND Baby Low >= Mother Low (classic Inside Bar — full range including wicks)',
-    'Manipulation Rule:      At least one bar after Baby must have Low < Mother Low (within Bar 3-6)',
-    'Reclaim Rule:           EXE (PIN/MU) must close >= Mother Low — must occur after manipulation',
+    '',
+    'Rules Applied:',
+    '  Baby Bar Rule:        Baby High <= Mother High AND Baby Low >= Mother Low (classic Inside Bar)',
+    '  Manipulation Rule:    At least one bar in Bar 3-6 must have Low < Mother Low',
+    '  Reclaim Rule:         EXE Close >= Mother Low',
+    '  Trigger Window:       Bar 3-6 (Mother=Bar 1, Baby=Bar 2)',
+    '  EXE Types:            PIN / MU / ICE',
+    '  Mother Threshold:     1.20x (range or body expansion vs prior 5 bars)',
   ];
 
   allResults.forEach(function(r) {
@@ -418,18 +425,41 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly) {
     var checked = s.triggerChecked || [];
     lines.push('Bars Checked: ' + checked.length);
     checked.forEach(function(c, ci) {
-      lines.push('', 'Bar ' + (ci+1) + ':');
-      lines.push('  Date:                              ' + fmtDate(c.date1 || c.date));
-      lines.push('  Open:                              ' + (c.open   != null ? c.open.toFixed(2)   : 'N/A'));
-      lines.push('  High:                              ' + (c.high   != null ? c.high.toFixed(2)   : 'N/A'));
-      lines.push('  Low:                               ' + (c.low    != null ? c.low.toFixed(2)    : 'N/A'));
-      lines.push('  Close:                             ' + (c.close  != null ? c.close.toFixed(2)  : 'N/A'));
-      lines.push('  Volume:                            ' + (c.volume != null ? Number(c.volume).toLocaleString() : 'N/A'));
-      lines.push('  Mother High:                       ' + (c.motherHigh != null ? c.motherHigh.toFixed(2) : 'N/A'));
-      lines.push('  Mother Low:                        ' + (c.motherLow  != null ? c.motherLow.toFixed(2)  : 'N/A'));
-      lines.push('  Trigger Interacts With Mother Range: ' + (c.interactsWithMother != null ? String(c.interactsWithMother) : 'N/A'));
-      if (c.skipReason) lines.push('  Skip Reason:                       ' + c.skipReason);
-      lines.push('  Trigger Type:                      ' + (c.triggerType || 'NONE'));
+      var barPos = (c.index != null && s.baby && s.baby.index != null)
+        ? 'Bar ' + (c.index - (s.baby.index - 1)) : 'Bar ' + (ci+2);
+      lines.push('', barPos + ' (Check ' + (ci+1) + '):');
+      lines.push('  Index:                               ' + (c.index != null ? c.index : 'N/A'));
+      lines.push('  Date:                                ' + fmtDate(c.date1 || c.date));
+      lines.push('  Open:                                ' + (c.open   != null ? c.open.toFixed(2)   : 'N/A'));
+      lines.push('  High:                                ' + (c.high   != null ? c.high.toFixed(2)   : 'N/A'));
+      lines.push('  Low:                                 ' + (c.low    != null ? c.low.toFixed(2)    : 'N/A'));
+      lines.push('  Close:                               ' + (c.close  != null ? c.close.toFixed(2)  : 'N/A'));
+      lines.push('  Volume:                              ' + (c.volume != null ? Number(c.volume).toLocaleString() : 'N/A'));
+      lines.push('  Mother High:                         ' + (c.motherHigh != null ? c.motherHigh.toFixed(2) : 'N/A'));
+      lines.push('  Mother Low:                          ' + (c.motherLow  != null ? c.motherLow.toFixed(2)  : 'N/A'));
+      var isManip = c.low != null && c.motherLow != null && c.low < c.motherLow;
+      lines.push('  Low < Mother Low (Manipulation):     ' + (c.isManipulation!=null?String(c.isManipulation):String(isManip)));
+      lines.push('  Manip Already Detected Before Bar:   ' + (c.isManipulation ? 'N/A (this IS the manip bar)' : (c.skipReason&&c.skipReason.indexOf('Waiting')!==-1?'false':'true')));
+      lines.push('  Close >= Mother Low (Reclaim):       ' + (c.reclaims != null ? String(c.reclaims) : (c.close!=null&&c.motherLow!=null?String(c.close>=c.motherLow):'N/A')));
+      // PIN test breakdown
+      if (c.open!=null && c.close!=null && c.high!=null && c.low!=null) {
+        var bull    = c.close > c.open;
+        var body    = Math.abs(c.close - c.open);
+        var lwTick  = Math.min(c.open,c.close) - c.low;
+        var mid     = c.low + (c.high - c.low) / 2;
+        var pinOk   = bull && lwTick >= 2*body && c.close > mid;
+        lines.push('  PIN Test:                            ' + (pinOk?'true':'false'));
+        lines.push('    Close > Open:                      ' + String(bull));
+        lines.push('    Lower Wick >= 2x Body:             ' + String(lwTick>=2*body) + ' (wick='+lwTick.toFixed(4)+' body='+body.toFixed(4)+')');
+        lines.push('    Close > Midpoint:                  ' + String(c.close>mid) + ' (close='+c.close.toFixed(2)+' mid='+mid.toFixed(2)+')');
+        // MU test (simplified — no avg body in audit)
+        var rng     = c.high - c.low;
+        var muClose = rng>0 ? (c.close-c.low)/rng >= 0.75 : false;
+        lines.push('  MU Test (partial, no prev-body avg): close in upper 25%=' + String(muClose) + ', bullish=' + String(bull));
+      }
+      if (c.skipReason) lines.push('  Skip Reason:                         ' + c.skipReason);
+      lines.push('  EXE Type:                            ' + (c.triggerType || 'NONE'));
+      lines.push('  EXE Qualified:                       ' + (c.triggerType&&c.triggerType!=='NONE'?'true':'false'));
     });
     lines.push('', 'Trigger Found: ' + (r.triggered ? 'true' : 'false'));
     lines.push('Trigger Type:  ' + (r.triggerType || 'NONE'));
