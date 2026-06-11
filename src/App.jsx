@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.142</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.143</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.142</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.143</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12563,6 +12563,8 @@ function ForceStrikePage({ isPaid, clerkUser }) {
   var [allAudit,     setAllAudit]     = useState([]);
   var [stoppedEarly, setStoppedEarly] = useState(false);
   var [generatedAt,  setGeneratedAt]  = useState('');
+  var [scanId,       setScanId]       = useState('');
+  var [cacheSource,  setCacheSource]   = useState('');
   var [expandedRow,  setExpandedRow]  = useState(null);
   // Filters (Improvement 7/8)
   var [filterTrigger,  setFilterTrigger]  = useState('All');
@@ -12615,6 +12617,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
           if (cached && cached.ts && (Date.now() - cached.ts) < FS_CACHE_TTL) {
             setResults(cached.results||[]); setAllAudit(cached.allAudit||[]);
             setStoppedEarly(cached.stoppedEarly||false); setGeneratedAt(cached.generatedAt||'');
+            setScanId(cached.scanId||''); setCacheSource('cached');
             setStatus('done');
             var cAge = new Date(cached.ts);
             setMsg('\u26A1 Cached result from ' + cAge.toLocaleDateString() + ' ' + cAge.toLocaleTimeString() + ' \u2014 click Run Scan to refresh.');
@@ -12864,10 +12867,19 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       });
     }
 
-    // Final sort and cache
-    var validResults = allResults.filter(function(r){ return r.triggered; })
-      .sort(function(a,b){ return (b.volume||0)-(a.volume||0); }).slice(0, GOAL);
+    var newScanId = 'FS-' + Date.now().toString(36).toUpperCase();
+    var validResults = allResults.filter(function(r){
+      if (!r.triggered) return false;
+      var m = r.motherBar, b = r.babyBar, x = r.manipulationBar, t = r.triggerBar;
+      if (!m || !b || !x || !t) { r.triggered=false; r.result='Invalid'; return false; }
+      if (b.high > m.high || b.low < m.low) { r.triggered=false; r.result='Invalid'; return false; }
+      if (!x.found || x.low >= m.low) { r.triggered=false; r.result='Invalid'; return false; }
+      if (t.close < m.low) { r.triggered=false; r.result='Invalid'; return false; }
+      if (r.triggerPosition < 3 || r.triggerPosition > 6) { r.triggered=false; r.result='Invalid'; return false; }
+      return true;
+    }).sort(function(a,b){ return (b.volume||0)-(a.volume||0); }).slice(0, GOAL);
     var now = new Date().toISOString();
+    setScanId(newScanId); setCacheSource('live');
     setResults(validResults); setAllAudit(allResults); setStoppedEarly(stopped); setGeneratedAt(now);
     setStatus('done');
     setMsg(validFound + ' valid Force Strike setup' + (validFound!==1?'s':'') + ' found from ' + totalScanned + ' scanned' + (universeSource!=='Yahoo'?' ('+universeSource+')':'') + '.' + (stopped?' Stopped after '+GOAL+' valid setups.':' Full universe scanned.'));
@@ -12876,7 +12888,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     try {
       var cachePayload = JSON.stringify({
         ts: Date.now(), results: validResults, allAudit: allResults,
-        stoppedEarly: stopped, generatedAt: now,
+        stoppedEarly: stopped, generatedAt: now, scanId: newScanId,
       });
       var postHdrs = { 'Content-Type': 'text/plain' };
       if (window.__clerkToken) postHdrs['Authorization'] = 'Bearer ' + window.__clerkToken;
@@ -12886,7 +12898,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
   }
 
   function downloadAudit() {
-    var txt  = formatAuditTxt(allAudit, generatedAt, stoppedEarly);
+    var txt  = formatAuditTxt(allAudit, generatedAt, stoppedEarly, scanId, cacheSource||'live');
     var blob = new Blob([txt], { type: 'text/plain' });
     var url  = URL.createObjectURL(blob);
     var a    = document.createElement('a'); a.href=url;
@@ -12978,8 +12990,8 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     var n   = chartBars.length;
     var bw  = Math.max(3, Math.floor((W-pad*2)/n)-1);
     function yp(v){ return pad+(1-(v-lo)/rng)*(H-pad*2); }
-    var roleStroke = { mother:'#6090d0', baby:'#EF9F27', trigger:'#7abd00', normal:'#333' };
-    var roleColor  = { mother:'#6090d0', baby:'#EF9F27', trigger:'#7abd00', normal:'#555' };
+    var roleStroke = { mother:'#6090d0', baby:'#EF9F27', manip:'#e05050', trigger:'#7abd00', normal:'#333' };
+    var roleColor  = { mother:'#6090d0', baby:'#EF9F27', manip:'#e05050', trigger:'#7abd00', normal:'#555' };
     return (
       <svg width={W} height={H} style={{display:'block',overflow:'visible'}}>
         {/* Mother range shading */}
@@ -13005,8 +13017,8 @@ function ForceStrikePage({ isPaid, clerkUser }) {
               fill={fill} stroke={rs} strokeWidth={b.role!=='normal'?1.5:0.5}/>
           </g>;
         })}
-        {[['M','#6090d0'],['B','#EF9F27'],['T','#7abd00']].map(function(rl,i){
-          return <text key={rl[0]} x={pad+i*18} y={H-1} fontSize="6" fill={rl[1]}>{rl[0]}</text>;
+        {[['M','#6090d0'],['B','#EF9F27'],['X','#e05050'],['T','#7abd00']].map(function(rl,i){
+          return <text key={rl[0]} x={pad+i*14} y={H-1} fontSize="6" fill={rl[1]}>{rl[0]}</text>;
         })}
       </svg>
     );
@@ -13077,7 +13089,8 @@ function ForceStrikePage({ isPaid, clerkUser }) {
         <div>
           <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:4}}>Force Strike Screener</div>
           <div style={{fontSize:12,color:'#555',lineHeight:1.6}}>{'Mother \u2192 Baby \u2192 Trigger on 2-day bars. Mother must expand 1.2\u00D7 vs prior 5 bars. Top 20 by volume.'}</div>
-          <div style={{fontSize:10,color:'#444',marginTop:3}}>{'M=Mother \u00B7 B=Baby inside Mother body \u00B7 PIN=Bullish Pin \u00B7 MU=Mark Up \u00B7 Trigger Bar=Bar 3/4/5 when Force Strike triggered'}</div>
+          <div style={{fontSize:10,color:'#444',marginTop:3}}>{'M=Mother \u00B7 B=Baby inside Mother range \u00B7 X=Manipulation below Mother Low \u00B7 T=EXE trigger \u00B7 Trigger Bar=Bar 3/4/5/6'}</div>
+          {scanId&&<div style={{fontSize:9,color:'#333',marginTop:2}}>{'Scan ID: '+scanId+(cacheSource?' · Source: '+cacheSource:'')}</div>}
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
           <button onClick={runScan} disabled={status==='scanning'}
@@ -13229,47 +13242,47 @@ function ForceStrikePage({ isPaid, clerkUser }) {
               </div>
               {isSc&&<div style={{background:'#161614',borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none',padding:'14px 16px'}}>
                 <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
-                  <div style={{fontSize:11,fontWeight:700,color:LIME}}>Force Strike Score \u2014 {r.symbol}</div>
+                  <div style={{fontSize:11,fontWeight:700,color:LIME}}>{'Force Strike Score — '+r.symbol}</div>
                   {renderStars(sc.stars, 16)}
                   <div style={{fontSize:11,color:'#888'}}>{sc.pts+' pts'}</div>
                 </div>
-                {/* Mandatory Conditions */}
                 <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Mandatory Conditions</div>
                 {[
-                  [true,                              'Mother Bar (1.2\u00D7 expansion)'],
-                  [true,                              'Baby Bar inside Mother Range'],
-                  [!!(r.manipulationBar),             'Manipulation below Mother Low'],
-                  [!!(r.triggerBar&&r.triggerBar.reclaims!==false), 'Reclaim above Mother Low'],
-                  [true,                              'Bullish EXE: ' + (r.triggerType==='PIN'?'Bullish Pin':r.triggerType==='MU'?'Mark Up':r.triggerType||'—')],
+                  [true,                 'Mother Bar (1.2× expansion)'],
+                  [true,                 'Baby Bar inside Mother Range'],
+                  [!!(r.manipulationBar),'Manipulation below Mother Low'],
+                  [!!(r.triggerBar&&r.triggerBar.reclaims!==false),'Reclaim above Mother Low'],
+                  [true,                 'Bullish EXE: '+(r.triggerType==='PIN'?'Bullish Pin':r.triggerType==='MU'?'Mark Up':r.triggerType||'—')],
                 ].map(function(row,ri){
                   return <div key={ri} style={{display:'flex',alignItems:'center',gap:6,fontSize:10,padding:'2px 0',color:row[0]?'#7abd00':'#e05050'}}>
-                    <span style={{fontWeight:700}}>{row[0]?'\u2713':'\u2717'}</span>
+                    <span style={{fontWeight:700}}>{row[0]?'✓':'✗'}</span>
                     <span>{row[1]}</span>
                   </div>;
                 })}
                 <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginTop:10,marginBottom:6}}>Pattern Quality</div>
                 {sc.breakdown.map(function(b,bi){
                   return <div key={bi} style={{display:'flex',justifyContent:'space-between',fontSize:10,padding:'3px 0',borderBottom:'0.5px solid #1e1e1e',color:b.pts>0?'#7abd00':'#444'}}>
-                    <span>{b.pts>0?'\u2713':'\u2212'}{' '}{b.label}</span>
-                    <span style={{fontWeight:700,color:b.pts>0?'#7abd00':'#444'}}>{b.pts>0?'+'+b.pts:'\u2014'}</span>
+                    <span>{b.pts>0?'✓':'−'}{' '}{b.label}</span>
+                    <span style={{fontWeight:700,color:b.pts>0?'#7abd00':'#444'}}>{b.pts>0?'+'+b.pts:'—'}</span>
                   </div>;
                 })}
                 <div style={{display:'flex',justifyContent:'space-between',fontSize:11,fontWeight:700,marginTop:8,paddingTop:6,borderTop:'0.5px solid #333',color:'#f0ede6'}}>
-                  <span>Total</span><span>{sc.pts} pts \u2014 {['\u2605\u2606\u2606\u2606\u2606','\u2605\u2605\u2606\u2606\u2606','\u2605\u2605\u2605\u2606\u2606','\u2605\u2605\u2605\u2605\u2606','\u2605\u2605\u2605\u2605\u2605'][sc.stars-1]}</span>
+                  <span>Total</span>
+                  <span>{sc.pts+' pts'}</span>
                 </div>
                 {tc&&<div style={{marginTop:12,paddingTop:10,borderTop:'0.5px solid #222'}}>
-                  <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Technical Context <span style={{color:'#444',fontWeight:400,textTransform:'none'}}>(context only \u2014 not scored)</span></div>
-                  {[['Trend', tc.trend],['Momentum', tc.momentum],['Reversal', tc.reversal],['Money Flow', tc.moneyFlow]].map(function(row,ri){
+                  <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>{'Technical Context (context only — not scored)'}</div>
+                  {[['Trend',tc.trend],['Momentum',tc.momentum],['Reversal',tc.reversal],['Money Flow',tc.moneyFlow]].map(function(row,ri){
                     return <div key={ri} style={{display:'flex',justifyContent:'space-between',fontSize:10,padding:'2px 0',color:'#888'}}>
                       <span style={{color:'#555'}}>{row[0]}</span>
-                      <span style={{color:'#aaa',fontWeight:600}}>{row[1]||'\u2014'}</span>
+                      <span style={{color:'#aaa',fontWeight:600}}>{row[1]||'—'}</span>
                     </div>;
                   })}
                   <div style={{display:'flex',justifyContent:'space-between',fontSize:10,marginTop:4,paddingTop:4,borderTop:'0.5px solid #1e1e1e'}}>
                     <span style={{color:'#555'}}>Technical Support</span>
                     <span style={{fontWeight:700,color:tsp.color}}>{tsp.label}</span>
                   </div>
-                  <div style={{fontSize:9,color:'#444',marginTop:4}}>Technical context is not included in the star score.</div>
+                  <div style={{fontSize:9,color:'#444',marginTop:4}}>{'Technical context is not included in the star score.'}</div>
                 </div>}
               </div>}
 
@@ -13283,29 +13296,27 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                   tsp.label==='Conflicting' ? 'Bearish technical signals conflict with this bullish Force Strike setup.' : ''
                 ) : 'Technical context not available for this result.';
                 return <div style={{background:'#161614',borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none',padding:'14px 16px'}}>
-                  <div style={{fontSize:11,fontWeight:700,color:LIME,marginBottom:10}}>Force Strike Details \u2014 {r.symbol}</div>
+                  <div style={{fontSize:11,fontWeight:700,color:LIME,marginBottom:10}}>{'Force Strike Details — '+r.symbol}</div>
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr',gap:14,marginBottom:8}}>
-                    {/* Pattern Scorecard */}
                     <div>
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Force Strike Lifecycle</div>
                       {[
-                        [true,                   'Mother Bar (1.2\u00D7 expansion)'],
-                        [m&&m.qualByRange,        '\u2514 Qualified by Range (' + (m&&m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'\u2014') + ')'],
-                        [m&&m.qualByBody,         '\u2514 Qualified by Body ('  + (m&&m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'\u2014')  + ')'],
-                        [true,                   'Baby Bar inside Mother Range'],
-                        [!!(r.manipulationBar),  'Manipulation below Mother Low'],
-                        [!!(r.triggerBar&&r.triggerBar.reclaims!==false), 'Reclaim above Mother Low'],
-                        [true,                   'Bullish EXE: ' + ti.label],
+                        [true,                    'Mother Bar (1.2× expansion)'],
+                        [m&&m.qualByRange,         '└ Range ('+((m&&m.rangeExpansion!=null)?m.rangeExpansion.toFixed(2)+'x':'—')+')'],
+                        [m&&m.qualByBody,          '└ Body ('  +((m&&m.bodyExpansion!=null)?m.bodyExpansion.toFixed(2)+'x':'—')+')'],
+                        [true,                    'Baby Bar inside Mother Range'],
+                        [!!(r.manipulationBar),   'Manipulation below Mother Low'],
+                        [!!(r.triggerBar&&r.triggerBar.reclaims!==false),'Reclaim above Mother Low'],
+                        [true,                    'Bullish EXE: '+ti.label],
                         [r.scenario==='Trend Pullback',    'Scenario: Trend Pullback'],
                         [r.scenario==='Recovery Reversal', 'Scenario: Recovery Reversal'],
                         [r.scenario==='Shakeout Reversal', 'Scenario: Shakeout Reversal'],
                       ].map(function(row,ri){
                         return <div key={ri} style={{fontSize:10,color:row[0]?'#7abd00':'#444',marginBottom:2}}>
-                          {row[0]?'\u2713':'\u2717'}{' '}{row[1]}
+                          {row[0]?'✓':'✗'}{' '}{row[1]}
                         </div>;
                       })}
                     </div>
-                    {/* Bar Dates */}
                     <div>
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Bar Dates</div>
                       {[['Mother',m,'#6090d0'],['Baby',b,'#EF9F27'],
@@ -13315,38 +13326,35 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                         var bar=row[1];
                         return <div key={ri} style={{marginBottom:5}}>
                           <div style={{fontSize:9,fontWeight:700,color:row[2]}}>{row[0]}</div>
-                          <div style={{fontSize:10,color:bar?'#888':'#444'}}>{bar?(bar.dateLabel||bar.date1||bar.date||'\u2014'):'\u2014'}</div>
-                          {bar&&bar.high!=null&&<div style={{fontSize:9,color:'#555'}}>H:{bar.high.toFixed(2)} L:{bar.low.toFixed(2)}</div>}
+                          <div style={{fontSize:10,color:bar?'#888':'#444'}}>{bar?(bar.dateLabel||bar.date1||bar.date||'—'):'—'}</div>
+                          {bar&&bar.high!=null&&<div style={{fontSize:9,color:'#555'}}>{'H:'+bar.high.toFixed(2)+' L:'+bar.low.toFixed(2)}</div>}
                         </div>;
                       })}
                       {m&&<div style={{fontSize:9,color:'#555',marginTop:4}}>
-                        {'Range: '+(m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'\u2014')+' \u00B7 Body: '+(m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'\u2014')}
+                        {'Range: '+(m.rangeExpansion!=null?m.rangeExpansion.toFixed(2)+'x':'—')+' · Body: '+(m.bodyExpansion!=null?m.bodyExpansion.toFixed(2)+'x':'—')}
                       </div>}
                     </div>
-                    {/* Trigger & Scenario */}
                     <div>
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Trigger</div>
                       <div style={{fontSize:11,fontWeight:700,color:'#7abd00',marginBottom:2}}>{ti.label}</div>
                       <div style={{fontSize:10,color:'#555',marginBottom:10}}>{ti.desc}</div>
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:4}}>Scenario</div>
-                      <div style={{fontSize:11,fontWeight:700,color:si.color,marginBottom:2}}>{r.scenario||'\u2014'}</div>
+                      <div style={{fontSize:11,fontWeight:700,color:si.color,marginBottom:2}}>{r.scenario||'—'}</div>
                       <div style={{fontSize:10,color:'#555',marginBottom:4}}>{si.desc}</div>
-                      <div style={{fontSize:9,color:'#aaa',marginTop:4,fontWeight:700}}>{'Trigger Position: Bar '+(r.triggerPosition!=null?r.triggerPosition:'\u2014')}</div>
-                      <div style={{fontSize:9,color:'#555',marginTop:2}}>{'Bars Since Trigger: '+(r.barsSinceTrigger!=null?r.barsSinceTrigger:'\u2014')}</div>
-                      <div style={{fontSize:8,color:'#444',marginTop:2}}>{'Bars Since Mother: '+(r.patternAge!=null?r.patternAge:'\u2014')+' (audit ref)'}</div>
+                      <div style={{fontSize:9,color:'#aaa',marginTop:4,fontWeight:700}}>{'Trigger Position: Bar '+(r.triggerPosition!=null?r.triggerPosition:'—')}</div>
+                      <div style={{fontSize:9,color:'#555',marginTop:2}}>{'Bars Since Trigger: '+(r.barsSinceTrigger!=null?r.barsSinceTrigger:'—')}</div>
+                      <div style={{fontSize:8,color:'#444',marginTop:2}}>{'Bars Since Mother: '+(r.patternAge!=null?r.patternAge:'—')+' (ref)'}</div>
                     </div>
-                    {/* FS Score */}
                     <div>
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>FS Score</div>
                       {renderStars(sc.stars, 13)}
                       <div style={{fontSize:9,color:'#888',marginTop:4}}>{sc.pts+' pts'}</div>
                       {sc.breakdown.map(function(b,bi){
                         return <div key={bi} style={{fontSize:9,color:b.pts>0?'#7abd00':'#444',marginTop:2}}>
-                          {b.pts>0?'\u2713':'\u2212'}{' '}{b.label}{b.pts>0?' (+'+b.pts+')':''}
+                          {b.pts>0?'✓':'−'}{' '}{b.label}{b.pts>0?' (+'+b.pts+')':''}
                         </div>;
                       })}
                     </div>
-                    {/* Technical Context */}
                     <div>
                       <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Technical Context</div>
                       {tc ? <div>
@@ -13357,7 +13365,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                         ].map(function(row,ri){
                           return <div key={ri} style={{marginBottom:5}}>
                             <div style={{fontSize:8,color:'#555',textTransform:'uppercase'}}>{row[0]}</div>
-                            <div style={{fontSize:10,fontWeight:600,color:row[2]||'#aaa'}}>{row[1]||'\u2014'}</div>
+                            <div style={{fontSize:10,fontWeight:600,color:row[2]||'#aaa'}}>{row[1]||'—'}</div>
                           </div>;
                         })}
                         <div style={{marginTop:6,paddingTop:6,borderTop:'0.5px solid #222'}}>
@@ -13906,7 +13914,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.142</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.143</span>
           </div>
         </div>
 
