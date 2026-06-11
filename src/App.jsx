@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.143</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.144</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.143</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.144</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12706,7 +12706,9 @@ function ForceStrikePage({ isPaid, clerkUser }) {
 
     // Fetch primary universe — Polygon grouped daily (top 500 by volume, prev trading day)
     setMsg('Fetching universe from Polygon grouped daily\u2026');
+    var tUniverse0 = Date.now();
     var gdQuotes = await fetchGroupedDaily();
+    var tUniverseMs = Date.now() - tUniverse0;
     if (gdQuotes.length >= 50) {
       allRawQuotes = gdQuotes;
       universeSource = 'Polygon-Daily';
@@ -12728,6 +12730,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     }
 
     var pendingCandidates = buildCandidates(allRawQuotes);
+    var tScanStart = Date.now();
     var validFound = 0, allResults = [], stopped = false;
     var BATCH = 10;
     var GOAL  = 20;
@@ -12740,9 +12743,12 @@ function ForceStrikePage({ isPaid, clerkUser }) {
 
     async function scanBatch(batch) {
       return Promise.all(batch.map(async function(c) {
+        var t0 = Date.now();
         try {
+          var tChart0 = Date.now();
           var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + c.sym + '?interval=1d&range=3mo';
           var cRes = await fetch('/proxy?url=' + encodeURIComponent(chartUrl));
+          var tChartMs = Date.now() - tChart0;
           if (!cRes.ok) return null;
           var cData = await cRes.json();
           var cr = cData&&cData.chart&&cData.chart.result&&cData.chart.result[0];
@@ -12766,9 +12772,12 @@ function ForceStrikePage({ isPaid, clerkUser }) {
             if (pr2>sma50&&sma50>sma200) tst = pr2>sma50*1.03?'Strong Uptrend':'Uptrend';
             else if (pr2<sma50&&sma50<sma200) tst = 'Downtrend';
           }
+          var tScan0 = Date.now();
           var fsResult = scanForceStrike(c.sym, daily, tst);
+          var tScanMs = Date.now() - tScan0;
           fsResult.name = c.name||c.sym;
           fsResult.volume = fsResult.volume||c.volume||0;
+          fsResult._timing = { chartFetchMs: tChartMs, scanMs: tScanMs, totalMs: Date.now()-t0 };
 
           // For valid FS results only: compute technical context using existing signal engine
           if (fsResult.triggered) {
@@ -12804,6 +12813,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
           return fsResult;
         } catch(e) {
           return { triggered:false, result:'Invalid', symbol:c.sym, name:c.name||c.sym,
+                   _timing: { chartFetchMs: 0, scanMs: 0, totalMs: Date.now()-t0 },
                    audit:{ finalReason:'Error: '+(e.message||''), steps:{} } };
         }
       }));
@@ -12882,7 +12892,9 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     setScanId(newScanId); setCacheSource('live');
     setResults(validResults); setAllAudit(allResults); setStoppedEarly(stopped); setGeneratedAt(now);
     setStatus('done');
-    setMsg(validFound + ' valid Force Strike setup' + (validFound!==1?'s':'') + ' found from ' + totalScanned + ' scanned' + (universeSource!=='Yahoo'?' ('+universeSource+')':'') + '.' + (stopped?' Stopped after '+GOAL+' valid setups.':' Full universe scanned.'));
+    var tTotalMs = Date.now() - tScanStart;
+    var avgMs = totalScanned > 0 ? Math.round(tTotalMs / totalScanned) : 0;
+    setMsg(validFound + ' valid Force Strike setup' + (validFound!==1?'s':'') + ' found from ' + totalScanned + ' scanned' + (universeSource!=='Yahoo'?' ('+universeSource+')':'') + '.' + (stopped?' Stopped after '+GOAL+' valid setups.':' Full universe scanned.') + ' (' + Math.round(tTotalMs/1000) + 's total, ~' + avgMs + 'ms/ticker)');
 
     // Write to shared KV cache (all visitors will see this result)
     try {
@@ -13914,7 +13926,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.143</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.144</span>
           </div>
         </div>
 
