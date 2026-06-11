@@ -88,31 +88,37 @@ function auditMu(bar, prevBars) {
     c3_largeBody: c3,
   };
 }
-function auditIce(bar) {
-  var bull     = bar.close > bar.open;
-  var body     = Math.abs(bar.close - bar.open);
-  var rng      = bar.high - bar.low;
-  var bodyPct  = rng > 0 ? body / rng * 100 : 0;
-  var closePos = rng > 0 ? (bar.close - bar.low) / rng * 100 : 0;
+function auditIce(bar, prevBar, motherMidpoint) {
+  var bull      = bar.close > bar.open;
+  var body      = Math.abs(bar.close - bar.open);
+  var rng       = bar.high - bar.low;
+  var bodyPct   = rng > 0 ? body / rng * 100 : 0;
+  var closePos  = rng > 0 ? (bar.close - bar.low) / rng * 100 : 0;
   var upperThird = bar.low + rng * (2/3);
   var c1 = bull;
-  var c2 = bodyPct >= 30 && bodyPct <= 70;  // body ~half of range
+  var c2 = bodyPct >= 50;  // tightened: body must be >= 50% range
   var c3 = bar.close >= upperThird;
-  var pass = c1 && c2 && c3;
+  var c4 = prevBar ? bar.close > prevBar.high : true;   // close > previous bar high
+  var c5 = motherMidpoint != null ? bar.close > motherMidpoint : true; // close > mother midpoint
+  var pass = c1 && c2 && c3 && c4 && c5;
   return {
     pass: pass,
     bull: bull, body: body, range: rng,
     bodyPct: bodyPct, closePos: closePos,
     upperThird: upperThird,
+    prevHigh: prevBar ? prevBar.high : null,
+    motherMidpoint: motherMidpoint,
     c1_bullish: c1,
     c2_halfBody: c2,
     c3_upperThird: c3,
+    c4_abovePrevHigh: c4,
+    c5_aboveMotherMid: c5,
   };
 }
 // Convenience wrappers used by detection logic
-function isBullishPin(bar)            { return auditPin(bar).pass; }
-function isMarkUp(bar, prevBars)      { return auditMu(bar, prevBars).pass; }
-function isIceCream(bar)              { return auditIce(bar).pass; }
+function isBullishPin(bar)                              { return auditPin(bar).pass; }
+function isMarkUp(bar, prevBars)                        { return auditMu(bar, prevBars).pass; }
+function isIceCream(bar, prevBar, motherMidpoint)       { return auditIce(bar, prevBar, motherMidpoint).pass; }
 
 
 function triggerInteractsWithMother(bar, motherHigh, motherLow) {
@@ -134,9 +140,12 @@ function detectForceStrikeSequence(aggs, babyIndex, motherHigh, motherLow) {
   var manipBar   = null;
   var maxOffset  = Math.min(5, aggs.length - babyIndex - 1); // offsets 1-5 covers Bar 3-6
 
+  var motherMidpoint = (motherHigh + motherLow) / 2;
+
   for (var offset = 1; offset <= maxOffset; offset++) {
     var idx  = babyIndex + offset;
     var bar  = aggs[idx];
+    var prev = idx > 0 ? aggs[idx-1] : null;
     var p5   = aggs.slice(Math.max(0, idx - 5), idx);
     var info = { index: idx, date: bar.date, date1: bar.date1, dateLabel: bar.dateLabel,
                  open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume,
@@ -149,7 +158,7 @@ function detectForceStrikeSequence(aggs, babyIndex, motherHigh, motherLow) {
         // Same-bar analysis: would this manip bar also qualify as EXE?
         var samePinAudit = auditPin(bar);
         var sameMuAudit  = auditMu(bar, p5);
-        var sameIceAudit = auditIce(bar);
+        var sameIceAudit = auditIce(bar, prev, motherMidpoint);
         manipBar = { found: true, index: idx,
                      date: bar.date, date1: bar.date1, dateLabel: bar.dateLabel,
                      open: bar.open, high: bar.high, low: bar.low, close: bar.close,
@@ -195,25 +204,25 @@ function detectForceStrikeSequence(aggs, babyIndex, motherHigh, motherLow) {
 
     if (isBullishPin(bar)) {
       info.triggerType = 'PIN';
-      info.exeAudit    = { pin: auditPin(bar), mu: auditMu(bar, p5), ice: auditIce(bar) };
+      info.exeAudit    = { pin: auditPin(bar), mu: auditMu(bar, p5), ice: auditIce(bar, prev, motherMidpoint) };
       checked.push(info);
       return { found: true, bar: info, checked: checked, manipulation: manipBar };
     }
     if (isMarkUp(bar, p5)) {
       info.triggerType = 'MU';
-      info.exeAudit    = { pin: auditPin(bar), mu: auditMu(bar, p5), ice: auditIce(bar) };
+      info.exeAudit    = { pin: auditPin(bar), mu: auditMu(bar, p5), ice: auditIce(bar, prev, motherMidpoint) };
       checked.push(info);
       return { found: true, bar: info, checked: checked, manipulation: manipBar };
     }
-    if (isIceCream(bar)) {
+    if (isIceCream(bar, prev, motherMidpoint)) {
       info.triggerType = 'ICE';
-      info.exeAudit    = { pin: auditPin(bar), mu: auditMu(bar, p5), ice: auditIce(bar) };
+      info.exeAudit    = { pin: auditPin(bar), mu: auditMu(bar, p5), ice: auditIce(bar, prev, motherMidpoint) };
       checked.push(info);
       return { found: true, bar: info, checked: checked, manipulation: manipBar };
     }
     // No EXE — still store audit for transparency
     info.triggerType = 'NONE';
-    info.exeAudit    = { pin: auditPin(bar), mu: auditMu(bar, p5), ice: auditIce(bar) };
+    info.exeAudit    = { pin: auditPin(bar), mu: auditMu(bar, p5), ice: auditIce(bar, prev, motherMidpoint) };
     info.skipReason  = 'Reclaim confirmed but no PIN, MU, or ICE pattern';
     checked.push(info);
   }
@@ -223,7 +232,7 @@ function detectForceStrikeSequence(aggs, babyIndex, motherHigh, motherLow) {
 }
 
 // ── Scenario classification ──────────────────────────────────────────────────
-function classifyScenario(aggs, motherIndex, trendStatus) {
+function classifyScenario(aggs, motherIndex, trendStatus, trigger, baby) {
   var mother   = aggs[motherIndex];
   var prevBars = aggs.slice(Math.max(0, motherIndex - 20), motherIndex);
   var swingLow = prevBars.length
@@ -233,11 +242,18 @@ function classifyScenario(aggs, motherIndex, trendStatus) {
   var highestHigh = prevBars.length
     ? prevBars.reduce(function(m,b){ return Math.max(m,b.high); }, -Infinity) : null;
   var sideways = prevRange20 && highestHigh && (highestHigh - swingLow) < prevRange20 * 5;
-
-  if (sideways && swingLow && mother.low < swingLow && mother.close >= swingLow) return 'Shakeout Reversal';
-  if (swingLow && mother.low < swingLow && mother.close >= swingLow) return 'Recovery Reversal';
   var ts = (trendStatus || '').toLowerCase();
-  if (ts === 'uptrend' || ts === 'strong uptrend') return 'Trend Pullback';
+  var notUptrend = ts !== 'uptrend' && ts !== 'strong uptrend';
+
+  // Priority 1: Shakeout Reversal
+  if (sideways && swingLow && mother.low < swingLow && mother.close >= swingLow) return 'Shakeout Reversal';
+  // Priority 2: Recovery Reversal (including manip+reclaim cases where trend is not up)
+  if (swingLow && mother.low < swingLow && mother.close >= swingLow) return 'Recovery Reversal';
+  // New: manip+reclaim with reclaim above baby close, not in uptrend
+  if (trigger && baby && notUptrend &&
+      trigger.close > mother.low && trigger.close > baby.close) return 'Recovery Reversal';
+  // Priority 3: Trend Pullback
+  if (!notUptrend) return 'Trend Pullback';
   return 'None';
 }
 
@@ -254,7 +270,8 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
   if (aggs.length < 8) return empty('Not enough aggregated bars (need 8+)', 'No Pattern');
 
   var mother = null, baby = null, trigger = null, manipResult = null, scenario = 'None';
-  var MOTHER_THRESHOLD = 1.20;
+  var MOTHER_THRESHOLD_RANGE = 1.20;  // range expansion (unchanged)
+  var MOTHER_THRESHOLD_BODY  = 2.00;  // body expansion tightened (was 1.2x)
 
   for (var mi = aggs.length - 1; mi >= 5; mi--) {
     var prev5    = aggs.slice(mi - 5, mi);
@@ -265,8 +282,8 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
     var avgB     = avgBody(prev5);
     var rangeExp = avgR > 0 ? barRange / avgR : 0;
     var bodyExp  = avgB > 0 ? barBody / avgB  : 0;
-    var qualByRange = rangeExp >= MOTHER_THRESHOLD;
-    var qualByBody  = bodyExp  >= MOTHER_THRESHOLD;
+    var qualByRange = rangeExp >= MOTHER_THRESHOLD_RANGE;
+    var qualByBody  = bodyExp  >= MOTHER_THRESHOLD_BODY;
 
     if (!qualByRange && !qualByBody) continue;
 
@@ -302,7 +319,7 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
       trigger     = seqResult.bar;
       manipResult = seqResult.manipulation;
       audit.steps.manipulation = seqResult.manipulation;
-      scenario    = classifyScenario(aggs, mi, trendStatus);
+      scenario    = classifyScenario(aggs, mi, trendStatus, seqResult.bar, babyObj);
       break;
     } else {
       mother = motherObj; baby = babyObj;
@@ -359,6 +376,26 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
   audit.steps.scenario = scenario;
   audit.trendStatus    = trendStatus || 'Unknown';
 
+  // ATR(14) from daily candles
+  var atr14 = 0;
+  if (dailyCandles.length >= 15) {
+    var trs = [];
+    for (var ai = 1; ai < dailyCandles.length; ai++) {
+      var dc = dailyCandles[ai], dp = dailyCandles[ai-1];
+      trs.push(Math.max(dc.high - dc.low, Math.abs(dc.high - dp.close), Math.abs(dc.low - dp.close)));
+    }
+    var atrSlice = trs.slice(-14);
+    atr14 = atrSlice.reduce(function(s,v){ return s+v; }, 0) / atrSlice.length;
+  }
+  // Trade structure
+  var tradeEntry  = trigger.high;
+  var tradeStop   = mother.low;
+  var tradeRisk   = tradeEntry > 0 ? (tradeEntry - tradeStop) / tradeEntry * 100 : 0;
+  var tradeRiskATR = atr14 > 0 ? (tradeEntry - tradeStop) / atr14 : null;
+  var tradeQualityStars = tradeRiskATR == null ? null
+    : tradeRiskATR <= 1.0 ? 5 : tradeRiskATR <= 1.5 ? 4
+    : tradeRiskATR <= 2.0 ? 3 : tradeRiskATR <= 3.0 ? 2 : 1;
+
   var chartStart = Math.max(0, aggs.length - 10);
   var chartBars  = aggs.slice(chartStart).map(function(b, ci) {
     var absIdx = chartStart + ci;
@@ -386,6 +423,12 @@ export function scanForceStrike(symbol, dailyCandles, trendStatus) {
     manipulationBar:  manipResult && manipResult.found ? manipResult : null,
     triggerBar:       trigger,
     chartBars:        chartBars,
+    atr14:            atr14,
+    tradeEntry:       tradeEntry,
+    tradeStop:        tradeStop,
+    tradeRiskPct:     tradeRisk,
+    tradeRiskATR:     tradeRiskATR,
+    tradeQualityStars: tradeQualityStars,
     audit:            Object.assign({ finalReason: 'Force Strike Triggered' }, audit),
   };
 }
@@ -402,7 +445,7 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly, scanId, ca
     'Scan ID:                ' + (scanId || 'N/A'),
     'Generated:              ' + generatedAt,
     'Cache Source:           ' + (cacheSource || 'live'),
-    'Scan Rule Version:      ForceStrike-v9',
+    'Scan Rule Version:      ForceStrike-v10',
     'Total Stocks Scanned:   ' + allResults.length,
     'Valid Triggered Count:  ' + triggered.length,
     'Displayed Count:        ' + displayed,
@@ -421,8 +464,37 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly, scanId, ca
     '  Reclaim Rule:         EXE Close >= Mother Low',
     '  Trigger Window:       Bar 3-6 (Mother=Bar 1, Baby=Bar 2)',
     '  EXE Types:            PIN / MU / ICE',
-    '  Mother Threshold:     1.20x (range or body expansion vs prior 5 bars)',
+    '  Mother Threshold:     Range >= 1.20x OR Body >= 2.00x vs prior 5 bars',
+    '  ICE Tightened:        Adds Close > Prev High AND Close > Mother Midpoint',
   ];
+
+  // Quality statistics
+  var fsScores = triggered.map(function(r) {
+    var tPts = r.triggerType==='PIN'?3:r.triggerType==='MU'?2:r.triggerType==='ICE'?2:0;
+    var sPts = r.scenario==='Shakeout Reversal'?4:r.scenario==='Recovery Reversal'?3:r.scenario==='Trend Pullback'?2:0;
+    var tpPos = r.triggerPosition||0;
+    var tpPts = tpPos>=5?3:tpPos===4?2:tpPos===3?1:0;
+    var mExp = r.motherBar&&r.motherBar.rangeExpansion!=null?r.motherBar.rangeExpansion:0;
+    var mPts = mExp>=2.5?0.5:mExp>=1.5?1:mExp>=1.2?0.5:0;
+    var iPts = r.triggerBar&&r.triggerBar.interactsWithMother===true?2:0;
+    return tPts+sPts+tpPts+mPts+iPts;
+  });
+  var avgScore = fsScores.length ? fsScores.reduce(function(s,v){return s+v;},0)/fsScores.length : 0;
+  var starCounts = [0,0,0,0,0];
+  triggered.forEach(function(r){ var s=(r.tradeQualityStars||1)-1; starCounts[s]++; });
+  var avgRisk = triggered.length ? triggered.reduce(function(s,r){return s+(r.tradeRiskPct||0);},0)/triggered.length : 0;
+  var avgRiskATR = triggered.filter(function(r){return r.tradeRiskATR!=null;});
+  var avgATR = avgRiskATR.length ? avgRiskATR.reduce(function(s,r){return s+(r.tradeRiskATR||0);},0)/avgRiskATR.length : 0;
+  lines.push('');
+  lines.push('Quality Statistics:');
+  lines.push('  Average FS Score:       ' + avgScore.toFixed(1));
+  lines.push('  Average Risk:           ' + avgRisk.toFixed(2) + '%');
+  lines.push('  Average Risk ATR:       ' + avgATR.toFixed(2));
+  lines.push('  5-Star Trades:          ' + starCounts[4]);
+  lines.push('  4-Star Trades:          ' + starCounts[3]);
+  lines.push('  3-Star Trades:          ' + starCounts[2]);
+  lines.push('  2-Star Trades:          ' + starCounts[1]);
+  lines.push('  1-Star Trades:          ' + starCounts[0]);
 
   allResults.forEach(function(r) {
     lines.push('', '================================================', '');
@@ -441,6 +513,17 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly, scanId, ca
       lines.push('  Trigger:            ' + (r.triggerBar ? fmtDate(r.triggerBar.date1 || r.triggerBar.date) : '—'));
       lines.push('  Trigger Type:       ' + (r.triggerType || '—'));
       lines.push('  Scenario:           ' + (r.scenario   || '—'));
+      // Trade structure
+      if (r.tradeEntry != null) {
+        lines.push('');
+        lines.push('  Trade Structure:');
+        lines.push('    Entry (Trigger High): $' + r.tradeEntry.toFixed(2));
+        lines.push('    Stop (Mother Low):    $' + r.tradeStop.toFixed(2));
+        lines.push('    Risk:                 ' + r.tradeRiskPct.toFixed(2) + '%');
+        lines.push('    ATR(14):              ' + r.atr14.toFixed(2));
+        lines.push('    Risk vs ATR:          ' + (r.tradeRiskATR!=null?r.tradeRiskATR.toFixed(2)+' ATR':'N/A'));
+        lines.push('    Trade Quality:        ' + (r.tradeQualityStars||'N/A') + '/5 stars');
+      }
       // Force Strike Score — Trigger Position replaces Pattern Age
       var tPts = r.triggerType==='PIN'?3:r.triggerType==='MU'?2:r.triggerType==='ICE'?2:0;
       var sPts = r.scenario==='Shakeout Reversal'?4:r.scenario==='Recovery Reversal'?3:r.scenario==='Trend Pullback'?2:0;
@@ -556,8 +639,10 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly, scanId, ca
         var ia = ea.ice;
         lines.push('', '  ICE Audit:');
         lines.push('    Condition 1 — Close > Open:          ' + (ia.c1_bullish?'PASS':'FAIL'));
-        lines.push('    Condition 2 — Body ~50% of Range:    ' + (ia.c2_halfBody?'PASS':'FAIL') + ' (bodyPct='+ia.bodyPct.toFixed(1)+'%)');
+        lines.push('    Condition 2 — Body >= 50% Range:     ' + (ia.c2_halfBody?'PASS':'FAIL') + ' (bodyPct='+ia.bodyPct.toFixed(1)+'%)');
         lines.push('    Condition 3 — Close in Upper Third:  ' + (ia.c3_upperThird?'PASS':'FAIL') + ' (close='+c.close.toFixed(4)+' threshold='+ia.upperThird.toFixed(4)+')');
+        lines.push('    Condition 4 — Close > Prev Bar High: ' + (ia.c4_abovePrevHigh?'PASS':'FAIL') + ' (prevHigh='+(ia.prevHigh!=null?ia.prevHigh.toFixed(4):'N/A')+')');
+        lines.push('    Condition 5 — Close > Mother Mid:    ' + (ia.c5_aboveMotherMid?'PASS':'FAIL') + ' (motherMid='+(ia.motherMidpoint!=null?ia.motherMidpoint.toFixed(4):'N/A')+')');
         lines.push('    ICE Result:                           ' + (ia.pass?'TRUE':'FALSE'));
         lines.push('', '  Selected EXE: ' + (c.triggerType||'NONE'));
         // Confidence assessment
