@@ -496,6 +496,92 @@ export function formatAuditTxt(allResults, generatedAt, stoppedEarly, scanId, ca
   lines.push('  2-Star Trades:          ' + starCounts[1]);
   lines.push('  1-Star Trades:          ' + starCounts[0]);
 
+
+  // ── Flat CSV section ─────────────────────────────────────────────────────
+  var csvHeaders = [
+    'scanId','generatedAt','ticker','result','volume','pattern','triggerType',
+    'triggerPosition','barsSinceTrigger','barsSinceMother','scenario',
+    'fsStars','fsScore',
+    'tradeStars','entry','stop','riskPct','atr14','riskAtr','target','tradeStatus',
+    'technicalSupport','trend','momentum','reversal','moneyFlow',
+    'motherDate','motherHigh','motherLow','motherRangeExp','motherBodyExp','motherQualifiedBy',
+    'babyDate','babyHigh','babyLow','babyInsideRange',
+    'manipDate','manipLow','manipBreakAmt','manipBreakPct',
+    'triggerDate','triggerOpen','triggerHigh','triggerLow','triggerClose',
+    'triggerClosePosPct','pinResult','muResult','iceResult','selectedExe',
+    'finalReason'
+  ].join(',');
+
+  function csvEsc(v) {
+    if (v == null) return '';
+    var s = String(v);
+    if (s.indexOf(',') !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1)
+      return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+
+  var csvRows = [csvHeaders];
+  triggered.forEach(function(r) {
+    // FS score components
+    var tPts = r.triggerType==='PIN'?3:r.triggerType==='MU'?2:r.triggerType==='ICE'?2:0;
+    var sPts = r.scenario==='Shakeout Reversal'?4:r.scenario==='Recovery Reversal'?3:r.scenario==='Trend Pullback'?2:0;
+    var tpPos = r.triggerPosition||0;
+    var tpPts = tpPos>=5?3:tpPos===4?2:tpPos===3?1:0;
+    var mExp = r.motherBar&&r.motherBar.rangeExpansion!=null?r.motherBar.rangeExpansion:0;
+    var mPts = mExp>=2.5?0.5:mExp>=1.5?1:mExp>=1.2?0.5:0;
+    var iPts = r.triggerBar&&r.triggerBar.interactsWithMother===true?2:0;
+    var fsScore = tPts+sPts+tpPts+mPts+iPts;
+    var fsStars = fsScore<=2?1:fsScore<=4?2:fsScore<=6?3:fsScore<=8?4:5;
+    // EXE audit
+    var ea = r.triggerBar&&r.triggerBar.exeAudit;
+    var pinR = ea&&ea.pin?ea.pin.pass:null;
+    var muR  = ea&&ea.mu?ea.mu.pass:null;
+    var iceR = ea&&ea.ice?ea.ice.pass:null;
+    var rng  = r.triggerBar?(r.triggerBar.high-r.triggerBar.low):null;
+    var closePct = rng&&rng>0&&r.triggerBar?((r.triggerBar.close-r.triggerBar.low)/rng*100):null;
+    var tc = r.techContext||{};
+    var tspL = (function(){
+      var tl=(tc.trend||'').toLowerCase(),ml=(tc.momentum||'').toLowerCase(),
+          rl=(tc.reversal||'').toLowerCase(),sfl=(tc.moneyFlow||'').toLowerCase();
+      var tB=tl==='uptrend'||tl==='strong uptrend',mB=ml==='building'||ml==='strong';
+      var rBear=rl.indexOf('bear')!==-1,mfB=sfl.indexOf('accumulation')!==-1&&sfl.indexOf('cooling')===-1;
+      var sc2=(tB?1:0)+(mB?1:0)+(mfB?1:0)+(!rBear?0.5:0);
+      var tbear=tl==='downtrend'||tl==='strong downtrend',mbear=ml==='fading'||ml==='weak';
+      return ((tbear||mbear)&&rBear)||(tbear||mbear)?'Conflicting':sc2>=2.5?'Strong':sc2>=1.5?'Moderate':'Weak';
+    })();
+    var m=r.motherBar||{}, b=r.babyBar||{}, x=r.manipulationBar||{}, t=r.triggerBar||{};
+    var target = r.tradeEntry&&r.tradeStop ? (r.tradeEntry+(r.tradeEntry-r.tradeStop)*1.7) : null;
+    var row = [
+      scanId||'', generatedAt, r.symbol, r.result, r.volume||'',
+      r.pattern||'', r.triggerType||'', r.triggerPosition||'', r.barsSinceTrigger||'', r.patternAge||'',
+      r.scenario||'', fsStars, fsScore.toFixed(1),
+      r.tradeQualityStars||'', r.tradeEntry?r.tradeEntry.toFixed(4):'', r.tradeStop?r.tradeStop.toFixed(4):'',
+      r.tradeRiskPct?r.tradeRiskPct.toFixed(2):'', r.atr14?r.atr14.toFixed(4):'',
+      r.tradeRiskATR?r.tradeRiskATR.toFixed(2):'', target?target.toFixed(2):'', '',
+      tspL, tc.trend||'', tc.momentum||'', tc.reversal||'', tc.moneyFlow||'',
+      fmtDate(m.date1||m.date), m.high?m.high.toFixed(4):'', m.low?m.low.toFixed(4):'',
+      m.rangeExpansion?m.rangeExpansion.toFixed(2):'', m.bodyExpansion?m.bodyExpansion.toFixed(2):'',
+      m.qualifiedBy||'',
+      fmtDate(b.date1||b.date), b.high?b.high.toFixed(4):'', b.low?b.low.toFixed(4):'',
+      b.inside?'true':'false',
+      fmtDate(x.date1||x.date), x.low?x.low.toFixed(4):'',
+      x.breakAmount?x.breakAmount.toFixed(4):'', x.breakPct?x.breakPct.toFixed(2):'',
+      fmtDate(t.date1||t.date), t.open?t.open.toFixed(4):'', t.high?t.high.toFixed(4):'',
+      t.low?t.low.toFixed(4):'', t.close?t.close.toFixed(4):'',
+      closePct?closePct.toFixed(1):'',
+      pinR!=null?String(pinR):'', muR!=null?String(muR):'', iceR!=null?String(iceR):'',
+      r.triggerType||'', '',
+      r.audit&&r.audit.finalReason?r.audit.finalReason:''
+    ].map(csvEsc).join(',');
+    csvRows.push(row);
+  });
+
+  lines.unshift('');
+  lines.unshift('--- END FLAT CSV ---');
+  lines.unshift(csvRows.join('\n'));
+  lines.unshift('--- FLAT VALID RESULTS CSV (ForceStrike-v10) ---');
+  lines.unshift('');
+
   allResults.forEach(function(r) {
     lines.push('', '================================================', '');
     lines.push('Ticker: ' + r.symbol);
