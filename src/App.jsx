@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.151</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.152</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.151</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.152</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -13218,6 +13218,9 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                 {/* Chart */}
                 <div><MiniChart chartBars={r.chartBars} motherHigh={mh} motherLow={ml} /></div>
                 {/* Pattern */}
+                <div style={{overflow:'hidden'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#6090d0',letterSpacing:'0.03em',whiteSpace:'nowrap'}}>{r.pattern||'\u2014'}</div>
+                </div>
                 {/* Trigger + Trigger Bar combined */}
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:'#7abd00'}}>{ti.label}</div>
@@ -13246,7 +13249,6 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                       </div>
                     </div>;
                   })()}
-                </div>
                 </div>
                 {/* FS Score — clickable */}
                 <div>
@@ -13297,6 +13299,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                     {isExp?'Close':'Details'}
                   </button>
                 </div>
+              </div>
               {isSc&&<div style={{background:'#161614',borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none',padding:'14px 16px'}}>
                 <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
                   <div style={{fontSize:11,fontWeight:700,color:LIME}}>{'Force Strike Score — '+r.symbol}</div>
@@ -14055,7 +14058,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.151</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.152</span>
           </div>
         </div>
 
