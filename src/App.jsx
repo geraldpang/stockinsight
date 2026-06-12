@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.148</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.149</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.148</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.149</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -13401,26 +13401,6 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                   </div>
                 </div> : <div style={{fontSize:9,color:'#444'}}>Technical context not available.</div>}
               </div>}
-                {r.tradeEntry!=null&&<div style={{marginTop:12,paddingTop:10,borderTop:'0.5px solid #222'}}>
-                  <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>{'Trade Structure'}</div>
-                  {[['Entry (Trigger High)','$'+(r.tradeEntry?r.tradeEntry.toFixed(2):'--'),'#7abd00'],
-                    ['Stop (Mother Low)','$'+(r.tradeStop?r.tradeStop.toFixed(2):'--'),'#e05050'],
-                    ['Risk %',r.tradeRiskPct?r.tradeRiskPct.toFixed(2)+'%':'--','#aaa'],
-                    ['ATR(14)',r.atr14?r.atr14.toFixed(2):'--','#aaa'],
-                    ['Risk vs ATR',r.tradeRiskATR!=null?r.tradeRiskATR.toFixed(2)+' ATR':'--','#aaa'],
-                  ].map(function(row,ri){
-                    return <div key={ri} style={{display:'flex',justifyContent:'space-between',fontSize:10,padding:'2px 0'}}>
-                      <span style={{color:'#555'}}>{row[0]}</span>
-                      <span style={{color:row[2],fontWeight:600}}>{row[1]}</span>
-                    </div>;
-                  })}
-                  <div style={{display:'flex',alignItems:'center',gap:6,marginTop:4}}>
-                    <span style={{fontSize:9,color:'#555'}}>{'Trade Quality'}</span>
-                    <span style={{color:'#EF9F27',fontSize:10}}>
-                      {[1,2,3,4,5].map(function(sq){ return <span key={sq} style={{opacity:sq<=(r.tradeQualityStars||0)?1:0.2}}>{'★'}</span>; })}
-                    </span>
-                  </div>
-                </div>}
 
               {/* Expanded details */}
               {isExp&&(function(){
@@ -14050,7 +14030,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.148</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.149</span>
           </div>
         </div>
 
