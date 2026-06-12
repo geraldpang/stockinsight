@@ -2083,6 +2083,28 @@ function Screener() {
       if (window.__clerkToken) postHdrs['Authorization']='Bearer '+window.__clerkToken;
       fetch('/cache?sym=__SCREENER&tab=results', { method:'POST', headers:postHdrs, body:JSON.stringify(cacheObj) }).catch(function(){});
 
+      // Write lightweight dashboard screener summary
+      try {
+        var strongUp=0, bullConf=0, buildMom=0, accum=0, bearWatch=0;
+        matched.forEach(function(r){
+          var t=(r.trend||{}).status||'', m=(r.momentum||{}).status||'', rv=(r.reversalWatch||{}).status||'', mf=(r.smartMoneyFlow||{}).status||'';
+          if(t==='Strong Uptrend') strongUp++;
+          var tv=(r.technicalView||'').toLowerCase();
+          if(tv.indexOf('bull confirmed')!==-1) bullConf++;
+          if(m==='Building') buildMom++;
+          if(mf.indexOf('Accumulation')!==-1&&mf.indexOf('Cooling')===-1) accum++;
+          if(tv.indexOf('bear')!==-1||tv.indexOf('caution')!==-1) bearWatch++;
+        });
+        var dashScreenerPayload = JSON.stringify({
+          ts: Date.now(), generatedAt: new Date().toISOString(),
+          counts: { strongUptrendCount:strongUp, bullConfirmedCount:bullConf, buildingMomentumCount:buildMom, accumulationCount:accum, bearishWatchCount:bearWatch, totalScanned:matched.length },
+          topResults: matched.slice(0,5).map(function(r){
+            return { ticker:r.ticker||r.symbol, technicalView:r.technicalView||'', trend:(r.trend||{}).status||'', momentum:(r.momentum||{}).status||'', reversal:(r.reversalWatch||{}).status||'', moneyFlow:(r.smartMoneyFlow||{}).status||'' };
+          }),
+        });
+        fetch('/cache?sym=__DASH_SCREENER&tab=summary', { method:'POST', headers:postHdrs, body:dashScreenerPayload }).catch(function(){});
+      } catch(e) {}
+
       setResults(cacheObj); setScanStatus('done'); setScanMsg(finalMsg);
     } catch(e) { setScanStatus('error'); setScanMsg('Scan failed: '+(e.message||'Unknown error')); }
   }
@@ -5130,7 +5152,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.146</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.158</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5206,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.146</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.158</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12043,24 +12065,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
     if (!items.length) return;
     setRefreshing(true); setMsg('Refreshing signals...');
     var hdrs = wlHeaders();
-
-    // Try to load Force Strike KV cache for all tickers at once (shared cache)
-    var fsCacheMap = {};
-    try {
-      var fcRes = await fetch('/cache?sym=__FORCESTRIKE&tab=results');
-      if (fcRes.ok) {
-        var fcText = await fcRes.text();
-        if (fcText && fcText.trim()) {
-          var fcData = JSON.parse(fcText);
-          var FS_TTL = 12 * 60 * 60 * 1000;
-          if (fcData && fcData.ts && (Date.now() - fcData.ts) < FS_TTL) {
-            // Build lookup: ticker -> fsResult
-            var allFsResults = (fcData.results||[]).concat(fcData.allAudit||[]);
-            allFsResults.forEach(function(r){ if(r && r.symbol) fsCacheMap[r.symbol] = r; });
-          }
-        }
-      }
-    } catch(e) { /* cache miss is fine */ }
+    // No KV cache lookup — always run fresh scanForceStrike() per ticker
+    // using same Yahoo chart source as Force Strike Screener for full consistency
 
     for (var i = 0; i < items.length; i++) {
       var ticker = items[i].ticker;
@@ -12097,44 +12103,43 @@ function WatchlistPage({ clerkUser, isPaid }) {
         var rbaVerdict = rba ? (rba.verdict || '') : '';
         var rbaShort   = shortRuleVerdict(rbaVerdict);
 
-        // Force Strike: check KV cache first, then fetch Yahoo chart for fresh scan
-        // Uses same Yahoo chart endpoint as Force Strike Screener for consistency
-        var fsResult = fsCacheMap[ticker] || null;
-        // If not in cache, or cache shows non-triggered for this ticker, do a fresh scan
-        // using Yahoo chart (same source as Force Strike Screener — 3mo of daily bars)
-        if (!fsResult || !fsResult.triggered) {
-          try {
-            var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=3mo';
-            var cRes2 = await fetch('/proxy?url=' + encodeURIComponent(chartUrl));
-            if (cRes2.ok) {
-              var cData2 = await cRes2.json();
-              var cr2 = cData2&&cData2.chart&&cData2.chart.result&&cData2.chart.result[0];
-              if (cr2) {
-                var ts2    = cr2.timestamp||[];
-                var q2     = (cr2.indicators&&cr2.indicators.quote&&cr2.indicators.quote[0])||{};
-                var daily2 = [];
-                for (var di2=0; di2<ts2.length; di2++) {
-                  var o2=q2.open&&q2.open[di2], h2=q2.high&&q2.high[di2],
-                      l2=q2.low&&q2.low[di2],   cv2=q2.close&&q2.close[di2];
-                  if (o2&&h2&&l2&&cv2&&o2>0) daily2.push({ date:ts2[di2]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di2])||0 });
+        // Force Strike: always fresh scan using Yahoo chart (same as screener)
+        // Ensures Watchlist FS status is fully consistent with Force Strike Screener rules
+        var fsResult = null;
+        try {
+          var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=3mo';
+          var fsAbort = new AbortController();
+          var fsTimer = setTimeout(function(){ fsAbort.abort(); }, 10000);
+          var cRes2 = await fetch('/proxy?url=' + encodeURIComponent(chartUrl), { signal: fsAbort.signal });
+          clearTimeout(fsTimer);
+          if (cRes2.ok) {
+            var cData2 = await cRes2.json();
+            var cr2 = cData2&&cData2.chart&&cData2.chart.result&&cData2.chart.result[0];
+            if (cr2) {
+              var ts2    = cr2.timestamp||[];
+              var q2     = (cr2.indicators&&cr2.indicators.quote&&cr2.indicators.quote[0])||{};
+              var daily2 = [];
+              for (var di2=0; di2<ts2.length; di2++) {
+                var o2=q2.open&&q2.open[di2], h2=q2.high&&q2.high[di2],
+                    l2=q2.low&&q2.low[di2],   cv2=q2.close&&q2.close[di2];
+                if (o2&&h2&&l2&&cv2&&o2>0) daily2.push({ date:ts2[di2]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di2])||0 });
+              }
+              if (daily2.length >= 14) {
+                var closes2   = daily2.slice(-50).map(function(b){ return b.close; });
+                var closes200b = daily2.map(function(b){ return b.close; });
+                var sma50b    = closes2.length>=20    ? closes2.reduce(function(s,v){return s+v;},0)/closes2.length       : 0;
+                var sma200b   = closes200b.length>=20 ? closes200b.reduce(function(s,v){return s+v;},0)/closes200b.length : 0;
+                var pr2       = daily2[daily2.length-1].close;
+                var ts2status = 'Sideways';
+                if (sma50b>0&&sma200b>0) {
+                  if (pr2>sma50b&&sma50b>sma200b) ts2status = pr2>sma50b*1.03?'Strong Uptrend':'Uptrend';
+                  else if (pr2<sma50b&&sma50b<sma200b) ts2status = 'Downtrend';
                 }
-                if (daily2.length >= 14) {
-                  var closes2 = daily2.slice(-50).map(function(b){ return b.close; });
-                  var sma50b  = closes2.length>=20 ? closes2.reduce(function(s,v){return s+v;},0)/closes2.length : 0;
-                  var closes200b = daily2.map(function(b){ return b.close; });
-                  var sma200b = closes200b.length>=20 ? closes200b.reduce(function(s,v){return s+v;},0)/closes200b.length : 0;
-                  var pr2     = daily2[daily2.length-1].close;
-                  var ts2status = 'Sideways';
-                  if (sma50b>0&&sma200b>0) {
-                    if (pr2>sma50b&&sma50b>sma200b) ts2status = pr2>sma50b*1.03?'Strong Uptrend':'Uptrend';
-                    else if (pr2<sma50b&&sma50b<sma200b) ts2status = 'Downtrend';
-                  }
-                  fsResult = scanForceStrike(ticker, daily2, ts2status);
-                }
+                fsResult = scanForceStrike(ticker, daily2, ts2status);
               }
             }
-          } catch(fsErr) { /* use whatever fsResult we have */ }
-        }
+          }
+        } catch(fsErr) { fsResult = null; }
 
         // Determine FS display status
         var fsStatus = 'none', fsPattern = null, fsScenario = null, fsAge = null,
@@ -12572,6 +12577,8 @@ function ForceStrikePage({ isPaid, clerkUser }) {
   var [filterTechSupport, setFilterTechSupport] = useState('All');
   var [sortBy,         setSortBy]         = useState('score'); // default: FS Score
   var [scoreBreakdown, setScoreBreakdown] = useState(null);    // symbol of open score panel
+  var [tradeBreakdown, setTradeBreakdown] = useState(null);
+  var [techBreakdown,  setTechBreakdown]  = useState(null);
 
   var isAdmin  = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === 'admin');
   var canAccess= isPaid || isAdmin;
@@ -12779,8 +12786,14 @@ function ForceStrikePage({ isPaid, clerkUser }) {
           var tScan0 = Date.now();
           var fsResult = scanForceStrike(c.sym, daily, tst);
           var tScanMs = Date.now() - tScan0;
-          fsResult.name = c.name||c.sym;
+          fsResult.name   = c.name||c.sym;
           fsResult.volume = fsResult.volume||c.volume||0;
+          // Store price and 52W range from the fetched daily candles
+          fsResult.price  = daily.length ? daily[daily.length-1].close : 0;
+          var hi52 = 0, lo52 = Infinity;
+          daily.forEach(function(b){ if(b.high>hi52) hi52=b.high; if(b.low>0&&b.low<lo52) lo52=b.low; });
+          fsResult.hi52   = hi52;
+          fsResult.lo52   = lo52 === Infinity ? 0 : lo52;
           fsResult._timing = { chartFetchMs: tChartMs, scanMs: tScanMs, totalMs: Date.now()-t0 };
 
           // For valid FS results only: compute technical context using existing signal engine
@@ -12909,6 +12922,40 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       if (window.__clerkToken) postHdrs['Authorization'] = 'Bearer ' + window.__clerkToken;
       fetch('/cache?sym=' + FS_CACHE_SYM + '&tab=' + FS_CACHE_TAB,
         { method: 'POST', headers: postHdrs, body: cachePayload }).catch(function(){});
+
+      // Also write lightweight dashboard summary (readable by all visitors on homepage)
+      var dashFSSummary = JSON.stringify({
+        ts: Date.now(), scanId: newScanId, generatedAt: now,
+        validCount: validResults.length,
+        stoppedEarly: stopped,
+        topResults: validResults.slice(0, 5).map(function(r) {
+          var tPts = r.triggerType==='PIN'?3:r.triggerType==='MU'?2:r.triggerType==='ICE'?2:0;
+          var sPts = r.scenario==='Shakeout Reversal'?4:r.scenario==='Recovery Reversal'?3:r.scenario==='Trend Pullback'?2:0;
+          var tpPos = r.triggerPosition||0;
+          var tpPts = tpPos>=5?3:tpPos===4?2:tpPos===3?1:0;
+          var mExp = r.motherBar&&r.motherBar.rangeExpansion!=null?r.motherBar.rangeExpansion:0;
+          var mPts = mExp>=2.5?0.5:mExp>=1.5?1:mExp>=1.2?0.5:0;
+          var iPts = r.triggerBar&&r.triggerBar.interactsWithMother===true?2:0;
+          var fsScore = tPts+sPts+tpPts+mPts+iPts;
+          var fsStars = fsScore<=2?1:fsScore<=4?2:fsScore<=6?3:fsScore<=8?4:5;
+          var tc = r.techContext||{};
+          var tl=(tc.trend||'').toLowerCase(),ml=(tc.momentum||'').toLowerCase(),rl=(tc.reversal||'').toLowerCase(),sfl=(tc.moneyFlow||'').toLowerCase();
+          var tB=tl==='uptrend'||tl==='strong uptrend',mB=ml==='building'||ml==='strong';
+          var rBear=rl.indexOf('bear')!==-1,mfB=sfl.indexOf('accumulation')!==-1&&sfl.indexOf('cooling')===-1;
+          var sc2=(tB?1:0)+(mB?1:0)+(mfB?1:0)+(!rBear?0.5:0);
+          var tbear=tl==='downtrend'||tl==='strong downtrend',mbear=ml==='fading'||ml==='weak';
+          var tsLabel=((tbear||mbear)&&rBear)||(tbear||mbear)?'Conflicting':sc2>=2.5?'Strong':sc2>=1.5?'Moderate':'Weak';
+          var tsStars = tsLabel==='Strong'?5:tsLabel==='Moderate'?3:tsLabel==='Weak'?2:1;
+          return {
+            ticker: r.symbol, triggerType: r.triggerType, scenario: r.scenario||'None',
+            triggerPosition: r.triggerPosition, fsStars: fsStars, fsScore: fsScore,
+            tradeStars: r.tradeQualityStars||null, riskAtr: r.tradeRiskATR||null,
+            technicalSupport: tsLabel, technicalSupportStars: tsStars,
+          };
+        }),
+      });
+      fetch('/cache?sym=__DASH_FS&tab=summary',
+        { method: 'POST', headers: postHdrs, body: dashFSSummary }).catch(function(){});
     } catch(e) {}
   }
 
@@ -13178,9 +13225,10 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       </div>}
 
       {filtered.length>0&&(
-        <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflow:'hidden'}}>
-          <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 55px 60px 80px 80px 90px 100px 80px 70px 60px',columnGap:10,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
-            {['Ticker','Pattern Chart','Pattern','Trigger','Trigger Bar','FS Score','Trend','Momentum','Reversal','Money Flow','Scenario','Trade',''].map(function(h,i){
+        <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflowX:'auto'}}>
+          <div style={{minWidth:820}}>
+          <div style={{display:'grid',gridTemplateColumns:'60px 100px 80px 130px 110px 50px 50px 85px 1fr 50px',columnGap:8,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
+            {['Ticker','Pattern Chart','Pattern','Trigger','Price / 52W','FS Score','Trade','Tech Support','Scenario',''].map(function(h,i){
               return <div key={i} style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>;
             })}
           </div>
@@ -13189,6 +13237,8 @@ function ForceStrikePage({ isPaid, clerkUser }) {
             var ti = triggerInfo(r.triggerType), si = scenarioInfo(r.scenario);
             var isExp = expandedRow===r.symbol;
             var isSc  = scoreBreakdown===r.symbol;
+            var isTrade= tradeBreakdown===r.symbol;
+            var isTech = techBreakdown===r.symbol;
             var mh = r.motherBar ? r.motherBar.high : null;
             var ml = r.motherBar ? r.motherBar.low  : null;
             var sc = calcFsScore(r);
@@ -13196,75 +13246,94 @@ function ForceStrikePage({ isPaid, clerkUser }) {
             var tsp = calcTechSupport(tc);
             return (
               <React.Fragment key={r.symbol}>
-              <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 55px 60px 80px 80px 90px 100px 80px 70px 60px',columnGap:10,padding:'10px 14px',
-                borderBottom:(!isExp&&!isSc&&i<filtered.length-1)?'1px solid #1a1a16':'none',
+              <div style={{display:'grid',gridTemplateColumns:'60px 100px 80px 130px 110px 50px 50px 85px 1fr 50px',columnGap:8,padding:'10px 14px',
+                borderBottom:(!isExp&&!isSc&&!isTrade&&!isTech&&i<filtered.length-1)?'1px solid #1a1a16':'none',
                 background:i%2===0?'#111':'#131311',alignItems:'center'}}>
+                {/* Ticker */}
                 <div>
                   <div style={{fontSize:12,fontWeight:800,color:LIME}}>{r.symbol}</div>
                   <div style={{fontSize:9,color:'#444',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:65}}>{r.name||r.symbol}</div>
                 </div>
+                {/* Chart */}
                 <div><MiniChart chartBars={r.chartBars} motherHigh={mh} motherLow={ml} /></div>
-                <div style={{fontSize:10,fontWeight:700,color:'#6090d0',letterSpacing:'0.03em',whiteSpace:'nowrap'}}>{r.pattern||'\u2014'}</div>
+                {/* Pattern */}
+                <div style={{overflow:'hidden'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#6090d0',letterSpacing:'0.03em',whiteSpace:'nowrap'}}>{r.pattern||'\u2014'}</div>
+                </div>
+                {/* Trigger + Trigger Bar combined */}
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:'#7abd00'}}>{ti.label}</div>
                   {ti.desc&&<div style={{fontSize:9,color:'#555',marginTop:1}}>{ti.desc}</div>}
-                </div>
-                <div title="Bar at which trigger occurred">
-                  <div style={{fontSize:11,fontWeight:600,color:r.triggerPosition===5?'#7abd00':r.triggerPosition===4?'#EF9F27':'#aaa'}}>
-                    {r.triggerPosition!=null?'Bar '+r.triggerPosition:'\u2014'}
+                  <div style={{marginTop:3,display:'flex',alignItems:'center',gap:4}}>
+                    <span style={{fontSize:10,fontWeight:600,color:r.triggerPosition===5||r.triggerPosition===6?'#7abd00':r.triggerPosition===4?'#EF9F27':'#aaa'}}>
+                      {r.triggerPosition!=null?'Bar '+r.triggerPosition:'—'}
+                    </span>
+                    {r.barsSinceTrigger!=null&&<span style={{fontSize:9,color:'#444'}}>{'('+r.barsSinceTrigger+'d)'}</span>}
                   </div>
                 </div>
+                {/* Price + 52W Range */}
                 <div>
-                  <button title="FS Quality Score \u2014 click for breakdown"
-                    onClick={function(){ setScoreBreakdown(isSc?null:r.symbol); setExpandedRow(null); }}
+                  {r.price>0&&<div style={{fontSize:11,fontWeight:700,color:'#f0ede6',marginBottom:2}}>{'$'+r.price.toFixed(2)}</div>}
+                  {r.hi52>0&&r.lo52>0&&r.price>0&&(function(){
+                    var pct = Math.round((r.price-r.lo52)/(r.hi52-r.lo52)*100);
+                    return <div>
+                      <div style={{display:'flex',justifyContent:'space-between',fontSize:8,color:'#555',marginBottom:1}}>
+                        <span>{'$'+r.lo52.toFixed(0)}</span>
+                        <span style={{color:'#888'}}>{pct+'%'}</span>
+                        <span>{'$'+r.hi52.toFixed(0)}</span>
+                      </div>
+                      <div style={{position:'relative',height:3,background:'#2a2a2a',borderRadius:2}}>
+                        <div style={{position:'absolute',left:0,width:pct+'%',height:'100%',background:'#6090d0',borderRadius:2}}></div>
+                        <div style={{position:'absolute',left:'calc('+pct+'% - 2px)',top:-1,width:4,height:5,background:'#c8f000',borderRadius:1}}></div>
+                      </div>
+                    </div>;
+                  })()}
+                </div>
+                {/* FS Score — clickable */}
+                <div>
+                  <button title="Force Strike Quality Score — click for breakdown"
+                    onClick={function(){ setScoreBreakdown(isSc?null:r.symbol); setTradeBreakdown(null); setTechBreakdown(null); setExpandedRow(null); }}
                     style={{background:'none',border:'none',padding:0,cursor:'pointer',display:'block',textAlign:'left'}}>
                     {renderStars(sc.stars, 10)}
                     <div style={{fontSize:8,color:'#555',marginTop:1}}>{sc.pts+'pts'}</div>
                   </button>
                 </div>
-                <div style={{overflow:'hidden'}}>
-                  {tc ? <div style={{display:'flex',alignItems:'center',gap:3}}>
-                    <span style={{width:5,height:5,borderRadius:'50%',background:summaryCardDark(tc.trend).text||'#555',display:'inline-block',flexShrink:0,opacity:0.8}}></span>
-                    <span title={tc.trend||''} style={{fontSize:9,color:'#b8b8b8',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{shortSignalLabel(tc.trend,'trend')}</span>
-                  </div> : <span style={{color:'#444',fontSize:9}}>{'\u2014'}</span>}
-                </div>
-                <div style={{overflow:'hidden'}}>
-                  {tc ? <div style={{display:'flex',alignItems:'center',gap:3}}>
-                    <span style={{width:5,height:5,borderRadius:'50%',background:momentumStateColor(tc.momentum)||'#555',display:'inline-block',flexShrink:0,opacity:0.8}}></span>
-                    <span title={tc.momentum||''} style={{fontSize:9,color:'#b8b8b8',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{shortSignalLabel(tc.momentum,'momentum')}</span>
-                  </div> : <span style={{color:'#444',fontSize:9}}>{'\u2014'}</span>}
-                </div>
-                <div style={{overflow:'hidden'}}>
-                  {tc ? <div style={{display:'flex',alignItems:'center',gap:3}}>
-                    <span style={{width:5,height:5,borderRadius:'50%',background:revStatusColor(tc.reversal,'main')||'#555',display:'inline-block',flexShrink:0,opacity:0.8}}></span>
-                    <span title={tc.reversal||''} style={{fontSize:9,color:'#b8b8b8',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{shortSignalLabel(tc.reversal,'reversal')}</span>
-                  </div> : <span style={{color:'#444',fontSize:9}}>{'\u2014'}</span>}
-                </div>
-                <div style={{overflow:'hidden'}}>
-                  {tc ? <div style={{display:'flex',alignItems:'center',gap:3}}>
-                    <span style={{width:5,height:5,borderRadius:'50%',background:smfStatusColor(tc.moneyFlow,'main')||'#555',display:'inline-block',flexShrink:0,opacity:0.8}}></span>
-                    <span title={tc.moneyFlow||''} style={{fontSize:9,color:'#b8b8b8',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{shortSignalLabel(tc.moneyFlow,'moneyFlow')}</span>
-                  </div> : <span style={{color:'#444',fontSize:9}}>{'\u2014'}</span>}
-                </div>
+                {/* Trade Stars — clickable */}
                 <div>
-                  <div style={{fontSize:10,fontWeight:700,color:si.color,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.scenario||'\u2014'}</div>
-                  {tc&&<div style={{fontSize:8,fontWeight:700,color:tsp.color,marginTop:2}}>{tsp.label}</div>}
-                {/* Trade Quality */}
-                <div title={'Entry: $'+(r.tradeEntry?r.tradeEntry.toFixed(2):'--')+'  Stop: $'+(r.tradeStop?r.tradeStop.toFixed(2):'--')+'  Risk: '+(r.tradeRiskPct?r.tradeRiskPct.toFixed(1)+'%':'--')+'  ATR: '+(r.tradeRiskATR?r.tradeRiskATR.toFixed(2):' --')}>
-                  {r.tradeQualityStars != null
-                    ? <div>
-                        <span style={{color:'#EF9F27',fontSize:9}}>
+                  <button title="Trade Quality — click for breakdown"
+                    onClick={function(){ setTradeBreakdown(isTrade?null:r.symbol); setScoreBreakdown(null); setTechBreakdown(null); setExpandedRow(null); }}
+                    style={{background:'none',border:'none',padding:0,cursor:'pointer',display:'block',textAlign:'left'}}>
+                    {r.tradeQualityStars!=null
+                      ? <span style={{color:'#EF9F27',fontSize:10}}>
                           {[1,2,3,4,5].map(function(sq){ return <span key={sq} style={{opacity:sq<=r.tradeQualityStars?1:0.2}}>{'★'}</span>; })}
                         </span>
-                        <div style={{fontSize:8,color:'#555',marginTop:1}}>{r.tradeRiskPct?r.tradeRiskPct.toFixed(1)+'%':'—'}</div>
-                      </div>
-                    : <span style={{fontSize:9,color:'#444'}}>{'—'}</span>}
+                      : <span style={{fontSize:9,color:'#444'}}>{'—'}</span>}
+                    {r.tradeRiskPct!=null&&<div style={{fontSize:8,color:'#555',marginTop:1}}>{r.tradeRiskPct.toFixed(1)+'%'}</div>}
+                  </button>
                 </div>
+                {/* Technical Support — clickable */}
+                <div>
+                  <button title="Technical Support — click for breakdown"
+                    onClick={function(){ setTechBreakdown(isTech?null:r.symbol); setScoreBreakdown(null); setTradeBreakdown(null); setExpandedRow(null); }}
+                    style={{background:'none',border:'none',padding:0,cursor:'pointer',display:'block',textAlign:'left'}}>
+                    {tc
+                      ? <div>
+                          {renderStars(tsp.label==='Strong'?5:tsp.label==='Moderate'?3:tsp.label==='Weak'?2:1, 10)}
+                          <div style={{fontSize:8,fontWeight:700,color:tsp.color,marginTop:1}}>{tsp.label}</div>
+                        </div>
+                      : <span style={{fontSize:9,color:'#444'}}>{'—'}</span>}
+                  </button>
                 </div>
+                {/* Scenario */}
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:si.color,whiteSpace:'nowrap'}}>{r.scenario||'None'}</div>
+                  {r.barsSinceTrigger!=null&&<div style={{fontSize:8,color:'#444',marginTop:1}}>{r.barsSinceTrigger+'d ago'}</div>}
+                </div>
+                {/* Actions */}
                 <div style={{display:'flex',flexDirection:'column',gap:3}}>
                   <button onClick={function(){ window.open(window.location.origin+'/#'+r.symbol,'_blank','noopener,noreferrer'); }}
                     style={{fontSize:9,padding:'3px 6px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#888',cursor:'pointer'}}>View</button>
-                  <button onClick={function(){ setExpandedRow(isExp?null:r.symbol); setScoreBreakdown(null); }}
+                  <button onClick={function(){ setExpandedRow(isExp?null:r.symbol); setScoreBreakdown(null); setTradeBreakdown(null); setTechBreakdown(null); }}
                     style={{fontSize:9,padding:'3px 6px',background:'none',border:'0.5px solid #2a4a2a',borderRadius:4,color:'#5a9a60',cursor:'pointer'}}>
                     {isExp?'Close':'Details'}
                   </button>
@@ -13314,26 +13383,89 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                   </div>
                   <div style={{fontSize:9,color:'#444',marginTop:4}}>{'Technical context is not included in the star score.'}</div>
                 </div>}
-                {r.tradeEntry!=null&&<div style={{marginTop:12,paddingTop:10,borderTop:'0.5px solid #222'}}>
-                  <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>{'Trade Structure'}</div>
-                  {[['Entry (Trigger High)','$'+(r.tradeEntry?r.tradeEntry.toFixed(2):'--'),'#7abd00'],
-                    ['Stop (Mother Low)','$'+(r.tradeStop?r.tradeStop.toFixed(2):'--'),'#e05050'],
-                    ['Risk %',r.tradeRiskPct?r.tradeRiskPct.toFixed(2)+'%':'--','#aaa'],
-                    ['ATR(14)',r.atr14?r.atr14.toFixed(2):'--','#aaa'],
-                    ['Risk vs ATR',r.tradeRiskATR!=null?r.tradeRiskATR.toFixed(2)+' ATR':'--','#aaa'],
-                  ].map(function(row,ri){
-                    return <div key={ri} style={{display:'flex',justifyContent:'space-between',fontSize:10,padding:'2px 0'}}>
-                      <span style={{color:'#555'}}>{row[0]}</span>
-                      <span style={{color:row[2],fontWeight:600}}>{row[1]}</span>
-                    </div>;
-                  })}
-                  <div style={{display:'flex',alignItems:'center',gap:6,marginTop:4}}>
-                    <span style={{fontSize:9,color:'#555'}}>{'Trade Quality'}</span>
-                    <span style={{color:'#EF9F27',fontSize:10}}>
-                      {[1,2,3,4,5].map(function(sq){ return <span key={sq} style={{opacity:sq<=(r.tradeQualityStars||0)?1:0.2}}>{'★'}</span>; })}
-                    </span>
+              </div>}
+              {isTrade&&<div style={{background:'#161614',borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none',padding:'14px 16px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                  <div style={{fontSize:11,fontWeight:700,color:LIME}}>{'Trade Quality — '+r.symbol}</div>
+                  <span style={{color:'#EF9F27',fontSize:14}}>{[1,2,3,4,5].map(function(sq){ return <span key={sq} style={{opacity:sq<=(r.tradeQualityStars||0)?1:0.2}}>{'★'}</span>; })}</span>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+                  <div>
+                    <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:8}}>Trade Structure</div>
+                    {[['Entry (Trigger High)','$'+(r.tradeEntry?r.tradeEntry.toFixed(4):'--'),'#7abd00'],
+                      ['Stop (Mother Low)','$'+(r.tradeStop?r.tradeStop.toFixed(4):'--'),'#e05050'],
+                      ['Risk Amount','$'+(r.tradeEntry&&r.tradeStop?(r.tradeEntry-r.tradeStop).toFixed(4):'--'),'#aaa'],
+                      ['Risk %',r.tradeRiskPct?r.tradeRiskPct.toFixed(2)+'%':'--','#aaa'],
+                      ['ATR(14)',r.atr14?r.atr14.toFixed(4):'--','#aaa'],
+                      ['Risk / ATR',r.tradeRiskATR!=null?r.tradeRiskATR.toFixed(2)+' ATR':'--',r.tradeRiskATR!=null&&r.tradeRiskATR<=1?'#7abd00':r.tradeRiskATR!=null&&r.tradeRiskATR<=2?'#EF9F27':'#e05050'],
+                      ['Target (1.7R)','$'+(r.tradeEntry&&r.tradeStop?((r.tradeEntry)+(r.tradeEntry-r.tradeStop)*1.7).toFixed(2):'--'),'#6090d0'],
+                      ['Reward:Risk','1 : 1.7','#6090d0'],
+                    ].map(function(row,ri){
+                      return <div key={ri} style={{display:'flex',justifyContent:'space-between',fontSize:10,padding:'3px 0',borderBottom:'0.5px solid #1e1e1e'}}>
+                        <span style={{color:'#555'}}>{row[0]}</span>
+                        <span style={{color:row[2],fontWeight:600}}>{row[1]}</span>
+                      </div>;
+                    })}
                   </div>
-                </div>}
+                  <div>
+                    <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:8}}>Star Rating Logic</div>
+                    {[['\u2605\u2605\u2605\u2605\u2605','Risk \u2264 1.0 ATR','#7abd00'],
+                      ['\u2605\u2605\u2605\u2605','Risk \u2264 1.5 ATR','#EF9F27'],
+                      ['\u2605\u2605\u2605','Risk \u2264 2.0 ATR','#EF9F27'],
+                      ['\u2605\u2605','Risk \u2264 3.0 ATR','#888'],
+                      ['\u2605','Risk > 3.0 ATR','#e05050'],
+                    ].map(function(row,ri){
+                      var isCur = r.tradeQualityStars===(5-ri);
+                      return <div key={ri} style={{display:'flex',justifyContent:'space-between',fontSize:10,padding:'3px 0',
+                        background:isCur?'#1e2e1e':'none',borderRadius:3,paddingLeft:isCur?6:0}}>
+                        <span style={{color:row[2]}}>{row[0]}</span>
+                        <span style={{color:isCur?'#7abd00':'#555'}}>{row[1]}{isCur?' ← current':''}</span>
+                      </div>;
+                    })}
+                  </div>
+                </div>
+              </div>}
+              {isTech&&<div style={{background:'#161614',borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none',padding:'14px 16px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                  <div style={{fontSize:11,fontWeight:700,color:LIME}}>{'Technical Support — '+r.symbol}</div>
+                  {renderStars(tsp.label==='Strong'?5:tsp.label==='Moderate'?3:tsp.label==='Weak'?2:1, 14)}
+                  <div style={{fontSize:11,fontWeight:700,color:tsp.color}}>{tsp.label}</div>
+                </div>
+                {tc ? <div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+                    <div>
+                      <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:8}}>Signal Breakdown</div>
+                      {[['Trend',tc.trend,summaryCardDark(tc.trend).text],
+                        ['Momentum',tc.momentum,momentumStateColor(tc.momentum)],
+                        ['Reversal',tc.reversal,revStatusColor(tc.reversal,'main')],
+                        ['Money Flow',tc.moneyFlow,smfStatusColor(tc.moneyFlow,'main')],
+                      ].map(function(row,ri){
+                        return <div key={ri} style={{marginBottom:8}}>
+                          <div style={{fontSize:9,color:'#555',textTransform:'uppercase'}}>{row[0]}</div>
+                          <div style={{fontSize:11,fontWeight:700,color:row[2]||'#aaa'}}>{row[1]||'—'}</div>
+                        </div>;
+                      })}
+                    </div>
+                    <div>
+                      <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:8}}>Support Rating</div>
+                      {[['Strong','All key signals bullish — strong tailwind','#7abd00',5],
+                        ['Moderate','Mixed signals — partial support','#EF9F27',3],
+                        ['Weak','Few supportive signals','#888',2],
+                        ['Conflicting','Bearish signals against bullish FS','#e05050',1],
+                      ].map(function(row,ri){
+                        var isCur = tsp.label===row[0];
+                        return <div key={ri} style={{display:'flex',gap:8,alignItems:'flex-start',marginBottom:6,
+                          background:isCur?'#1e2e1e':'none',borderRadius:3,padding:isCur?'4px 6px':'0'}}>
+                          <span style={{color:row[2],fontSize:10,marginTop:1}}>{renderStars(row[3],9)}</span>
+                          <div>
+                            <div style={{fontSize:10,fontWeight:700,color:isCur?row[2]:'#777'}}>{row[0]}{isCur?' ←':''}</div>
+                            <div style={{fontSize:9,color:'#444'}}>{row[1]}</div>
+                          </div>
+                        </div>;
+                      })}
+                    </div>
+                  </div>
+                </div> : <div style={{fontSize:9,color:'#444'}}>Technical context not available.</div>}
               </div>}
 
               {/* Expanded details */}
@@ -13431,6 +13563,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
               </React.Fragment>
             );
           })}
+          </div>
         </div>
       )}
 
@@ -13458,6 +13591,9 @@ export default function App() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [tickerSignals, setTickerSignals] = useState([]);
   const [landingNews,   setLandingNews]   = useState([]);
+  const [dashFS,        setDashFS]        = useState(null);  // cached FS summary
+  const [dashScreener,  setDashScreener]  = useState(null);  // cached screener summary
+  const [dashLoaded,    setDashLoaded]    = useState(false);
   const [newsFilter,    setNewsFilter]    = useState("ALL");
   const [tickerEnrich,  setTickerEnrich]  = useState({});
 
@@ -13796,6 +13932,30 @@ export default function App() {
     document.title = "nervousgeek.com";
   }, []);
 
+  // Load dashboard caches on mount — no scans triggered
+  useEffect(function() {
+    if (hashSym) return;
+    var FS_TTL  = 12 * 60 * 60 * 1000;
+    var SCRE_TTL = 12 * 60 * 60 * 1000;
+    Promise.all([
+      fetch('/cache?sym=__DASH_FS&tab=summary').then(function(r){ return r.ok?r.text():null; }).catch(function(){ return null; }),
+      fetch('/cache?sym=__DASH_SCREENER&tab=summary').then(function(r){ return r.ok?r.text():null; }).catch(function(){ return null; }),
+    ]).then(function(results) {
+      try {
+        var fsRaw = results[0] ? JSON.parse(results[0]) : null;
+        if (fsRaw && fsRaw.ts && (Date.now()-fsRaw.ts) < FS_TTL) setDashFS(fsRaw);
+        else if (fsRaw) setDashFS(Object.assign({}, fsRaw, { stale: true }));
+      } catch(e) {}
+      try {
+        var scRaw = results[1] ? JSON.parse(results[1]) : null;
+        if (scRaw && scRaw.ts && (Date.now()-scRaw.ts) < SCRE_TTL) setDashScreener(scRaw);
+        else if (scRaw) setDashScreener(Object.assign({}, scRaw, { stale: true }));
+      } catch(e) {}
+      setDashLoaded(true);
+    });
+  }, [hashSym]);
+
+
   // Remount UserButton when returning to landing page (hashSym becomes null)
   useEffect(function() {
     if (hashSym) return; // only on landing page
@@ -13964,7 +14124,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.146</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.158</span>
           </div>
         </div>
 
@@ -14035,93 +14195,232 @@ export default function App() {
           )}
         </div>
 
-        {/* Free tickers section */}
-        <div style={{ marginTop:32, width:"100%", maxWidth:580, textAlign:"center" }}>
-          {/* Not signed in: show 10 free tickers + faded locked + sign in */}
+        {/* Access status + tools */}
+        <div style={{ marginTop:32, width:'100%', maxWidth:580, textAlign:'center' }}>
+
+          {/* Not signed in */}
           {!clerkUser && (
             <div>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, marginBottom:16 }}>
-                <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
-                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                  <span style={{ width:6, height:6, borderRadius:"50%", background:LIME, display:"inline-block" }}></span>
-                  <span style={{ fontSize:11, fontWeight:700, color:LIME, letterSpacing:"0.12em", textTransform:"uppercase" }}>10 Free Stocks</span>
-                </div>
-                <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
-              </div>
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16 }}>
-                {FREE_TICKERS.map(function(t) {
-                  return (
-                    <button key={t} onClick={function() { go(t); }}
-                      style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a", cursor:"pointer", fontFamily:FONT }}
-                      onMouseEnter={function(e) { e.currentTarget.style.background=BG; e.currentTarget.style.color=LIME; e.currentTarget.style.borderColor=LIME; }}
-                      onMouseLeave={function(e) { e.currentTarget.style.background="#1a1a16"; e.currentTarget.style.color="#a09a8a"; e.currentTarget.style.borderColor="#2c2c26"; }}>
-                      {t}
-                    </button>
-                  );
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'center', marginBottom:20 }}>
+                {FREE_TICKERS.map(function(t){
+                  return <button key={t} onClick={function(){ go(t); }}
+                    style={{ padding:'6px 18px', borderRadius:20, border:'1px solid #2c2c26', background:'#1a1a16', fontSize:13, color:'#a09a8a', cursor:'pointer', fontFamily:FONT }}
+                    onMouseEnter={function(e){ e.currentTarget.style.background=BG; e.currentTarget.style.color=LIME; e.currentTarget.style.borderColor=LIME; }}
+                    onMouseLeave={function(e){ e.currentTarget.style.background='#1a1a16'; e.currentTarget.style.color='#a09a8a'; e.currentTarget.style.borderColor='#2c2c26'; }}>
+                    {t}
+                  </button>;
                 })}
               </div>
-              <div style={{ display:"flex", alignItems:"center", gap:10, maxWidth:400, margin:"0 auto 10px" }}>
-                <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
-                <span style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.1em", whiteSpace:"nowrap" }}>{"+ 490 more with sign in"}</span>
-                <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
-              </div>
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16, opacity:0.25 }}>
-                {["NFLX","AMD","JPM","BAC","GS","XOM","COST","MA","V","WMT"].map(function(t) {
-                  return <span key={t} style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>{t}</span>;
-                })}
+              <div style={{ fontSize:11, color:'#444', marginBottom:16 }}>{'Free access \u00B7 No sign-in required'}</div>
+              <div style={{ display:'flex', alignItems:'center', gap:10, maxWidth:360, margin:'0 auto 12px' }}>
+                <div style={{ flex:1, height:1, background:'#1e1e18' }}></div>
+                <span style={{ fontSize:10, color:'#333', textTransform:'uppercase', letterSpacing:'0.1em', whiteSpace:'nowrap' }}>{'Unlock 500+ stocks'}</span>
+                <div style={{ flex:1, height:1, background:'#1e1e18' }}></div>
               </div>
               <button
-                onClick={function() { if(window.Clerk){ try{ window.Clerk.openSignIn({}); } catch(e){ window.location.href="https://accounts.nervousgeek.com/sign-in"; } } }}
-                style={{ background:LIME, color:"#0e0e0c", border:"none", borderRadius:24, padding:"10px 32px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:FONT }}>
-                {"Sign in to unlock all 500"}
+                onClick={function(){ if(window.Clerk){ try{ window.Clerk.openSignIn({}); } catch(e){ window.location.href='https://accounts.nervousgeek.com/sign-in'; } } }}
+                style={{ background:LIME, color:'#0e0e0c', border:'none', borderRadius:24, padding:'10px 32px', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:FONT }}>
+                {'Sign in \u2192'}
               </button>
             </div>
           )}
 
-          {/* Signed in, NOT paid: S&P 500 unlocked + faded non-S&P + upgrade */}
+          {/* Signed in, NOT paid */}
           {clerkUser && !isPaid && (
             <div>
-              <div style={{ fontSize:12, marginBottom:14 }}>
-                <span style={{ color:LIME, fontWeight:700 }}>{"All S&P 500 companies unlocked " + String.fromCharCode(0x2713)}</span>
+              <div style={{ display:'inline-flex', alignItems:'center', gap:8, background:'#161614', border:'0.5px solid #2c2c26', borderRadius:20, padding:'6px 16px', marginBottom:20 }}>
+                <span style={{ color:LIME, fontSize:11 }}>{'\u2713'}</span>
+                <span style={{ fontSize:12, color:'#a09a8a' }}>{'S&P 500 unlocked'}</span>
               </div>
-              <div style={{ display:"flex", alignItems:"center", gap:10, maxWidth:420, margin:"0 auto 10px" }}>
-                <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
-                <span style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.1em", whiteSpace:"nowrap" }}>All US Stocks</span>
-                <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
-              </div>
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16, opacity:0.25 }}>
-                {["SMCI","ARM","PLTR","RIVN","LCID","SOFI","MSTR","COIN","HOOD","IONQ"].map(function(t) {
-                  return <span key={t} style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>{t}</span>;
-                })}
-              </div>
+              <div style={{ fontSize:12, color:'#555', marginBottom:20 }}>Upgrade for all US stocks, AI analysis, and premium tools.</div>
               <button
                 onClick={function(){ setShowUpgrade(true); }}
-                style={{ background:LIME, color:"#0e0e0c", border:"none", borderRadius:24, padding:"10px 32px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:FONT }}>
-                {"Upgrade to unlock all US stocks & AI Feature"}
+                style={{ background:LIME, color:'#0e0e0c', border:'none', borderRadius:24, padding:'10px 32px', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:FONT }}>
+                {'Upgrade to Premium \u2192'}
               </button>
             </div>
           )}
 
-          {/* Signed in + paid: full access */}
+          {/* Signed in + paid */}
           {clerkUser && isPaid && (
             <div>
-              <div style={{ fontSize:12, marginBottom:8 }}>
-                <span style={{ color:LIME, fontWeight:700 }}>{"All S&P 500 companies unlocked " + String.fromCharCode(0x2713)}</span>
+              <div style={{ display:'inline-flex', alignItems:'center', gap:8, background:'#161614', border:'0.5px solid #c8f00044', borderRadius:20, padding:'6px 16px', marginBottom:24 }}>
+                <span style={{ color:LIME, fontSize:11 }}>{'\u2605'}</span>
+                <span style={{ fontSize:12, color:'#a09a8a' }}>Premium \u00B7 All US stocks unlocked</span>
               </div>
-              <div style={{ fontSize:12 }}>
-                <span style={{ color:LIME, fontWeight:700 }}>{"All US companies unlocked " + String.fromCharCode(0x2713)}</span>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, maxWidth:520, margin:'0 auto' }}>
+                {[
+                  { label:'Force Strike', sub:'M\u2192B\u2192X\u2192T Scanner', hash:'FORCESTRIKE', color:'#c8f000', icon:'\u26A1' },
+                  { label:'Screener',     sub:'Trend \u00B7 Momentum \u00B7 Flow',  hash:'SCREENER',    color:'#6090d0', icon:'\uD83D\uDD0D' },
+                  { label:'Watchlist',    sub:'Track your stocks',      hash:'WATCHLIST',   color:'#EF9F27', icon:'\u2605' },
+                ].map(function(tool){
+                  return <button key={tool.hash}
+                    onClick={function(){ window.location.hash = tool.hash; }}
+                    style={{ background:'#111', border:'0.5px solid '+tool.color+'33', borderRadius:12,
+                      padding:'16px 12px', cursor:'pointer', textAlign:'center', transition:'all 0.15s', fontFamily:FONT }}
+                    onMouseEnter={function(e){ e.currentTarget.style.borderColor=tool.color; e.currentTarget.style.background='#161614'; }}
+                    onMouseLeave={function(e){ e.currentTarget.style.borderColor=tool.color+'33'; e.currentTarget.style.background='#111'; }}>
+                    <div style={{ fontSize:18, marginBottom:6 }}>{tool.icon}</div>
+                    <div style={{ fontSize:12, fontWeight:700, color:tool.color, marginBottom:3 }}>{tool.label}</div>
+                    <div style={{ fontSize:10, color:'#555' }}>{tool.sub}</div>
+                  </button>;
+                })}
               </div>
             </div>
           )}
+
         </div>
       </div>
 
-      {/* AI Favourites + Market News */}
+      {/* Dashboard Lite */}
+      {!hashSym && (function(){
+        var fmtAgo = function(ts) {
+          if (!ts) return 'Never';
+          var diff = Date.now() - ts;
+          var h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000);
+          if (h>0) return h+'h ago'; if (m>0) return m+'m ago'; return 'Just now';
+        };
+        var fsData  = dashFS;
+        var scrData = dashScreener;
+        var fsTop   = fsData&&fsData.topResults ? fsData.topResults : [];
+        var scrCnt  = scrData&&scrData.counts   ? scrData.counts    : {};
+        var SECT = { position:'relative', zIndex:5, padding:'0 32px', maxWidth:1100, margin:'0 auto 40px' };
+        var CARD = { background:'#111', border:'0.5px solid #1e1e18', borderRadius:12, padding:'16px 20px' };
+        var divider = function(label) {
+          return <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:16 }}>
+            <div style={{ flex:1, height:1, background:'rgba(200,240,0,0.08)' }}></div>
+            <span style={{ fontSize:9, color:'#444', textTransform:'uppercase', letterSpacing:'0.12em', whiteSpace:'nowrap' }}>{label}</span>
+            <div style={{ flex:1, height:1, background:'rgba(200,240,0,0.08)' }}></div>
+          </div>;
+        };
+        return <div>
+
+          {/* Market Pulse */}
+          <div style={Object.assign({},SECT)}>
+            {divider('Market Pulse')}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:10 }}>
+              {[
+                { label:'Force Strikes',   val:fsData?fsData.validCount:null,                                  color:'#c8f000', src:fsData },
+                { label:'Bull Confirmed',  val:scrCnt.bullConfirmedCount!=null?scrCnt.bullConfirmedCount:null, color:'#7abd00', src:scrData },
+                { label:'Accumulation',    val:scrCnt.accumulationCount!=null?scrCnt.accumulationCount:null,   color:'#6090d0', src:scrData },
+                { label:'Strong Uptrends', val:scrCnt.strongUptrendCount!=null?scrCnt.strongUptrendCount:null, color:'#EF9F27', src:scrData },
+                { label:'Bearish Watch',   val:scrCnt.bearishWatchCount!=null?scrCnt.bearishWatchCount:null,   color:'#e05050', src:scrData },
+              ].map(function(c,ci){
+                return <div key={ci} style={Object.assign({},CARD,{textAlign:'center',padding:'14px 10px'})}>
+                  <div style={{ fontSize:22, fontWeight:800, color:c.val!=null?c.color:'#333', marginBottom:3 }}>
+                    {c.val!=null ? c.val : (dashLoaded?'\u2014':'\u22EF')}
+                  </div>
+                  <div style={{ fontSize:9, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:c.src?2:0 }}>{c.label}</div>
+                  {c.src&&<div style={{ fontSize:8, color:'#333' }}>{(c.src.stale?'\u26A0 ':'')+fmtAgo(c.src.ts)}</div>}
+                </div>;
+              })}
+            </div>
+          </div>
+
+          {/* Today's Opportunities */}
+          <div style={Object.assign({},SECT)}>
+            {divider("Today's Opportunities")}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+
+              {/* Force Strike card */}
+              <div style={Object.assign({},CARD)}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
+                  <div>
+                    <div style={{ fontSize:11, fontWeight:700, color:'#c8f000', marginBottom:2 }}>{'\u26A1 Force Strike Setups'}</div>
+                    {fsData&&<div style={{ fontSize:9, color:'#444' }}>{(fsData.stale?'\u26A0 Stale \u00B7 ':'')+fmtAgo(fsData.ts)}</div>}
+                  </div>
+                  {fsData&&<div style={{ fontSize:10, color:'#555' }}>{fsData.validCount!=null?fsData.validCount+' found':''}</div>}
+                </div>
+                {!dashLoaded&&<div style={{ fontSize:11, color:'#444', padding:'16px 0', textAlign:'center' }}>{'Loading\u2026'}</div>}
+                {dashLoaded&&!fsData&&<div style={{ fontSize:11, color:'#444', padding:'16px 0', textAlign:'center' }}>{'Data preparing. Check back shortly.'}</div>}
+                {dashLoaded&&fsData&&fsTop.length===0&&<div style={{ fontSize:11, color:'#444', padding:'10px 0' }}>{'No active setups.'}</div>}
+                {fsTop.slice(0,3).map(function(r,ri){
+                  return <div key={ri} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 0', borderBottom:ri<2?'0.5px solid #1a1a1a':'none' }}>
+                    <div>
+                      <span style={{ fontSize:12, fontWeight:800, color:'#c8f000', marginRight:8 }}>{r.ticker}</span>
+                      <span style={{ fontSize:9, color:'#555' }}>{r.triggerType||''}{r.scenario?' \u00B7 '+r.scenario:''}</span>
+                    </div>
+                    <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                      <span style={{ fontSize:9, color:'#EF9F27' }}>
+                        {[1,2,3,4,5].map(function(s){ return <span key={s} style={{opacity:s<=(r.fsStars||0)?1:0.2}}>{'\u2605'}</span>; })}
+                      </span>
+                      <span style={{ fontSize:9, color:r.technicalSupport==='Strong'?'#7abd00':r.technicalSupport==='Moderate'?'#EF9F27':'#888' }}>{r.technicalSupport||''}</span>
+                    </div>
+                  </div>;
+                })}
+                <button onClick={function(){ window.location.hash='FORCESTRIKE'; }}
+                  style={{ marginTop:12, width:'100%', padding:'8px', background:'none', border:'0.5px solid #c8f00033', borderRadius:8, color:'#c8f000', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:FONT }}
+                  onMouseEnter={function(e){ e.currentTarget.style.borderColor='#c8f000'; }}
+                  onMouseLeave={function(e){ e.currentTarget.style.borderColor='#c8f00033'; }}>
+                  {isPaid?'View Force Strike Scanner \u2192':'Premium \u2014 View Scanner'}
+                </button>
+              </div>
+
+              {/* Technical Screener card */}
+              <div style={Object.assign({},CARD)}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
+                  <div>
+                    <div style={{ fontSize:11, fontWeight:700, color:'#6090d0', marginBottom:2 }}>{'Technical Opportunities'}</div>
+                    {scrData&&<div style={{ fontSize:9, color:'#444' }}>{(scrData.stale?'\u26A0 Stale \u00B7 ':'')+fmtAgo(scrData.ts)}</div>}
+                  </div>
+                  {scrData&&<div style={{ fontSize:10, color:'#555' }}>{scrCnt.totalScanned!=null?scrCnt.totalScanned+' scanned':''}</div>}
+                </div>
+                {!dashLoaded&&<div style={{ fontSize:11, color:'#444', padding:'16px 0', textAlign:'center' }}>{'Loading\u2026'}</div>}
+                {dashLoaded&&!scrData&&<div style={{ fontSize:11, color:'#444', padding:'16px 0', textAlign:'center' }}>{'Data preparing. Check back shortly.'}</div>}
+                {dashLoaded&&scrData&&[
+                  ['\u2605 Strong Uptrend',  scrCnt.strongUptrendCount,  '#EF9F27'],
+                  ['\u25B2 Bull Confirmed',   scrCnt.bullConfirmedCount,  '#7abd00'],
+                  ['\u2191 Accumulation',     scrCnt.accumulationCount,   '#6090d0'],
+                  ['\u25BC Bearish Watch',    scrCnt.bearishWatchCount,   '#e05050'],
+                ].map(function(row,ri){
+                  return <div key={ri} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 0', borderBottom:ri<3?'0.5px solid #1a1a1a':'none' }}>
+                    <span style={{ fontSize:11, color:row[2] }}>{row[0]}</span>
+                    <span style={{ fontSize:13, fontWeight:700, color:row[1]!=null?row[2]:'#333' }}>{row[1]!=null?row[1]:'\u2014'}</span>
+                  </div>;
+                })}
+                <button onClick={function(){ window.location.hash='SCREENER'; }}
+                  style={{ marginTop:12, width:'100%', padding:'8px', background:'none', border:'0.5px solid #6090d033', borderRadius:8, color:'#6090d0', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:FONT }}
+                  onMouseEnter={function(e){ e.currentTarget.style.borderColor='#6090d0'; }}
+                  onMouseLeave={function(e){ e.currentTarget.style.borderColor='#6090d033'; }}>
+                  {isPaid?'View Technical Screener \u2192':'Premium \u2014 View Screener'}
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Watchlist Summary */}
+          <div style={Object.assign({},SECT)}>
+            {divider('Watchlist')}
+            {clerkUser
+              ? <div style={Object.assign({},CARD,{display:'flex',justifyContent:'space-between',alignItems:'center'})}>
+                  <div>
+                    <div style={{ fontSize:11, fontWeight:700, color:'#EF9F27', marginBottom:3 }}>{'\u2605 My Watchlist'}</div>
+                    <div style={{ fontSize:10, color:'#555' }}>Track your stocks with live Force Strike signals</div>
+                  </div>
+                  <button onClick={function(){ window.location.hash='WATCHLIST'; }}
+                    style={{ padding:'8px 18px', background:'none', border:'0.5px solid #EF9F2733', borderRadius:8, color:'#EF9F27', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:FONT, whiteSpace:'nowrap' }}
+                    onMouseEnter={function(e){ e.currentTarget.style.borderColor='#EF9F27'; }}
+                    onMouseLeave={function(e){ e.currentTarget.style.borderColor='#EF9F2733'; }}>
+                    {'Open \u2192'}
+                  </button>
+                </div>
+              : <div style={Object.assign({},CARD,{textAlign:'center',padding:'20px'})}>
+                  <div style={{ fontSize:12, color:'#555', marginBottom:6 }}>{'Sign in to track your stocks'}</div>
+                  <div style={{ fontSize:10, color:'#333' }}>Create a free account to monitor Force Strike signals on your personal watchlist.</div>
+                </div>
+            }
+          </div>
+
+        </div>;
+      })()}
+
+      {/* Top Conviction Ideas + Market News */}
       {tickerSignals.length > 0 && (
         <div style={{ position:"relative", zIndex:5, padding:"0 32px 140px", maxWidth:1100, margin:"0 auto" }}>
           <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:28 }}>
             <div style={{ flex:1, height:1, background:"rgba(200,240,0,0.1)" }}></div>
-            <span style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.12em", whiteSpace:"nowrap" }}>AI Intelligence</span>
+            <span style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.12em", whiteSpace:"nowrap" }}>Intelligence</span>
             <div style={{ flex:1, height:1, background:"rgba(200,240,0,0.1)" }}></div>
           </div>
           <div style={{ display:"flex", flexDirection:"column", gap:32 }}>
@@ -14129,8 +14428,8 @@ export default function App() {
             {/* AI Favourites */}
             <div>
               <div style={{ marginBottom:14 }}>
-                <div style={{ fontSize:10, color:LIME, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:3 }}>AI Favourites for the Week</div>
-                <div style={{ fontSize:12, color:"#555" }}>Stocks our AI rated Exceptional or Good in the last 7 days</div>
+                <div style={{ fontSize:10, color:LIME, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:3 }}>Top Conviction Ideas</div>
+                <div style={{ fontSize:12, color:"#555" }}>Stocks our AI rated Exceptional or Good recently</div>
               </div>
               <div style={{ border:"1px solid #1e1e18", borderRadius:10, overflow:"hidden" }}>
                 <div style={{ display:"grid", gridTemplateColumns:"70px 1fr 1fr 1fr 1.6fr 1.4fr 1fr", columnGap:20, rowGap:0, background:"#161614", borderBottom:"1px solid #222", padding:"8px 14px" }}>
