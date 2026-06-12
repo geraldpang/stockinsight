@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.149</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.150</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.149</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.150</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12781,8 +12781,14 @@ function ForceStrikePage({ isPaid, clerkUser }) {
           var tScan0 = Date.now();
           var fsResult = scanForceStrike(c.sym, daily, tst);
           var tScanMs = Date.now() - tScan0;
-          fsResult.name = c.name||c.sym;
+          fsResult.name   = c.name||c.sym;
           fsResult.volume = fsResult.volume||c.volume||0;
+          // Store price and 52W range from the fetched daily candles
+          fsResult.price  = daily.length ? daily[daily.length-1].close : 0;
+          var hi52 = 0, lo52 = Infinity;
+          daily.forEach(function(b){ if(b.high>hi52) hi52=b.high; if(b.low>0&&b.low<lo52) lo52=b.low; });
+          fsResult.hi52   = hi52;
+          fsResult.lo52   = lo52 === Infinity ? 0 : lo52;
           fsResult._timing = { chartFetchMs: tChartMs, scanMs: tScanMs, totalMs: Date.now()-t0 };
 
           // For valid FS results only: compute technical context using existing signal engine
@@ -13181,8 +13187,8 @@ function ForceStrikePage({ isPaid, clerkUser }) {
 
       {filtered.length>0&&(
         <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflow:'hidden'}}>
-          <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 55px 55px 55px 80px 80px 60px',columnGap:10,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
-            {['Ticker','Pattern Chart','Pattern','Trigger','Trigger Bar','FS Score','Trade','Tech Support','Scenario',''].map(function(h,i){
+          <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 110px 55px 55px 55px 80px 60px',columnGap:10,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
+            {['Ticker','Pattern Chart','Pattern','Trigger','Price / 52W','FS Score','Trade','Tech Support','Scenario',''].map(function(h,i){
               return <div key={i} style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>;
             })}
           </div>
@@ -13200,7 +13206,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
             var tsp = calcTechSupport(tc);
             return (
               <React.Fragment key={r.symbol}>
-              <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 55px 55px 55px 80px 80px 60px',columnGap:10,padding:'10px 14px',
+              <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 110px 55px 55px 55px 80px 60px',columnGap:10,padding:'10px 14px',
                 borderBottom:(!isExp&&!isSc&&!isTrade&&!isTech&&i<filtered.length-1)?'1px solid #1a1a16':'none',
                 background:i%2===0?'#111':'#131311',alignItems:'center'}}>
                 {/* Ticker */}
@@ -13211,17 +13217,35 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                 {/* Chart */}
                 <div><MiniChart chartBars={r.chartBars} motherHigh={mh} motherLow={ml} /></div>
                 {/* Pattern */}
-                <div style={{fontSize:10,fontWeight:700,color:'#6090d0',letterSpacing:'0.03em',whiteSpace:'nowrap'}}>{r.pattern||'—'}</div>
-                {/* Trigger */}
+                {/* Trigger + Trigger Bar combined */}
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:'#7abd00'}}>{ti.label}</div>
                   {ti.desc&&<div style={{fontSize:9,color:'#555',marginTop:1}}>{ti.desc}</div>}
-                </div>
-                {/* Trigger Bar */}
-                <div title="Bar at which trigger occurred">
-                  <div style={{fontSize:11,fontWeight:600,color:r.triggerPosition===5||r.triggerPosition===6?'#7abd00':r.triggerPosition===4?'#EF9F27':'#aaa'}}>
-                    {r.triggerPosition!=null?'Bar '+r.triggerPosition:'—'}
+                  <div style={{marginTop:3,display:'flex',alignItems:'center',gap:4}}>
+                    <span style={{fontSize:10,fontWeight:600,color:r.triggerPosition===5||r.triggerPosition===6?'#7abd00':r.triggerPosition===4?'#EF9F27':'#aaa'}}>
+                      {r.triggerPosition!=null?'Bar '+r.triggerPosition:'—'}
+                    </span>
+                    {r.barsSinceTrigger!=null&&<span style={{fontSize:9,color:'#444'}}>{'('+r.barsSinceTrigger+'d)'}</span>}
                   </div>
+                </div>
+                {/* Price + 52W Range */}
+                <div>
+                  {r.price>0&&<div style={{fontSize:11,fontWeight:700,color:'#f0ede6',marginBottom:2}}>{'$'+r.price.toFixed(2)}</div>}
+                  {r.hi52>0&&r.lo52>0&&r.price>0&&(function(){
+                    var pct = Math.round((r.price-r.lo52)/(r.hi52-r.lo52)*100);
+                    return <div>
+                      <div style={{display:'flex',justifyContent:'space-between',fontSize:8,color:'#555',marginBottom:1}}>
+                        <span>{'$'+r.lo52.toFixed(0)}</span>
+                        <span style={{color:'#888'}}>{pct+'%'}</span>
+                        <span>{'$'+r.hi52.toFixed(0)}</span>
+                      </div>
+                      <div style={{position:'relative',height:3,background:'#2a2a2a',borderRadius:2}}>
+                        <div style={{position:'absolute',left:0,width:pct+'%',height:'100%',background:'#6090d0',borderRadius:2}}></div>
+                        <div style={{position:'absolute',left:'calc('+pct+'% - 2px)',top:-1,width:4,height:5,background:'#c8f000',borderRadius:1}}></div>
+                      </div>
+                    </div>;
+                  })()}
+                </div>
                 </div>
                 {/* FS Score — clickable */}
                 <div>
@@ -13272,7 +13296,6 @@ function ForceStrikePage({ isPaid, clerkUser }) {
                     {isExp?'Close':'Details'}
                   </button>
                 </div>
-              </div>
               {isSc&&<div style={{background:'#161614',borderBottom:i<filtered.length-1?'1px solid #1a1a16':'none',padding:'14px 16px'}}>
                 <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
                   <div style={{fontSize:11,fontWeight:700,color:LIME}}>{'Force Strike Score — '+r.symbol}</div>
@@ -14030,7 +14053,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.149</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.150</span>
           </div>
         </div>
 
