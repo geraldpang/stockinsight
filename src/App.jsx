@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.155</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.157</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.155</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.157</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12043,24 +12043,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
     if (!items.length) return;
     setRefreshing(true); setMsg('Refreshing signals...');
     var hdrs = wlHeaders();
-
-    // Try to load Force Strike KV cache for all tickers at once (shared cache)
-    var fsCacheMap = {};
-    try {
-      var fcRes = await fetch('/cache?sym=__FORCESTRIKE&tab=results');
-      if (fcRes.ok) {
-        var fcText = await fcRes.text();
-        if (fcText && fcText.trim()) {
-          var fcData = JSON.parse(fcText);
-          var FS_TTL = 12 * 60 * 60 * 1000;
-          if (fcData && fcData.ts && (Date.now() - fcData.ts) < FS_TTL) {
-            // Build lookup: ticker -> fsResult
-            var allFsResults = (fcData.results||[]).concat(fcData.allAudit||[]);
-            allFsResults.forEach(function(r){ if(r && r.symbol) fsCacheMap[r.symbol] = r; });
-          }
-        }
-      }
-    } catch(e) { /* cache miss is fine */ }
+    // No KV cache lookup — always run fresh scanForceStrike() per ticker
+    // using same Yahoo chart source as Force Strike Screener for full consistency
 
     for (var i = 0; i < items.length; i++) {
       var ticker = items[i].ticker;
@@ -12097,44 +12081,43 @@ function WatchlistPage({ clerkUser, isPaid }) {
         var rbaVerdict = rba ? (rba.verdict || '') : '';
         var rbaShort   = shortRuleVerdict(rbaVerdict);
 
-        // Force Strike: check KV cache first, then fetch Yahoo chart for fresh scan
-        // Uses same Yahoo chart endpoint as Force Strike Screener for consistency
-        var fsResult = fsCacheMap[ticker] || null;
-        // If not in cache, or cache shows non-triggered for this ticker, do a fresh scan
-        // using Yahoo chart (same source as Force Strike Screener — 3mo of daily bars)
-        if (!fsResult || !fsResult.triggered) {
-          try {
-            var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=3mo';
-            var cRes2 = await fetch('/proxy?url=' + encodeURIComponent(chartUrl));
-            if (cRes2.ok) {
-              var cData2 = await cRes2.json();
-              var cr2 = cData2&&cData2.chart&&cData2.chart.result&&cData2.chart.result[0];
-              if (cr2) {
-                var ts2    = cr2.timestamp||[];
-                var q2     = (cr2.indicators&&cr2.indicators.quote&&cr2.indicators.quote[0])||{};
-                var daily2 = [];
-                for (var di2=0; di2<ts2.length; di2++) {
-                  var o2=q2.open&&q2.open[di2], h2=q2.high&&q2.high[di2],
-                      l2=q2.low&&q2.low[di2],   cv2=q2.close&&q2.close[di2];
-                  if (o2&&h2&&l2&&cv2&&o2>0) daily2.push({ date:ts2[di2]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di2])||0 });
+        // Force Strike: always fresh scan using Yahoo chart (same as screener)
+        // Ensures Watchlist FS status is fully consistent with Force Strike Screener rules
+        var fsResult = null;
+        try {
+          var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=3mo';
+          var fsAbort = new AbortController();
+          var fsTimer = setTimeout(function(){ fsAbort.abort(); }, 10000);
+          var cRes2 = await fetch('/proxy?url=' + encodeURIComponent(chartUrl), { signal: fsAbort.signal });
+          clearTimeout(fsTimer);
+          if (cRes2.ok) {
+            var cData2 = await cRes2.json();
+            var cr2 = cData2&&cData2.chart&&cData2.chart.result&&cData2.chart.result[0];
+            if (cr2) {
+              var ts2    = cr2.timestamp||[];
+              var q2     = (cr2.indicators&&cr2.indicators.quote&&cr2.indicators.quote[0])||{};
+              var daily2 = [];
+              for (var di2=0; di2<ts2.length; di2++) {
+                var o2=q2.open&&q2.open[di2], h2=q2.high&&q2.high[di2],
+                    l2=q2.low&&q2.low[di2],   cv2=q2.close&&q2.close[di2];
+                if (o2&&h2&&l2&&cv2&&o2>0) daily2.push({ date:ts2[di2]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di2])||0 });
+              }
+              if (daily2.length >= 14) {
+                var closes2   = daily2.slice(-50).map(function(b){ return b.close; });
+                var closes200b = daily2.map(function(b){ return b.close; });
+                var sma50b    = closes2.length>=20    ? closes2.reduce(function(s,v){return s+v;},0)/closes2.length       : 0;
+                var sma200b   = closes200b.length>=20 ? closes200b.reduce(function(s,v){return s+v;},0)/closes200b.length : 0;
+                var pr2       = daily2[daily2.length-1].close;
+                var ts2status = 'Sideways';
+                if (sma50b>0&&sma200b>0) {
+                  if (pr2>sma50b&&sma50b>sma200b) ts2status = pr2>sma50b*1.03?'Strong Uptrend':'Uptrend';
+                  else if (pr2<sma50b&&sma50b<sma200b) ts2status = 'Downtrend';
                 }
-                if (daily2.length >= 14) {
-                  var closes2 = daily2.slice(-50).map(function(b){ return b.close; });
-                  var sma50b  = closes2.length>=20 ? closes2.reduce(function(s,v){return s+v;},0)/closes2.length : 0;
-                  var closes200b = daily2.map(function(b){ return b.close; });
-                  var sma200b = closes200b.length>=20 ? closes200b.reduce(function(s,v){return s+v;},0)/closes200b.length : 0;
-                  var pr2     = daily2[daily2.length-1].close;
-                  var ts2status = 'Sideways';
-                  if (sma50b>0&&sma200b>0) {
-                    if (pr2>sma50b&&sma50b>sma200b) ts2status = pr2>sma50b*1.03?'Strong Uptrend':'Uptrend';
-                    else if (pr2<sma50b&&sma50b<sma200b) ts2status = 'Downtrend';
-                  }
-                  fsResult = scanForceStrike(ticker, daily2, ts2status);
-                }
+                fsResult = scanForceStrike(ticker, daily2, ts2status);
               }
             }
-          } catch(fsErr) { /* use whatever fsResult we have */ }
-        }
+          }
+        } catch(fsErr) { fsResult = null; }
 
         // Determine FS display status
         var fsStatus = 'none', fsPattern = null, fsScenario = null, fsAge = null,
@@ -14058,7 +14041,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.155</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.157</span>
           </div>
         </div>
 
@@ -14129,104 +14112,80 @@ export default function App() {
           )}
         </div>
 
-        {/* Free tickers section */}
-        <div style={{ marginTop:32, width:"100%", maxWidth:580, textAlign:"center" }}>
-          {/* Not signed in: show 10 free tickers + faded locked + sign in */}
+        {/* Access status + tools */}
+        <div style={{ marginTop:32, width:'100%', maxWidth:580, textAlign:'center' }}>
+
+          {/* Not signed in */}
           {!clerkUser && (
             <div>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, marginBottom:16 }}>
-                <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
-                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                  <span style={{ width:6, height:6, borderRadius:"50%", background:LIME, display:"inline-block" }}></span>
-                  <span style={{ fontSize:11, fontWeight:700, color:LIME, letterSpacing:"0.12em", textTransform:"uppercase" }}>10 Free Stocks</span>
-                </div>
-                <div style={{ height:1, flex:1, background:"rgba(200,240,0,0.15)" }}></div>
-              </div>
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16 }}>
-                {FREE_TICKERS.map(function(t) {
-                  return (
-                    <button key={t} onClick={function() { go(t); }}
-                      style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a", cursor:"pointer", fontFamily:FONT }}
-                      onMouseEnter={function(e) { e.currentTarget.style.background=BG; e.currentTarget.style.color=LIME; e.currentTarget.style.borderColor=LIME; }}
-                      onMouseLeave={function(e) { e.currentTarget.style.background="#1a1a16"; e.currentTarget.style.color="#a09a8a"; e.currentTarget.style.borderColor="#2c2c26"; }}>
-                      {t}
-                    </button>
-                  );
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'center', marginBottom:20 }}>
+                {FREE_TICKERS.map(function(t){
+                  return <button key={t} onClick={function(){ go(t); }}
+                    style={{ padding:'6px 18px', borderRadius:20, border:'1px solid #2c2c26', background:'#1a1a16', fontSize:13, color:'#a09a8a', cursor:'pointer', fontFamily:FONT }}
+                    onMouseEnter={function(e){ e.currentTarget.style.background=BG; e.currentTarget.style.color=LIME; e.currentTarget.style.borderColor=LIME; }}
+                    onMouseLeave={function(e){ e.currentTarget.style.background='#1a1a16'; e.currentTarget.style.color='#a09a8a'; e.currentTarget.style.borderColor='#2c2c26'; }}>
+                    {t}
+                  </button>;
                 })}
               </div>
-              <div style={{ display:"flex", alignItems:"center", gap:10, maxWidth:400, margin:"0 auto 10px" }}>
-                <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
-                <span style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.1em", whiteSpace:"nowrap" }}>{"+ 490 more with sign in"}</span>
-                <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
-              </div>
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16, opacity:0.25 }}>
-                {["NFLX","AMD","JPM","BAC","GS","XOM","COST","MA","V","WMT"].map(function(t) {
-                  return <span key={t} style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>{t}</span>;
-                })}
+              <div style={{ fontSize:11, color:'#444', marginBottom:16 }}>{'Free access \u00B7 No sign-in required'}</div>
+              <div style={{ display:'flex', alignItems:'center', gap:10, maxWidth:360, margin:'0 auto 12px' }}>
+                <div style={{ flex:1, height:1, background:'#1e1e18' }}></div>
+                <span style={{ fontSize:10, color:'#333', textTransform:'uppercase', letterSpacing:'0.1em', whiteSpace:'nowrap' }}>{'Unlock 500+ stocks'}</span>
+                <div style={{ flex:1, height:1, background:'#1e1e18' }}></div>
               </div>
               <button
-                onClick={function() { if(window.Clerk){ try{ window.Clerk.openSignIn({}); } catch(e){ window.location.href="https://accounts.nervousgeek.com/sign-in"; } } }}
-                style={{ background:LIME, color:"#0e0e0c", border:"none", borderRadius:24, padding:"10px 32px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:FONT }}>
-                {"Sign in to unlock all 500"}
+                onClick={function(){ if(window.Clerk){ try{ window.Clerk.openSignIn({}); } catch(e){ window.location.href='https://accounts.nervousgeek.com/sign-in'; } } }}
+                style={{ background:LIME, color:'#0e0e0c', border:'none', borderRadius:24, padding:'10px 32px', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:FONT }}>
+                {'Sign in \u2192'}
               </button>
             </div>
           )}
 
-          {/* Signed in, NOT paid: S&P 500 unlocked + faded non-S&P + upgrade */}
+          {/* Signed in, NOT paid */}
           {clerkUser && !isPaid && (
             <div>
-              <div style={{ fontSize:12, marginBottom:14 }}>
-                <span style={{ color:LIME, fontWeight:700 }}>{"All S&P 500 companies unlocked " + String.fromCharCode(0x2713)}</span>
+              <div style={{ display:'inline-flex', alignItems:'center', gap:8, background:'#161614', border:'0.5px solid #2c2c26', borderRadius:20, padding:'6px 16px', marginBottom:20 }}>
+                <span style={{ color:LIME, fontSize:11 }}>{'\u2713'}</span>
+                <span style={{ fontSize:12, color:'#a09a8a' }}>{'S&P 500 unlocked'}</span>
               </div>
-              <div style={{ display:"flex", alignItems:"center", gap:10, maxWidth:420, margin:"0 auto 10px" }}>
-                <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
-                <span style={{ fontSize:10, color:"#444", textTransform:"uppercase", letterSpacing:"0.1em", whiteSpace:"nowrap" }}>All US Stocks</span>
-                <div style={{ flex:1, height:1, background:"#1e1e18" }}></div>
-              </div>
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center", marginBottom:16, opacity:0.25 }}>
-                {["SMCI","ARM","PLTR","RIVN","LCID","SOFI","MSTR","COIN","HOOD","IONQ"].map(function(t) {
-                  return <span key={t} style={{ padding:"6px 18px", borderRadius:20, border:"1px solid #2c2c26", background:"#1a1a16", fontSize:13, color:"#a09a8a" }}>{t}</span>;
-                })}
-              </div>
+              <div style={{ fontSize:12, color:'#555', marginBottom:20 }}>Upgrade for all US stocks, AI analysis, and premium tools.</div>
               <button
                 onClick={function(){ setShowUpgrade(true); }}
-                style={{ background:LIME, color:"#0e0e0c", border:"none", borderRadius:24, padding:"10px 32px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:FONT }}>
-                {"Upgrade to unlock all US stocks & AI Feature"}
+                style={{ background:LIME, color:'#0e0e0c', border:'none', borderRadius:24, padding:'10px 32px', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:FONT }}>
+                {'Upgrade to Premium \u2192'}
               </button>
             </div>
           )}
 
-          {/* Signed in + paid: full access + tools menu */}
+          {/* Signed in + paid */}
           {clerkUser && isPaid && (
             <div>
-              <div style={{ fontSize:12, marginBottom:4 }}>
-                <span style={{ color:LIME, fontWeight:700 }}>{'All S&P 500 companies unlocked ' + String.fromCharCode(0x2713)}</span>
+              <div style={{ display:'inline-flex', alignItems:'center', gap:8, background:'#161614', border:'0.5px solid #c8f00044', borderRadius:20, padding:'6px 16px', marginBottom:24 }}>
+                <span style={{ color:LIME, fontSize:11 }}>{'\u2605'}</span>
+                <span style={{ fontSize:12, color:'#a09a8a' }}>Premium \u00B7 All US stocks unlocked</span>
               </div>
-              <div style={{ fontSize:12, marginBottom:20 }}>
-                <span style={{ color:LIME, fontWeight:700 }}>{'All US companies unlocked ' + String.fromCharCode(0x2713)}</span>
-              </div>
-              {/* Premium tools */}
-              <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Premium Tools</div>
-              <div style={{ display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap' }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, maxWidth:520, margin:'0 auto' }}>
                 {[
-                  { label:'Force Strike Screener', sub:'M\u2192B\u2192X\u2192T Pattern Scanner', hash:'FORCESTRIKE', color:'#c8f000' },
-                  { label:'Technical Screener',    sub:'Trend \u00B7 Momentum \u00B7 Reversal \u00B7 Flow', hash:'SCREENER',    color:'#6090d0' },
-                  { label:'My Watchlist',          sub:'Track & monitor your stocks',          hash:'WATCHLIST',   color:'#EF9F27' },
+                  { label:'Force Strike', sub:'M\u2192B\u2192X\u2192T Scanner', hash:'FORCESTRIKE', color:'#c8f000', icon:'\u26A1' },
+                  { label:'Screener',     sub:'Trend \u00B7 Momentum \u00B7 Flow',  hash:'SCREENER',    color:'#6090d0', icon:'\uD83D\uDD0D' },
+                  { label:'Watchlist',    sub:'Track your stocks',      hash:'WATCHLIST',   color:'#EF9F27', icon:'\u2605' },
                 ].map(function(tool){
                   return <button key={tool.hash}
                     onClick={function(){ window.location.hash = tool.hash; }}
-                    style={{ background:'#161614', border:'0.5px solid '+tool.color+'44', borderRadius:12,
-                      padding:'14px 20px', cursor:'pointer', textAlign:'left', width:180,
-                      transition:'border-color 0.15s' }}
-                    onMouseEnter={function(e){ e.currentTarget.style.borderColor=tool.color; }}
-                    onMouseLeave={function(e){ e.currentTarget.style.borderColor=tool.color+'44'; }}>
-                    <div style={{ fontSize:12, fontWeight:700, color:tool.color, marginBottom:4 }}>{tool.label}</div>
+                    style={{ background:'#111', border:'0.5px solid '+tool.color+'33', borderRadius:12,
+                      padding:'16px 12px', cursor:'pointer', textAlign:'center', transition:'all 0.15s', fontFamily:FONT }}
+                    onMouseEnter={function(e){ e.currentTarget.style.borderColor=tool.color; e.currentTarget.style.background='#161614'; }}
+                    onMouseLeave={function(e){ e.currentTarget.style.borderColor=tool.color+'33'; e.currentTarget.style.background='#111'; }}>
+                    <div style={{ fontSize:18, marginBottom:6 }}>{tool.icon}</div>
+                    <div style={{ fontSize:12, fontWeight:700, color:tool.color, marginBottom:3 }}>{tool.label}</div>
                     <div style={{ fontSize:10, color:'#555' }}>{tool.sub}</div>
                   </button>;
                 })}
               </div>
             </div>
           )}
+
         </div>
       </div>
 
