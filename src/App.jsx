@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.150</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.151</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.150</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.151</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -13186,8 +13186,9 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       </div>}
 
       {filtered.length>0&&(
-        <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflow:'hidden'}}>
-          <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 110px 55px 55px 55px 80px 60px',columnGap:10,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
+        <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflowX:'auto'}}>
+          <div style={{minWidth:820}}>
+          <div style={{display:'grid',gridTemplateColumns:'60px 110px 90px minmax(120px,1fr) 100px 50px 50px 50px 70px 50px',columnGap:8,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
             {['Ticker','Pattern Chart','Pattern','Trigger','Price / 52W','FS Score','Trade','Tech Support','Scenario',''].map(function(h,i){
               return <div key={i} style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>;
             })}
@@ -13206,7 +13207,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
             var tsp = calcTechSupport(tc);
             return (
               <React.Fragment key={r.symbol}>
-              <div style={{display:'grid',gridTemplateColumns:'70px 130px 100px 1fr 110px 55px 55px 55px 80px 60px',columnGap:10,padding:'10px 14px',
+              <div style={{display:'grid',gridTemplateColumns:'60px 110px 90px minmax(120px,1fr) 100px 50px 50px 50px 70px 50px',columnGap:8,padding:'10px 14px',
                 borderBottom:(!isExp&&!isSc&&!isTrade&&!isTech&&i<filtered.length-1)?'1px solid #1a1a16':'none',
                 background:i%2===0?'#111':'#131311',alignItems:'center'}}>
                 {/* Ticker */}
@@ -13520,6 +13521,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
               </React.Fragment>
             );
           })}
+          </div>
         </div>
       )}
 
@@ -14053,7 +14055,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.150</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.151</span>
           </div>
         </div>
 
