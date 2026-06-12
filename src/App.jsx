@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.154</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.155</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.154</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.155</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -14058,7 +14058,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.154</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.155</span>
           </div>
         </div>
 
@@ -14196,14 +14196,34 @@ export default function App() {
             </div>
           )}
 
-          {/* Signed in + paid: full access */}
+          {/* Signed in + paid: full access + tools menu */}
           {clerkUser && isPaid && (
             <div>
-              <div style={{ fontSize:12, marginBottom:8 }}>
-                <span style={{ color:LIME, fontWeight:700 }}>{"All S&P 500 companies unlocked " + String.fromCharCode(0x2713)}</span>
+              <div style={{ fontSize:12, marginBottom:4 }}>
+                <span style={{ color:LIME, fontWeight:700 }}>{'All S&P 500 companies unlocked ' + String.fromCharCode(0x2713)}</span>
               </div>
-              <div style={{ fontSize:12 }}>
-                <span style={{ color:LIME, fontWeight:700 }}>{"All US companies unlocked " + String.fromCharCode(0x2713)}</span>
+              <div style={{ fontSize:12, marginBottom:20 }}>
+                <span style={{ color:LIME, fontWeight:700 }}>{'All US companies unlocked ' + String.fromCharCode(0x2713)}</span>
+              </div>
+              {/* Premium tools */}
+              <div style={{ fontSize:10, color:'#555', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Premium Tools</div>
+              <div style={{ display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap' }}>
+                {[
+                  { label:'Force Strike Screener', sub:'M\u2192B\u2192X\u2192T Pattern Scanner', hash:'FORCESTRIKE', color:'#c8f000' },
+                  { label:'Technical Screener',    sub:'Trend \u00B7 Momentum \u00B7 Reversal \u00B7 Flow', hash:'SCREENER',    color:'#6090d0' },
+                  { label:'My Watchlist',          sub:'Track & monitor your stocks',          hash:'WATCHLIST',   color:'#EF9F27' },
+                ].map(function(tool){
+                  return <button key={tool.hash}
+                    onClick={function(){ window.location.hash = tool.hash; }}
+                    style={{ background:'#161614', border:'0.5px solid '+tool.color+'44', borderRadius:12,
+                      padding:'14px 20px', cursor:'pointer', textAlign:'left', width:180,
+                      transition:'border-color 0.15s' }}
+                    onMouseEnter={function(e){ e.currentTarget.style.borderColor=tool.color; }}
+                    onMouseLeave={function(e){ e.currentTarget.style.borderColor=tool.color+'44'; }}>
+                    <div style={{ fontSize:12, fontWeight:700, color:tool.color, marginBottom:4 }}>{tool.label}</div>
+                    <div style={{ fontSize:10, color:'#555' }}>{tool.sub}</div>
+                  </button>;
+                })}
               </div>
             </div>
           )}
