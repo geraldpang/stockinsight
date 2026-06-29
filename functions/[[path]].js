@@ -39,7 +39,7 @@ export async function onRequest(context) {
   try {
 
     // Only handle specific API routes -- pass everything else to the React app
-    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache", "/simfin", "/stripe", "/options", "/journal"];
+    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache", "/simfin", "/stripe", "/options", "/journal", "/watchlist", "/mostactive", "/groupeddaily"];
     var isApiRoute  = false;
     for (var ri = 0; ri < knownRoutes.length; ri++) {
       if (url.pathname === knownRoutes[ri] || url.pathname.startsWith(knownRoutes[ri])) {
@@ -936,20 +936,6 @@ export async function onRequest(context) {
           return new Response(JSON.stringify({ ok: true, updated: updated }), { headers: jHeaders });
         }
 
-        // POST updateField — safely update a single user-editable field on a journal row
-        if (context.request.method === "POST" && jAction === "updateField") {
-          var ufBody = await context.request.json();
-          var ufId   = ufBody.id;
-          var ufField = ufBody.field || "";
-          var ufValue = ufBody.value;
-          // Whitelist: only allow safe user-editable fields
-          var ALLOWED_FIELDS = ["purchase_price", "buy_price", "trade_notes"];
-          if (!ufId) return new Response(JSON.stringify({ error: "id required" }), { status: 400, headers: jHeaders });
-          if (ALLOWED_FIELDS.indexOf(ufField) === -1) return new Response(JSON.stringify({ error: "Field not allowed: " + ufField }), { status: 400, headers: jHeaders });
-          await DB.prepare("UPDATE technical_signal_journal SET " + ufField + "=?, updated_at=datetime('now') WHERE id=?").bind(ufValue !== undefined ? ufValue : null, ufId).run();
-          return new Response(JSON.stringify({ ok: true }), { headers: jHeaders });
-        }
-
         // POST delete snapshot
         if (context.request.method === "POST" && jAction === "deleteSnapshot") {
           var bodyDel = await context.request.json();
@@ -977,7 +963,266 @@ export async function onRequest(context) {
       }
     }
 
-    if (!target) return new Response("Missing url", { status: 400 });
+    // ── Watchlist API (D1 database, per-user) ─────────────────────────────────
+    if (url.pathname.startsWith("/watchlist")) {
+      var wDB = context.env.DB;
+      var wHeaders = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
+      if (!wDB) return new Response(JSON.stringify({ error: "D1 not configured" }), { status: 500, headers: wHeaders });
+
+      // Extract Clerk user_id directly from Bearer JWT (same logic as getClerkUserId)
+      var wUserId = null;
+      try {
+        var wAuthHeader = context.request.headers.get("Authorization") || "";
+        var wToken = wAuthHeader.startsWith("Bearer ") ? wAuthHeader.slice(7) : null;
+        if (wToken) {
+          var wParts = wToken.split(".");
+          if (wParts.length === 3) {
+            var wPayload = JSON.parse(atob(wParts[1].replace(/-/g,"+").replace(/_/g,"/")));
+            wUserId = wPayload.sub || null;
+          }
+        }
+      } catch(e) { wUserId = null; }
+      if (!wUserId) return new Response(JSON.stringify({ error: "Not signed in" }), { status: 401, headers: wHeaders });
+
+      // Premium gate: check Stripe subscription status or admin key
+      var wAdminKey = context.env.ADMIN_KEY || "stockinsight-admin";
+      var wReqAdmin = context.request.headers.get("X-Admin-Key") || "";
+      var wIsAdmin  = wReqAdmin === wAdminKey;
+      if (!wIsAdmin) {
+        var wCACHE    = context.env.CACHE;
+        var wSubStatus = wCACHE ? await wCACHE.get("stripe:sub:" + wUserId) : null;
+        var wIsPaid    = wSubStatus === "active" || wSubStatus === "cancelling";
+        if (!wIsPaid) return new Response(JSON.stringify({ error: "Premium required", code: "PREMIUM_REQUIRED" }), { status: 403, headers: wHeaders });
+      }
+
+      var wAction = url.searchParams.get("action");
+
+      try {
+        // GET — return watchlist items + latest snapshot per ticker + active locks
+        if (context.request.method === "GET") {
+          var wItems = await wDB.prepare(
+            "SELECT * FROM watchlist_items WHERE user_id = ? ORDER BY created_at DESC"
+          ).bind(wUserId).all();
+          var tickers = (wItems.results || []).map(function(r){ return r.ticker; });
+          var snapMap = {};
+          if (tickers.length > 0) {
+            // Latest snapshot per ticker for this user
+            var placeholders = tickers.map(function(){ return "?"; }).join(",");
+            var snaps = await wDB.prepare(
+              "SELECT wss.* FROM watchlist_signal_snapshots wss " +
+              "INNER JOIN (SELECT ticker, MAX(snapshot_date) AS md FROM watchlist_signal_snapshots WHERE user_id=? AND ticker IN (" + placeholders + ") GROUP BY ticker) latest " +
+              "ON wss.user_id=? AND wss.ticker=latest.ticker AND wss.snapshot_date=latest.md"
+            ).bind.apply(
+              wDB.prepare(
+                "SELECT wss.* FROM watchlist_signal_snapshots wss " +
+                "INNER JOIN (SELECT ticker, MAX(snapshot_date) AS md FROM watchlist_signal_snapshots WHERE user_id=? AND ticker IN (" + placeholders + ") GROUP BY ticker) latest " +
+                "ON wss.user_id=? AND wss.ticker=latest.ticker AND wss.snapshot_date=latest.md"
+              ),
+              [wUserId].concat(tickers).concat([wUserId])
+            ).all();
+            (snaps.results || []).forEach(function(s){ snapMap[s.ticker] = s; });
+
+            // Previous 5 snapshots per ticker for arrow calculation
+            var prevMap = {};
+            for (var ti = 0; ti < tickers.length; ti++) {
+              var prevSnaps = await wDB.prepare(
+                "SELECT snapshot_date,rba_rank,trend_rank,momentum_rank,reversal_rank,money_flow_rank " +
+                "FROM watchlist_signal_snapshots WHERE user_id=? AND ticker=? " +
+                "ORDER BY snapshot_date DESC LIMIT 6"
+              ).bind(wUserId, tickers[ti]).all();
+              prevMap[tickers[ti]] = (prevSnaps.results || []);
+            }
+            snapMap["__prev"] = prevMap;
+
+            // Active signal locks per ticker — graceful fallback if table not yet created
+            var lockMap = {};
+            try {
+              for (var li = 0; li < tickers.length; li++) {
+                var lockRow = await wDB.prepare(
+                  "SELECT * FROM watchlist_signal_locks WHERE user_id=? AND ticker=? AND is_active=1 ORDER BY locked_at DESC LIMIT 1"
+                ).bind(wUserId, tickers[li]).first();
+                if (lockRow) lockMap[tickers[li]] = lockRow;
+              }
+            } catch(lockErr) { lockMap = {}; /* table may not exist yet */ }
+            snapMap["__locks"] = lockMap;
+          }
+          return new Response(JSON.stringify({ items: wItems.results || [], snapshots: snapMap }), { headers: wHeaders });
+        }
+
+        var wBody = {};
+        try { wBody = await context.request.json(); } catch(e) {}
+
+        // POST add
+        if (wAction === "add") {
+          var addTicker = (wBody.ticker || "").toUpperCase().trim();
+          if (!addTicker) return new Response(JSON.stringify({ error: "ticker required" }), { status: 400, headers: wHeaders });
+          await wDB.prepare(
+            "INSERT INTO watchlist_items (user_id, ticker, company_name) VALUES (?,?,?) " +
+            "ON CONFLICT(user_id, ticker) DO UPDATE SET company_name=excluded.company_name"
+          ).bind(wUserId, addTicker, wBody.companyName || null).run();
+          return new Response(JSON.stringify({ ok: true, ticker: addTicker }), { headers: wHeaders });
+        }
+
+        // POST remove
+        if (wAction === "remove") {
+          var remTicker = (wBody.ticker || "").toUpperCase().trim();
+          if (!remTicker) return new Response(JSON.stringify({ error: "ticker required" }), { status: 400, headers: wHeaders });
+          await wDB.prepare("DELETE FROM watchlist_items WHERE user_id=? AND ticker=?").bind(wUserId, remTicker).run();
+          return new Response(JSON.stringify({ ok: true }), { headers: wHeaders });
+        }
+
+        // POST snapshot — store today's signal snapshot for one ticker
+        if (wAction === "snapshot") {
+          var sTicker = (wBody.ticker || "").toUpperCase().trim();
+          var sDate   = new Date().toISOString().split("T")[0];
+          if (!sTicker || !wBody.snap) return new Response(JSON.stringify({ error: "ticker and snap required" }), { status: 400, headers: wHeaders });
+          var s = wBody.snap;
+          await wDB.prepare(
+            "INSERT INTO watchlist_signal_snapshots " +
+            "(user_id,ticker,snapshot_date,close_price,price_change_pct,hi52,lo52," +
+            "rba_verdict,rba_rank,trend_status,trend_score,trend_rank," +
+            "momentum_status,momentum_score,momentum_rank," +
+            "reversal_status,reversal_score,reversal_rank," +
+            "money_flow_status,money_flow_score,money_flow_rank,signal_snapshot_json) " +
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) " +
+            "ON CONFLICT(user_id,ticker,snapshot_date) DO UPDATE SET " +
+            "close_price=excluded.close_price,price_change_pct=excluded.price_change_pct," +
+            "hi52=excluded.hi52,lo52=excluded.lo52," +
+            "rba_verdict=excluded.rba_verdict,rba_rank=excluded.rba_rank," +
+            "trend_status=excluded.trend_status,trend_score=excluded.trend_score,trend_rank=excluded.trend_rank," +
+            "momentum_status=excluded.momentum_status,momentum_score=excluded.momentum_score,momentum_rank=excluded.momentum_rank," +
+            "reversal_status=excluded.reversal_status,reversal_score=excluded.reversal_score,reversal_rank=excluded.reversal_rank," +
+            "money_flow_status=excluded.money_flow_status,money_flow_score=excluded.money_flow_score,money_flow_rank=excluded.money_flow_rank," +
+            "signal_snapshot_json=excluded.signal_snapshot_json,created_at=datetime('now')"
+          ).bind(
+            wUserId, sTicker, sDate,
+            s.closePrice||null, s.priceChangePct||null, s.hi52||null, s.lo52||null,
+            s.rbaVerdict||null, s.rbaRank||null,
+            s.trendStatus||null, s.trendScore||null, s.trendRank||null,
+            s.momentumStatus||null, s.momentumScore||null, s.momentumRank||null,
+            s.reversalStatus||null, s.reversalScore||null, s.reversalRank||null,
+            s.moneyFlowStatus||null, s.moneyFlowScore||null, s.moneyFlowRank||null,
+            JSON.stringify(s)
+          ).run();
+          return new Response(JSON.stringify({ ok: true }), { headers: wHeaders });
+        }
+
+        // POST lock — save current snapshot as active signal lock baseline
+        if (wAction === "lock") {
+          var lTicker = (wBody.ticker || "").toUpperCase().trim();
+          if (!lTicker) return new Response(JSON.stringify({ error: "ticker required" }), { status: 400, headers: wHeaders });
+          var ls = wBody.currentSnapshot || {};
+          var lPrice = ls.closePrice || ls.close_price || null;
+          try {
+            await wDB.prepare(
+              "UPDATE watchlist_signal_locks SET is_active=0 WHERE user_id=? AND ticker=? AND is_active=1"
+            ).bind(wUserId, lTicker).run();
+            await wDB.prepare(
+              "INSERT INTO watchlist_signal_locks " +
+              "(user_id,ticker,locked_price," +
+              "locked_rba_verdict,locked_rba_rank," +
+              "locked_trend_status,locked_trend_score,locked_trend_rank," +
+              "locked_momentum_status,locked_momentum_score,locked_momentum_rank," +
+              "locked_reversal_status,locked_reversal_score,locked_reversal_rank," +
+              "locked_money_flow_status,locked_money_flow_score,locked_money_flow_rank," +
+              "locked_snapshot_json,is_active) " +
+              "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)"
+            ).bind(
+              wUserId, lTicker, lPrice,
+              ls.rbaVerdict||null, ls.rbaRank||null,
+              ls.trendStatus||null, ls.trendScore||null, ls.trendRank||null,
+              ls.momentumStatus||null, ls.momentumScore||null, ls.momentumRank||null,
+              ls.reversalStatus||null, ls.reversalScore||null, ls.reversalRank||null,
+              ls.moneyFlowStatus||null, ls.moneyFlowScore||null, ls.moneyFlowRank||null,
+              JSON.stringify(ls)
+            ).run();
+          } catch(lockWriteErr) {
+            return new Response(JSON.stringify({ error: "Lock table not ready. Run DB migration first: watchlist_signal_locks" }), { status: 500, headers: wHeaders });
+          }
+          return new Response(JSON.stringify({ ok: true }), { headers: wHeaders });
+        }
+
+        // POST resetLock — deactivate the active lock for a ticker
+        if (wAction === "resetLock") {
+          var rlTicker = (wBody.ticker || "").toUpperCase().trim();
+          if (!rlTicker) return new Response(JSON.stringify({ error: "ticker required" }), { status: 400, headers: wHeaders });
+          try {
+            await wDB.prepare(
+              "UPDATE watchlist_signal_locks SET is_active=0 WHERE user_id=? AND ticker=? AND is_active=1"
+            ).bind(wUserId, rlTicker).run();
+          } catch(rlErr) { /* ignore if table doesn't exist */ }
+          return new Response(JSON.stringify({ ok: true }), { headers: wHeaders });
+        }
+
+        return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: wHeaders });
+      } catch(wErr) {
+        return new Response(JSON.stringify({ error: "Watchlist DB error: " + wErr.message }), { status: 500, headers: wHeaders });
+      }
+    }
+
+    // ── Most Active Tickers (Polygon) ─────────────────────────────────────────
+    if (url.pathname === "/mostactive") {
+      var maKey = context.env.MASSIVE_KEY;
+      var maHeaders = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
+      if (!maKey) return new Response(JSON.stringify({ error: "MASSIVE_KEY not configured" }), { status: 500, headers: maHeaders });
+      try {
+        var maRes = await fetch(
+          "https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/most_active?apiKey=" + maKey,
+          { headers: { "User-Agent": UA } }
+        );
+        var maData = await maRes.json();
+        var tickers = (maData.tickers || []).map(function(t) {
+          return {
+            symbol: t.ticker, name: t.ticker,
+            regularMarketPrice:  (t.day && t.day.c) || (t.lastTrade && t.lastTrade.p) || 10,
+            regularMarketVolume: (t.day && t.day.v) || 0,
+            quoteType: "EQUITY",
+          };
+        }).filter(function(t){ return t.regularMarketPrice > 5 && t.regularMarketVolume > 500000; });
+        return new Response(JSON.stringify({ tickers: tickers }), { headers: maHeaders });
+      } catch(e) {
+        return new Response(JSON.stringify({ error: "Polygon most-active failed: " + e.message }), { status: 500, headers: maHeaders });
+      }
+    }
+
+    // ── Grouped Daily (Polygon) — full market snapshot filtered by volume ────
+    if (url.pathname === "/groupeddaily") {
+      var gdKey = context.env.MASSIVE_KEY;
+      var gdHeaders = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
+      if (!gdKey) return new Response(JSON.stringify({ error: "MASSIVE_KEY not configured" }), { status: 500, headers: gdHeaders });
+      try {
+        // Use previous trading day — walk back up to 5 days to find a trading day
+        var gdDate = new Date();
+        for (var di = 1; di <= 5; di++) {
+          gdDate = new Date(Date.now() - di * 86400000);
+          var dow = gdDate.getDay();
+          if (dow !== 0 && dow !== 6) break; // skip weekends
+        }
+        var gdDateStr = gdDate.toISOString().slice(0, 10);
+        var gdRes = await fetch(
+          "https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/" + gdDateStr + "?adjusted=true&apiKey=" + gdKey,
+          { headers: { "User-Agent": UA } }
+        );
+        var gdData = await gdRes.json();
+        var gdResults = gdData.results || [];
+        // Filter: price > 5, volume > 1M, then sort by volume desc, take top 500
+        var filtered = gdResults
+          .filter(function(t){ return t.c > 5 && t.v > 1000000; })
+          .sort(function(a, b){ return b.v - a.v; })
+          .slice(0, 500)
+          .map(function(t){
+            return {
+              symbol: t.T, name: t.T,
+              regularMarketPrice:  t.c || 10,
+              regularMarketVolume: t.v || 0,
+              quoteType: "EQUITY",
+            };
+          });
+        return new Response(JSON.stringify({ tickers: filtered, date: gdDateStr, total: gdResults.length }), { headers: gdHeaders });
+      } catch(e) {
+        return new Response(JSON.stringify({ error: "Grouped daily failed: " + e.message }), { status: 500, headers: gdHeaders });
+      }
+    }
 
     if (target.includes("financialmodelingprep.com")) {
       const fmpKey = context.env.FMP_KEY;
