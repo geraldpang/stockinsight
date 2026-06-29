@@ -12187,7 +12187,7 @@ export function JournalPage() {
                     <tr>
                       {renderTh("snapshot_date","Date")}
                       {renderTh("ticker","Ticker")}
-                      <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap" }}>Lock Price</th>
+                      <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap" }}>Current Price</th>
                       <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap" }}>Buy Price</th>
                       <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",minWidth:170 }}>Technical View</th>
                       <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap" }}>Lock Ret.</th>
@@ -12218,10 +12218,10 @@ export function JournalPage() {
                                 style={{ background:"none",border:"none",fontWeight:800,color:"#c8f000",fontSize:12,cursor:"pointer",padding:0,textAlign:"left" }}>
                                 {r.ticker}
                               </button>
-                              {curPrice && <span style={{ fontSize:9,color:"#555" }}>{"now $"+parseFloat(curPrice).toFixed(2)}</span>}
+                
                             </div>
                           </td>
-                          <td style={{ padding:"8px 10px",color:"#f0ede6",whiteSpace:"nowrap" }}>{lp!==null?"$"+parseFloat(lp).toFixed(2):"\u2014"}</td>
+                          <td style={{ padding:"8px 10px",color:"#f0ede6",whiteSpace:"nowrap" }}>{curPrice?"$"+parseFloat(curPrice).toFixed(2):<span style={{color:"#444",fontSize:10}}>{curPrice===undefined?"⧗":"—"}</span>}</td>
                           <td style={{ padding:"8px 8px" }}>{renderBuyPriceCell(r)}</td>
                           <td style={{ padding:"8px 10px" }}>
                             <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
