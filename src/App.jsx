@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.31</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.32</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.31</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.32</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11336,127 +11336,158 @@ function PaywallCard({ sym, name, onBack, isPaid, clerkUser, mode }) {
 }
 
 // -- Landing page -------------------------------------------------------------
-// ─── Technical Signal Journal v2.31 ───────────────────────────────────────────
+// ─── Technical Signal Journal v2.32 ───────────────────────────────────────────
 export function JournalPage() {
   var F = "'Inter', system-ui, sans-serif";
-  var [adminKey, setAdminKey]       = useState(localStorage.getItem("journal_admin_key") || "");
-  var [authed, setAuthed]           = useState(false);
-  var [authError, setAuthError]     = useState("");
-  var [watchlist, setWatchlist]     = useState([]);
-  var [journal, setJournal]         = useState([]);
-  var [addTicker, setAddTicker]     = useState("");
-  var [loading, setLoading]         = useState("");
-  var [toast, setToast]             = useState(null);
-  var [filter, setFilter]           = useState({ ticker:"", trend:"", momentum:"", reversal:"", smartMoney:"", outcome:"" });
-  var [generating, setGenerating]   = useState({});
-  var [sortCol, setSortCol]         = useState("snapshot_date");
-  var [sortDir, setSortDir]         = useState("desc");
-  var [activeTab, setActiveTab]     = useState("journal");
-  var [retWindow, setRetWindow]     = useState("20d");
+  var [adminKey, setAdminKey]         = useState(localStorage.getItem("journal_admin_key") || "");
+  var [authed, setAuthed]             = useState(false);
+  var [authError, setAuthError]       = useState("");
+  var [watchlist, setWatchlist]       = useState([]);
+  var [watchData, setWatchData]       = useState({});   // { ticker: { price, trend, smf, fs } }
+  var [journal, setJournal]           = useState([]);
+  var [addTicker, setAddTicker]       = useState("");
+  var [loading, setLoading]           = useState("");
+  var [toast, setToast]               = useState(null);
+  var [filter, setFilter]             = useState({ ticker:"", trend:"", outcome:"", momentum:"", reversal:"", smartMoney:"" });
+  var [locking, setLocking]           = useState({});   // { ticker: true } while locking
+  var [sortCol, setSortCol]           = useState("snapshot_date");
+  var [sortDir, setSortDir]           = useState("desc");
+  var [activeTab, setActiveTab]       = useState("journal");
+  var [retWindow, setRetWindow]       = useState("current");
   var [showAddTicker, setShowAddTicker] = useState(false);
-  var [moreFilters, setMoreFilters] = useState(false);
-  var [expandedFS, setExpandedFS]   = useState({});
-  var [editingPP, setEditingPP]     = useState({});   // { rowId: draftString }
-  var [savingPP, setSavingPP]       = useState({});
-  var [livePrices, setLivePrices]   = useState({});   // { ticker: currentPrice }
+  var [moreFilters, setMoreFilters]   = useState(false);
+  var [expandedFS, setExpandedFS]     = useState({});
+  var [editingBP, setEditingBP]       = useState({});   // { rowId: draftString }
+  var [savingBP, setSavingBP]         = useState({});
+  var [livePrices, setLivePrices]     = useState({});   // { ticker: currentPrice }
 
-  // ── Helpers ─────────────────────────────────────────────────────────────────
+  // ── Toast ────────────────────────────────────────────────────────────────────
   function showToast(msg, type) {
     setToast({ msg:msg, type:type||"ok" });
     setTimeout(function(){ setToast(null); }, 3500);
   }
 
-  // Tolerant field accessors
-  function getClose(r)        { return r.close_price       ?? r.close       ?? null; }
-  function getTrend(r)        { return r.trend_status       ?? r.trend       ?? null; }
-  function getMomentum(r)     { return r.momentum_status    ?? r.momentum    ?? null; }
-  function getReversal(r)     { return r.reversal_status    ?? r.reversal    ?? null; }
-  function getSmartMoney(r)   { return r.smart_money_status ?? r.smartMoney  ?? r.smart_money ?? null; }
-  function getTrendScore(r)   { return r.trend_score    ?? null; }
-  function getMomScore(r)     { return r.momentum_score ?? null; }
-  function getPurchasePrice(r){ return r.purchase_price  ?? r.purchasePrice  ?? r.entry_price ?? r.entryPrice ?? null; }
-  function getLatestPrice(r)  { return livePrices[r.ticker] ?? r.latestPrice ?? r.currentPrice ?? getClose(r); }
+  // ── Tolerant field accessors ─────────────────────────────────────────────────
+  function getLockPrice(r)   { return r.close_price    ?? r.lock_price   ?? r.close      ?? null; }
+  function getBuyPrice(r)    { return r.buy_price       ?? r.purchase_price ?? r.purchasePrice ?? r.entryPrice ?? r.entry_price ?? null; }
+  function getTrend(r)       { return r.trend_status    ?? r.trend        ?? null; }
+  function getMomentum(r)    { return r.momentum_status ?? r.momentum     ?? null; }
+  function getReversal(r)    { return r.reversal_status ?? r.reversal     ?? null; }
+  function getSmartMoney(r)  { return r.smart_money_status ?? r.smartMoney ?? r.smart_money ?? null; }
+  function getTrendScore(r)  { return r.trend_score    ?? null; }
+  function getMomScore(r)    { return r.momentum_score ?? null; }
 
-  // Force Strike tolerant accessor
   function getForceStrike(r) {
-    var score  = r.fs_score        ?? r.fsScore        ?? null;
-    var stars  = r.trade_stars     ?? r.tradeStars     ?? null;
-    var age    = r.pattern_age     ?? r.patternAge     ?? null;
-    var entry  = r.fs_entry        ?? r.fsEntry        ?? null;
-    var stop   = r.fs_stop         ?? r.fsStop         ?? null;
-    var risk   = r.fs_risk_pct     ?? r.fsRiskPct      ?? null;
-    var atr    = r.fs_atr          ?? r.fsAtr          ?? null;
-    var riskAtr= r.fs_risk_atr     ?? r.fsRiskAtr      ?? null;
-    var target = r.fs_target       ?? r.fsTarget       ?? null;
+    var score  = r.fs_score     ?? r.fsScore     ?? null;
+    var stars  = r.trade_stars  ?? r.tradeStars  ?? null;
+    var age    = r.pattern_age  ?? r.patternAge  ?? null;
+    var entry  = r.fs_entry     ?? r.fsEntry     ?? null;
+    var stop   = r.fs_stop      ?? r.fsStop      ?? null;
+    var risk   = r.fs_risk_pct  ?? r.fsRiskPct   ?? null;
+    var atr    = r.fs_atr       ?? r.fsAtr       ?? null;
+    var riskAtr= r.fs_risk_atr  ?? r.fsRiskAtr   ?? null;
+    var target = r.fs_target    ?? r.fsTarget    ?? null;
     var support= r.technical_support ?? r.technicalSupport ?? null;
-    var status = r.force_strike    ?? r.forceStrike    ?? r.fs          ?? null;
+    var status = r.force_strike ?? r.forceStrike ?? r.fs  ?? null;
     if (score===null && stars===null && status===null) return null;
     return { score:score, stars:stars, age:age, entry:entry, stop:stop, risk:risk, atr:atr, riskAtr:riskAtr, target:target, support:support, status:status };
   }
 
-  function getPurchaseReturn(r) {
-    var pp = getPurchasePrice(r);
-    if (!pp || parseFloat(pp) <= 0) return null;
-    // Prefer live price fetched on load, then fall back to stored fields
-    var lp = livePrices[r.ticker] ?? r.latestPrice ?? r.currentPrice ?? null;
+  // ── Return window → stored DB field ─────────────────────────────────────────
+  var WIN_MAP = { "current":null, "5d":"future_return_5d","10d":"future_return_10d","20d":"future_return_20d","30d":"future_return_30d","90d":"future_return_90d" };
+  var WIN_DAYS = { "5d":5,"10d":10,"20d":20,"30d":30,"90d":90 };
+
+  // Returns { val, live, pending } or null
+  function getLockReturn(r, win) {
+    var lp = getLockPrice(r);
     if (!lp || parseFloat(lp) <= 0) return null;
-    return (parseFloat(lp) - parseFloat(pp)) / parseFloat(pp) * 100;
+
+    if (win === "current") {
+      var cur = livePrices[r.ticker];
+      if (!cur) return null;
+      return { val: (parseFloat(cur) - parseFloat(lp)) / parseFloat(lp) * 100, live: true, pending: false };
+    }
+    // Non-current window: prefer stored value
+    var key = WIN_MAP[win];
+    var stored = key ? r[key] : null;
+    if (stored !== null && stored !== undefined) {
+      return { val: parseFloat(stored), live: false, pending: false };
+    }
+    // Fall back to live if enough days have elapsed
+    var needed = WIN_DAYS[win] || 20;
+    var snap = r.snapshot_date ? new Date(r.snapshot_date) : null;
+    if (!snap) return { val: null, live: false, pending: true };
+    var elapsed = Math.floor((new Date() - snap) / (1000*60*60*24));
+    if (elapsed < needed) return { val: null, live: false, pending: true };
+    var cur2 = livePrices[r.ticker];
+    if (!cur2) return null;
+    return { val: (parseFloat(cur2) - parseFloat(lp)) / parseFloat(lp) * 100, live: true, pending: false };
   }
 
-  function getReturnVal(r, win) {
-    var map = { "5d":"future_return_5d","10d":"future_return_10d","20d":"future_return_20d","30d":"future_return_30d","90d":"future_return_90d" };
-    var key = map[win] || "future_return_20d";
-    var v = r[key];
-    if (v!==null && v!==undefined) return { val: parseFloat(v), live: false };
-    // Fall back to live price calculation
-    var livePrice = livePrices[r.ticker];
-    var closePrice = getClose(r);
-    if (!livePrice || !closePrice || parseFloat(closePrice) <= 0) return null;
-    // Only show live return if enough calendar days have elapsed for the window
-    var winDays = { "5d":5,"10d":10,"20d":20,"30d":30,"90d":90 };
-    var needed = winDays[win] || 20;
-    var snapshotDate = r.snapshot_date ? new Date(r.snapshot_date) : null;
-    var today = new Date();
-    var elapsed = snapshotDate ? Math.floor((today - snapshotDate) / (1000*60*60*24)) : 0;
-    if (elapsed < needed) return null; // window not reached yet
-    return { val: (parseFloat(livePrice) - parseFloat(closePrice)) / parseFloat(closePrice) * 100, live: true };
-  }
-  // Unwrap helper — returns just the numeric value (or null)
-  function getReturnNum(r, win) {
-    var res = getReturnVal(r, win);
-    return res ? res.val : null;
-  }
-  function isLiveReturn(r, win) {
-    var res = getReturnVal(r, win);
-    return res ? res.live : false;
+  function getBuyReturn(r, win) {
+    var bp = getBuyPrice(r);
+    if (!bp || parseFloat(bp) <= 0) return null;
+
+    if (win === "current") {
+      var cur = livePrices[r.ticker];
+      if (!cur) return null;
+      return { val: (parseFloat(cur) - parseFloat(bp)) / parseFloat(bp) * 100, live: true, pending: false };
+    }
+    var needed = WIN_DAYS[win] || 20;
+    var snap = r.snapshot_date ? new Date(r.snapshot_date) : null;
+    if (!snap) return { val: null, live: false, pending: true };
+    var elapsed = Math.floor((new Date() - snap) / (1000*60*60*24));
+    if (elapsed < needed) return { val: null, live: false, pending: true };
+    // For historical windows, use stored future price to compute buy return
+    var key = WIN_MAP[win];
+    if (key) {
+      var stored = r[key];
+      if (stored !== null && stored !== undefined) {
+        var lp = getLockPrice(r);
+        if (lp && parseFloat(lp) > 0) {
+          var futurePrice = parseFloat(lp) * (1 + parseFloat(stored) / 100);
+          return { val: (futurePrice - parseFloat(bp)) / parseFloat(bp) * 100, live: false, pending: false };
+        }
+      }
+    }
+    var cur2 = livePrices[r.ticker];
+    if (!cur2) return null;
+    return { val: (parseFloat(cur2) - parseFloat(bp)) / parseFloat(bp) * 100, live: true, pending: false };
   }
 
   function getOutcomeLabel(r, win) {
-    var v = getReturnNum(r, win);
-    if (v===null) return "Pending";
-    if (v>=5)  return "Strong Win";
-    if (v>0)   return "Win";
-    if (v>=-1) return "Neutral";
-    if (v>-5)  return "Failed";
+    var res = getLockReturn(r, win);
+    if (!res) return "N/A";
+    if (res.pending) return "Pending";
+    if (res.val === null) return "N/A";
+    var v = res.val;
+    if (v >= 5)  return "Strong Win";
+    if (v > 0)   return "Win";
+    if (v >= -1) return "Neutral";
+    if (v > -5)  return "Failed";
     return "Strong Failed";
   }
 
   // ── API ──────────────────────────────────────────────────────────────────────
   function jFetch(action, method, body) {
-    var opts = { method: method||"GET", headers: { "X-Admin-Key": adminKey, "Content-Type": "application/json" } };
+    var opts = { method:method||"GET", headers:{ "X-Admin-Key":adminKey, "Content-Type":"application/json" } };
     if (body) opts.body = JSON.stringify(body);
-    return fetch("/journal?action=" + action, opts).then(function(res) {
-      var ct = res.headers.get("content-type") || "";
+    return fetch("/journal?action="+action, opts).then(function(res) {
+      var ct = res.headers.get("content-type")||"";
       if (!ct.includes("application/json")) {
-        return res.text().then(function(t) { throw new Error("Non-JSON (" + res.status + "): " + t.substring(0,100)); });
+        return res.text().then(function(t){ throw new Error("Non-JSON ("+res.status+"): "+t.substring(0,100)); });
       }
       return res.json();
     });
   }
-  function loadWatchlist() { return jFetch("watchlist").then(function(d){ if(d.watchlist) setWatchlist(d.watchlist); }); }
+
+  function loadWatchlist() {
+    return jFetch("watchlist").then(function(d){ if(d.watchlist) setWatchlist(d.watchlist); });
+  }
+
   function loadJournal(tk) {
-    var url = "/journal?action=journal&limit=500" + (tk ? "&ticker=" + tk : "");
-    return fetch(url, { headers:{ "X-Admin-Key": adminKey } }).then(function(res){ return res.json(); })
+    var url = "/journal?action=journal&limit=500"+(tk?"&ticker="+tk:"");
+    return fetch(url, { headers:{ "X-Admin-Key":adminKey } }).then(function(res){ return res.json(); })
       .then(function(d){
         if(d.entries) {
           setJournal(d.entries);
@@ -11465,139 +11496,188 @@ export function JournalPage() {
       });
   }
 
-  // Fetch current prices for all unique tickers in the journal, in batches
+  // Load current prices for all unique tickers in journal + watchlist
   function loadLivePrices(entries) {
     var tickers = [];
     (entries||[]).forEach(function(r){ if(r.ticker && tickers.indexOf(r.ticker)===-1) tickers.push(r.ticker); });
+    watchlist.forEach(function(w){ if(w.ticker && tickers.indexOf(w.ticker)===-1) tickers.push(w.ticker); });
     if(tickers.length===0) return;
-    // Fetch in parallel, up to 8 at a time to avoid overwhelming the proxy
-    var batches = [];
-    for(var i=0; i<tickers.length; i+=8) batches.push(tickers.slice(i,i+8));
     var result = {};
+    var batches = [];
+    for(var i=0;i<tickers.length;i+=8) batches.push(tickers.slice(i,i+8));
     var chain = Promise.resolve();
     batches.forEach(function(batch) {
       chain = chain.then(function() {
         return Promise.all(batch.map(function(sym) {
-          return fetch("/massive?sym="+sym, { headers:{ "X-Admin-Key": adminKey } })
+          return fetch("/massive?sym="+sym, { headers:{ "X-Admin-Key":adminKey } })
             .then(function(res){ return res.json(); })
             .then(function(d){
-              var price = (d && d.snapshot && d.snapshot.close) ? d.snapshot.close
-                        : (d && d.lastTrade && d.lastTrade.price) ? d.lastTrade.price
-                        : null;
-              if(price) result[sym] = parseFloat(price);
+              var price = (d&&d.snapshot&&d.snapshot.close) ? d.snapshot.close
+                        : (d&&d.lastTrade&&d.lastTrade.price) ? d.lastTrade.price : null;
+              var trendSt = (d&&d.indicators) ? null : null; // kept for future
+              if (price) {
+                result[sym] = parseFloat(price);
+                // Store per-ticker watch data for watchlist display
+                setWatchData(function(prev){
+                  var ind = (d&&d.indicators)||{};
+                  var snap = (d&&d.snapshot)||{};
+                  return Object.assign({},prev,{[sym]:{
+                    price: parseFloat(price),
+                    change: snap.change||null,
+                  }});
+                });
+              }
             })
             .catch(function(){});
         }));
       }).then(function(){
-        // Update incrementally so early results show fast
-        setLivePrices(function(prev){ return Object.assign({}, prev, result); });
+        setLivePrices(function(prev){ return Object.assign({},prev,result); });
       });
     });
   }
+
+  // Load watchlist live data separately (also called on auth)
+  function loadWatchlistData(wl) {
+    var tickers = (wl||watchlist).map(function(w){ return w.ticker; });
+    if(!tickers.length) return;
+    tickers.forEach(function(sym) {
+      fetch("/massive?sym="+sym, { headers:{ "X-Admin-Key":adminKey } })
+        .then(function(res){ return res.json(); })
+        .then(function(d){
+          var snap = (d&&d.snapshot)||{};
+          var ind  = (d&&d.indicators)||{};
+          var price = snap.close || (d&&d.lastTrade&&d.lastTrade.price) || null;
+          if(price) setLivePrices(function(p){ return Object.assign({},p,{[sym]:parseFloat(price)}); });
+          // Derive quick technical label from indicators
+          var trendLbl = null;
+          var rsi = ind.rsi14 || null;
+          var sma50 = ind.sma50 || null; var sma200 = ind.sma200 || null;
+          var ema20 = ind.ema20 || null;
+          if(price && sma50 && sma200) {
+            if(price>sma200 && sma50>sma200) trendLbl="Uptrend";
+            else if(price<sma200 && sma50<sma200) trendLbl="Downtrend";
+            else trendLbl="Sideways";
+          }
+          setWatchData(function(prev){
+            return Object.assign({},prev,{[sym]:{
+              price: price ? parseFloat(price) : null,
+              change: snap.change||null,
+              trend: trendLbl,
+            }});
+          });
+        })
+        .catch(function(){});
+    });
+  }
+
   function handleAuth() {
     setAuthError("");
     jFetch("watchlist").then(function(d) {
-      if (d.error) { setAuthError("\u274C " + d.error); return; }
+      if(d.error){ setAuthError("\u274C "+d.error); return; }
       localStorage.setItem("journal_admin_key", adminKey);
-      setAuthed(true); setWatchlist(d.watchlist||[]); loadJournal();
-    }).catch(function(e){ setAuthError("\u274C " + e.message); });
+      var wl = d.watchlist||[];
+      setAuthed(true); setWatchlist(wl);
+      loadJournal();
+      loadWatchlistData(wl);
+    }).catch(function(e){ setAuthError("\u274C "+e.message); });
   }
+
   function handleAddTicker() {
     var t = addTicker.trim().toUpperCase();
-    if (!t) return;
-    jFetch("addTicker", "POST", { ticker:t }).then(function(d) {
-      if (d.error) { showToast(d.error,"err"); return; }
+    if(!t) return;
+    jFetch("addTicker","POST",{ticker:t}).then(function(d){
+      if(d.error){ showToast(d.error,"err"); return; }
       showToast(d.message||t+" added.","ok");
-      setAddTicker(""); setShowAddTicker(false); loadWatchlist();
+      setAddTicker(""); setShowAddTicker(false);
+      loadWatchlist().then(function(){ loadWatchlistData(); });
     });
   }
+
   function handleRemove(ticker) {
-    jFetch("removeTicker","POST",{ticker:ticker}).then(function(d){ if(d.ok){ showToast(ticker+" removed.","ok"); loadWatchlist(); } });
+    jFetch("removeTicker","POST",{ticker:ticker}).then(function(d){
+      if(d.ok){ showToast(ticker+" removed.","ok"); loadWatchlist(); }
+    });
   }
+
   function handleDeleteSnapshot(ticker, date) {
-    if (!window.confirm("Delete "+ticker+" snapshot for "+date+"?")) return;
+    if(!window.confirm("Delete "+ticker+" signal for "+date+"?")) return;
     jFetch("deleteSnapshot","POST",{ticker:ticker,date:date}).then(function(d){
       if(d.ok){ showToast(ticker+" "+date+" deleted.","ok"); loadJournal(); }
       else showToast("Delete failed: "+(d.error||"unknown"),"err");
     }).catch(function(e){ showToast("Delete error: "+e.message,"err"); });
   }
 
-  // Purchase price save
-  function savePurchasePrice(rowId, val) {
-    setSavingPP(function(s){ return Object.assign({},s,{[rowId]:true}); });
-    var numVal = val==="" ? null : parseFloat(val);
-    jFetch("updateField","POST",{id:rowId,field:"purchase_price",value:numVal}).then(function(d) {
-      if (d.ok) {
-        setJournal(function(prev){ return prev.map(function(row){ return row.id===rowId ? Object.assign({},row,{purchase_price:numVal}) : row; }); });
-        setEditingPP(function(s){ var n=Object.assign({},s); delete n[rowId]; return n; });
-        showToast("Purchase price saved.","ok");
+  // ── Buy Price save ───────────────────────────────────────────────────────────
+  function saveBuyPrice(rowId, val) {
+    setSavingBP(function(s){ return Object.assign({},s,{[rowId]:true}); });
+    var numVal = val===""?null:parseFloat(val);
+    jFetch("updateField","POST",{id:rowId,field:"buy_price",value:numVal}).then(function(d){
+      if(d.ok){
+        setJournal(function(prev){ return prev.map(function(row){ return row.id===rowId?Object.assign({},row,{buy_price:numVal}):row; }); });
+        setEditingBP(function(s){ var n=Object.assign({},s); delete n[rowId]; return n; });
+        showToast("Buy price saved.","ok");
       } else showToast("Save failed: "+(d.error||"unknown"),"err");
-    }).catch(function(e){ showToast("Save error: "+e.message,"err"); })
-    .then(function(){ setSavingPP(function(s){ var n=Object.assign({},s); delete n[rowId]; return n; }); });
-  }
-
-  // Snapshot generation
-  function fetchSnapshotData(ticker) {
-    var headers = { "X-Admin-Key": adminKey };
-    return Promise.all([
-      fetch("/massive?sym="+ticker,{headers:headers}).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-      fetch("/proxy?url=https://query2.finance.yahoo.com/v8/finance/chart/"+ticker+"?range=2y%26interval=1d").then(function(r){ return r.json(); }).catch(function(){ return null; })
-    ]).then(function(results) {
-      var massRes=results[0]; if(!massRes) return null;
-      var aggs=massRes.aggs||[]; var ind=massRes.indicators||{}; var snap=massRes.snapshot||{};
-      var bars=aggs.filter(function(b){ return b&&b.c>0; }).reverse().map(function(b){
-        return { date:b.t?new Date(b.t).toISOString().split("T")[0]:"",open:b.o,high:b.h,low:b.l,close:b.c,volume:b.v||0 };
-      });
-      var today=new Date().toISOString().split("T")[0];
-      var price=snap.close||(bars.length>0?bars[bars.length-1].close:0);
-      return { bars:bars, ind:ind, price:price, date:today };
-    });
-  }
-  function generateSnapshot(ticker) {
-    setGenerating(function(g){ return Object.assign({},g,{[ticker]:true}); });
-    return fetchSnapshotData(ticker).then(function(data) {
-      if (!data||!data.bars||data.bars.length===0){ showToast("No data for "+ticker+".","err"); return; }
-      if (!data.price||data.price<=0){ showToast("No price for "+ticker+".","err"); return; }
-      var snapshot=calculateTechnicalSignalSnapshot({ticker:ticker,date:data.date,ohlcv:data.bars,indicators:data.ind,meta:{price:data.price}});
-      var postSnap=Object.assign({},snapshot,{open:snapshot.open,high:snapshot.high,low:snapshot.low,close:snapshot.close,volume:snapshot.volume});
-      return jFetch("upsertSnapshot","POST",postSnap).then(function(res){
-        if(res.ok){ showToast(ticker+" saved.","ok"); loadWatchlist(); loadJournal(); }
-        else showToast("Error: "+(res.error||"unknown"),"err");
-      });
     }).catch(function(e){ showToast("Error: "+e.message,"err"); })
-    .then(function(){ setGenerating(function(g){ var n=Object.assign({},g); delete n[ticker]; return n; }); });
-  }
-  function generateAll() {
-    setLoading("generating");
-    var chain=Promise.resolve();
-    watchlist.forEach(function(w){ chain=chain.then(function(){ return generateSnapshot(w.ticker); }); });
-    return chain.then(function(){ setLoading(""); showToast("All snapshots generated.","ok"); });
-  }
-  function updateFutureReturns() {
-    setLoading("future");
-    var tickers=[];
-    watchlist.forEach(function(w){ if(tickers.indexOf(w.ticker)===-1) tickers.push(w.ticker); });
-    var chain=Promise.resolve();
-    tickers.forEach(function(tk){ chain=chain.then(function(){ return jFetch("updateFutureReturns","POST",{ticker:tk}); }); });
-    return chain.then(function(){ setLoading(""); showToast("Future returns updated.","ok"); loadJournal(); });
+    .then(function(){ setSavingBP(function(s){ var n=Object.assign({},s); delete n[rowId]; return n; }); });
   }
 
-  // CSV export
+  // ── Lock Signal (snapshot) ───────────────────────────────────────────────────
+  function lockSignal(ticker) {
+    setLocking(function(g){ return Object.assign({},g,{[ticker]:true}); });
+    var headers = { "X-Admin-Key":adminKey };
+    fetch("/massive?sym="+ticker, { headers:headers })
+      .then(function(res){ return res.json(); })
+      .then(function(massRes){
+        if(!massRes) { showToast("No data for "+ticker+".","err"); return; }
+        var aggs = massRes.aggs||[];
+        var ind  = massRes.indicators||{};
+        var snap = massRes.snapshot||{};
+        var bars = aggs.filter(function(b){ return b&&b.c>0; }).reverse().map(function(b){
+          return { date:b.t?new Date(b.t).toISOString().split("T")[0]:"",open:b.o,high:b.h,low:b.l,close:b.c,volume:b.v||0 };
+        });
+        var price = snap.close||(bars.length>0?bars[bars.length-1].close:0);
+        if(!price||price<=0){ showToast("No price for "+ticker+".","err"); return; }
+        var today = new Date().toISOString().split("T")[0];
+        var snapshot = calculateTechnicalSignalSnapshot({
+          ticker:ticker, date:today, ohlcv:bars, indicators:ind, meta:{ price:price },
+        });
+        var postSnap = Object.assign({},snapshot,{open:snapshot.open,high:snapshot.high,low:snapshot.low,close:snapshot.close,volume:snapshot.volume});
+        return jFetch("upsertSnapshot","POST",postSnap).then(function(res){
+          if(res.ok){
+            showToast(ticker+" locked at $"+parseFloat(price).toFixed(2)+".","ok");
+            loadWatchlist(); loadJournal();
+          } else showToast("Error: "+(res.error||"unknown"),"err");
+        });
+      })
+      .catch(function(e){ showToast("Error: "+e.message,"err"); })
+      .then(function(){ setLocking(function(g){ var n=Object.assign({},g); delete n[ticker]; return n; }); });
+  }
+
+  // ── CSV Export ───────────────────────────────────────────────────────────────
   function exportCSV() {
-    var rows=filteredJournal();
-    if(rows.length===0){ showToast("No data to export.","err"); return; }
-    var cols=["snapshot_date","ticker","close_price","purchase_price","trend_status","trend_score","momentum_status","momentum_score","reversal_status","bullish_reversal_score","bearish_reversal_score","smart_money_status","smart_money_score","today_activity_score","five_day_flow_score","thirty_day_accumulation_score","rsi_value","macd_histogram","force_strike","fs_score","trade_stars","technical_support","future_return_1d","future_return_3d","future_return_5d","future_return_10d","future_return_20d","future_return_30d","future_return_60d","future_return_90d","max_gain_30d","max_drawdown_30d","bullish_outcome_label","bearish_outcome_label"];
-    var csvRows=rows.map(function(r) {
-      var pp=getPurchasePrice(r); var lp=getLatestPrice(r);
-      var pr=pp&&lp?((parseFloat(lp)-parseFloat(pp))/parseFloat(pp)*100).toFixed(2):"";
-      var fs=getForceStrike(r);
-      var rowData=Object.assign({},r,{purchase_return_pct:pr,force_strike_status:fs?(fs.status||""):"",force_strike_score:fs?(fs.score||""):"",trade_stars:fs?(fs.stars||""):"",technical_support:fs?(fs.support||""):""});
+    var rows = filteredJournal();
+    if(!rows.length){ showToast("No data to export.","err"); return; }
+    var cols = ["snapshot_date","ticker","lock_price","buy_price","return_period","lock_return_pct","buy_return_pct","outcome","trend_status","momentum_status","reversal_status","smart_money_status","force_strike","fs_score","trade_stars","future_return_5d","future_return_10d","future_return_20d","future_return_30d","future_return_90d"];
+    var csvRows = rows.map(function(r){
+      var lr = getLockReturn(r, retWindow);
+      var br = getBuyReturn(r, retWindow);
+      var rowData = Object.assign({},r,{
+        lock_price:     getLockPrice(r),
+        buy_price:      getBuyPrice(r),
+        return_period:  retWindow,
+        lock_return_pct: lr&&!lr.pending&&lr.val!==null?lr.val.toFixed(2):"",
+        buy_return_pct:  br&&!br.pending&&br.val!==null?br.val.toFixed(2):"",
+        outcome:        getOutcomeLabel(r,retWindow),
+        force_strike:   (getForceStrike(r)||{}).status||"",
+        fs_score:       (getForceStrike(r)||{}).score||"",
+        trade_stars:    (getForceStrike(r)||{}).stars||"",
+      });
       return cols.map(function(c){ var v=rowData[c]; return v===null||v===undefined?"":String(v).includes(",")?"\""+v+"\"":v; }).join(",");
     });
-    var csv=cols.join(",")+"\n"+csvRows.join("\n");
-    var a=document.createElement("a");
-    a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);
-    a.download="signal_journal_"+new Date().toISOString().split("T")[0]+".csv";
+    var csv = cols.join(",")+"\n"+csvRows.join("\n");
+    var a = document.createElement("a");
+    a.href = "data:text/csv;charset=utf-8,"+encodeURIComponent(csv);
+    a.download = "signal_journal_"+new Date().toISOString().split("T")[0]+".csv";
     a.click();
     showToast("Exported "+rows.length+" rows.","ok");
   }
@@ -11636,7 +11716,7 @@ export function JournalPage() {
     return "#888";
   }
   function outcomeColor(label) {
-    if(!label||label==="Pending") return "#444";
+    if(!label||label==="Pending"||label==="N/A") return "#444";
     if(label==="Strong Win") return "#7abd00";
     if(label==="Win") return "#5a9a40";
     if(label==="Neutral") return "#888";
@@ -11674,13 +11754,13 @@ export function JournalPage() {
   function filteredJournal() {
     return journal.filter(function(r) {
       if(filter.ticker    && r.ticker!==filter.ticker.toUpperCase()) return false;
-      if(filter.trend     && getTrend(r)!==filter.trend)             return false;
-      if(filter.momentum  && getMomentum(r)!==filter.momentum)       return false;
+      if(filter.trend     && getTrend(r)!==filter.trend) return false;
+      if(filter.momentum  && getMomentum(r)!==filter.momentum) return false;
       if(filter.reversal  && !(getReversal(r)||"").includes(filter.reversal)) return false;
       if(filter.smartMoney&& !(getSmartMoney(r)||"").includes(filter.smartMoney)) return false;
-      if(filter.outcome   && getOutcomeLabel(r,retWindow)!==filter.outcome)    return false;
+      if(filter.outcome   && getOutcomeLabel(r,retWindow)!==filter.outcome) return false;
       return true;
-    }).sort(function(a,b) {
+    }).sort(function(a,b){
       var av=a[sortCol], bv=b[sortCol];
       if(av===null||av===undefined) return 1;
       if(bv===null||bv===undefined) return -1;
@@ -11689,35 +11769,38 @@ export function JournalPage() {
     });
   }
 
-  // ── KPIs ─────────────────────────────────────────────────────────────────────
+  // ── KPI aggregations ─────────────────────────────────────────────────────────
   function buildKpis(rows, win) {
-    var total=rows.length;
-    var withRet=rows.filter(function(r){ return getReturnNum(r,win)!==null; });
-    var pending=total-withRet.length;
-    var wins=withRet.filter(function(r){ return getReturnNum(r,win)>0; });
-    var winRate=withRet.length>0?(wins.length/withRet.length*100):null;
-    var avgRet=withRet.length>0?withRet.reduce(function(s,r){ return s+getReturnNum(r,win); },0)/withRet.length:null;
-    var withPP=rows.filter(function(r){ return getPurchaseReturn(r)!==null; });
-    var avgPR=withPP.length>0?withPP.reduce(function(s,r){ return s+getPurchaseReturn(r); },0)/withPP.length:null;
+    var total = rows.length;
+    var completed = rows.filter(function(r){ var lr=getLockReturn(r,win); return lr&&!lr.pending&&lr.val!==null; });
+    var pending = total - completed.length;
+    var wins = completed.filter(function(r){ return getLockReturn(r,win).val>0; });
+    var winRate = completed.length>0?(wins.length/completed.length*100):null;
+    var avgLock = completed.length>0?completed.reduce(function(s,r){ return s+getLockReturn(r,win).val; },0)/completed.length:null;
+    var withBuy = rows.filter(function(r){ var br=getBuyReturn(r,win); return br&&!br.pending&&br.val!==null; });
+    var avgBuy  = withBuy.length>0?withBuy.reduce(function(s,r){ return s+getBuyReturn(r,win).val; },0)/withBuy.length:null;
+    // Best/worst setup by lock return
     var groups={};
     rows.forEach(function(r){ var k=getTrend(r)||"Unknown"; if(!groups[k]) groups[k]=[]; groups[k].push(r); });
     var gStats=Object.keys(groups).map(function(k){
-      var g=groups[k]; var gW=g.filter(function(r){ return getReturnNum(r,win)!==null; });
-      var gAvg=gW.length>0?gW.reduce(function(s,r){ return s+getReturnNum(r,win); },0)/gW.length:null;
+      var g=groups[k]; var gC=g.filter(function(r){ var lr=getLockReturn(r,win); return lr&&!lr.pending&&lr.val!==null; });
+      var gAvg=gC.length>0?gC.reduce(function(s,r){ return s+getLockReturn(r,win).val; },0)/gC.length:null;
       return { label:k, count:g.length, avg:gAvg };
     }).filter(function(x){ return x.count>=3&&x.avg!==null; });
     gStats.sort(function(a,b){ return b.avg-a.avg; });
-    return { total:total, pending:pending, winRate:winRate, avgRet:avgRet, avgPR:avgPR, ppCount:withPP.length,
+    return { total:total, pending:pending, winRate:winRate, avgLock:avgLock, avgBuy:avgBuy,
       best:gStats.length>0?gStats[0]:null, worst:gStats.length>0?gStats[gStats.length-1]:null };
   }
 
-  // ── Setup perf ────────────────────────────────────────────────────────────────
+  // ── Setup Performance ─────────────────────────────────────────────────────────
   function buildSetupPerf(rows, win) {
     var groups={};
     rows.forEach(function(r){ var k=getTrend(r)||"Unknown"; if(!groups[k]) groups[k]=[]; groups[k].push(r); });
     return Object.keys(groups).map(function(k) {
-      var g=groups[k]; var gW=g.filter(function(r){ return getReturnNum(r,win)!==null; });
-      var rets=gW.map(function(r){ return getReturnNum(r,win); }).sort(function(a,b){ return a-b; });
+      var g=groups[k];
+      var gC=g.filter(function(r){ var lr=getLockReturn(r,win); return lr&&!lr.pending&&lr.val!==null; });
+      var gP=g.filter(function(r){ var lr=getLockReturn(r,win); return !lr||lr.pending; });
+      var rets=gC.map(function(r){ return getLockReturn(r,win).val; }).sort(function(a,b){ return a-b; });
       var avg=rets.length>0?rets.reduce(function(s,v){ return s+v; },0)/rets.length:null;
       var median=rets.length>0?rets[Math.floor(rets.length/2)]:null;
       var best=rets.length>0?rets[rets.length-1]:null;
@@ -11725,36 +11808,39 @@ export function JournalPage() {
       var wins2=rets.filter(function(v){ return v>0; }).length;
       var wr=rets.length>0?wins2/rets.length*100:null;
       var quality;
-      if(gW.length<5) quality="Low Sample";
+      if(gC.length<5) quality="Low Sample";
       else if(wr!==null&&wr>=60&&avg!==null&&avg>0) quality="Strong";
       else if(wr!==null&&wr>=50&&avg!==null&&avg>0) quality="Watch";
-      else if(wr!==null&&wr<45||(avg!==null&&avg<0)) quality="Weak";
+      else if((wr!==null&&wr<45)||(avg!==null&&avg<0)) quality="Weak";
       else quality="Mixed";
-      return { label:k, count:g.length, withRet:gW.length, winRate:wr, avg:avg, median:median, best:best, worst:worst, quality:quality };
+      return { label:k, count:g.length, completed:gC.length, pending:gP.length, winRate:wr, avg:avg, median:median, best:best, worst:worst, quality:quality };
     }).sort(function(a,b){ return b.count-a.count; });
   }
 
-  // ── Ticker review ─────────────────────────────────────────────────────────────
+  // ── Ticker Review ─────────────────────────────────────────────────────────────
   function buildTickerReview(rows, win) {
     var groups={};
     rows.forEach(function(r){ var tk=r.ticker; if(!groups[tk]) groups[tk]=[]; groups[tk].push(r); });
     return Object.keys(groups).map(function(tk) {
       var g=groups[tk].sort(function(a,b){ return b.snapshot_date<a.snapshot_date?-1:1; });
       var latest=g[0];
-      var gW=g.filter(function(r){ return getReturnNum(r,win)!==null; });
-      var avg=gW.length>0?gW.reduce(function(s,r){ return s+getReturnNum(r,win); },0)/gW.length:null;
-      var lastRet=getReturnNum(latest,win);
-      var wins2=gW.filter(function(r){ return getReturnNum(r,win)>0; }).length;
-      var wr=gW.length>0?wins2/gW.length*100:null;
-      var withPP=g.filter(function(r){ return getPurchaseReturn(r)!==null; });
-      var avgPR=withPP.length>0?withPP.reduce(function(s,r){ return s+getPurchaseReturn(r); },0)/withPP.length:null;
-      var lastPR=getPurchaseReturn(latest);
+      var gC=g.filter(function(r){ var lr=getLockReturn(r,win); return lr&&!lr.pending&&lr.val!==null; });
+      var avgLock=gC.length>0?gC.reduce(function(s,r){ return s+getLockReturn(r,win).val; },0)/gC.length:null;
+      var lastLock=gC.length>0?getLockReturn(latest,win):null; lastLock=lastLock&&!lastLock.pending?lastLock:null;
+      var wins2=gC.filter(function(r){ return getLockReturn(r,win).val>0; }).length;
+      var wr=gC.length>0?wins2/gC.length*100:null;
+      var withBuy=g.filter(function(r){ var br=getBuyReturn(r,win); return br&&!br.pending&&br.val!==null; });
+      var avgBuy=withBuy.length>0?withBuy.reduce(function(s,r){ return s+getBuyReturn(r,win).val; },0)/withBuy.length:null;
+      var lastBuy=getBuyReturn(latest,win); lastBuy=lastBuy&&!lastBuy.pending?lastBuy:null;
       var review;
-      if(avg===null) review="Pending";
-      else if(lastRet!==null&&lastRet>0&&avg>0) review="Improving";
-      else if(lastRet!==null&&lastRet<0&&avg<0) review="Weak";
+      if(avgLock===null) review="Pending";
+      else if(avgLock>0&&(avgBuy===null||avgBuy>0)) review="Strong";
+      else if(avgLock>0&&avgBuy!==null&&avgBuy<0) review="Good Signal, Weak Entry";
+      else if(avgLock<0) review="Weak Signal";
       else review="Mixed";
-      return { ticker:tk, count:g.length, latestSetup:getTrend(latest), latestDate:latest.snapshot_date, winRate:wr, avg:avg, lastRet:lastRet, avgPR:avgPR, lastPR:lastPR, review:review };
+      return { ticker:tk, count:g.length, latestSetup:getTrend(latest), latestDate:latest.snapshot_date,
+        winRate:wr, avgLock:avgLock, lastLock:lastLock?lastLock.val:null,
+        avgBuy:avgBuy, lastBuy:lastBuy?lastBuy.val:null, review:review };
     }).sort(function(a,b){ return a.ticker<b.ticker?-1:1; });
   }
 
@@ -11763,58 +11849,63 @@ export function JournalPage() {
     var active=sortCol===col;
     return (
       <th key={col} onClick={function(){ setSortDir(active&&sortDir==="asc"?"desc":"asc"); setSortCol(col); }}
-        style={{ padding:"8px 10px", fontSize:10, fontWeight:700, color:active?"#c8f000":"#666", textTransform:"uppercase", letterSpacing:"0.06em", cursor:"pointer", whiteSpace:"nowrap", background:"#1a1a18", borderBottom:"1px solid #2a2a28", userSelect:"none" }}>
+        style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:active?"#c8f000":"#666",textTransform:"uppercase",letterSpacing:"0.06em",cursor:"pointer",whiteSpace:"nowrap",background:"#1a1a18",borderBottom:"1px solid #2a2a28",userSelect:"none" }}>
         {label}{active?(sortDir==="asc"?" \u25B2":" \u25BC"):""}
       </th>
     );
   }
+
+  function renderRetCell(res, label) {
+    if(!res) return <span style={{color:"#444",fontSize:10}}>{"\u2014"}</span>;
+    if(res.pending) return <span style={{color:"#555",fontSize:10}}>Pending</span>;
+    if(res.val===null) return <span style={{color:"#444",fontSize:10}}>{"\u2014"}</span>;
+    var v=res.val;
+    return (
+      <span style={{color:retColor(v),fontWeight:700}}>
+        {res.live && <span title="Live estimate" style={{display:"inline-block",width:5,height:5,borderRadius:"50%",background:"#6090d0",marginRight:4,verticalAlign:"middle",marginBottom:1}}></span>}
+        {(v>0?"+":"")+v.toFixed(1)+"%"}
+      </span>
+    );
+  }
+
   function renderOutcomeBadge(label) {
-    if(!label||label==="Pending") return <span style={{fontSize:9,color:"#444"}}>Pending</span>;
+    if(!label||label==="Pending"||label==="N/A") {
+      return <span style={{fontSize:9,color:"#444"}}>{label||"N/A"}</span>;
+    }
     var col=outcomeColor(label);
     return <span style={{fontSize:9,fontWeight:700,color:col,background:col+"20",padding:"2px 6px",borderRadius:3}}>{label}</span>;
   }
+
   function renderQualityBadge(q) {
     var col=q==="Strong"?"#7abd00":q==="Watch"?"#6090d0":q==="Weak"?"#e05050":q==="Low Sample"?"#444":"#EF9F27";
     return <span style={{fontSize:9,fontWeight:700,color:col,background:col+"15",padding:"2px 6px",borderRadius:3}}>{q}</span>;
   }
+
   function renderReviewBadge(rv) {
-    var col=rv==="Improving"?"#7abd00":rv==="Weak"?"#e05050":rv==="Pending"?"#444":"#EF9F27";
+    var col=rv==="Strong"?"#7abd00":rv==="Good Signal, Weak Entry"?"#EF9F27":rv==="Weak Signal"?"#e05050":rv==="Pending"?"#444":"#888";
     return <span style={{fontSize:9,fontWeight:700,color:col,background:col+"15",padding:"2px 6px",borderRadius:3}}>{rv}</span>;
   }
-  function renderRet(v, live) {
-    if(v===null||v===undefined) return <span style={{color:"#444",fontSize:10}}>Pending</span>;
-    return (
-      <span style={{color:retColor(v),fontWeight:700}}>
-        {live && <span title="Live estimate" style={{display:"inline-block",width:5,height:5,borderRadius:"50%",background:"#6090d0",marginRight:4,verticalAlign:"middle",marginBottom:1}}></span>}
-        {live ? "~" : ""}{(v>0?"+":"")+v.toFixed(1)+"%"}
-      </span>
-    );
-  }
-  function renderPurchaseRet(v) {
-    if(v===null||v===undefined) return <span style={{color:"#444",fontSize:10}}>{"\u2014"}</span>;
-    return <span style={{color:retColor(v),fontWeight:700}}>{(v>0?"+":"")+v.toFixed(1)+"%"}</span>;
-  }
 
-  // Purchase price inline editable cell
-  function renderPurchasePriceCell(r) {
+  // Buy price inline editable cell
+  function renderBuyPriceCell(r) {
     var rowId=r.id;
-    var pp=getPurchasePrice(r);
-    var isEditing=editingPP[rowId]!==undefined;
-    var isSaving=savingPP[rowId];
+    var bp=getBuyPrice(r);
+    var isEditing=editingBP[rowId]!==undefined;
+    var isSaving=savingBP[rowId];
     if(isEditing) {
-      var draft=editingPP[rowId];
+      var draft=editingBP[rowId];
       return (
-        <div style={{ display:"flex", gap:3, alignItems:"center" }}>
+        <div style={{ display:"flex",gap:3,alignItems:"center" }}>
           <input value={draft}
-            onChange={function(e){ setEditingPP(function(s){ return Object.assign({},s,{[rowId]:e.target.value}); }); }}
-            onKeyDown={function(e){ if(e.key==="Enter") savePurchasePrice(rowId,editingPP[rowId]); if(e.key==="Escape") setEditingPP(function(s){ var n=Object.assign({},s); delete n[rowId]; return n; }); }}
+            onChange={function(e){ setEditingBP(function(s){ return Object.assign({},s,{[rowId]:e.target.value}); }); }}
+            onKeyDown={function(e){ if(e.key==="Enter") saveBuyPrice(rowId,editingBP[rowId]); if(e.key==="Escape") setEditingBP(function(s){ var n=Object.assign({},s); delete n[rowId]; return n; }); }}
             style={{ width:72,background:"#111",border:"0.5px solid #c8f000",borderRadius:4,padding:"3px 6px",color:"#f0ede6",fontSize:11,outline:"none" }}
             autoFocus />
-          <button onClick={function(){ savePurchasePrice(rowId,editingPP[rowId]); }} disabled={isSaving}
+          <button onClick={function(){ saveBuyPrice(rowId,editingBP[rowId]); }} disabled={isSaving}
             style={{ background:"#c8f000",color:"#0e0e0c",border:"none",borderRadius:3,fontSize:10,fontWeight:700,padding:"3px 6px",cursor:"pointer" }}>
             {isSaving?"\u22EF":"\u2713"}
           </button>
-          <button onClick={function(){ setEditingPP(function(s){ var n=Object.assign({},s); delete n[rowId]; return n; }); }}
+          <button onClick={function(){ setEditingBP(function(s){ var n=Object.assign({},s); delete n[rowId]; return n; }); }}
             style={{ background:"none",border:"none",color:"#555",fontSize:11,cursor:"pointer",padding:"2px 4px" }}>
             {"\u00D7"}
           </button>
@@ -11822,9 +11913,9 @@ export function JournalPage() {
       );
     }
     return (
-      <button onClick={function(){ setEditingPP(function(s){ return Object.assign({},s,{[rowId]:pp!==null?String(pp):""}); }); }}
-        style={{ background:"none",border:"0.5px solid "+(pp?"#2a3a10":"#2a2a28"),borderRadius:4,padding:"3px 8px",color:pp?"#f0ede6":"#444",fontSize:11,cursor:"pointer",whiteSpace:"nowrap" }}>
-        {pp?"$"+parseFloat(pp).toFixed(2):"+ Add"}
+      <button onClick={function(){ setEditingBP(function(s){ return Object.assign({},s,{[rowId]:bp!==null?String(bp):""}); }); }}
+        style={{ background:"none",border:"0.5px solid "+(bp?"#2a3a10":"#2a2a28"),borderRadius:4,padding:"3px 8px",color:bp?"#f0ede6":"#444",fontSize:11,cursor:"pointer",whiteSpace:"nowrap" }}>
+        {bp?"$"+parseFloat(bp).toFixed(2):"+ Add"}
       </button>
     );
   }
@@ -11834,10 +11925,10 @@ export function JournalPage() {
     var fs=getForceStrike(r);
     var rowKey=r.id||(r.ticker+r.snapshot_date);
     var expanded=expandedFS[rowKey];
-    if(fs===null) return <span style={{fontSize:9,color:"#333"}}>N/A</span>;
+    if(fs===null) return null;
     var starsStr=fs.stars!==null?fsStars(fs.stars):"";
     var statusLbl=fs.status||(fs.score?"FS "+fs.score:"");
-    if(!starsStr&&!statusLbl) return <span style={{fontSize:9,color:"#333"}}>None</span>;
+    if(!starsStr&&!statusLbl) return null;
     return (
       <div>
         <button onClick={function(){ setExpandedFS(function(s){ var n=Object.assign({},s); if(n[rowKey]) delete n[rowKey]; else n[rowKey]=true; return n; }); }}
@@ -11875,37 +11966,38 @@ export function JournalPage() {
   }
 
   // ── Auth screen ──────────────────────────────────────────────────────────────
-  if (!authed) return (
-    <div style={{ fontFamily:F, background:"#0e0e0c", minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ background:"#181816", border:"0.5px solid #2a2a28", borderRadius:12, padding:32, width:340 }}>
-        <div style={{ fontSize:11, color:"#c8f000", fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:4 }}>StockInsight</div>
-        <div style={{ fontSize:20, fontWeight:800, color:"#f0ede6", marginBottom:4 }}>Signal Journal</div>
-        <div style={{ fontSize:12, color:"#666", marginBottom:6 }}>Track technical setups, follow-up returns, and learn which signals work over time.</div>
-        <div style={{ fontSize:11, color:"#444", marginBottom:24 }}>Research access only \u00B7 Enter your admin key to continue.</div>
+  if(!authed) return (
+    <div style={{ fontFamily:F,background:"#0e0e0c",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center" }}>
+      <div style={{ background:"#181816",border:"0.5px solid #2a2a28",borderRadius:12,padding:32,width:340 }}>
+        <div style={{ fontSize:11,color:"#c8f000",fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4 }}>StockInsight</div>
+        <div style={{ fontSize:20,fontWeight:800,color:"#f0ede6",marginBottom:4 }}>Signal Journal</div>
+        <div style={{ fontSize:12,color:"#666",marginBottom:6 }}>Track technical signals, lock prices, and measure returns over time.</div>
+        <div style={{ fontSize:11,color:"#444",marginBottom:24 }}>Research access only \u00B7 Enter your admin key to continue.</div>
         <input value={adminKey} onChange={function(e){ setAdminKey(e.target.value); }}
           onKeyDown={function(e){ if(e.key==="Enter") handleAuth(); }}
           type="password" placeholder="Admin key"
-          style={{ width:"100%", background:"#111", border:"0.5px solid #333", borderRadius:8, padding:"10px 12px", color:"#f0ede6", fontSize:13, outline:"none", boxSizing:"border-box", marginBottom:10 }} />
-        {authError && <div style={{ fontSize:11, color:"#e05050", marginBottom:10 }}>{authError}</div>}
+          style={{ width:"100%",background:"#111",border:"0.5px solid #333",borderRadius:8,padding:"10px 12px",color:"#f0ede6",fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:10 }} />
+        {authError && <div style={{ fontSize:11,color:"#e05050",marginBottom:10 }}>{authError}</div>}
         <button onClick={handleAuth}
-          style={{ width:"100%", background:"#c8f000", color:"#0e0e0c", fontWeight:800, fontSize:13, border:"none", borderRadius:8, padding:"10px", cursor:"pointer" }}>
+          style={{ width:"100%",background:"#c8f000",color:"#0e0e0c",fontWeight:800,fontSize:13,border:"none",borderRadius:8,padding:"10px",cursor:"pointer" }}>
           Access Journal
         </button>
-        <div style={{ marginTop:16, textAlign:"center" }}>
-          <a href="/" style={{ fontSize:11, color:"#555", textDecoration:"none" }}>{"\u2190"} Back to StockInsight</a>
+        <div style={{ marginTop:16,textAlign:"center" }}>
+          <a href="/" style={{ fontSize:11,color:"#555",textDecoration:"none" }}>{"\u2190"} Back to StockInsight</a>
         </div>
       </div>
     </div>
   );
 
-  var fj=filteredJournal();
-  var kpis=buildKpis(fj,retWindow);
-  var activeTickers=[];
+  var fj = filteredJournal();
+  var kpis = buildKpis(fj, retWindow);
+  var activeTickers = [];
   watchlist.forEach(function(w){ if(activeTickers.indexOf(w.ticker)===-1) activeTickers.push(w.ticker); });
-  var RET_WINDOWS=["5d","10d","20d","30d","90d"];
+  var RET_WINDOWS = ["current","5d","10d","20d","30d","90d"];
 
   return (
-    <div style={{ fontFamily:F, background:"#0e0e0c", minHeight:"100vh", color:"#f0ede6" }}>
+    <div style={{ fontFamily:F,background:"#0e0e0c",minHeight:"100vh",color:"#f0ede6" }}>
+
       {toast && (
         <div style={{ position:"fixed",top:16,right:16,zIndex:9999,background:toast.type==="err"?"#3a1a1a":"#1a3a1a",border:"0.5px solid "+(toast.type==="err"?"#e05050":"#7abd00"),borderRadius:8,padding:"10px 16px",fontSize:12,color:toast.type==="err"?"#e05050":"#7abd00",boxShadow:"0 4px 20px rgba(0,0,0,0.5)" }}>
           {toast.msg}
@@ -11925,15 +12017,7 @@ export function JournalPage() {
         <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
           <button onClick={function(){ setShowAddTicker(function(v){ return !v; }); }}
             style={{ background:"#c8f000",color:"#0e0e0c",fontWeight:700,fontSize:11,border:"none",borderRadius:6,padding:"7px 14px",cursor:"pointer" }}>
-            + Add Ticker
-          </button>
-          <button onClick={generateAll} disabled={loading==="generating"}
-            style={{ background:"#161614",color:"#c8f000",fontWeight:700,fontSize:11,border:"0.5px solid #2a3a10",borderRadius:6,padding:"7px 14px",cursor:loading==="generating"?"not-allowed":"pointer",opacity:loading==="generating"?0.6:1 }}>
-            {loading==="generating"?"Refreshing\u2026":"\u26A1 Refresh All"}
-          </button>
-          <button onClick={updateFutureReturns} disabled={loading==="future"}
-            style={{ background:"#161614",color:"#7abd00",fontWeight:700,fontSize:11,border:"0.5px solid #2a5020",borderRadius:6,padding:"7px 14px",cursor:loading==="future"?"not-allowed":"pointer",opacity:loading==="future"?0.6:1 }}>
-            {loading==="future"?"Updating\u2026":"\u{1F4C8} Update Returns"}
+            + Watch Ticker
           </button>
           <button onClick={exportCSV}
             style={{ background:"#161614",color:"#9090f0",fontWeight:700,fontSize:11,border:"0.5px solid #2a2a50",borderRadius:6,padding:"7px 14px",cursor:"pointer" }}>
@@ -11944,6 +12028,7 @@ export function JournalPage() {
 
       <div style={{ padding:"16px 20px",maxWidth:1600,margin:"0 auto" }}>
 
+        {/* Add ticker panel */}
         {showAddTicker && (
           <div style={{ background:"#161614",border:"0.5px solid #2a3a10",borderRadius:10,padding:"14px 18px",marginBottom:16,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap" }}>
             <div style={{ fontSize:12,fontWeight:700,color:"#c8f000" }}>Add ticker to watchlist</div>
@@ -11956,37 +12041,52 @@ export function JournalPage() {
           </div>
         )}
 
-        {watchlist.length>0 && (
-          <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:16,alignItems:"center" }}>
-            <span style={{ fontSize:10,color:"#444",textTransform:"uppercase",letterSpacing:"0.07em",marginRight:4 }}>Watching:</span>
-            {watchlist.map(function(w) {
-              var isGen=generating[w.ticker];
-              return (
-                <div key={w.ticker} style={{ display:"flex",alignItems:"center",gap:6,background:"#161614",border:"0.5px solid #2a2a28",borderRadius:20,padding:"4px 10px 4px 12px" }}>
-                  <span style={{ fontSize:12,fontWeight:700,color:"#c8f000" }}>{w.ticker}</span>
-                  {w.last_close_price && <span style={{ fontSize:10,color:"#555" }}>{"$"+parseFloat(w.last_close_price).toFixed(0)}</span>}
-                  <button onClick={function(){ generateSnapshot(w.ticker); }} disabled={isGen} title={"Refresh "+w.ticker}
-                    style={{ background:"none",border:"none",color:isGen?"#333":"#7abd00",fontSize:11,cursor:isGen?"not-allowed":"pointer",padding:0,lineHeight:1 }}>
-                    {isGen?"\u29D7":"\u26A1"}
-                  </button>
-                  <button onClick={function(){ handleRemove(w.ticker); }} title={"Remove "+w.ticker}
-                    style={{ background:"none",border:"none",color:"#444",fontSize:11,cursor:"pointer",padding:0,lineHeight:1 }}>
-                    {"\u00D7"}
-                  </button>
-                </div>
-              );
-            })}
+        {/* Watchlist — live monitor pills */}
+        {watchlist.length > 0 && (
+          <div style={{ marginBottom:18 }}>
+            <div style={{ fontSize:10,color:"#444",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8 }}>Watchlist</div>
+            <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+              {watchlist.map(function(w) {
+                var wd = watchData[w.ticker] || {};
+                var livePrice = livePrices[w.ticker] || wd.price || w.last_close_price || null;
+                var trendLbl  = wd.trend || w.latest_trend_status || null;
+                var isLocking = locking[w.ticker];
+                var chg = wd.change;
+                return (
+                  <div key={w.ticker} style={{ display:"flex",alignItems:"center",gap:0,background:"#161614",border:"0.5px solid #2a2a28",borderRadius:8,padding:"6px 0px 6px 12px",flexWrap:"wrap" }}>
+                    {/* Ticker + price */}
+                    <div style={{ display:"flex",alignItems:"baseline",gap:6,marginRight:8 }}>
+                      <span style={{ fontSize:12,fontWeight:800,color:"#c8f000" }}>{w.ticker}</span>
+                      {livePrice && <span style={{ fontSize:11,color:"#f0ede6",fontWeight:600 }}>{"$"+parseFloat(livePrice).toFixed(2)}</span>}
+                      {chg!==null&&chg!==undefined && <span style={{ fontSize:10,color:chg>=0?"#7abd00":"#e05050" }}>{chg>=0?"+":""}{typeof chg==="number"?chg.toFixed(2):chg}{"%"}</span>}
+                    </div>
+                    {/* Trend label */}
+                    {trendLbl && <span style={{ fontSize:10,color:trendColor(trendLbl,null),marginRight:8 }}>{trendLbl}</span>}
+                    {/* Lock button */}
+                    <button onClick={function(){ lockSignal(w.ticker); }} disabled={isLocking} title={"Lock signal for "+w.ticker}
+                      style={{ background:isLocking?"#1a1a18":"#1a2a10",border:"0.5px solid "+(isLocking?"#333":"#2a5020"),color:isLocking?"#444":"#7abd00",fontSize:10,fontWeight:700,cursor:isLocking?"not-allowed":"pointer",padding:"4px 10px",margin:"0 2px",borderRadius:4 }}>
+                      {isLocking?"\u29D7 Locking":"\u{1F512} Lock"}
+                    </button>
+                    {/* Remove */}
+                    <button onClick={function(){ handleRemove(w.ticker); }} title={"Remove "+w.ticker}
+                      style={{ background:"none",border:"none",color:"#444",fontSize:12,cursor:"pointer",padding:"4px 8px",borderRadius:4 }}>
+                      {"\u00D7"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
-        {/* KPIs */}
+        {/* KPI Cards */}
         <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(148px, 1fr))",gap:8,marginBottom:16 }}>
           {[
             { label:"Total Signals",  val:String(kpis.total), sub:null, col:"#c8f000" },
-            { label:"Pending",        val:String(kpis.pending), sub:"awaiting return", col:"#666" },
-            { label:"Win Rate",       val:kpis.winRate!==null?(kpis.winRate.toFixed(0)+"%"):"\u2014", sub:retWindow.toUpperCase()+" window", col:kpis.winRate!==null?(kpis.winRate>=60?"#7abd00":kpis.winRate>=45?"#EF9F27":"#e05050"):"#444" },
-            { label:"Avg Signal Ret", val:kpis.avgRet!==null?((kpis.avgRet>0?"+":"")+kpis.avgRet.toFixed(1)+"%"):"\u2014", sub:retWindow.toUpperCase()+" avg", col:kpis.avgRet!==null?retColor(kpis.avgRet):"#444" },
-            { label:"Open Trade Ret", val:kpis.avgPR!==null?((kpis.avgPR>0?"+":"")+kpis.avgPR.toFixed(1)+"%"):"\u2014", sub:kpis.ppCount>0?("from "+kpis.ppCount+" entries"):"based on purchase price", col:kpis.avgPR!==null?retColor(kpis.avgPR):"#444" },
+            { label:"Pending",        val:String(kpis.pending), sub:"awaiting completion", col:"#666" },
+            { label:"Lock Win Rate",  val:kpis.winRate!==null?(kpis.winRate.toFixed(0)+"%"):"\u2014", sub:retWindow.toUpperCase()+" window", col:kpis.winRate!==null?(kpis.winRate>=60?"#7abd00":kpis.winRate>=45?"#EF9F27":"#e05050"):"#444" },
+            { label:"Avg Lock Ret",   val:kpis.avgLock!==null?((kpis.avgLock>0?"+":"")+kpis.avgLock.toFixed(1)+"%"):"\u2014", sub:retWindow.toUpperCase()+" avg", col:kpis.avgLock!==null?retColor(kpis.avgLock):"#444" },
+            { label:"Avg Buy Ret",    val:kpis.avgBuy!==null?((kpis.avgBuy>0?"+":"")+kpis.avgBuy.toFixed(1)+"%"):"\u2014", sub:"where buy price set", col:kpis.avgBuy!==null?retColor(kpis.avgBuy):"#444" },
             { label:"Best Setup",     val:kpis.best?kpis.best.label:"\u2014", sub:kpis.best?"avg "+(kpis.best.avg>0?"+":"")+kpis.best.avg.toFixed(1)+"% ("+kpis.best.count+"sig)":"\u2265 3 samples needed", col:"#7abd00" },
             { label:"Weakest Setup",  val:kpis.worst?kpis.worst.label:"\u2014", sub:kpis.worst?"avg "+(kpis.worst.avg>0?"+":"")+kpis.worst.avg.toFixed(1)+"% ("+kpis.worst.count+"sig)":"\u2265 3 samples needed", col:"#e05050" },
           ].map(function(card) {
@@ -12000,14 +12100,14 @@ export function JournalPage() {
           })}
         </div>
 
-        {/* Return window */}
+        {/* Return window selector */}
         <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:14 }}>
-          <span style={{ fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:"0.07em" }}>Return window:</span>
+          <span style={{ fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:"0.07em" }}>Return period:</span>
           {RET_WINDOWS.map(function(w) {
             return (
               <button key={w} onClick={function(){ setRetWindow(w); }}
                 style={{ background:retWindow===w?"#c8f000":"#161614",color:retWindow===w?"#0e0e0c":"#555",fontWeight:700,fontSize:10,border:"0.5px solid "+(retWindow===w?"#c8f000":"#2a2a28"),borderRadius:4,padding:"4px 10px",cursor:"pointer" }}>
-                {w.toUpperCase()}
+                {w==="current"?"Current":w.toUpperCase()}
               </button>
             );
           })}
@@ -12021,7 +12121,7 @@ export function JournalPage() {
               style={{ background:"#111",border:"0.5px solid #333",borderRadius:6,padding:"6px 10px",color:"#f0ede6",fontSize:11,outline:"none",width:120 }} />
             {[
               ["trend",   "Trend",   ["Strong Uptrend","Uptrend","Sideways","Downtrend","Strong Downtrend"]],
-              ["outcome", "Outcome", ["Strong Win","Win","Neutral","Failed","Strong Failed","Pending"]],
+              ["outcome", "Outcome", ["Strong Win","Win","Neutral","Failed","Strong Failed","Pending","N/A"]],
             ].map(function(fd) {
               return (
                 <select key={fd[0]} value={filter[fd[0]]} onChange={function(e){ setFilter(function(p){ return Object.assign({},p,{[fd[0]]:e.target.value}); }); }}
@@ -12035,7 +12135,7 @@ export function JournalPage() {
               style={{ background:"none",border:"0.5px solid #333",borderRadius:6,padding:"6px 10px",color:"#555",fontSize:11,cursor:"pointer" }}>
               {moreFilters?"Less \u25B2":"More \u25BC"}
             </button>
-            <button onClick={function(){ setFilter({ticker:"",trend:"",momentum:"",reversal:"",smartMoney:"",outcome:""}); }}
+            <button onClick={function(){ setFilter({ticker:"",trend:"",outcome:"",momentum:"",reversal:"",smartMoney:""}); }}
               style={{ background:"none",border:"0.5px solid #333",borderRadius:6,padding:"6px 10px",color:"#555",fontSize:11,cursor:"pointer" }}>
               Clear
             </button>
@@ -12078,7 +12178,7 @@ export function JournalPage() {
           <div>
             {fj.length===0 ? (
               <div style={{ fontSize:12,color:"#555",padding:"40px",textAlign:"center",background:"#161614",borderRadius:10 }}>
-                No records. Generate snapshots for your tracked tickers to start.
+                No signals yet. Use the Lock button on a watchlist ticker to capture your first signal.
               </div>
             ) : (
               <div style={{ overflowX:"auto",borderRadius:10,border:"0.5px solid #2a2a28" }}>
@@ -12087,10 +12187,10 @@ export function JournalPage() {
                     <tr>
                       {renderTh("snapshot_date","Date")}
                       {renderTh("ticker","Ticker")}
-                      {renderTh("close_price","Close")}
+                      <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap" }}>Lock Price</th>
                       <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap" }}>Buy Price</th>
                       <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",minWidth:170 }}>Technical View</th>
-                      {renderTh("future_return_20d","Signal Ret.")}
+                      <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap" }}>Lock Ret.</th>
                       <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap" }}>Buy Ret.</th>
                       <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28" }}>Outcome</th>
                       <th style={{ padding:"8px 6px",fontSize:10,color:"#444",background:"#1a1a18",borderBottom:"1px solid #2a2a28" }}></th>
@@ -12103,40 +12203,50 @@ export function JournalPage() {
                       var mv=getMomentum(r); var ms=getMomScore(r);
                       var rv=getReversal(r);
                       var smfV=getSmartMoney(r);
-                      var retV=getReturnNum(r,retWindow); var retLive=isLiveReturn(r,retWindow);
+                      var lp=getLockPrice(r);
+                      var lr=getLockReturn(r,retWindow);
+                      var br=getBuyReturn(r,retWindow);
                       var outV=getOutcomeLabel(r,retWindow);
-                      var cl=getClose(r);
-                      var prV=getPurchaseReturn(r);
                       var fs=getForceStrike(r);
+                      var curPrice=livePrices[r.ticker];
                       return (
                         <tr key={r.id||i} style={{ background:rowBg }}>
                           <td style={{ padding:"8px 10px",color:"#888",whiteSpace:"nowrap" }}>{r.snapshot_date}</td>
                           <td style={{ padding:"8px 10px" }}>
-                            <button onClick={function(){ window.location.hash=r.ticker; }}
-                              style={{ background:"none",border:"none",fontWeight:800,color:"#c8f000",fontSize:12,cursor:"pointer",padding:0 }}>
-                              {r.ticker}
-                            </button>
+                            <div style={{ display:"flex",flexDirection:"column",gap:1 }}>
+                              <button onClick={function(){ window.location.hash=r.ticker; }}
+                                style={{ background:"none",border:"none",fontWeight:800,color:"#c8f000",fontSize:12,cursor:"pointer",padding:0,textAlign:"left" }}>
+                                {r.ticker}
+                              </button>
+                              {curPrice && <span style={{ fontSize:9,color:"#555" }}>{"now $"+parseFloat(curPrice).toFixed(2)}</span>}
+                            </div>
                           </td>
-                          <td style={{ padding:"8px 10px",color:"#f0ede6",whiteSpace:"nowrap" }}>{cl!==null?"$"+parseFloat(cl).toFixed(2):"\u2014"}</td>
-                          <td style={{ padding:"8px 8px" }}>{renderPurchasePriceCell(r)}</td>
+                          <td style={{ padding:"8px 10px",color:"#f0ede6",whiteSpace:"nowrap" }}>{lp!==null?"$"+parseFloat(lp).toFixed(2):"\u2014"}</td>
+                          <td style={{ padding:"8px 8px" }}>{renderBuyPriceCell(r)}</td>
                           <td style={{ padding:"8px 10px" }}>
                             <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
                               {tv && <span style={{ fontSize:10,color:trendColor(tv,ts) }}><span style={{ color:"#3a3a38" }}>T: </span>{tv}</span>}
                               {mv && <span style={{ fontSize:10,color:momColor(mv,ms) }}><span style={{ color:"#3a3a38" }}>M: </span>{mv}</span>}
-                              {rv && rv!=="No Clear Reversal" && rv!=="Not Enough Data" && <span style={{ fontSize:10,color:revColor(rv) }}><span style={{ color:"#3a3a38" }}>R: </span>{revShort(rv)}</span>}
+                              {rv&&rv!=="No Clear Reversal"&&rv!=="Not Enough Data" && <span style={{ fontSize:10,color:revColor(rv) }}><span style={{ color:"#3a3a38" }}>R: </span>{revShort(rv)}</span>}
                               {smfV && <span style={{ fontSize:10,color:smfColor(smfV) }}><span style={{ color:"#3a3a38" }}>F: </span>{smfShort(smfV)}</span>}
                               {fs!==null && <div style={{ marginTop:2 }}><span style={{ color:"#3a3a38",fontSize:10 }}>FS: </span>{renderFSCell(r)}</div>}
                             </div>
                           </td>
-                          <td style={{ padding:"8px 10px" }}>{renderRet(retV, retLive)}</td>
-                          <td style={{ padding:"8px 10px" }}>{renderPurchaseRet(prV)}</td>
+                          <td style={{ padding:"8px 10px" }}>{renderRetCell(lr)}</td>
+                          <td style={{ padding:"8px 10px" }}>{renderRetCell(br)}</td>
                           <td style={{ padding:"8px 10px" }}>{renderOutcomeBadge(outV)}</td>
                           <td style={{ padding:"8px 6px" }}>
-                            <button onClick={function(){ handleDeleteSnapshot(r.ticker,r.snapshot_date); }}
-                              title={"Delete "+r.ticker+" "+r.snapshot_date}
-                              style={{ background:"none",border:"0.5px solid #3a1a1a",borderRadius:4,color:"#663333",fontSize:10,cursor:"pointer",padding:"2px 6px" }}>
-                              {"\u00D7"}
-                            </button>
+                            <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+                              <button onClick={function(){ lockSignal(r.ticker); }} title={"Re-lock signal for "+r.ticker} disabled={locking[r.ticker]}
+                                style={{ background:"none",border:"0.5px solid #2a3a10",borderRadius:4,color:"#7abd00",fontSize:9,cursor:locking[r.ticker]?"not-allowed":"pointer",padding:"2px 5px",fontWeight:600 }}>
+                                {locking[r.ticker]?"\u29D7":"\u{1F512}"}
+                              </button>
+                              <button onClick={function(){ handleDeleteSnapshot(r.ticker,r.snapshot_date); }}
+                                title={"Delete "+r.ticker+" "+r.snapshot_date}
+                                style={{ background:"none",border:"0.5px solid #3a1a1a",borderRadius:4,color:"#663333",fontSize:10,cursor:"pointer",padding:"2px 6px" }}>
+                                {"\u00D7"}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -12153,14 +12263,14 @@ export function JournalPage() {
           <div>
             {fj.length===0 ? (
               <div style={{ fontSize:12,color:"#555",padding:"40px",textAlign:"center",background:"#161614",borderRadius:10 }}>
-                No data to aggregate yet.
+                No data yet. Lock signals first.
               </div>
             ) : (
               <div style={{ overflowX:"auto",borderRadius:10,border:"0.5px solid #2a2a28" }}>
                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
                   <thead>
                     <tr>
-                      {["Setup","Signals","Win Rate","Avg Return","Median","Best","Worst","Quality"].map(function(h) {
+                      {["Setup","Signals","Completed","Pending","Win Rate","Avg Lock Ret","Median","Best","Worst","Quality"].map(function(h) {
                         return <th key={h} style={{ padding:"8px 12px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap",textAlign:"left" }}>{h}</th>;
                       })}
                     </tr>
@@ -12172,6 +12282,8 @@ export function JournalPage() {
                         <tr key={s.label} style={{ background:bg }}>
                           <td style={{ padding:"9px 12px",fontWeight:700,color:"#f0ede6" }}>{s.label}</td>
                           <td style={{ padding:"9px 12px",color:"#888" }}>{s.count}</td>
+                          <td style={{ padding:"9px 12px",color:"#7abd00" }}>{s.completed}</td>
+                          <td style={{ padding:"9px 12px",color:"#555" }}>{s.pending}</td>
                           <td style={{ padding:"9px 12px",color:s.winRate!==null?(s.winRate>=60?"#7abd00":s.winRate>=45?"#EF9F27":"#e05050"):"#444",fontWeight:600 }}>{s.winRate!==null?s.winRate.toFixed(0)+"%":"\u2014"}</td>
                           <td style={{ padding:"9px 12px",color:s.avg!==null?retColor(s.avg):"#444",fontWeight:600 }}>{s.avg!==null?(s.avg>0?"+":"")+s.avg.toFixed(1)+"%":"\u2014"}</td>
                           <td style={{ padding:"9px 12px",color:s.median!==null?retColor(s.median):"#444" }}>{s.median!==null?(s.median>0?"+":"")+s.median.toFixed(1)+"%":"\u2014"}</td>
@@ -12185,7 +12297,7 @@ export function JournalPage() {
                 </table>
               </div>
             )}
-            <div style={{ fontSize:10,color:"#333",marginTop:10 }}>Signal returns only ({retWindow.toUpperCase()} window). Setup derived from Trend status.</div>
+            <div style={{ fontSize:10,color:"#333",marginTop:10 }}>Lock Return only ({retWindow==="current"?"Current":retWindow.toUpperCase()} period). Setup derived from Trend status.</div>
           </div>
         )}
 
@@ -12201,7 +12313,7 @@ export function JournalPage() {
                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:11 }}>
                   <thead>
                     <tr>
-                      {["Ticker","Signals","Latest Setup","Latest Date","Win Rate","Avg Sig Ret","Last Sig Ret","Avg Buy Ret","Last Buy Ret","Review"].map(function(h) {
+                      {["Ticker","Signals","Latest Setup","Latest Date","Win Rate","Avg Lock Ret","Last Lock Ret","Avg Buy Ret","Last Buy Ret","Review"].map(function(h) {
                         return <th key={h} style={{ padding:"8px 12px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap",textAlign:"left" }}>{h}</th>;
                       })}
                     </tr>
@@ -12221,10 +12333,10 @@ export function JournalPage() {
                           <td style={{ padding:"9px 12px",color:trendColor(t.latestSetup,null) }}>{t.latestSetup||"\u2014"}</td>
                           <td style={{ padding:"9px 12px",color:"#666",whiteSpace:"nowrap" }}>{t.latestDate}</td>
                           <td style={{ padding:"9px 12px",color:t.winRate!==null?(t.winRate>=60?"#7abd00":t.winRate>=45?"#EF9F27":"#e05050"):"#444",fontWeight:600 }}>{t.winRate!==null?t.winRate.toFixed(0)+"%":"\u2014"}</td>
-                          <td style={{ padding:"9px 12px",color:t.avg!==null?retColor(t.avg):"#444",fontWeight:600 }}>{t.avg!==null?(t.avg>0?"+":"")+t.avg.toFixed(1)+"%":"\u2014"}</td>
-                          <td style={{ padding:"9px 12px",color:t.lastRet!==null?retColor(t.lastRet):"#444" }}>{t.lastRet!==null?(t.lastRet>0?"+":"")+t.lastRet.toFixed(1)+"%":"\u2014"}</td>
-                          <td style={{ padding:"9px 12px",color:t.avgPR!==null?retColor(t.avgPR):"#444" }}>{t.avgPR!==null?(t.avgPR>0?"+":"")+t.avgPR.toFixed(1)+"%":"\u2014"}</td>
-                          <td style={{ padding:"9px 12px",color:t.lastPR!==null?retColor(t.lastPR):"#444" }}>{t.lastPR!==null?(t.lastPR>0?"+":"")+t.lastPR.toFixed(1)+"%":"\u2014"}</td>
+                          <td style={{ padding:"9px 12px",color:t.avgLock!==null?retColor(t.avgLock):"#444",fontWeight:600 }}>{t.avgLock!==null?(t.avgLock>0?"+":"")+t.avgLock.toFixed(1)+"%":"\u2014"}</td>
+                          <td style={{ padding:"9px 12px",color:t.lastLock!==null?retColor(t.lastLock):"#444" }}>{t.lastLock!==null?(t.lastLock>0?"+":"")+t.lastLock.toFixed(1)+"%":"\u2014"}</td>
+                          <td style={{ padding:"9px 12px",color:t.avgBuy!==null?retColor(t.avgBuy):"#444" }}>{t.avgBuy!==null?(t.avgBuy>0?"+":"")+t.avgBuy.toFixed(1)+"%":"\u2014"}</td>
+                          <td style={{ padding:"9px 12px",color:t.lastBuy!==null?retColor(t.lastBuy):"#444" }}>{t.lastBuy!==null?(t.lastBuy>0?"+":"")+t.lastBuy.toFixed(1)+"%":"\u2014"}</td>
                           <td style={{ padding:"9px 12px" }}>{renderReviewBadge(t.review)}</td>
                         </tr>
                       );
@@ -12237,7 +12349,7 @@ export function JournalPage() {
         )}
 
         <div style={{ fontSize:10,color:"#2a2a28",marginTop:24,lineHeight:1.6 }}>
-          Signal Journal records historical technical signals and outcomes for research purposes only. Not financial advice.
+          Signal Journal records historical technical signals for research purposes only. Not financial advice.
         </div>
       </div>
     </div>
@@ -14381,7 +14493,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.31</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.32</span>
           </div>
         </div>
 
