@@ -943,7 +943,7 @@ export async function onRequest(context) {
           var ufField = ufBody.field || "";
           var ufValue = ufBody.value;
           // Whitelist: only allow safe user-editable fields
-          var ALLOWED_FIELDS = ["purchase_price", "trade_notes"];
+          var ALLOWED_FIELDS = ["purchase_price", "buy_price", "trade_notes"];
           if (!ufId) return new Response(JSON.stringify({ error: "id required" }), { status: 400, headers: jHeaders });
           if (ALLOWED_FIELDS.indexOf(ufField) === -1) return new Response(JSON.stringify({ error: "Field not allowed: " + ufField }), { status: 400, headers: jHeaders });
           await DB.prepare("UPDATE technical_signal_journal SET " + ufField + "=?, updated_at=datetime('now') WHERE id=?").bind(ufValue !== undefined ? ufValue : null, ufId).run();
