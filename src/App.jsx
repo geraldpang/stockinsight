@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.30</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.31</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.30</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.31</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11336,7 +11336,7 @@ function PaywallCard({ sym, name, onBack, isPaid, clerkUser, mode }) {
 }
 
 // -- Landing page -------------------------------------------------------------
-// ─── Technical Signal Journal v2.30 ───────────────────────────────────────────
+// ─── Technical Signal Journal v2.31 ───────────────────────────────────────────
 export function JournalPage() {
   var F = "'Inter', system-ui, sans-serif";
   var [adminKey, setAdminKey]       = useState(localStorage.getItem("journal_admin_key") || "");
@@ -11358,6 +11358,7 @@ export function JournalPage() {
   var [expandedFS, setExpandedFS]   = useState({});
   var [editingPP, setEditingPP]     = useState({});   // { rowId: draftString }
   var [savingPP, setSavingPP]       = useState({});
+  var [livePrices, setLivePrices]   = useState({});   // { ticker: currentPrice }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   function showToast(msg, type) {
@@ -11374,7 +11375,7 @@ export function JournalPage() {
   function getTrendScore(r)   { return r.trend_score    ?? null; }
   function getMomScore(r)     { return r.momentum_score ?? null; }
   function getPurchasePrice(r){ return r.purchase_price  ?? r.purchasePrice  ?? r.entry_price ?? r.entryPrice ?? null; }
-  function getLatestPrice(r)  { return r.latestPrice ?? r.currentPrice ?? getClose(r); }
+  function getLatestPrice(r)  { return livePrices[r.ticker] ?? r.latestPrice ?? r.currentPrice ?? getClose(r); }
 
   // Force Strike tolerant accessor
   function getForceStrike(r) {
@@ -11396,7 +11397,8 @@ export function JournalPage() {
   function getPurchaseReturn(r) {
     var pp = getPurchasePrice(r);
     if (!pp || parseFloat(pp) <= 0) return null;
-    var lp = getLatestPrice(r);
+    // Prefer live price fetched on load, then fall back to stored fields
+    var lp = livePrices[r.ticker] ?? r.latestPrice ?? r.currentPrice ?? null;
     if (!lp || parseFloat(lp) <= 0) return null;
     return (parseFloat(lp) - parseFloat(pp)) / parseFloat(pp) * 100;
   }
@@ -11405,11 +11407,32 @@ export function JournalPage() {
     var map = { "5d":"future_return_5d","10d":"future_return_10d","20d":"future_return_20d","30d":"future_return_30d","90d":"future_return_90d" };
     var key = map[win] || "future_return_20d";
     var v = r[key];
-    return (v===null||v===undefined) ? null : parseFloat(v);
+    if (v!==null && v!==undefined) return { val: parseFloat(v), live: false };
+    // Fall back to live price calculation
+    var livePrice = livePrices[r.ticker];
+    var closePrice = getClose(r);
+    if (!livePrice || !closePrice || parseFloat(closePrice) <= 0) return null;
+    // Only show live return if enough calendar days have elapsed for the window
+    var winDays = { "5d":5,"10d":10,"20d":20,"30d":30,"90d":90 };
+    var needed = winDays[win] || 20;
+    var snapshotDate = r.snapshot_date ? new Date(r.snapshot_date) : null;
+    var today = new Date();
+    var elapsed = snapshotDate ? Math.floor((today - snapshotDate) / (1000*60*60*24)) : 0;
+    if (elapsed < needed) return null; // window not reached yet
+    return { val: (parseFloat(livePrice) - parseFloat(closePrice)) / parseFloat(closePrice) * 100, live: true };
+  }
+  // Unwrap helper — returns just the numeric value (or null)
+  function getReturnNum(r, win) {
+    var res = getReturnVal(r, win);
+    return res ? res.val : null;
+  }
+  function isLiveReturn(r, win) {
+    var res = getReturnVal(r, win);
+    return res ? res.live : false;
   }
 
   function getOutcomeLabel(r, win) {
-    var v = getReturnVal(r, win);
+    var v = getReturnNum(r, win);
     if (v===null) return "Pending";
     if (v>=5)  return "Strong Win";
     if (v>0)   return "Win";
@@ -11434,7 +11457,42 @@ export function JournalPage() {
   function loadJournal(tk) {
     var url = "/journal?action=journal&limit=500" + (tk ? "&ticker=" + tk : "");
     return fetch(url, { headers:{ "X-Admin-Key": adminKey } }).then(function(res){ return res.json(); })
-      .then(function(d){ if(d.entries) setJournal(d.entries); });
+      .then(function(d){
+        if(d.entries) {
+          setJournal(d.entries);
+          loadLivePrices(d.entries);
+        }
+      });
+  }
+
+  // Fetch current prices for all unique tickers in the journal, in batches
+  function loadLivePrices(entries) {
+    var tickers = [];
+    (entries||[]).forEach(function(r){ if(r.ticker && tickers.indexOf(r.ticker)===-1) tickers.push(r.ticker); });
+    if(tickers.length===0) return;
+    // Fetch in parallel, up to 8 at a time to avoid overwhelming the proxy
+    var batches = [];
+    for(var i=0; i<tickers.length; i+=8) batches.push(tickers.slice(i,i+8));
+    var result = {};
+    var chain = Promise.resolve();
+    batches.forEach(function(batch) {
+      chain = chain.then(function() {
+        return Promise.all(batch.map(function(sym) {
+          return fetch("/massive?sym="+sym, { headers:{ "X-Admin-Key": adminKey } })
+            .then(function(res){ return res.json(); })
+            .then(function(d){
+              var price = (d && d.snapshot && d.snapshot.close) ? d.snapshot.close
+                        : (d && d.lastTrade && d.lastTrade.price) ? d.lastTrade.price
+                        : null;
+              if(price) result[sym] = parseFloat(price);
+            })
+            .catch(function(){});
+        }));
+      }).then(function(){
+        // Update incrementally so early results show fast
+        setLivePrices(function(prev){ return Object.assign({}, prev, result); });
+      });
+    });
   }
   function handleAuth() {
     setAuthError("");
@@ -11634,18 +11692,18 @@ export function JournalPage() {
   // ── KPIs ─────────────────────────────────────────────────────────────────────
   function buildKpis(rows, win) {
     var total=rows.length;
-    var withRet=rows.filter(function(r){ return getReturnVal(r,win)!==null; });
+    var withRet=rows.filter(function(r){ return getReturnNum(r,win)!==null; });
     var pending=total-withRet.length;
-    var wins=withRet.filter(function(r){ return getReturnVal(r,win)>0; });
+    var wins=withRet.filter(function(r){ return getReturnNum(r,win)>0; });
     var winRate=withRet.length>0?(wins.length/withRet.length*100):null;
-    var avgRet=withRet.length>0?withRet.reduce(function(s,r){ return s+getReturnVal(r,win); },0)/withRet.length:null;
+    var avgRet=withRet.length>0?withRet.reduce(function(s,r){ return s+getReturnNum(r,win); },0)/withRet.length:null;
     var withPP=rows.filter(function(r){ return getPurchaseReturn(r)!==null; });
     var avgPR=withPP.length>0?withPP.reduce(function(s,r){ return s+getPurchaseReturn(r); },0)/withPP.length:null;
     var groups={};
     rows.forEach(function(r){ var k=getTrend(r)||"Unknown"; if(!groups[k]) groups[k]=[]; groups[k].push(r); });
     var gStats=Object.keys(groups).map(function(k){
-      var g=groups[k]; var gW=g.filter(function(r){ return getReturnVal(r,win)!==null; });
-      var gAvg=gW.length>0?gW.reduce(function(s,r){ return s+getReturnVal(r,win); },0)/gW.length:null;
+      var g=groups[k]; var gW=g.filter(function(r){ return getReturnNum(r,win)!==null; });
+      var gAvg=gW.length>0?gW.reduce(function(s,r){ return s+getReturnNum(r,win); },0)/gW.length:null;
       return { label:k, count:g.length, avg:gAvg };
     }).filter(function(x){ return x.count>=3&&x.avg!==null; });
     gStats.sort(function(a,b){ return b.avg-a.avg; });
@@ -11658,8 +11716,8 @@ export function JournalPage() {
     var groups={};
     rows.forEach(function(r){ var k=getTrend(r)||"Unknown"; if(!groups[k]) groups[k]=[]; groups[k].push(r); });
     return Object.keys(groups).map(function(k) {
-      var g=groups[k]; var gW=g.filter(function(r){ return getReturnVal(r,win)!==null; });
-      var rets=gW.map(function(r){ return getReturnVal(r,win); }).sort(function(a,b){ return a-b; });
+      var g=groups[k]; var gW=g.filter(function(r){ return getReturnNum(r,win)!==null; });
+      var rets=gW.map(function(r){ return getReturnNum(r,win); }).sort(function(a,b){ return a-b; });
       var avg=rets.length>0?rets.reduce(function(s,v){ return s+v; },0)/rets.length:null;
       var median=rets.length>0?rets[Math.floor(rets.length/2)]:null;
       var best=rets.length>0?rets[rets.length-1]:null;
@@ -11683,10 +11741,10 @@ export function JournalPage() {
     return Object.keys(groups).map(function(tk) {
       var g=groups[tk].sort(function(a,b){ return b.snapshot_date<a.snapshot_date?-1:1; });
       var latest=g[0];
-      var gW=g.filter(function(r){ return getReturnVal(r,win)!==null; });
-      var avg=gW.length>0?gW.reduce(function(s,r){ return s+getReturnVal(r,win); },0)/gW.length:null;
-      var lastRet=getReturnVal(latest,win);
-      var wins2=gW.filter(function(r){ return getReturnVal(r,win)>0; }).length;
+      var gW=g.filter(function(r){ return getReturnNum(r,win)!==null; });
+      var avg=gW.length>0?gW.reduce(function(s,r){ return s+getReturnNum(r,win); },0)/gW.length:null;
+      var lastRet=getReturnNum(latest,win);
+      var wins2=gW.filter(function(r){ return getReturnNum(r,win)>0; }).length;
       var wr=gW.length>0?wins2/gW.length*100:null;
       var withPP=g.filter(function(r){ return getPurchaseReturn(r)!==null; });
       var avgPR=withPP.length>0?withPP.reduce(function(s,r){ return s+getPurchaseReturn(r); },0)/withPP.length:null;
@@ -11723,9 +11781,14 @@ export function JournalPage() {
     var col=rv==="Improving"?"#7abd00":rv==="Weak"?"#e05050":rv==="Pending"?"#444":"#EF9F27";
     return <span style={{fontSize:9,fontWeight:700,color:col,background:col+"15",padding:"2px 6px",borderRadius:3}}>{rv}</span>;
   }
-  function renderRet(v) {
+  function renderRet(v, live) {
     if(v===null||v===undefined) return <span style={{color:"#444",fontSize:10}}>Pending</span>;
-    return <span style={{color:retColor(v),fontWeight:700}}>{(v>0?"+":"")+v.toFixed(1)+"%"}</span>;
+    return (
+      <span style={{color:retColor(v),fontWeight:700}}>
+        {live && <span title="Live estimate" style={{display:"inline-block",width:5,height:5,borderRadius:"50%",background:"#6090d0",marginRight:4,verticalAlign:"middle",marginBottom:1}}></span>}
+        {live ? "~" : ""}{(v>0?"+":"")+v.toFixed(1)+"%"}
+      </span>
+    );
   }
   function renderPurchaseRet(v) {
     if(v===null||v===undefined) return <span style={{color:"#444",fontSize:10}}>{"\u2014"}</span>;
@@ -12040,7 +12103,7 @@ export function JournalPage() {
                       var mv=getMomentum(r); var ms=getMomScore(r);
                       var rv=getReversal(r);
                       var smfV=getSmartMoney(r);
-                      var retV=getReturnVal(r,retWindow);
+                      var retV=getReturnNum(r,retWindow); var retLive=isLiveReturn(r,retWindow);
                       var outV=getOutcomeLabel(r,retWindow);
                       var cl=getClose(r);
                       var prV=getPurchaseReturn(r);
@@ -12065,7 +12128,7 @@ export function JournalPage() {
                               {fs!==null && <div style={{ marginTop:2 }}><span style={{ color:"#3a3a38",fontSize:10 }}>FS: </span>{renderFSCell(r)}</div>}
                             </div>
                           </td>
-                          <td style={{ padding:"8px 10px" }}>{renderRet(retV)}</td>
+                          <td style={{ padding:"8px 10px" }}>{renderRet(retV, retLive)}</td>
                           <td style={{ padding:"8px 10px" }}>{renderPurchaseRet(prV)}</td>
                           <td style={{ padding:"8px 10px" }}>{renderOutcomeBadge(outV)}</td>
                           <td style={{ padding:"8px 6px" }}>
@@ -14318,7 +14381,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.30</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.31</span>
           </div>
         </div>
 
