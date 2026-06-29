@@ -5130,7 +5130,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.32</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.33</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5184,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.32</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.33</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11336,20 +11336,19 @@ function PaywallCard({ sym, name, onBack, isPaid, clerkUser, mode }) {
 }
 
 // -- Landing page -------------------------------------------------------------
-// ─── Technical Signal Journal v2.32 ───────────────────────────────────────────
+// ─── Technical Signal Journal v2.33 ───────────────────────────────────────────
 export function JournalPage() {
   var F = "'Inter', system-ui, sans-serif";
   var [adminKey, setAdminKey]         = useState(localStorage.getItem("journal_admin_key") || "");
   var [authed, setAuthed]             = useState(false);
   var [authError, setAuthError]       = useState("");
   var [watchlist, setWatchlist]       = useState([]);
-  var [watchData, setWatchData]       = useState({});   // { ticker: { price, trend, smf, fs } }
+  var [watchSnaps, setWatchSnaps]     = useState({});  // { ticker: { price, change, snap } }
   var [journal, setJournal]           = useState([]);
   var [addTicker, setAddTicker]       = useState("");
-  var [loading, setLoading]           = useState("");
   var [toast, setToast]               = useState(null);
   var [filter, setFilter]             = useState({ ticker:"", trend:"", outcome:"", momentum:"", reversal:"", smartMoney:"" });
-  var [locking, setLocking]           = useState({});   // { ticker: true } while locking
+  var [locking, setLocking]           = useState({});
   var [sortCol, setSortCol]           = useState("snapshot_date");
   var [sortDir, setSortDir]           = useState("desc");
   var [activeTab, setActiveTab]       = useState("journal");
@@ -11357,9 +11356,13 @@ export function JournalPage() {
   var [showAddTicker, setShowAddTicker] = useState(false);
   var [moreFilters, setMoreFilters]   = useState(false);
   var [expandedFS, setExpandedFS]     = useState({});
-  var [editingBP, setEditingBP]       = useState({});   // { rowId: draftString }
+  var [editingBP, setEditingBP]       = useState({});
   var [savingBP, setSavingBP]         = useState({});
-  var [livePrices, setLivePrices]     = useState({});   // { ticker: currentPrice }
+  var [livePrices, setLivePrices]     = useState({});
+  var [buyingTicker, setBuyingTicker] = useState(null);  // ticker with Buy panel open
+  var [buyDraft, setBuyDraft]         = useState("");    // buy price input string
+  var [buyLoading, setBuyLoading]       = useState(false);
+  var [refreshingWatch, setRefreshingWatch] = useState(false);
 
   // ── Toast ────────────────────────────────────────────────────────────────────
   function showToast(msg, type) {
@@ -11367,92 +11370,95 @@ export function JournalPage() {
     setTimeout(function(){ setToast(null); }, 3500);
   }
 
+  // ── Price helper ─────────────────────────────────────────────────────────────
+  function getCurrentPriceFromMassive(d, fallback) {
+    if (d && d.snapshot && d.snapshot.close && d.snapshot.close > 0) return parseFloat(d.snapshot.close);
+    if (d && d.lastTrade && d.lastTrade.price && d.lastTrade.price > 0) return parseFloat(d.lastTrade.price);
+    if (d && d.aggs && d.aggs.length > 0 && d.aggs[0].c > 0) return parseFloat(d.aggs[0].c);
+    if (fallback) return parseFloat(fallback);
+    return null;
+  }
+
   // ── Tolerant field accessors ─────────────────────────────────────────────────
-  function getLockPrice(r)   { return r.close_price    ?? r.lock_price   ?? r.close      ?? null; }
-  function getBuyPrice(r)    { return r.buy_price       ?? r.purchase_price ?? r.purchasePrice ?? r.entryPrice ?? r.entry_price ?? null; }
-  function getTrend(r)       { return r.trend_status    ?? r.trend        ?? null; }
-  function getMomentum(r)    { return r.momentum_status ?? r.momentum     ?? null; }
-  function getReversal(r)    { return r.reversal_status ?? r.reversal     ?? null; }
-  function getSmartMoney(r)  { return r.smart_money_status ?? r.smartMoney ?? r.smart_money ?? null; }
-  function getTrendScore(r)  { return r.trend_score    ?? null; }
-  function getMomScore(r)    { return r.momentum_score ?? null; }
+  function getLockPrice(r)  { return r.close_price ?? r.lock_price ?? r.close ?? null; }
+  function getBuyPrice(r)   { return r.buy_price ?? r.purchase_price ?? r.purchasePrice ?? r.entryPrice ?? r.entry_price ?? null; }
+  function getTrend(r)      { return r.trend_status    ?? r.trend     ?? null; }
+  function getMomentum(r)   { return r.momentum_status ?? r.momentum  ?? null; }
+  function getReversal(r)   { return r.reversal_status ?? r.reversal  ?? null; }
+  function getSmartMoney(r) { return r.smart_money_status ?? r.smartMoney ?? r.smart_money ?? null; }
+  function getTrendScore(r) { return r.trend_score    ?? null; }
+  function getMomScore(r)   { return r.momentum_score ?? null; }
 
   function getForceStrike(r) {
-    var score  = r.fs_score     ?? r.fsScore     ?? null;
-    var stars  = r.trade_stars  ?? r.tradeStars  ?? null;
-    var age    = r.pattern_age  ?? r.patternAge  ?? null;
-    var entry  = r.fs_entry     ?? r.fsEntry     ?? null;
-    var stop   = r.fs_stop      ?? r.fsStop      ?? null;
-    var risk   = r.fs_risk_pct  ?? r.fsRiskPct   ?? null;
-    var atr    = r.fs_atr       ?? r.fsAtr       ?? null;
-    var riskAtr= r.fs_risk_atr  ?? r.fsRiskAtr   ?? null;
-    var target = r.fs_target    ?? r.fsTarget    ?? null;
+    var score  = r.fs_score    ?? r.fsScore    ?? null;
+    var stars  = r.trade_stars ?? r.tradeStars ?? null;
+    var age    = r.pattern_age ?? r.patternAge ?? null;
+    var entry  = r.fs_entry    ?? r.fsEntry    ?? null;
+    var stop   = r.fs_stop     ?? r.fsStop     ?? null;
+    var risk   = r.fs_risk_pct ?? r.fsRiskPct  ?? null;
+    var atr    = r.fs_atr      ?? r.fsAtr      ?? null;
+    var riskAtr= r.fs_risk_atr ?? r.fsRiskAtr  ?? null;
+    var target = r.fs_target   ?? r.fsTarget   ?? null;
     var support= r.technical_support ?? r.technicalSupport ?? null;
-    var status = r.force_strike ?? r.forceStrike ?? r.fs  ?? null;
+    var status = r.force_strike ?? r.forceStrike ?? r.fs ?? null;
     if (score===null && stars===null && status===null) return null;
     return { score:score, stars:stars, age:age, entry:entry, stop:stop, risk:risk, atr:atr, riskAtr:riskAtr, target:target, support:support, status:status };
   }
 
-  // ── Return window → stored DB field ─────────────────────────────────────────
-  var WIN_MAP = { "current":null, "5d":"future_return_5d","10d":"future_return_10d","20d":"future_return_20d","30d":"future_return_30d","90d":"future_return_90d" };
+  // ── Return windows ───────────────────────────────────────────────────────────
+  var WIN_MAP  = { "current":null,"5d":"future_return_5d","10d":"future_return_10d","20d":"future_return_20d","30d":"future_return_30d","90d":"future_return_90d" };
   var WIN_DAYS = { "5d":5,"10d":10,"20d":20,"30d":30,"90d":90 };
 
-  // Returns { val, live, pending } or null
   function getLockReturn(r, win) {
     var lp = getLockPrice(r);
     if (!lp || parseFloat(lp) <= 0) return null;
-
     if (win === "current") {
       var cur = livePrices[r.ticker];
       if (!cur) return null;
-      return { val: (parseFloat(cur) - parseFloat(lp)) / parseFloat(lp) * 100, live: true, pending: false };
+      return { val:(parseFloat(cur)-parseFloat(lp))/parseFloat(lp)*100, live:true, pending:false };
     }
-    // Non-current window: prefer stored value
     var key = WIN_MAP[win];
     var stored = key ? r[key] : null;
     if (stored !== null && stored !== undefined) {
-      return { val: parseFloat(stored), live: false, pending: false };
+      return { val:parseFloat(stored), live:false, pending:false };
     }
-    // Fall back to live if enough days have elapsed
     var needed = WIN_DAYS[win] || 20;
     var snap = r.snapshot_date ? new Date(r.snapshot_date) : null;
-    if (!snap) return { val: null, live: false, pending: true };
+    if (!snap) return { val:null, live:false, pending:true };
     var elapsed = Math.floor((new Date() - snap) / (1000*60*60*24));
-    if (elapsed < needed) return { val: null, live: false, pending: true };
+    if (elapsed < needed) return { val:null, live:false, pending:true };
     var cur2 = livePrices[r.ticker];
     if (!cur2) return null;
-    return { val: (parseFloat(cur2) - parseFloat(lp)) / parseFloat(lp) * 100, live: true, pending: false };
+    return { val:(parseFloat(cur2)-parseFloat(lp))/parseFloat(lp)*100, live:true, pending:false };
   }
 
   function getBuyReturn(r, win) {
     var bp = getBuyPrice(r);
     if (!bp || parseFloat(bp) <= 0) return null;
-
     if (win === "current") {
       var cur = livePrices[r.ticker];
       if (!cur) return null;
-      return { val: (parseFloat(cur) - parseFloat(bp)) / parseFloat(bp) * 100, live: true, pending: false };
+      return { val:(parseFloat(cur)-parseFloat(bp))/parseFloat(bp)*100, live:true, pending:false };
     }
     var needed = WIN_DAYS[win] || 20;
     var snap = r.snapshot_date ? new Date(r.snapshot_date) : null;
-    if (!snap) return { val: null, live: false, pending: true };
+    if (!snap) return { val:null, live:false, pending:true };
     var elapsed = Math.floor((new Date() - snap) / (1000*60*60*24));
-    if (elapsed < needed) return { val: null, live: false, pending: true };
-    // For historical windows, use stored future price to compute buy return
+    if (elapsed < needed) return { val:null, live:false, pending:true };
     var key = WIN_MAP[win];
     if (key) {
       var stored = r[key];
       if (stored !== null && stored !== undefined) {
         var lp = getLockPrice(r);
         if (lp && parseFloat(lp) > 0) {
-          var futurePrice = parseFloat(lp) * (1 + parseFloat(stored) / 100);
-          return { val: (futurePrice - parseFloat(bp)) / parseFloat(bp) * 100, live: false, pending: false };
+          var futP = parseFloat(lp) * (1 + parseFloat(stored)/100);
+          return { val:(futP-parseFloat(bp))/parseFloat(bp)*100, live:false, pending:false };
         }
       }
     }
     var cur2 = livePrices[r.ticker];
     if (!cur2) return null;
-    return { val: (parseFloat(cur2) - parseFloat(bp)) / parseFloat(bp) * 100, live: true, pending: false };
+    return { val:(parseFloat(cur2)-parseFloat(bp))/parseFloat(bp)*100, live:true, pending:false };
   }
 
   function getOutcomeLabel(r, win) {
@@ -11485,26 +11491,26 @@ export function JournalPage() {
     return jFetch("watchlist").then(function(d){ if(d.watchlist) setWatchlist(d.watchlist); });
   }
 
-  function loadJournal(tk) {
-    var url = "/journal?action=journal&limit=500"+(tk?"&ticker="+tk:"");
+  function loadJournal() {
+    var url = "/journal?action=journal&limit=500";
     return fetch(url, { headers:{ "X-Admin-Key":adminKey } }).then(function(res){ return res.json(); })
       .then(function(d){
-        if(d.entries) {
+        if (d.entries) {
           setJournal(d.entries);
-          loadLivePrices(d.entries);
+          // Fetch live prices for all journal tickers
+          var tickers = [];
+          d.entries.forEach(function(r){ if(r.ticker && tickers.indexOf(r.ticker)===-1) tickers.push(r.ticker); });
+          fetchLivePricesForTickers(tickers);
         }
       });
   }
 
-  // Load current prices for all unique tickers in journal + watchlist
-  function loadLivePrices(entries) {
-    var tickers = [];
-    (entries||[]).forEach(function(r){ if(r.ticker && tickers.indexOf(r.ticker)===-1) tickers.push(r.ticker); });
-    watchlist.forEach(function(w){ if(w.ticker && tickers.indexOf(w.ticker)===-1) tickers.push(w.ticker); });
-    if(tickers.length===0) return;
-    var result = {};
+  // Fetch /massive for a list of tickers, batched, update livePrices only
+  function fetchLivePricesForTickers(tickers) {
+    if (!tickers || !tickers.length) return;
     var batches = [];
-    for(var i=0;i<tickers.length;i+=8) batches.push(tickers.slice(i,i+8));
+    for (var i=0; i<tickers.length; i+=8) batches.push(tickers.slice(i,i+8));
+    var result = {};
     var chain = Promise.resolve();
     batches.forEach(function(batch) {
       chain = chain.then(function() {
@@ -11512,21 +11518,8 @@ export function JournalPage() {
           return fetch("/massive?sym="+sym, { headers:{ "X-Admin-Key":adminKey } })
             .then(function(res){ return res.json(); })
             .then(function(d){
-              var price = (d&&d.snapshot&&d.snapshot.close) ? d.snapshot.close
-                        : (d&&d.lastTrade&&d.lastTrade.price) ? d.lastTrade.price : null;
-              var trendSt = (d&&d.indicators) ? null : null; // kept for future
-              if (price) {
-                result[sym] = parseFloat(price);
-                // Store per-ticker watch data for watchlist display
-                setWatchData(function(prev){
-                  var ind = (d&&d.indicators)||{};
-                  var snap = (d&&d.snapshot)||{};
-                  return Object.assign({},prev,{[sym]:{
-                    price: parseFloat(price),
-                    change: snap.change||null,
-                  }});
-                });
-              }
+              var p = getCurrentPriceFromMassive(d, null);
+              if (p) result[sym] = p;
             })
             .catch(function(){});
         }));
@@ -11536,35 +11529,96 @@ export function JournalPage() {
     });
   }
 
-  // Load watchlist live data separately (also called on auth)
-  function loadWatchlistData(wl) {
-    var tickers = (wl||watchlist).map(function(w){ return w.ticker; });
-    if(!tickers.length) return;
-    tickers.forEach(function(sym) {
+  // Fetch /massive for watchlist tickers, compute full snapshot, store in watchSnaps
+  // ── Watchlist snapshot cache (localStorage, 24h TTL) ────────────────────────
+  var WATCH_CACHE_KEY = "journal_watch_snaps_v1";
+  var WATCH_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours in ms
+
+  function readWatchCache() {
+    try {
+      var raw = localStorage.getItem(WATCH_CACHE_KEY);
+      if (!raw) return {};
+      var parsed = JSON.parse(raw);
+      var now = Date.now();
+      var valid = {};
+      Object.keys(parsed).forEach(function(sym) {
+        var entry = parsed[sym];
+        if (entry && entry.ts && (now - entry.ts) < WATCH_CACHE_TTL) {
+          valid[sym] = entry;
+        }
+      });
+      return valid;
+    } catch(e) { return {}; }
+  }
+
+  function writeWatchCache(sym, data) {
+    try {
+      var raw = localStorage.getItem(WATCH_CACHE_KEY);
+      var store = raw ? JSON.parse(raw) : {};
+      store[sym] = Object.assign({}, data, { ts: Date.now() });
+      localStorage.setItem(WATCH_CACHE_KEY, JSON.stringify(store));
+    } catch(e) {}
+  }
+
+  function applyWatchCacheToState(cache) {
+    var snaps = {};
+    var prices = {};
+    Object.keys(cache).forEach(function(sym) {
+      var entry = cache[sym];
+      snaps[sym]  = { price: entry.price, change: entry.change, snap: entry.snap };
+      if (entry.price) prices[sym] = entry.price;
+    });
+    if (Object.keys(snaps).length)  setWatchSnaps(function(prev){ return Object.assign({},prev,snaps); });
+    if (Object.keys(prices).length) setLivePrices(function(prev){ return Object.assign({},prev,prices); });
+  }
+
+  function loadWatchlistLive(wl, forceRefresh) {
+    var tickers = (wl || watchlist).map(function(w){ return w.ticker; });
+    if (!tickers.length) return;
+
+    // 1. Seed state from cache immediately (shows stale data while loading)
+    var cache = readWatchCache();
+    if (!forceRefresh) applyWatchCacheToState(cache);
+
+    // 2. Determine which tickers need a fresh fetch
+    var now = Date.now();
+    var toFetch = tickers.filter(function(sym) {
+      if (forceRefresh) return true;
+      var entry = cache[sym];
+      return !entry || !entry.ts || (now - entry.ts) >= WATCH_CACHE_TTL;
+    });
+
+    if (!toFetch.length) return; // all tickers are fresh from cache
+
+    toFetch.forEach(function(sym) {
       fetch("/massive?sym="+sym, { headers:{ "X-Admin-Key":adminKey } })
         .then(function(res){ return res.json(); })
         .then(function(d){
-          var snap = (d&&d.snapshot)||{};
+          var wRow = (wl||watchlist).find ? (wl||watchlist).find(function(w){ return w.ticker===sym; }) : null;
+          var fallback = wRow ? wRow.last_close_price : null;
+          var price = getCurrentPriceFromMassive(d, fallback);
+          var chg = (d&&d.snapshot&&d.snapshot.change) ? d.snapshot.change : null;
+          var aggs = (d&&d.aggs)||[];
           var ind  = (d&&d.indicators)||{};
-          var price = snap.close || (d&&d.lastTrade&&d.lastTrade.price) || null;
-          if(price) setLivePrices(function(p){ return Object.assign({},p,{[sym]:parseFloat(price)}); });
-          // Derive quick technical label from indicators
-          var trendLbl = null;
-          var rsi = ind.rsi14 || null;
-          var sma50 = ind.sma50 || null; var sma200 = ind.sma200 || null;
-          var ema20 = ind.ema20 || null;
-          if(price && sma50 && sma200) {
-            if(price>sma200 && sma50>sma200) trendLbl="Uptrend";
-            else if(price<sma200 && sma50<sma200) trendLbl="Downtrend";
-            else trendLbl="Sideways";
-          }
-          setWatchData(function(prev){
-            return Object.assign({},prev,{[sym]:{
-              price: price ? parseFloat(price) : null,
-              change: snap.change||null,
-              trend: trendLbl,
-            }});
+          var bars = aggs.filter(function(b){ return b&&b.c>0; }).reverse().map(function(b){
+            return { date:b.t?new Date(b.t).toISOString().split("T")[0]:"", open:b.o, high:b.h, low:b.l, close:b.c, volume:b.v||0 };
           });
+          var snap = null;
+          if (bars.length > 0 && price) {
+            try {
+              snap = calculateTechnicalSignalSnapshot({
+                ticker: sym,
+                date: new Date().toISOString().split("T")[0],
+                ohlcv: bars,
+                indicators: ind,
+                meta: { price: price },
+              });
+            } catch(e) { snap = null; }
+          }
+          var entry = { price:price, change:chg, snap:snap };
+          writeWatchCache(sym, entry);
+          if (price) setLivePrices(function(prev){ return Object.assign({},prev,{[sym]:price}); });
+          setWatchSnaps(function(prev){ return Object.assign({},prev,{[sym]:entry}); });
         })
         .catch(function(){});
     });
@@ -11573,46 +11627,49 @@ export function JournalPage() {
   function handleAuth() {
     setAuthError("");
     jFetch("watchlist").then(function(d) {
-      if(d.error){ setAuthError("\u274C "+d.error); return; }
+      if (d.error) { setAuthError("\u274C "+d.error); return; }
       localStorage.setItem("journal_admin_key", adminKey);
       var wl = d.watchlist||[];
       setAuthed(true); setWatchlist(wl);
       loadJournal();
-      loadWatchlistData(wl);
+      loadWatchlistLive(wl);
     }).catch(function(e){ setAuthError("\u274C "+e.message); });
   }
 
   function handleAddTicker() {
     var t = addTicker.trim().toUpperCase();
-    if(!t) return;
+    if (!t) return;
     jFetch("addTicker","POST",{ticker:t}).then(function(d){
-      if(d.error){ showToast(d.error,"err"); return; }
+      if (d.error) { showToast(d.error,"err"); return; }
       showToast(d.message||t+" added.","ok");
       setAddTicker(""); setShowAddTicker(false);
-      loadWatchlist().then(function(){ loadWatchlistData(); });
+      loadWatchlist().then(function(d2){
+        if (d2 && d2.watchlist) loadWatchlistLive(d2.watchlist);
+        else loadWatchlistLive();
+      });
     });
   }
 
   function handleRemove(ticker) {
     jFetch("removeTicker","POST",{ticker:ticker}).then(function(d){
-      if(d.ok){ showToast(ticker+" removed.","ok"); loadWatchlist(); }
+      if (d.ok) { showToast(ticker+" removed.","ok"); loadWatchlist(); }
     });
   }
 
   function handleDeleteSnapshot(ticker, date) {
-    if(!window.confirm("Delete "+ticker+" signal for "+date+"?")) return;
+    if (!window.confirm("Delete "+ticker+" signal for "+date+"?")) return;
     jFetch("deleteSnapshot","POST",{ticker:ticker,date:date}).then(function(d){
-      if(d.ok){ showToast(ticker+" "+date+" deleted.","ok"); loadJournal(); }
+      if (d.ok) { showToast(ticker+" "+date+" deleted.","ok"); loadJournal(); }
       else showToast("Delete failed: "+(d.error||"unknown"),"err");
     }).catch(function(e){ showToast("Delete error: "+e.message,"err"); });
   }
 
-  // ── Buy Price save ───────────────────────────────────────────────────────────
+  // ── Buy Price: edit existing row ─────────────────────────────────────────────
   function saveBuyPrice(rowId, val) {
     setSavingBP(function(s){ return Object.assign({},s,{[rowId]:true}); });
     var numVal = val===""?null:parseFloat(val);
     jFetch("updateField","POST",{id:rowId,field:"buy_price",value:numVal}).then(function(d){
-      if(d.ok){
+      if (d.ok) {
         setJournal(function(prev){ return prev.map(function(row){ return row.id===rowId?Object.assign({},row,{buy_price:numVal}):row; }); });
         setEditingBP(function(s){ var n=Object.assign({},s); delete n[rowId]; return n; });
         showToast("Buy price saved.","ok");
@@ -11621,56 +11678,104 @@ export function JournalPage() {
     .then(function(){ setSavingBP(function(s){ var n=Object.assign({},s); delete n[rowId]; return n; }); });
   }
 
-  // ── Lock Signal (snapshot) ───────────────────────────────────────────────────
-  function lockSignal(ticker) {
-    setLocking(function(g){ return Object.assign({},g,{[ticker]:true}); });
-    var headers = { "X-Admin-Key":adminKey };
-    fetch("/massive?sym="+ticker, { headers:headers })
+  // ── Buy flow from watchlist: fetch snapshot + lock + save buy_price ──────────
+  function handleBuyConfirm(ticker, buyPriceStr) {
+    var bp = parseFloat(buyPriceStr);
+    if (!buyPriceStr || isNaN(bp) || bp <= 0) { showToast("Enter a valid buy price.","err"); return; }
+    setBuyLoading(true);
+    fetch("/massive?sym="+ticker, { headers:{ "X-Admin-Key":adminKey } })
       .then(function(res){ return res.json(); })
       .then(function(massRes){
-        if(!massRes) { showToast("No data for "+ticker+".","err"); return; }
+        if (!massRes) { showToast("No data for "+ticker+".","err"); return; }
         var aggs = massRes.aggs||[];
         var ind  = massRes.indicators||{};
         var snap = massRes.snapshot||{};
         var bars = aggs.filter(function(b){ return b&&b.c>0; }).reverse().map(function(b){
-          return { date:b.t?new Date(b.t).toISOString().split("T")[0]:"",open:b.o,high:b.h,low:b.l,close:b.c,volume:b.v||0 };
+          return { date:b.t?new Date(b.t).toISOString().split("T")[0]:"", open:b.o, high:b.h, low:b.l, close:b.c, volume:b.v||0 };
         });
-        var price = snap.close||(bars.length>0?bars[bars.length-1].close:0);
-        if(!price||price<=0){ showToast("No price for "+ticker+".","err"); return; }
+        var wRow = watchlist.find ? watchlist.find(function(w){ return w.ticker===ticker; }) : null;
+        var price = getCurrentPriceFromMassive(massRes, wRow?wRow.last_close_price:null);
+        if (!price || price <= 0) { showToast("No price for "+ticker+".","err"); return; }
         var today = new Date().toISOString().split("T")[0];
         var snapshot = calculateTechnicalSignalSnapshot({
           ticker:ticker, date:today, ohlcv:bars, indicators:ind, meta:{ price:price },
         });
-        var postSnap = Object.assign({},snapshot,{open:snapshot.open,high:snapshot.high,low:snapshot.low,close:snapshot.close,volume:snapshot.volume});
+        var postSnap = Object.assign({}, snapshot, {
+          open:snapshot.open, high:snapshot.high, low:snapshot.low,
+          close:snapshot.close, volume:snapshot.volume,
+          buy_price: bp,
+        });
         return jFetch("upsertSnapshot","POST",postSnap).then(function(res){
-          if(res.ok){
-            showToast(ticker+" locked at $"+parseFloat(price).toFixed(2)+".","ok");
+          if (res.ok) {
+            showToast(ticker+" locked at $"+price.toFixed(2)+" \u00B7 Buy $"+bp.toFixed(2)+".","ok");
+            setBuyingTicker(null); setBuyDraft("");
             loadWatchlist(); loadJournal();
           } else showToast("Error: "+(res.error||"unknown"),"err");
         });
       })
       .catch(function(e){ showToast("Error: "+e.message,"err"); })
-      .then(function(){ setLocking(function(g){ var n=Object.assign({},g); delete n[ticker]; return n; }); });
+      .then(function(){ setBuyLoading(false); });
+  }
+
+  // ── Re-lock signal (explicit, preserves buy_price) ───────────────────────────
+  function relockSignal(r) {
+    var ticker = r.ticker;
+    var existingBuyPrice = getBuyPrice(r);
+    setLocking(function(g){ return Object.assign({},g,{[ticker+r.snapshot_date]:true}); });
+    fetch("/massive?sym="+ticker, { headers:{ "X-Admin-Key":adminKey } })
+      .then(function(res){ return res.json(); })
+      .then(function(massRes){
+        if (!massRes) { showToast("No data for "+ticker+".","err"); return; }
+        var aggs = massRes.aggs||[];
+        var ind  = massRes.indicators||{};
+        var bars = aggs.filter(function(b){ return b&&b.c>0; }).reverse().map(function(b){
+          return { date:b.t?new Date(b.t).toISOString().split("T")[0]:"", open:b.o, high:b.h, low:b.l, close:b.c, volume:b.v||0 };
+        });
+        var wRow = watchlist.find ? watchlist.find(function(w){ return w.ticker===ticker; }) : null;
+        var price = getCurrentPriceFromMassive(massRes, wRow?wRow.last_close_price:null);
+        if (!price || price <= 0) { showToast("No price for "+ticker+".","err"); return; }
+        var today = new Date().toISOString().split("T")[0];
+        var snapshot = calculateTechnicalSignalSnapshot({
+          ticker:ticker, date:today, ohlcv:bars, indicators:ind, meta:{ price:price },
+        });
+        var postSnap = Object.assign({}, snapshot, {
+          open:snapshot.open, high:snapshot.high, low:snapshot.low,
+          close:snapshot.close, volume:snapshot.volume,
+        });
+        // Preserve existing buy_price
+        if (existingBuyPrice !== null && existingBuyPrice !== undefined) {
+          postSnap.buy_price = parseFloat(existingBuyPrice);
+        }
+        return jFetch("upsertSnapshot","POST",postSnap).then(function(res){
+          if (res.ok) {
+            showToast(ticker+" re-locked at $"+price.toFixed(2)+".","ok");
+            loadWatchlist(); loadJournal();
+          } else showToast("Error: "+(res.error||"unknown"),"err");
+        });
+      })
+      .catch(function(e){ showToast("Error: "+e.message,"err"); })
+      .then(function(){ setLocking(function(g){ var n=Object.assign({},g); delete n[ticker+r.snapshot_date]; return n; }); });
   }
 
   // ── CSV Export ───────────────────────────────────────────────────────────────
   function exportCSV() {
     var rows = filteredJournal();
-    if(!rows.length){ showToast("No data to export.","err"); return; }
-    var cols = ["snapshot_date","ticker","lock_price","buy_price","return_period","lock_return_pct","buy_return_pct","outcome","trend_status","momentum_status","reversal_status","smart_money_status","force_strike","fs_score","trade_stars","future_return_5d","future_return_10d","future_return_20d","future_return_30d","future_return_90d"];
+    if (!rows.length) { showToast("No data to export.","err"); return; }
+    var cols = ["snapshot_date","ticker","lock_price","buy_price","current_price","return_period","lock_return_pct","buy_return_pct","outcome","trend_status","momentum_status","reversal_status","smart_money_status","force_strike","fs_score","trade_stars","future_return_5d","future_return_10d","future_return_20d","future_return_30d","future_return_90d"];
     var csvRows = rows.map(function(r){
       var lr = getLockReturn(r, retWindow);
       var br = getBuyReturn(r, retWindow);
       var rowData = Object.assign({},r,{
-        lock_price:     getLockPrice(r),
-        buy_price:      getBuyPrice(r),
-        return_period:  retWindow,
+        lock_price:      getLockPrice(r),
+        buy_price:       getBuyPrice(r),
+        current_price:   livePrices[r.ticker]||"",
+        return_period:   retWindow,
         lock_return_pct: lr&&!lr.pending&&lr.val!==null?lr.val.toFixed(2):"",
         buy_return_pct:  br&&!br.pending&&br.val!==null?br.val.toFixed(2):"",
-        outcome:        getOutcomeLabel(r,retWindow),
-        force_strike:   (getForceStrike(r)||{}).status||"",
-        fs_score:       (getForceStrike(r)||{}).score||"",
-        trade_stars:    (getForceStrike(r)||{}).stars||"",
+        outcome:         getOutcomeLabel(r,retWindow),
+        force_strike:    (getForceStrike(r)||{}).status||"",
+        fs_score:        (getForceStrike(r)||{}).score||"",
+        trade_stars:     (getForceStrike(r)||{}).stars||"",
       });
       return cols.map(function(c){ var v=rowData[c]; return v===null||v===undefined?"":String(v).includes(",")?"\""+v+"\"":v; }).join(",");
     });
@@ -11750,6 +11855,24 @@ export function JournalPage() {
   }
   function fsStars(n){ if(!n&&n!==0) return ""; var s=""; for(var i=0;i<Math.min(n,5);i++) s+="\u2605"; return s; }
 
+  // ── Compact technical view from a snapshot object ────────────────────────────
+  function renderTechView(snap, r) {
+    var tv  = snap ? snap.trend&&snap.trend.status       : getTrend(r);
+    var ts  = snap ? snap.trend&&snap.trend.score        : getTrendScore(r);
+    var mv  = snap ? snap.momentum&&snap.momentum.status : getMomentum(r);
+    var ms  = snap ? snap.momentum&&snap.momentum.score  : getMomScore(r);
+    var rv  = snap ? snap.reversalWatch&&snap.reversalWatch.status : getReversal(r);
+    var smfV= snap ? snap.smartMoneyFlow&&snap.smartMoneyFlow.status : getSmartMoney(r);
+    return (
+      <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
+        {tv && <span style={{ fontSize:10,color:trendColor(tv,ts) }}><span style={{ color:"#3a3a38" }}>T: </span>{tv}</span>}
+        {mv && <span style={{ fontSize:10,color:momColor(mv,ms) }}><span style={{ color:"#3a3a38" }}>M: </span>{mv}</span>}
+        {rv && rv!=="No Clear Reversal" && rv!=="Not Enough Data" && <span style={{ fontSize:10,color:revColor(rv) }}><span style={{ color:"#3a3a38" }}>R: </span>{revShort(rv)}</span>}
+        {smfV && <span style={{ fontSize:10,color:smfColor(smfV) }}><span style={{ color:"#3a3a38" }}>F: </span>{smfShort(smfV)}</span>}
+      </div>
+    );
+  }
+
   // ── Filter & sort ────────────────────────────────────────────────────────────
   function filteredJournal() {
     return journal.filter(function(r) {
@@ -11769,17 +11892,16 @@ export function JournalPage() {
     });
   }
 
-  // ── KPI aggregations ─────────────────────────────────────────────────────────
+  // ── KPIs ─────────────────────────────────────────────────────────────────────
   function buildKpis(rows, win) {
     var total = rows.length;
     var completed = rows.filter(function(r){ var lr=getLockReturn(r,win); return lr&&!lr.pending&&lr.val!==null; });
-    var pending = total - completed.length;
+    var pending = total-completed.length;
     var wins = completed.filter(function(r){ return getLockReturn(r,win).val>0; });
     var winRate = completed.length>0?(wins.length/completed.length*100):null;
     var avgLock = completed.length>0?completed.reduce(function(s,r){ return s+getLockReturn(r,win).val; },0)/completed.length:null;
     var withBuy = rows.filter(function(r){ var br=getBuyReturn(r,win); return br&&!br.pending&&br.val!==null; });
     var avgBuy  = withBuy.length>0?withBuy.reduce(function(s,r){ return s+getBuyReturn(r,win).val; },0)/withBuy.length:null;
-    // Best/worst setup by lock return
     var groups={};
     rows.forEach(function(r){ var k=getTrend(r)||"Unknown"; if(!groups[k]) groups[k]=[]; groups[k].push(r); });
     var gStats=Object.keys(groups).map(function(k){
@@ -11826,12 +11948,12 @@ export function JournalPage() {
       var latest=g[0];
       var gC=g.filter(function(r){ var lr=getLockReturn(r,win); return lr&&!lr.pending&&lr.val!==null; });
       var avgLock=gC.length>0?gC.reduce(function(s,r){ return s+getLockReturn(r,win).val; },0)/gC.length:null;
-      var lastLock=gC.length>0?getLockReturn(latest,win):null; lastLock=lastLock&&!lastLock.pending?lastLock:null;
+      var lastLockRes=getLockReturn(latest,win); var lastLock=lastLockRes&&!lastLockRes.pending?lastLockRes.val:null;
       var wins2=gC.filter(function(r){ return getLockReturn(r,win).val>0; }).length;
       var wr=gC.length>0?wins2/gC.length*100:null;
       var withBuy=g.filter(function(r){ var br=getBuyReturn(r,win); return br&&!br.pending&&br.val!==null; });
       var avgBuy=withBuy.length>0?withBuy.reduce(function(s,r){ return s+getBuyReturn(r,win).val; },0)/withBuy.length:null;
-      var lastBuy=getBuyReturn(latest,win); lastBuy=lastBuy&&!lastBuy.pending?lastBuy:null;
+      var lastBuyRes=getBuyReturn(latest,win); var lastBuy=lastBuyRes&&!lastBuyRes.pending?lastBuyRes.val:null;
       var review;
       if(avgLock===null) review="Pending";
       else if(avgLock>0&&(avgBuy===null||avgBuy>0)) review="Strong";
@@ -11839,8 +11961,7 @@ export function JournalPage() {
       else if(avgLock<0) review="Weak Signal";
       else review="Mixed";
       return { ticker:tk, count:g.length, latestSetup:getTrend(latest), latestDate:latest.snapshot_date,
-        winRate:wr, avgLock:avgLock, lastLock:lastLock?lastLock.val:null,
-        avgBuy:avgBuy, lastBuy:lastBuy?lastBuy.val:null, review:review };
+        winRate:wr, avgLock:avgLock, lastLock:lastLock, avgBuy:avgBuy, lastBuy:lastBuy, review:review };
     }).sort(function(a,b){ return a.ticker<b.ticker?-1:1; });
   }
 
@@ -11854,8 +11975,7 @@ export function JournalPage() {
       </th>
     );
   }
-
-  function renderRetCell(res, label) {
+  function renderRetCell(res) {
     if(!res) return <span style={{color:"#444",fontSize:10}}>{"\u2014"}</span>;
     if(res.pending) return <span style={{color:"#555",fontSize:10}}>Pending</span>;
     if(res.val===null) return <span style={{color:"#444",fontSize:10}}>{"\u2014"}</span>;
@@ -11867,26 +11987,21 @@ export function JournalPage() {
       </span>
     );
   }
-
   function renderOutcomeBadge(label) {
-    if(!label||label==="Pending"||label==="N/A") {
-      return <span style={{fontSize:9,color:"#444"}}>{label||"N/A"}</span>;
-    }
+    if(!label||label==="Pending"||label==="N/A") return <span style={{fontSize:9,color:"#444"}}>{label||"N/A"}</span>;
     var col=outcomeColor(label);
     return <span style={{fontSize:9,fontWeight:700,color:col,background:col+"20",padding:"2px 6px",borderRadius:3}}>{label}</span>;
   }
-
   function renderQualityBadge(q) {
     var col=q==="Strong"?"#7abd00":q==="Watch"?"#6090d0":q==="Weak"?"#e05050":q==="Low Sample"?"#444":"#EF9F27";
     return <span style={{fontSize:9,fontWeight:700,color:col,background:col+"15",padding:"2px 6px",borderRadius:3}}>{q}</span>;
   }
-
   function renderReviewBadge(rv) {
     var col=rv==="Strong"?"#7abd00":rv==="Good Signal, Weak Entry"?"#EF9F27":rv==="Weak Signal"?"#e05050":rv==="Pending"?"#444":"#888";
     return <span style={{fontSize:9,fontWeight:700,color:col,background:col+"15",padding:"2px 6px",borderRadius:3}}>{rv}</span>;
   }
 
-  // Buy price inline editable cell
+  // Buy price edit cell (existing journal rows only)
   function renderBuyPriceCell(r) {
     var rowId=r.id;
     var bp=getBuyPrice(r);
@@ -11925,7 +12040,7 @@ export function JournalPage() {
     var fs=getForceStrike(r);
     var rowKey=r.id||(r.ticker+r.snapshot_date);
     var expanded=expandedFS[rowKey];
-    if(fs===null) return null;
+    if(!fs) return null;
     var starsStr=fs.stars!==null?fsStars(fs.stars):"";
     var statusLbl=fs.status||(fs.score?"FS "+fs.score:"");
     if(!starsStr&&!statusLbl) return null;
@@ -11934,23 +12049,20 @@ export function JournalPage() {
         <button onClick={function(){ setExpandedFS(function(s){ var n=Object.assign({},s); if(n[rowKey]) delete n[rowKey]; else n[rowKey]=true; return n; }); }}
           style={{ background:"none",border:"none",cursor:"pointer",padding:0,textAlign:"left" }}>
           {starsStr && <span style={{ color:"#EF9F27",fontSize:11,letterSpacing:1 }}>{starsStr}</span>}
-          {statusLbl && !starsStr && <span style={{ fontSize:10,color:"#EF9F27",fontWeight:600 }}>{statusLbl}</span>}
+          {statusLbl&&!starsStr && <span style={{ fontSize:10,color:"#EF9F27",fontWeight:600 }}>{statusLbl}</span>}
           <span style={{ fontSize:9,color:"#555",marginLeft:3 }}>{expanded?"\u25B2":"\u25BC"}</span>
         </button>
         {expanded && (
           <div style={{ marginTop:4,background:"#1a1a12",border:"0.5px solid #2a2a18",borderRadius:6,padding:"8px 10px",fontSize:10,lineHeight:1.8,minWidth:160 }}>
-            {[
-              ["Score",   fs.score],
-              ["Stars",   fs.stars!==null?String(fs.stars):null],
-              ["Age",     fs.age],
-              ["Entry",   fs.entry!==null?"$"+parseFloat(fs.entry).toFixed(2):null],
-              ["Stop",    fs.stop!==null?"$"+parseFloat(fs.stop).toFixed(2):null],
-              ["Risk %",  fs.risk!==null?parseFloat(fs.risk).toFixed(1)+"%":null],
-              ["ATR(14)", fs.atr!==null?"$"+parseFloat(fs.atr).toFixed(2):null],
+            {[["Score",fs.score],["Stars",fs.stars!==null?String(fs.stars):null],["Age",fs.age],
+              ["Entry",fs.entry!==null?"$"+parseFloat(fs.entry).toFixed(2):null],
+              ["Stop",fs.stop!==null?"$"+parseFloat(fs.stop).toFixed(2):null],
+              ["Risk %",fs.risk!==null?parseFloat(fs.risk).toFixed(1)+"%":null],
+              ["ATR(14)",fs.atr!==null?"$"+parseFloat(fs.atr).toFixed(2):null],
               ["Risk/ATR",fs.riskAtr!==null?parseFloat(fs.riskAtr).toFixed(2)+"x":null],
-              ["Target",  fs.target!==null?"$"+parseFloat(fs.target).toFixed(2):null],
-              ["Support", fs.support],
-            ].map(function(row) {
+              ["Target",fs.target!==null?"$"+parseFloat(fs.target).toFixed(2):null],
+              ["Support",fs.support]
+            ].map(function(row){
               if(!row[1]) return null;
               return (
                 <div key={row[0]} style={{ display:"flex",justifyContent:"space-between",gap:16 }}>
@@ -11991,8 +12103,6 @@ export function JournalPage() {
 
   var fj = filteredJournal();
   var kpis = buildKpis(fj, retWindow);
-  var activeTickers = [];
-  watchlist.forEach(function(w){ if(activeTickers.indexOf(w.ticker)===-1) activeTickers.push(w.ticker); });
   var RET_WINDOWS = ["current","5d","10d","20d","30d","90d"];
 
   return (
@@ -12031,47 +12141,101 @@ export function JournalPage() {
         {/* Add ticker panel */}
         {showAddTicker && (
           <div style={{ background:"#161614",border:"0.5px solid #2a3a10",borderRadius:10,padding:"14px 18px",marginBottom:16,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap" }}>
-            <div style={{ fontSize:12,fontWeight:700,color:"#c8f000" }}>Add ticker to watchlist</div>
+            <div style={{ fontSize:12,fontWeight:700,color:"#c8f000" }}>Watch a ticker</div>
             <input value={addTicker} onChange={function(e){ setAddTicker(e.target.value.toUpperCase()); }}
               onKeyDown={function(e){ if(e.key==="Enter") handleAddTicker(); }}
-              placeholder="e.g. AAPL"
+              placeholder="e.g. SHOP"
               style={{ background:"#111",border:"0.5px solid #333",borderRadius:6,padding:"7px 11px",color:"#f0ede6",fontSize:13,outline:"none",width:140 }} />
-            <button onClick={handleAddTicker} style={{ background:"#c8f000",color:"#0e0e0c",fontWeight:700,fontSize:12,border:"none",borderRadius:6,padding:"7px 14px",cursor:"pointer" }}>Add</button>
+            <button onClick={handleAddTicker} style={{ background:"#c8f000",color:"#0e0e0c",fontWeight:700,fontSize:12,border:"none",borderRadius:6,padding:"7px 14px",cursor:"pointer" }}>Watch</button>
             <button onClick={function(){ setShowAddTicker(false); setAddTicker(""); }} style={{ background:"none",border:"none",color:"#555",fontSize:12,cursor:"pointer" }}>Cancel</button>
           </div>
         )}
 
-        {/* Watchlist — live monitor pills */}
+        {/* Watchlist */}
         {watchlist.length > 0 && (
           <div style={{ marginBottom:18 }}>
-            <div style={{ fontSize:10,color:"#444",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8 }}>Watchlist</div>
+            <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:8 }}>
+              <div style={{ fontSize:10,color:"#444",textTransform:"uppercase",letterSpacing:"0.07em" }}>Watchlist</div>
+              <button onClick={function(){
+                  setRefreshingWatch(true);
+                  loadWatchlistLive(watchlist, true);
+                  setTimeout(function(){ setRefreshingWatch(false); }, watchlist.length*2500+1000);
+                }} disabled={refreshingWatch}
+                style={{ background:"none",border:"0.5px solid #2a2a28",borderRadius:4,color:refreshingWatch?"#444":"#555",fontSize:9,fontWeight:600,padding:"2px 8px",cursor:refreshingWatch?"not-allowed":"pointer",textTransform:"uppercase",letterSpacing:"0.06em" }}>
+                {refreshingWatch?"⧗ Refreshing...":"↻ Refresh"}
+              </button>
+              <div style={{ fontSize:9,color:"#333" }}>Cached 24h · auto-updates on load</div>
+            </div>
             <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
               {watchlist.map(function(w) {
-                var wd = watchData[w.ticker] || {};
-                var livePrice = livePrices[w.ticker] || wd.price || w.last_close_price || null;
-                var trendLbl  = wd.trend || w.latest_trend_status || null;
-                var isLocking = locking[w.ticker];
-                var chg = wd.change;
+                var ws = watchSnaps[w.ticker] || {};
+                var livePrice = ws.price || livePrices[w.ticker] || (w.last_close_price ? parseFloat(w.last_close_price) : null);
+                var chg = ws.change;
+                var snap = ws.snap || null;
+                var isBuying = buyingTicker === w.ticker;
                 return (
-                  <div key={w.ticker} style={{ display:"flex",alignItems:"center",gap:0,background:"#161614",border:"0.5px solid #2a2a28",borderRadius:8,padding:"6px 0px 6px 12px",flexWrap:"wrap" }}>
-                    {/* Ticker + price */}
-                    <div style={{ display:"flex",alignItems:"baseline",gap:6,marginRight:8 }}>
-                      <span style={{ fontSize:12,fontWeight:800,color:"#c8f000" }}>{w.ticker}</span>
-                      {livePrice && <span style={{ fontSize:11,color:"#f0ede6",fontWeight:600 }}>{"$"+parseFloat(livePrice).toFixed(2)}</span>}
-                      {chg!==null&&chg!==undefined && <span style={{ fontSize:10,color:chg>=0?"#7abd00":"#e05050" }}>{chg>=0?"+":""}{typeof chg==="number"?chg.toFixed(2):chg}{"%"}</span>}
+                  <div key={w.ticker} style={{ background:"#161614",border:"0.5px solid "+(isBuying?"#c8f000":"#2a2a28"),borderRadius:10,padding:"10px 12px",minWidth:200,maxWidth:300 }}>
+                    {/* Pill header row */}
+                    <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:isBuying?8:snap?6:0 }}>
+                      <div style={{ display:"flex",alignItems:"baseline",gap:6 }}>
+                        <span style={{ fontSize:13,fontWeight:800,color:"#c8f000" }}>{w.ticker}</span>
+                        {livePrice ? (
+                          <span style={{ fontSize:11,color:"#f0ede6",fontWeight:600 }}>{"$"+livePrice.toFixed(2)}</span>
+                        ) : (
+                          <span style={{ fontSize:10,color:"#444" }}>{"\u29D7"}</span>
+                        )}
+                        {chg!==null&&chg!==undefined && (
+                          <span style={{ fontSize:10,color:parseFloat(chg)>=0?"#7abd00":"#e05050" }}>
+                            {parseFloat(chg)>=0?"+":""}{typeof chg==="number"?chg.toFixed(2):chg}{"%"}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display:"flex",gap:4 }}>
+                        {!isBuying && (
+                          <button onClick={function(){ setBuyingTicker(w.ticker); setBuyDraft(""); }}
+                            style={{ background:"#c8f000",color:"#0e0e0c",fontWeight:700,fontSize:10,border:"none",borderRadius:4,padding:"3px 10px",cursor:"pointer" }}>
+                            Buy
+                          </button>
+                        )}
+                        <button onClick={function(){ handleRemove(w.ticker); }}
+                          style={{ background:"none",border:"none",color:"#444",fontSize:12,cursor:"pointer",padding:"0 4px" }}>
+                          {"\u00D7"}
+                        </button>
+                      </div>
                     </div>
-                    {/* Trend label */}
-                    {trendLbl && <span style={{ fontSize:10,color:trendColor(trendLbl,null),marginRight:8 }}>{trendLbl}</span>}
-                    {/* Lock button */}
-                    <button onClick={function(){ lockSignal(w.ticker); }} disabled={isLocking} title={"Lock signal for "+w.ticker}
-                      style={{ background:isLocking?"#1a1a18":"#1a2a10",border:"0.5px solid "+(isLocking?"#333":"#2a5020"),color:isLocking?"#444":"#7abd00",fontSize:10,fontWeight:700,cursor:isLocking?"not-allowed":"pointer",padding:"4px 10px",margin:"0 2px",borderRadius:4 }}>
-                      {isLocking?"\u29D7 Locking":"\u{1F512} Lock"}
-                    </button>
-                    {/* Remove */}
-                    <button onClick={function(){ handleRemove(w.ticker); }} title={"Remove "+w.ticker}
-                      style={{ background:"none",border:"none",color:"#444",fontSize:12,cursor:"pointer",padding:"4px 8px",borderRadius:4 }}>
-                      {"\u00D7"}
-                    </button>
+                    {/* Live technical view */}
+                    {snap && !isBuying && (
+                      <div style={{ marginBottom:4 }}>
+                        {renderTechView(snap, null)}
+                      </div>
+                    )}
+                    {!snap && !isBuying && livePrice===null && (
+                      <div style={{ fontSize:9,color:"#444" }}>Loading...</div>
+                    )}
+                    {/* Buy price entry */}
+                    {isBuying && (
+                      <div>
+                        <div style={{ fontSize:10,color:"#888",marginBottom:6 }}>
+                          Enter your buy price to lock this signal.
+                          {livePrice && <span style={{ color:"#c8f000",marginLeft:4 }}>{"Current: $"+livePrice.toFixed(2)}</span>}
+                        </div>
+                        <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+                          <input value={buyDraft} onChange={function(e){ setBuyDraft(e.target.value); }}
+                            onKeyDown={function(e){ if(e.key==="Enter") handleBuyConfirm(w.ticker,buyDraft); if(e.key==="Escape"){ setBuyingTicker(null); setBuyDraft(""); } }}
+                            placeholder="e.g. 107.20"
+                            style={{ flex:1,background:"#111",border:"0.5px solid #c8f000",borderRadius:4,padding:"6px 8px",color:"#f0ede6",fontSize:12,outline:"none" }}
+                            autoFocus />
+                          <button onClick={function(){ handleBuyConfirm(w.ticker,buyDraft); }} disabled={buyLoading}
+                            style={{ background:"#c8f000",color:"#0e0e0c",fontWeight:700,fontSize:11,border:"none",borderRadius:4,padding:"6px 12px",cursor:buyLoading?"not-allowed":"pointer",opacity:buyLoading?0.6:1 }}>
+                            {buyLoading?"Saving...":"Lock"}
+                          </button>
+                          <button onClick={function(){ setBuyingTicker(null); setBuyDraft(""); }}
+                            style={{ background:"none",border:"none",color:"#555",fontSize:12,cursor:"pointer",padding:"4px" }}>
+                            {"\u00D7"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -12084,8 +12248,8 @@ export function JournalPage() {
           {[
             { label:"Total Signals",  val:String(kpis.total), sub:null, col:"#c8f000" },
             { label:"Pending",        val:String(kpis.pending), sub:"awaiting completion", col:"#666" },
-            { label:"Lock Win Rate",  val:kpis.winRate!==null?(kpis.winRate.toFixed(0)+"%"):"\u2014", sub:retWindow.toUpperCase()+" window", col:kpis.winRate!==null?(kpis.winRate>=60?"#7abd00":kpis.winRate>=45?"#EF9F27":"#e05050"):"#444" },
-            { label:"Avg Lock Ret",   val:kpis.avgLock!==null?((kpis.avgLock>0?"+":"")+kpis.avgLock.toFixed(1)+"%"):"\u2014", sub:retWindow.toUpperCase()+" avg", col:kpis.avgLock!==null?retColor(kpis.avgLock):"#444" },
+            { label:"Lock Win Rate",  val:kpis.winRate!==null?(kpis.winRate.toFixed(0)+"%"):"\u2014", sub:retWindow==="current"?"Current":retWindow.toUpperCase(), col:kpis.winRate!==null?(kpis.winRate>=60?"#7abd00":kpis.winRate>=45?"#EF9F27":"#e05050"):"#444" },
+            { label:"Avg Lock Ret",   val:kpis.avgLock!==null?((kpis.avgLock>0?"+":"")+kpis.avgLock.toFixed(1)+"%"):"\u2014", sub:retWindow==="current"?"live":"stored "+retWindow.toUpperCase(), col:kpis.avgLock!==null?retColor(kpis.avgLock):"#444" },
             { label:"Avg Buy Ret",    val:kpis.avgBuy!==null?((kpis.avgBuy>0?"+":"")+kpis.avgBuy.toFixed(1)+"%"):"\u2014", sub:"where buy price set", col:kpis.avgBuy!==null?retColor(kpis.avgBuy):"#444" },
             { label:"Best Setup",     val:kpis.best?kpis.best.label:"\u2014", sub:kpis.best?"avg "+(kpis.best.avg>0?"+":"")+kpis.best.avg.toFixed(1)+"% ("+kpis.best.count+"sig)":"\u2265 3 samples needed", col:"#7abd00" },
             { label:"Weakest Setup",  val:kpis.worst?kpis.worst.label:"\u2014", sub:kpis.worst?"avg "+(kpis.worst.avg>0?"+":"")+kpis.worst.avg.toFixed(1)+"% ("+kpis.worst.count+"sig)":"\u2265 3 samples needed", col:"#e05050" },
@@ -12100,7 +12264,7 @@ export function JournalPage() {
           })}
         </div>
 
-        {/* Return window selector */}
+        {/* Return period selector */}
         <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:14 }}>
           <span style={{ fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:"0.07em" }}>Return period:</span>
           {RET_WINDOWS.map(function(w) {
@@ -12178,7 +12342,7 @@ export function JournalPage() {
           <div>
             {fj.length===0 ? (
               <div style={{ fontSize:12,color:"#555",padding:"40px",textAlign:"center",background:"#161614",borderRadius:10 }}>
-                No signals yet. Use the Lock button on a watchlist ticker to capture your first signal.
+                No signals yet. Click Buy on a watchlist ticker to lock your first signal.
               </div>
             ) : (
               <div style={{ overflowX:"auto",borderRadius:10,border:"0.5px solid #2a2a28" }}>
@@ -12187,9 +12351,10 @@ export function JournalPage() {
                     <tr>
                       {renderTh("snapshot_date","Date")}
                       {renderTh("ticker","Ticker")}
-                      <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap" }}>Current Price</th>
+                      <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap" }}>Lock Price</th>
                       <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap" }}>Buy Price</th>
-                      <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",minWidth:170 }}>Technical View</th>
+                      <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",minWidth:170 }}>Locked Technical View</th>
+                      <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap" }}>Current Price</th>
                       <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap" }}>Lock Ret.</th>
                       <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28",whiteSpace:"nowrap" }}>Buy Ret.</th>
                       <th style={{ padding:"8px 10px",fontSize:10,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em",background:"#1a1a18",borderBottom:"1px solid #2a2a28" }}>Outcome</th>
@@ -12199,47 +12364,41 @@ export function JournalPage() {
                   <tbody>
                     {fj.map(function(r,i) {
                       var rowBg=i%2===0?"#181816":"#141412";
-                      var tv=getTrend(r);    var ts=getTrendScore(r);
-                      var mv=getMomentum(r); var ms=getMomScore(r);
-                      var rv=getReversal(r);
-                      var smfV=getSmartMoney(r);
                       var lp=getLockPrice(r);
                       var lr=getLockReturn(r,retWindow);
                       var br=getBuyReturn(r,retWindow);
                       var outV=getOutcomeLabel(r,retWindow);
                       var fs=getForceStrike(r);
                       var curPrice=livePrices[r.ticker];
+                      var isRelocking=locking[r.ticker+r.snapshot_date];
                       return (
                         <tr key={r.id||i} style={{ background:rowBg }}>
                           <td style={{ padding:"8px 10px",color:"#888",whiteSpace:"nowrap" }}>{r.snapshot_date}</td>
                           <td style={{ padding:"8px 10px" }}>
-                            <div style={{ display:"flex",flexDirection:"column",gap:1 }}>
-                              <button onClick={function(){ window.location.hash=r.ticker; }}
-                                style={{ background:"none",border:"none",fontWeight:800,color:"#c8f000",fontSize:12,cursor:"pointer",padding:0,textAlign:"left" }}>
-                                {r.ticker}
-                              </button>
-                
-                            </div>
+                            <button onClick={function(){ window.location.hash=r.ticker; }}
+                              style={{ background:"none",border:"none",fontWeight:800,color:"#c8f000",fontSize:12,cursor:"pointer",padding:0 }}>
+                              {r.ticker}
+                            </button>
                           </td>
-                          <td style={{ padding:"8px 10px",color:"#f0ede6",whiteSpace:"nowrap" }}>{curPrice?"$"+parseFloat(curPrice).toFixed(2):<span style={{color:"#444",fontSize:10}}>{curPrice===undefined?"⧗":"—"}</span>}</td>
+                          <td style={{ padding:"8px 10px",color:"#f0ede6",whiteSpace:"nowrap",fontWeight:600 }}>{lp!==null?"$"+parseFloat(lp).toFixed(2):"\u2014"}</td>
                           <td style={{ padding:"8px 8px" }}>{renderBuyPriceCell(r)}</td>
                           <td style={{ padding:"8px 10px" }}>
                             <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
-                              {tv && <span style={{ fontSize:10,color:trendColor(tv,ts) }}><span style={{ color:"#3a3a38" }}>T: </span>{tv}</span>}
-                              {mv && <span style={{ fontSize:10,color:momColor(mv,ms) }}><span style={{ color:"#3a3a38" }}>M: </span>{mv}</span>}
-                              {rv&&rv!=="No Clear Reversal"&&rv!=="Not Enough Data" && <span style={{ fontSize:10,color:revColor(rv) }}><span style={{ color:"#3a3a38" }}>R: </span>{revShort(rv)}</span>}
-                              {smfV && <span style={{ fontSize:10,color:smfColor(smfV) }}><span style={{ color:"#3a3a38" }}>F: </span>{smfShort(smfV)}</span>}
+                              {renderTechView(null, r)}
                               {fs!==null && <div style={{ marginTop:2 }}><span style={{ color:"#3a3a38",fontSize:10 }}>FS: </span>{renderFSCell(r)}</div>}
                             </div>
+                          </td>
+                          <td style={{ padding:"8px 10px",color:curPrice?"#f0ede6":"#444",whiteSpace:"nowrap" }}>
+                            {curPrice?"$"+parseFloat(curPrice).toFixed(2):"\u2014"}
                           </td>
                           <td style={{ padding:"8px 10px" }}>{renderRetCell(lr)}</td>
                           <td style={{ padding:"8px 10px" }}>{renderRetCell(br)}</td>
                           <td style={{ padding:"8px 10px" }}>{renderOutcomeBadge(outV)}</td>
                           <td style={{ padding:"8px 6px" }}>
-                            <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
-                              <button onClick={function(){ lockSignal(r.ticker); }} title={"Re-lock signal for "+r.ticker} disabled={locking[r.ticker]}
-                                style={{ background:"none",border:"0.5px solid #2a3a10",borderRadius:4,color:"#7abd00",fontSize:9,cursor:locking[r.ticker]?"not-allowed":"pointer",padding:"2px 5px",fontWeight:600 }}>
-                                {locking[r.ticker]?"\u29D7":"\u{1F512}"}
+                            <div style={{ display:"flex",flexDirection:"column",gap:4,alignItems:"center" }}>
+                              <button onClick={function(){ relockSignal(r); }} title={"Re-lock signal for "+r.ticker+" (updates Lock Price + Technical View, preserves Buy Price)"} disabled={isRelocking}
+                                style={{ background:"none",border:"0.5px solid #2a3a10",borderRadius:4,color:isRelocking?"#444":"#7abd00",fontSize:9,cursor:isRelocking?"not-allowed":"pointer",padding:"2px 6px",fontWeight:600,whiteSpace:"nowrap" }}>
+                                {isRelocking?"\u29D7":"Re-lock"}
                               </button>
                               <button onClick={function(){ handleDeleteSnapshot(r.ticker,r.snapshot_date); }}
                                 title={"Delete "+r.ticker+" "+r.snapshot_date}
@@ -12263,7 +12422,7 @@ export function JournalPage() {
           <div>
             {fj.length===0 ? (
               <div style={{ fontSize:12,color:"#555",padding:"40px",textAlign:"center",background:"#161614",borderRadius:10 }}>
-                No data yet. Lock signals first.
+                No data yet.
               </div>
             ) : (
               <div style={{ overflowX:"auto",borderRadius:10,border:"0.5px solid #2a2a28" }}>
@@ -14493,7 +14652,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.32</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.33</span>
           </div>
         </div>
 
