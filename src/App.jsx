@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.162</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.163</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.162</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.163</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11511,10 +11511,15 @@ function WatchlistPage({ clerkUser, isPaid }) {
           // use it as the primary price source so Watchlist matches Detail exactly.
           if (meta2.regularMarketPrice > 0) {
             price = meta2.regularMarketPrice;
-            // Recompute % change from the same Yahoo fields/formula as getQuote(),
-            // so price and % change stay consistent with each other and with Detail.
-            var prevClose2 = meta2.chartPreviousClose || meta2.previousClose || price;
-            if (prevClose2 > 0) chg = (price - prevClose2) / prevClose2 * 100;
+            // NOTE: meta2.chartPreviousClose is NOT used here. Under range=3mo this
+            // field does not reliably reflect yesterday's close (unlike under the
+            // range=1d call Detail's getQuote() uses) — using it produced grossly
+            // inflated "daily" % changes. Instead, recompute % change from the live
+            // Yahoo price against Massive's own previous daily bar (aggs[1], the
+            // second most-recent bar — aggs[0] is today's), which is reliable and
+            // already proven correct elsewhere in this codebase.
+            var prevCloseBar = aggs.length >= 2 ? aggs[1].c : (aggs.length >= 1 ? aggs[0].c : null);
+            if (prevCloseBar > 0) chg = (price - prevCloseBar) / prevCloseBar * 100;
           }
           if (meta2.fiftyTwoWeekHigh > 0 && meta2.fiftyTwoWeekLow > 0 && meta2.fiftyTwoWeekHigh > meta2.fiftyTwoWeekLow) {
             hi52raw = meta2.fiftyTwoWeekHigh;
@@ -13469,7 +13474,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.162</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.163</span>
           </div>
         </div>
 
