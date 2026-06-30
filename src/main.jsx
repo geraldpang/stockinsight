@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
-import { JournalPage } from './App.jsx'
 
 function Root() {
   var [hash, setHash] = useState(window.location.hash);
@@ -11,7 +10,7 @@ function Root() {
     window.addEventListener("hashchange", onHash);
     return function() { window.removeEventListener("hashchange", onHash); };
   }, []);
-  if (hash === "#journal") return <JournalPage />;
+  if (hash === "#journal") { window.location.hash = ""; return null; }
   return <App />;
 }
 
