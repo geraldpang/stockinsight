@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.161</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.162</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.161</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.162</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11336,23 +11336,49 @@ function WatchlistPage({ clerkUser, isPaid }) {
     return h;
   }
 
-  function loadWatchlist() {
+  function loadWatchlist(autoRefresh) {
     setLoading(true);
     fetch('/watchlist', { headers: wlHeaders() })
       .then(function(r){ return r.json(); })
       .then(function(d){
-        setItems(d.items || []);
+        var freshItems = d.items || [];
+        setItems(freshItems);
         var snaps = d.snapshots || {};
         var lockMap = snaps['__locks'] || {};
         setLocks(lockMap);
         setSnapshots(snaps);
         setLastUpdated(new Date().toLocaleTimeString());
+        setLoading(false);
+        // Auto-refresh live prices/signals right after load (e.g. on page open),
+        // without requiring a manual "Refresh Signals" click. Uses the freshly
+        // fetched item list directly rather than `items` state, since state from
+        // setItems() above has not flushed/re-rendered yet at this point.
+        if (autoRefresh && freshItems.length) {
+          refreshSnapshotsFor(freshItems);
+        }
       })
-      .catch(function(e){ setMsg('Load failed: ' + e.message); })
-      .finally(function(){ setLoading(false); });
+      .catch(function(e){ setMsg('Load failed: ' + e.message); setLoading(false); });
   }
 
-  useEffect(function(){ if(canAccess && clerkUser) loadWatchlist(); }, [clerkUser, isPaid]);
+  useEffect(function(){ if(canAccess && clerkUser) loadWatchlist(true); }, [clerkUser, isPaid]);
+
+  // Live-refresh a given list of items (used by both the auto-refresh-on-load
+  // path and the manual "Refresh Signals" button).
+  async function refreshSnapshotsFor(list) {
+    if (!list || !list.length) return;
+    setRefreshing(true); setMsg('Refreshing signals...');
+    var hdrs = wlHeaders();
+    for (var i = 0; i < list.length; i++) {
+      var ticker = list[i].ticker;
+      try {
+        setMsg('Refreshing ' + ticker + ' (' + (i+1) + '/' + list.length + ')...');
+        await refreshSingleTicker(ticker, hdrs);
+      } catch(e) { /* skip failed tickers */ }
+    }
+    setMsg('');
+    setRefreshing(false);
+    loadWatchlist();
+  }
 
   function lockSignal(item, snap) {
     if (!snap) { setMsg('No signal data for ' + item.ticker + ' — Refresh Signals first.'); return; }
@@ -11427,7 +11453,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
   }
 
   // Fetch + calculate + save a snapshot for a single ticker.
-  // Shared by refreshSnapshots() (bulk refresh) and addTicker() (auto-refresh on add).
+  // Shared by refreshSnapshotsFor() (auto-load + manual refresh) and addTicker() (auto-refresh on add).
   async function refreshSingleTicker(ticker, hdrs) {
     var mRes = await fetch('/massive?sym=' + ticker, { headers: hdrs });
     if (!mRes.ok) return false;
@@ -11577,23 +11603,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
     return true;
   }
 
-  async function refreshSnapshots() {
-    if (!items.length) return;
-    setRefreshing(true); setMsg('Refreshing signals...');
-    var hdrs = wlHeaders();
-    // No KV cache lookup — always run fresh scanForceStrike() per ticker
-    // using same Yahoo chart source as Force Strike Screener for full consistency
-
-    for (var i = 0; i < items.length; i++) {
-      var ticker = items[i].ticker;
-      try {
-        setMsg('Refreshing ' + ticker + ' (' + (i+1) + '/' + items.length + ')...');
-        await refreshSingleTicker(ticker, hdrs);
-      } catch(e) { /* skip failed tickers */ }
-    }
-    setMsg('');
-    setRefreshing(false);
-    loadWatchlist();
+  // Manual "Refresh Signals" button — refreshes the current items list.
+  function refreshSnapshots() {
+    return refreshSnapshotsFor(items);
   }
 
   // ── Render helpers ─────────────────────────────────────────────────────────
@@ -13457,7 +13469,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.161</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.162</span>
           </div>
         </div>
 
