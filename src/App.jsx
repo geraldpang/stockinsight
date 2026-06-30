@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.158</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.159</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.158</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.159</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11403,8 +11403,14 @@ function WatchlistPage({ clerkUser, isPaid }) {
       method: 'POST', headers: wlHeaders(),
       body: JSON.stringify({ ticker: sym })
     }).then(function(r){ return r.json(); })
-      .then(function(d){
-        if (d.ok) { setAddInput(''); loadWatchlist(); }
+      .then(async function(d){
+        if (d.ok) {
+          setAddInput('');
+          setMsg('Fetching ' + sym + ' data...');
+          try { await refreshSingleTicker(sym, wlHeaders()); } catch(e) { /* fall through to plain load */ }
+          setMsg('');
+          loadWatchlist();
+        }
         else setMsg(d.error || 'Add failed');
       })
       .catch(function(e){ setMsg('Add failed: ' + e.message); })
@@ -11420,6 +11426,136 @@ function WatchlistPage({ clerkUser, isPaid }) {
       .catch(function(e){ setMsg('Remove failed: ' + e.message); });
   }
 
+  // Fetch + calculate + save a snapshot for a single ticker.
+  // Shared by refreshSnapshots() (bulk refresh) and addTicker() (auto-refresh on add).
+  async function refreshSingleTicker(ticker, hdrs) {
+    var mRes = await fetch('/massive?sym=' + ticker, { headers: hdrs });
+    if (!mRes.ok) return false;
+    var mData = await mRes.json();
+    if (!mData || !mData.aggs || mData.aggs.length < 10) return false;
+    var snap = buildScreenerSnapshot(ticker, mData, { hi52: 0, lo52: 0, price: 0 });
+    if (!snap) return false;
+    var ms  = mData.snapshot || {};
+    var aggs = mData.aggs || [];
+    var price = (ms.close && ms.close > 0) ? ms.close
+              : (aggs.length > 0 ? (aggs[0].c || 0) : 0);
+    var chg = (ms.change != null) ? parseFloat(ms.change) : null;
+    if (chg == null && aggs.length >= 2) {
+      var c0 = aggs[0].c, c1 = aggs[1].c;
+      if (c0 && c1) chg = (c0 - c1) / c1 * 100;
+    }
+    var hi52raw = 0, lo52raw = Infinity;
+    aggs.forEach(function(b){ if(b.h>hi52raw) hi52raw=b.h; if(b.l>0&&b.l<lo52raw) lo52raw=b.l; });
+    if (lo52raw===Infinity) lo52raw = 0;
+    var rbaSnap = buildRuleSnapshotFromRow({
+      trend: snap.trend.status, trendScore: snap.trend.score,
+      momentum: snap.momentum.status, momentumScore: snap.momentum.score,
+      reversal: snap.reversalWatch.status, reversalScore: snap.reversalWatch.score,
+      reversalDecision: snap.reversalWatch.reversalDecision,
+      bullishScore: snap.reversalWatch.bullishScore, bearishScore: snap.reversalWatch.bearishScore,
+      moneyFlow: snap.smartMoneyFlow.status, moneyFlowScore: snap.smartMoneyFlow.score,
+      smartMoneyDecision: snap.smartMoneyFlow.smartMoneyDecision,
+    });
+    var rba = generateRuleBasedAnalytics(rbaSnap);
+    var rbaVerdict = rba ? (rba.verdict || '') : '';
+    var rbaShort   = shortRuleVerdict(rbaVerdict);
+
+    // Force Strike: always fresh scan using Yahoo chart (same as screener)
+    // Ensures Watchlist FS status is fully consistent with Force Strike Screener rules
+    var fsResult = null;
+    try {
+      var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=3mo';
+      var fsAbort = new AbortController();
+      var fsTimer = setTimeout(function(){ fsAbort.abort(); }, 10000);
+      var cRes2 = await fetch('/proxy?url=' + encodeURIComponent(chartUrl), { signal: fsAbort.signal });
+      clearTimeout(fsTimer);
+      if (cRes2.ok) {
+        var cData2 = await cRes2.json();
+        var cr2 = cData2&&cData2.chart&&cData2.chart.result&&cData2.chart.result[0];
+        if (cr2) {
+          var ts2    = cr2.timestamp||[];
+          var q2     = (cr2.indicators&&cr2.indicators.quote&&cr2.indicators.quote[0])||{};
+          var daily2 = [];
+          for (var di2=0; di2<ts2.length; di2++) {
+            var o2=q2.open&&q2.open[di2], h2=q2.high&&q2.high[di2],
+                l2=q2.low&&q2.low[di2],   cv2=q2.close&&q2.close[di2];
+            if (o2&&h2&&l2&&cv2&&o2>0) daily2.push({ date:ts2[di2]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di2])||0 });
+          }
+          if (daily2.length >= 14) {
+            var closes2   = daily2.slice(-50).map(function(b){ return b.close; });
+            var closes200b = daily2.map(function(b){ return b.close; });
+            var sma50b    = closes2.length>=20    ? closes2.reduce(function(s,v){return s+v;},0)/closes2.length       : 0;
+            var sma200b   = closes200b.length>=20 ? closes200b.reduce(function(s,v){return s+v;},0)/closes200b.length : 0;
+            var pr2       = daily2[daily2.length-1].close;
+            var ts2status = 'Sideways';
+            if (sma50b>0&&sma200b>0) {
+              if (pr2>sma50b&&sma50b>sma200b) ts2status = pr2>sma50b*1.03?'Strong Uptrend':'Uptrend';
+              else if (pr2<sma50b&&sma50b<sma200b) ts2status = 'Downtrend';
+            }
+            fsResult = scanForceStrike(ticker, daily2, ts2status);
+          }
+        }
+      }
+    } catch(fsErr) { fsResult = null; }
+
+    // Determine FS display status
+    var fsStatus = 'none', fsPattern = null, fsScenario = null, fsAge = null,
+        fsTriggerType = null, fsTriggerDate = null, fsMotherDate = null, fsBabyDate = null;
+    if (fsResult) {
+      if (fsResult.triggered) {
+        fsStatus      = 'active';
+        fsPattern     = fsResult.pattern;
+        fsScenario    = fsResult.scenario;
+        fsAge         = fsResult.patternAge;
+        fsTriggerType = fsResult.triggerType;
+        fsTriggerDate = fsResult.triggerBar ? (fsResult.triggerBar.dateLabel||fsResult.triggerBar.date||null) : null;
+        fsMotherDate  = fsResult.motherBar  ? (fsResult.motherBar.dateLabel||fsResult.motherBar.date||null)   : null;
+        fsBabyDate    = fsResult.babyBar    ? (fsResult.babyBar.dateLabel||fsResult.babyBar.date||null)       : null;
+      } else if (fsResult.result === 'Expired') {
+        fsStatus  = 'expired';
+        fsPattern = fsResult.pattern || (fsResult.motherBar ? 'M\u2192B\u2192?' : null);
+        fsAge     = fsResult.patternAge;
+      } else if (fsResult.motherBar && fsResult.babyBar && !fsResult.triggerBar) {
+        fsStatus = 'watch'; // Mother + Baby found, no trigger yet
+      }
+    }
+
+    var snapPayload = {
+      closePrice:      price,
+      priceChangePct:  chg,
+      hi52:            hi52raw,
+      lo52:            lo52raw,
+      rbaVerdict:      rbaShort,
+      rbaRank:         wlRbaRank(rbaShort),
+      trendStatus:     snap.trend.status,
+      trendScore:      snap.trend.score,
+      trendRank:       wlTrendRank(snap.trend.status),
+      momentumStatus:  snap.momentum.status,
+      momentumScore:   snap.momentum.score,
+      momentumRank:    wlMomRank(snap.momentum.status),
+      reversalStatus:  snap.reversalWatch.status,
+      reversalScore:   snap.reversalWatch.score,
+      reversalRank:    wlRevRank(snap.reversalWatch.status),
+      moneyFlowStatus: snap.smartMoneyFlow.status,
+      moneyFlowScore:  snap.smartMoneyFlow.score,
+      moneyFlowRank:   wlSmfRank(snap.smartMoneyFlow.status),
+      priceHistory:    (mData.aggs||[]).slice().reverse().map(function(b){return b.c||0;}),
+      fsStatus:        fsStatus,
+      fsPattern:       fsPattern,
+      fsScenario:      fsScenario,
+      fsAge:           fsAge,
+      fsTriggerType:   fsTriggerType,
+      fsTriggerDate:   fsTriggerDate,
+      fsMotherDate:    fsMotherDate,
+      fsBabyDate:      fsBabyDate,
+    };
+    await fetch('/watchlist?action=snapshot', {
+      method: 'POST', headers: hdrs,
+      body: JSON.stringify({ ticker: ticker, snap: snapPayload })
+    });
+    return true;
+  }
+
   async function refreshSnapshots() {
     if (!items.length) return;
     setRefreshing(true); setMsg('Refreshing signals...');
@@ -11431,130 +11567,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
       var ticker = items[i].ticker;
       try {
         setMsg('Refreshing ' + ticker + ' (' + (i+1) + '/' + items.length + ')...');
-        var mRes = await fetch('/massive?sym=' + ticker, { headers: hdrs });
-        if (!mRes.ok) continue;
-        var mData = await mRes.json();
-        if (!mData || !mData.aggs || mData.aggs.length < 10) continue;
-        var snap = buildScreenerSnapshot(ticker, mData, { hi52: 0, lo52: 0, price: 0 });
-        if (!snap) continue;
-        var ms  = mData.snapshot || {};
-        var aggs = mData.aggs || [];
-        var price = (ms.close && ms.close > 0) ? ms.close
-                  : (aggs.length > 0 ? (aggs[0].c || 0) : 0);
-        var chg = (ms.change != null) ? parseFloat(ms.change) : null;
-        if (chg == null && aggs.length >= 2) {
-          var c0 = aggs[0].c, c1 = aggs[1].c;
-          if (c0 && c1) chg = (c0 - c1) / c1 * 100;
-        }
-        var hi52raw = 0, lo52raw = Infinity;
-        aggs.forEach(function(b){ if(b.h>hi52raw) hi52raw=b.h; if(b.l>0&&b.l<lo52raw) lo52raw=b.l; });
-        if (lo52raw===Infinity) lo52raw = 0;
-        var rbaSnap = buildRuleSnapshotFromRow({
-          trend: snap.trend.status, trendScore: snap.trend.score,
-          momentum: snap.momentum.status, momentumScore: snap.momentum.score,
-          reversal: snap.reversalWatch.status, reversalScore: snap.reversalWatch.score,
-          reversalDecision: snap.reversalWatch.reversalDecision,
-          bullishScore: snap.reversalWatch.bullishScore, bearishScore: snap.reversalWatch.bearishScore,
-          moneyFlow: snap.smartMoneyFlow.status, moneyFlowScore: snap.smartMoneyFlow.score,
-          smartMoneyDecision: snap.smartMoneyFlow.smartMoneyDecision,
-        });
-        var rba = generateRuleBasedAnalytics(rbaSnap);
-        var rbaVerdict = rba ? (rba.verdict || '') : '';
-        var rbaShort   = shortRuleVerdict(rbaVerdict);
-
-        // Force Strike: always fresh scan using Yahoo chart (same as screener)
-        // Ensures Watchlist FS status is fully consistent with Force Strike Screener rules
-        var fsResult = null;
-        try {
-          var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=3mo';
-          var fsAbort = new AbortController();
-          var fsTimer = setTimeout(function(){ fsAbort.abort(); }, 10000);
-          var cRes2 = await fetch('/proxy?url=' + encodeURIComponent(chartUrl), { signal: fsAbort.signal });
-          clearTimeout(fsTimer);
-          if (cRes2.ok) {
-            var cData2 = await cRes2.json();
-            var cr2 = cData2&&cData2.chart&&cData2.chart.result&&cData2.chart.result[0];
-            if (cr2) {
-              var ts2    = cr2.timestamp||[];
-              var q2     = (cr2.indicators&&cr2.indicators.quote&&cr2.indicators.quote[0])||{};
-              var daily2 = [];
-              for (var di2=0; di2<ts2.length; di2++) {
-                var o2=q2.open&&q2.open[di2], h2=q2.high&&q2.high[di2],
-                    l2=q2.low&&q2.low[di2],   cv2=q2.close&&q2.close[di2];
-                if (o2&&h2&&l2&&cv2&&o2>0) daily2.push({ date:ts2[di2]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di2])||0 });
-              }
-              if (daily2.length >= 14) {
-                var closes2   = daily2.slice(-50).map(function(b){ return b.close; });
-                var closes200b = daily2.map(function(b){ return b.close; });
-                var sma50b    = closes2.length>=20    ? closes2.reduce(function(s,v){return s+v;},0)/closes2.length       : 0;
-                var sma200b   = closes200b.length>=20 ? closes200b.reduce(function(s,v){return s+v;},0)/closes200b.length : 0;
-                var pr2       = daily2[daily2.length-1].close;
-                var ts2status = 'Sideways';
-                if (sma50b>0&&sma200b>0) {
-                  if (pr2>sma50b&&sma50b>sma200b) ts2status = pr2>sma50b*1.03?'Strong Uptrend':'Uptrend';
-                  else if (pr2<sma50b&&sma50b<sma200b) ts2status = 'Downtrend';
-                }
-                fsResult = scanForceStrike(ticker, daily2, ts2status);
-              }
-            }
-          }
-        } catch(fsErr) { fsResult = null; }
-
-        // Determine FS display status
-        var fsStatus = 'none', fsPattern = null, fsScenario = null, fsAge = null,
-            fsTriggerType = null, fsTriggerDate = null, fsMotherDate = null, fsBabyDate = null;
-        if (fsResult) {
-          if (fsResult.triggered) {
-            fsStatus      = 'active';
-            fsPattern     = fsResult.pattern;
-            fsScenario    = fsResult.scenario;
-            fsAge         = fsResult.patternAge;
-            fsTriggerType = fsResult.triggerType;
-            fsTriggerDate = fsResult.triggerBar ? (fsResult.triggerBar.dateLabel||fsResult.triggerBar.date||null) : null;
-            fsMotherDate  = fsResult.motherBar  ? (fsResult.motherBar.dateLabel||fsResult.motherBar.date||null)   : null;
-            fsBabyDate    = fsResult.babyBar    ? (fsResult.babyBar.dateLabel||fsResult.babyBar.date||null)       : null;
-          } else if (fsResult.result === 'Expired') {
-            fsStatus  = 'expired';
-            fsPattern = fsResult.pattern || (fsResult.motherBar ? 'M\u2192B\u2192?' : null);
-            fsAge     = fsResult.patternAge;
-          } else if (fsResult.motherBar && fsResult.babyBar && !fsResult.triggerBar) {
-            fsStatus = 'watch'; // Mother + Baby found, no trigger yet
-          }
-        }
-
-        var snapPayload = {
-          closePrice:      price,
-          priceChangePct:  chg,
-          hi52:            hi52raw,
-          lo52:            lo52raw,
-          rbaVerdict:      rbaShort,
-          rbaRank:         wlRbaRank(rbaShort),
-          trendStatus:     snap.trend.status,
-          trendScore:      snap.trend.score,
-          trendRank:       wlTrendRank(snap.trend.status),
-          momentumStatus:  snap.momentum.status,
-          momentumScore:   snap.momentum.score,
-          momentumRank:    wlMomRank(snap.momentum.status),
-          reversalStatus:  snap.reversalWatch.status,
-          reversalScore:   snap.reversalWatch.score,
-          reversalRank:    wlRevRank(snap.reversalWatch.status),
-          moneyFlowStatus: snap.smartMoneyFlow.status,
-          moneyFlowScore:  snap.smartMoneyFlow.score,
-          moneyFlowRank:   wlSmfRank(snap.smartMoneyFlow.status),
-          priceHistory:    (mData.aggs||[]).slice().reverse().map(function(b){return b.c||0;}),
-          fsStatus:        fsStatus,
-          fsPattern:       fsPattern,
-          fsScenario:      fsScenario,
-          fsAge:           fsAge,
-          fsTriggerType:   fsTriggerType,
-          fsTriggerDate:   fsTriggerDate,
-          fsMotherDate:    fsMotherDate,
-          fsBabyDate:      fsBabyDate,
-        };
-        await fetch('/watchlist?action=snapshot', {
-          method: 'POST', headers: hdrs,
-          body: JSON.stringify({ ticker: ticker, snap: snapPayload })
-        });
+        await refreshSingleTicker(ticker, hdrs);
       } catch(e) { /* skip failed tickers */ }
     }
     setMsg('');
@@ -13423,7 +13436,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.158</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.159</span>
           </div>
         </div>
 
