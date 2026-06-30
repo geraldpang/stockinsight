@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.159</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.160</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.159</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.160</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11462,6 +11462,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
     // Force Strike: always fresh scan using Yahoo chart (same as screener)
     // Ensures Watchlist FS status is fully consistent with Force Strike Screener rules
+    // Also used as fallback source for price (if Massive returned 0) and for the
+    // true 52-week high/low (Yahoo's chart `meta` reports fiftyTwoWeekHigh/Low
+    // regardless of the requested `range`, unlike the 30-day Massive aggs above).
     var fsResult = null;
     try {
       var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=3mo';
@@ -11473,6 +11476,14 @@ function WatchlistPage({ clerkUser, isPaid }) {
         var cData2 = await cRes2.json();
         var cr2 = cData2&&cData2.chart&&cData2.chart.result&&cData2.chart.result[0];
         if (cr2) {
+          var meta2 = cr2.meta || {};
+          if ((!price || price <= 0) && meta2.regularMarketPrice > 0) {
+            price = meta2.regularMarketPrice;
+          }
+          if (meta2.fiftyTwoWeekHigh > 0 && meta2.fiftyTwoWeekLow > 0 && meta2.fiftyTwoWeekHigh > meta2.fiftyTwoWeekLow) {
+            hi52raw = meta2.fiftyTwoWeekHigh;
+            lo52raw = meta2.fiftyTwoWeekLow;
+          }
           var ts2    = cr2.timestamp||[];
           var q2     = (cr2.indicators&&cr2.indicators.quote&&cr2.indicators.quote[0])||{};
           var daily2 = [];
@@ -13436,7 +13447,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.159</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.160</span>
           </div>
         </div>
 
