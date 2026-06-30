@@ -2087,54 +2087,6 @@ function Screener() {
     } catch(e) { setScanStatus('error'); setScanMsg('Scan failed: '+(e.message||'Unknown error')); }
   }
 
-  // Add ticker snapshot to journal — must use nested structure matching worker expectation
-  async function addToJournal(row) {
-    var adminKey = localStorage.getItem('journal_admin_key');
-    if (!adminKey) {
-      setScanMsg('Open the Signal Journal first, then try again.');
-      window.location.hash = 'JOURNAL';
-      return;
-    }
-    if (!row.price || row.price <= 0) { setScanMsg('Cannot add '+row.ticker+' — price not available.'); return; }
-    try {
-      var today = new Date().toISOString().split('T')[0];
-      // Worker reads snap.trend.status, snap.reversalWatch.status etc. (nested structure)
-      var body = {
-        ticker: row.ticker, snapshotDate: today, close: row.price,
-        trend:         { status: row.trend,    score: row.trendScore },
-        momentum:      { status: row.momentum, score: row.momentumScore },
-        reversalWatch: {
-          status:       row.reversal,
-          score:        row.reversalScore,
-          bullishScore: row.bullishScore   || row.reversalScore,
-          bearishScore: row.bearishScore   || 0,
-          reversalDecision: row.reversalDecision || null,
-        },
-        smartMoneyFlow: {
-          status:                     row.moneyFlow,
-          score:                      row.moneyFlowScore,
-          smartMoneyDecision:         row.smartMoneyDecision         || null,
-          todayActivityScore:         row.todayActivityScore         || null,
-          fiveDayFlowScore:           row.fiveDayFlowScore           || null,
-          thirtyDayAccumulationScore: row.thirtyDayAccumulationScore || null,
-        },
-        // Rule Based Analytics — included where available (computed in enriched row)
-        ruleBasedAnalytics: row.ruleVerdict ? {
-          verdict:      row.ruleVerdict,
-          scenarioId:   row.ruleScenarioId   || null,
-          shortVerdict: row.ruleShortVerdict || null,
-          subtitle:     row.ruleSubtitle     || null,
-          tone:         row.ruleTone         || null,
-        } : undefined,
-      };
-      var res = await fetch('/journal?action=upsertSnapshot', {
-        method:'POST', headers:{ 'Content-Type':'application/json', 'X-Admin-Key':adminKey },
-        body: JSON.stringify(body)
-      });
-      setScanMsg(res.ok ? row.ticker+' added to Journal for '+today+'.' : 'Failed to add '+row.ticker+'. Please try again.');
-    } catch(e) { setScanMsg('Error: '+e.message); }
-  }
-
   var LIME  = '#c8f000';
   var [filterTrend,    setFilterTrend]    = useState([]);
   var [filterMomentum, setFilterMomentum] = useState([]);
@@ -2403,8 +2355,8 @@ function Screener() {
                 {label}{active?(scSortDir==='asc'?' ▲':' ▼'):''}
               </div>;
             }
-            // Column order: Ticker|Price|52W Range|Technical View|3M Trend|Trend|Daily Mom|Reversal|Money Flow|View|+Journal
-            var GRID = '70px 90px 155px 120px 72px 78px 78px 105px 115px 46px 66px';
+            // Column order: Ticker|Price|52W Range|Technical View|3M Trend|Trend|Daily Mom|Reversal|Money Flow|View
+            var GRID = '70px 90px 155px 120px 72px 78px 78px 105px 115px 46px';
             // Inline dot for supporting signals (matches Watchlist SigDot style)
             function ScDot(dotColor, label, type) {
               var shortLbl = shortSignalLabel(label, type);
@@ -2420,7 +2372,7 @@ function Screener() {
                   {ScTh('setup','Tech View')}{ScTh('sparkline','3M Trend')}
                   {ScTh('trend','Trend')}{ScTh('momentum','Daily Mom')}
                   {ScTh('reversal','Reversal')}{ScTh('moneyFlow','Money Flow')}
-                  <div></div><div></div>
+                  <div></div>
                 </div>
                 {enriched.map(function(row,i){
                   var revC   = revStatusColor(row.reversal,'main');
@@ -2476,9 +2428,6 @@ function Screener() {
                       {ScDot(smfC, row.moneyFlow, 'moneyFlow')}
                       <button onClick={function(){ window.open(window.location.origin+'/#'+row.ticker,'_blank','noopener,noreferrer'); }}
                         style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#888', fontSize:10, cursor:'pointer', padding:'4px 6px' }}>View</button>
-                      <button onClick={function(){ addToJournal(row); }}
-                        title={'Add '+row.ticker+' to Signal Journal'}
-                        style={{ background:'none', border:'0.5px solid #1a3a1a', borderRadius:6, color:'#5a9a40', fontSize:10, cursor:'pointer', padding:'4px 6px', whiteSpace:'nowrap' }}>+Journal</button>
                     </div>
                   );
                 })}
@@ -5130,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.157</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.158</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.157</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.158</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11336,574 +11285,6 @@ function PaywallCard({ sym, name, onBack, isPaid, clerkUser, mode }) {
 }
 
 // -- Landing page -------------------------------------------------------------
-// ─── Technical Signal Journal ─────────────────────────────────────────────────
-export function JournalPage() {
-  var F = "'Inter', system-ui, sans-serif";
-  var [adminKey, setAdminKey]       = useState(localStorage.getItem("journal_admin_key") || "");
-  var [authed, setAuthed]           = useState(false);
-  var [authError, setAuthError]     = useState("");
-  var [watchlist, setWatchlist]     = useState([]);
-  var [journal, setJournal]         = useState([]);
-  var [addTicker, setAddTicker]     = useState("");
-  var [loading, setLoading]         = useState("");
-  var [toast, setToast]             = useState(null);
-  var [filter, setFilter]           = useState({ ticker:[], trend:[], momentum:[], reversal:[], smartMoney:[], outcome:[], setup:[] });
-  var [generating, setGenerating]   = useState({});
-  var [sortCol, setSortCol]         = useState("snapshot_date");
-  var [sortDir, setSortDir]         = useState("desc");
-
-  function showToast(msg, type) {
-    setToast({ msg:msg, type:type||"ok" });
-    setTimeout(function(){ setToast(null); }, 3500);
-  }
-
-  function jFetch(action, method, body) {
-    var opts = { method: method||"GET", headers: { "X-Admin-Key": adminKey, "Content-Type": "application/json" } };
-    if (body) opts.body = JSON.stringify(body);
-    return fetch("/journal?action=" + action, opts).then(function(r) {
-      var ct = r.headers.get("content-type") || "";
-      if (!ct.includes("application/json")) {
-        return r.text().then(function(t) {
-          throw new Error("API returned non-JSON (" + r.status + "). Check D1 binding in Cloudflare Pages settings. Response: " + t.substring(0, 100));
-        });
-      }
-      return r.json();
-    });
-  }
-
-  function loadWatchlist() {
-    return jFetch("watchlist").then(function(d){ if (d.watchlist) setWatchlist(d.watchlist); });
-  }
-
-  function loadJournal(tk) {
-    var url = "/journal?action=journal&limit=500" + (tk ? "&ticker=" + tk : "");
-    return fetch(url, { headers:{ "X-Admin-Key": adminKey } }).then(function(r){ return r.json(); })
-      .then(function(d){
-        if (d.entries) {
-          setJournal(d.entries);
-          // Auto-fill any return windows that now have past prices
-          // Runs silently in background — no loading spinner, no toast
-          autoFillReturns(d.entries);
-        }
-      });
-  }
-
-  // Silently update future returns for any record where a window date has now passed.
-  // Runs automatically after journal loads — no manual click needed.
-  function autoFillReturns(entries) {
-    if (!entries || entries.length === 0) return;
-    var today = new Date().toISOString().split("T")[0];
-    // Find unique tickers that have at least one record with a pending return window
-    // A window is potentially fillable if the snapshot date is old enough
-    var tickers = [...new Set(entries
-      .filter(function(e) {
-        // Only process if at least 1 trading day has passed (snapshot date < today)
-        return e.snapshot_date < today && (
-          e.future_return_5d  === null || e.future_return_5d  === undefined ||
-          e.future_return_10d === null || e.future_return_10d === undefined ||
-          e.future_return_20d === null || e.future_return_20d === undefined ||
-          e.future_return_30d === null || e.future_return_30d === undefined ||
-          e.future_return_60d === null || e.future_return_60d === undefined ||
-          e.future_return_90d === null || e.future_return_90d === undefined
-        );
-      })
-      .map(function(e){ return e.ticker; })
-    )];
-    if (tickers.length === 0) return;
-    // Fire-and-forget — update each ticker silently, then reload journal
-    var chain = Promise.resolve();
-    tickers.forEach(function(tk) {
-      chain = chain.then(function() {
-        return jFetch("updateFutureReturns", "POST", { ticker: tk }).catch(function(){});
-      });
-    });
-    chain.then(function() {
-      // Reload journal silently to show updated figures
-      var url = "/journal?action=journal&limit=500";
-      fetch(url, { headers:{ "X-Admin-Key": adminKey } }).then(function(r){ return r.json(); })
-        .then(function(d){ if (d.entries) setJournal(d.entries); });
-    });
-  }
-
-  function handleAuth() {
-    setAuthError("");
-    jFetch("watchlist").then(function(d) {
-      if (d.error) { setAuthError("❌ " + d.error); return; }
-      localStorage.setItem("journal_admin_key", adminKey);
-      setAuthed(true);
-      setWatchlist(d.watchlist || []);
-      loadJournal();
-    }).catch(function(e) {
-      setAuthError("❌ " + e.message);
-    });
-  }
-
-  function handleAddTicker() {
-    var t = addTicker.trim().toUpperCase();
-    if (!t) return;
-    jFetch("addTicker", "POST", { ticker: t }).then(function(d) {
-      if (d.error) { showToast(d.error, "err"); return; }
-      setAddTicker(""); loadWatchlist();
-      // Auto-generate today's snapshot so it appears in the journal immediately
-      showToast(t + " added — generating snapshot...", "ok");
-      generateSnapshot(t).then(function() { loadJournal(); });
-    });
-  }
-
-  function handleRemove(ticker) {
-    jFetch("removeTicker", "POST", { ticker:ticker }).then(function(d) {
-      if (d.ok) { showToast(ticker + " removed.", "ok"); loadWatchlist(); }
-    });
-  }
-
-  async function fetchSnapshotData(ticker) {
-    var headers = { "X-Admin-Key": adminKey };
-    var [massRes, yahooRes] = await Promise.all([
-      fetch("/massive?sym=" + ticker, { headers: headers }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-      fetch("/proxy?url=https://query2.finance.yahoo.com/v8/finance/chart/" + ticker + "?range=2y%26interval=1d").then(function(r){ return r.json(); }).catch(function(){ return null; })
-    ]);
-    if (!massRes) return null;
-    var aggs = massRes.aggs || [];
-    var ind  = massRes.indicators || {};
-    var snap = massRes.snapshot || {};
-    // Massive aggs are newest-first → reverse to oldest-first
-    var bars = aggs.filter(function(b){ return b&&b.c>0; }).reverse().map(function(b) {
-      return { date: b.t ? new Date(b.t).toISOString().split("T")[0] : "", open:b.o, high:b.h, low:b.l, close:b.c, volume:b.v||0 };
-    });
-    var today = new Date().toISOString().split("T")[0];
-    var price = snap.close || (bars.length > 0 ? bars[bars.length-1].close : 0);
-    // Extract 52-week range from Yahoo chart meta — needed for reversal indicator consistency
-    var _ymeta = yahooRes && yahooRes.chart && yahooRes.chart.result && yahooRes.chart.result[0] && yahooRes.chart.result[0].meta ? yahooRes.chart.result[0].meta : null;
-    var hi52 = (_ymeta && _ymeta.fiftyTwoWeekHigh) || 0;
-    var lo52 = (_ymeta && _ymeta.fiftyTwoWeekLow)  || 0;
-    return { bars:bars, ind:ind, price:price, date:today, hi52:hi52, lo52:lo52 };
-  }
-
-  async function generateSnapshot(ticker) {
-    setGenerating(function(g){ return Object.assign({}, g, { [ticker]: true }); });
-    try {
-      var data = await fetchSnapshotData(ticker);
-      if (!data || !data.bars || data.bars.length === 0) {
-        showToast("No data returned for " + ticker + ". Check ticker is valid.", "err");
-        return;
-      }
-      if (!data.price || data.price <= 0) {
-        showToast("Could not get price for " + ticker + ".", "err");
-        return;
-      }
-      var snapshot = calculateTechnicalSignalSnapshot({
-        ticker:     ticker,
-        date:       data.date,
-        ohlcv:      data.bars,
-        indicators: data.ind,
-        meta:       { price: data.price, hi52: data.hi52||0, lo52: data.lo52||0 },
-      });
-      var postSnap = Object.assign({}, snapshot, {
-        open:   snapshot.open,   high:  snapshot.high,
-        low:    snapshot.low,    close: snapshot.close,
-        volume: snapshot.volume,
-      });
-      var res = await jFetch("upsertSnapshot", "POST", postSnap);
-      if (res.ok) {
-        showToast(ticker + " snapshot saved.", "ok");
-        loadWatchlist(); loadJournal();
-      } else {
-        showToast("Error saving " + ticker + ": " + (res.error||"unknown"), "err");
-      }
-    } catch(e) {
-      showToast("Error: " + e.message, "err");
-    } finally {
-      setGenerating(function(g){ var n=Object.assign({},g); delete n[ticker]; return n; });
-    }
-  }
-
-  async function generateAll() {
-    setLoading("generating");
-    // Use unique tickers from journal entries (watchlist may be empty)
-    var jTickers = [...new Set(journal.map(function(e){ return e.ticker; }))];
-    var wTickers = watchlist.map(function(w){ return w.ticker; });
-    var allTickers = [...new Set([...wTickers, ...jTickers])];
-    if (allTickers.length === 0) { showToast("No tickers to generate. Add tickers to watchlist first.", "err"); setLoading(""); return; }
-    for (var i = 0; i < allTickers.length; i++) {
-      await generateSnapshot(allTickers[i]);
-    }
-    setLoading("");
-    showToast("All snapshots generated (" + allTickers.length + " tickers).", "ok");
-  }
-
-  async function updateFutureReturns() {
-    setLoading("future");
-    var jTickers = [...new Set(journal.map(function(e){ return e.ticker; }))];
-    var wTickers = watchlist.map(function(w){ return w.ticker; });
-    var allTickers = [...new Set([...wTickers, ...jTickers])];
-    if (allTickers.length === 0) { showToast("No tickers found in journal.", "err"); setLoading(""); return; }
-    var debugOutput = [];
-    for (var tk of allTickers) {
-      var res = await jFetch("updateFutureReturns", "POST", { ticker:tk });
-      if (res && res.debug) {
-        debugOutput.push(res.debug);
-        console.log("[updateFutureReturns]", tk, res.debug);
-      }
-    }
-    // Show debug summary as toast
-    var summary = debugOutput.map(function(d){
-      return d.ticker + ": Yahoo=" + (d.yahooFetchSuccess ? "OK ("+d.pricesLoaded+" prices, "+d.dateRange.first+" to "+d.dateRange.last+")" : "FAILED") + ", updated=" + (debugOutput.find(function(x){return x.ticker===d.ticker;}) ? "see console" : "?");
-    }).join(" | ");
-    showToast("Debug: " + summary, "ok");
-    setLoading("");
-    showToast("Future returns updated (" + allTickers.length + " tickers). Check console for debug.", "ok");
-    loadJournal();
-  }
-
-  function exportCSV() {
-    var rows = filteredJournal();
-    if (rows.length === 0) { showToast("No data to export.", "err"); return; }
-    var cols = ["snapshot_date","ticker","close_price","trend_status","trend_score","momentum_status","momentum_score","reversal_status","bullish_reversal_score","bearish_reversal_score","smart_money_status","smart_money_score","today_activity_score","five_day_flow_score","thirty_day_accumulation_score","rsi_value","macd_histogram","future_return_1d","future_return_3d","future_return_5d","future_return_10d","future_return_20d","future_return_30d","future_return_60d","future_return_90d","max_gain_30d","max_drawdown_30d","bullish_outcome_label","bearish_outcome_label"];
-    var csv = cols.join(",") + "\n" + rows.map(function(r) {
-      return cols.map(function(c){ var v=r[c]; return v===null||v===undefined?"":String(v).includes(",")?"\""+v+"\"":v; }).join(",");
-    }).join("\n");
-    var a = document.createElement("a");
-    a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
-    a.download = "signal_journal_" + new Date().toISOString().split("T")[0] + ".csv";
-    a.click();
-    showToast("Exported " + rows.length + " rows.", "ok");
-  }
-
-  function handleDeleteSnapshot(ticker, date) {
-    if (!window.confirm("Delete " + ticker + " snapshot for " + date + "?")) return;
-    jFetch("deleteSnapshot", "POST", { ticker: ticker, date: date }).then(function(d) {
-      if (d.ok) { showToast(ticker + " " + date + " deleted.", "ok"); loadJournal(); }
-      else showToast("Delete failed: " + (d.error || "unknown"), "err");
-    }).catch(function(e) { showToast("Delete error: " + e.message, "err"); });
-  }
-
-  function reversalColor(status) {
-    if (!status) return "#555";
-    if (status === "Not Enough Data" || status === "No Clear Reversal") return "#555";
-    if (status.startsWith("Bullish") && (status.includes("Forming")||status.includes("Triggered")||status.includes("Confirmed")||status.includes("Confirming"))) return "#7abd00";
-    if (status.startsWith("Bullish") && (status.includes("Watch")||status.includes("Spark")||status.includes("Setup"))) return "#6090d0";
-    if (status.startsWith("Bearish") && (status.includes("Forming")||status.includes("Triggered")||status.includes("Confirmed")||status.includes("Confirming"))) return "#e05050";
-    if (status.startsWith("Bearish") && (status.includes("Watch")||status.includes("Setup"))) return "#EF9F27";
-    if (status === "Mixed Reversal Signals") return "#EF9F27";
-    return "#555";
-  }
-
-  function smfColor(status) {
-    if (!status) return "#555";
-    if (status === "Strong Multi-Timeframe Flow" || status === "Accumulation Trend Positive") return "#7abd00";
-    if (status === "Constructive but Cooling" || status === "Early Accumulation") return "#6090d0";
-    if (status === "Short-Term Spike") return "#EF9F27";
-    return "#555";
-  }
-  function filteredJournal() {
-    // Returns filtered (unsorted) rows; sort is applied after enrichment below
-    return journal.filter(function(r) {
-      if (filter.ticker.length    && filter.ticker.indexOf(r.ticker)===-1)                         return false;
-      if (filter.trend.length     && filter.trend.indexOf(r.trend_status)===-1)                    return false;
-      if (filter.momentum.length  && filter.momentum.indexOf(r.momentum_status)===-1)              return false;
-      if (filter.reversal.length  && !filter.reversal.some(function(v){ return (r.reversal_status||"").includes(v); })) return false;
-      if (filter.smartMoney.length&& filter.smartMoney.indexOf(r.smart_money_status)===-1)         return false;
-      if (filter.outcome.length   && filter.outcome.indexOf(r.bullish_outcome_label)===-1)         return false;
-      return true;
-    });
-  }
-
-  function Th(props) {
-    var active = sortCol === props.col;
-    return (
-      <th onClick={function(){ setSortDir(active&&sortDir==="asc"?"desc":"asc"); setSortCol(props.col); }}
-        style={{ padding:"6px 7px", fontSize:10, fontWeight:700, color: active?"#c8f000":"#666", textTransform:"uppercase", letterSpacing:"0.06em", cursor:"pointer", whiteSpace:"nowrap", background:"#1a1a18", borderBottom:"1px solid #2a2a28", userSelect:"none", textAlign:"left" }}>
-        {props.children}{active?(sortDir==="asc"?" ▲":" ▼"):""}
-      </th>
-    );
-  }
-
-  function FmtReturn(val) {
-    if (val === null || val === undefined) return <span style={{color:"#444", fontSize:10}}>Pending</span>;
-    var col = val >= 5 ? "#7abd00" : val >= 0 ? "#5a9a40" : val > -5 ? "#e08050" : "#e05050";
-    return <span style={{color:col, fontWeight:600}}>{val > 0 ? "+" : ""}{val.toFixed(1)}%</span>;
-  }
-
-  function OutcomeBadge(label) {
-    if (!label || label === "Pending") return <span style={{fontSize:9,color:"#444"}}>Pending</span>;
-    var col = label.includes("Strong Win")?"#7abd00":label==="Win"?"#5a9a40":label==="Neutral"?"#888":label.includes("Failed")?"#e05050":"#e08050";
-    return <span style={{fontSize:9,fontWeight:700,color:col,background:col+"20",padding:"2px 6px",borderRadius:3}}>{label}</span>;
-  }
-
-  function StatusBadge(val, col) {
-    if (!val) return <span style={{color:"#444", fontSize:10}}>—</span>;
-    var c = col || "#888";
-    return <span style={{fontSize:10, fontWeight:600, color:c}}>{val}</span>;
-  }
-
-  function scoreColor(s) {
-    if (s===null||s===undefined) return "#444";
-    return s >= 65 ? "#7abd00" : s >= 40 ? "#EF9F27" : "#e05050";
-  }
-
-  // ── Auth screen ─────────────────────────────────────────────────────────────
-  if (!authed) return (
-    <div style={{ fontFamily:F, background:"#0e0e0c", minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ background:"#181816", border:"0.5px solid #2a2a28", borderRadius:12, padding:32, width:340 }}>
-        <div style={{ fontSize:11, color:"#c8f000", fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:4 }}>Colaboree StockInsight</div>
-        <div style={{ fontSize:20, fontWeight:800, color:"#f0ede6", marginBottom:4 }}>Signal Journal</div>
-        <div style={{ fontSize:12, color:"#666", marginBottom:24 }}>Research access only. Enter your admin key to continue.</div>
-        <input value={adminKey} onChange={function(e){ setAdminKey(e.target.value); }}
-          onKeyDown={function(e){ if(e.key==="Enter") handleAuth(); }}
-          type="password" placeholder="Admin key"
-          style={{ width:"100%", background:"#111", border:"0.5px solid #333", borderRadius:8, padding:"10px 12px", color:"#f0ede6", fontSize:13, outline:"none", boxSizing:"border-box", marginBottom:10 }} />
-        {authError && <div style={{ fontSize:11, color:"#e05050", marginBottom:10 }}>{authError}</div>}
-        <button onClick={handleAuth}
-          style={{ width:"100%", background:"#c8f000", color:"#0e0e0c", fontWeight:800, fontSize:13, border:"none", borderRadius:8, padding:"10px", cursor:"pointer" }}>
-          Access Journal
-        </button>
-        <div style={{ marginTop:16, textAlign:"center" }}>
-          <a href="/" style={{ fontSize:11, color:"#555", textDecoration:"none" }}>← Back to StockInsight</a>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Enrich all filtered rows, apply Setup filter, then sort
-  var fjRaw = filteredJournal();
-  var fjEnriched = fjRaw.map(enrichRowWithRuleSetup);
-  if (filter.setup.length) fjEnriched = fjEnriched.filter(function(r){ return filter.setup.indexOf(r.ruleShortVerdict)!==-1; });
-  fjEnriched.sort(function(a,b){
-    var av = sortCol==='rule_setup' ? a.ruleShortVerdict : a[sortCol];
-    var bv = sortCol==='rule_setup' ? b.ruleShortVerdict : b[sortCol];
-    if (av===null||av===undefined) return 1;
-    if (bv===null||bv===undefined) return -1;
-    var cmp = av<bv?-1:av>bv?1:0;
-    return sortDir==='asc'?cmp:-cmp;
-  });
-  var fj = fjEnriched;
-  var activeTickers = [...new Set(journal.map(function(e){ return e.ticker; }))];
-
-  // ── Main journal UI ─────────────────────────────────────────────────────────
-  return (
-    <div style={{ fontFamily:F, background:"#0e0e0c", minHeight:"100vh", color:"#f0ede6" }}>
-      {/* Toast */}
-      {toast && <div style={{ position:"fixed", top:16, right:16, zIndex:9999, background: toast.type==="err"?"#3a1a1a":"#1a3a1a", border:"0.5px solid "+(toast.type==="err"?"#e05050":"#7abd00"), borderRadius:8, padding:"10px 16px", fontSize:12, color: toast.type==="err"?"#e05050":"#7abd00", boxShadow:"0 4px 20px rgba(0,0,0,0.5)" }}>{toast.msg}</div>}
-
-      {/* Header */}
-      <div style={{ borderBottom:"0.5px solid #2a2a28", padding:"14px 24px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-          <a href="/" style={{ fontSize:11, color:"#555", textDecoration:"none" }}>← StockInsight</a>
-          <div style={{ width:1, height:16, background:"#2a2a28" }} />
-          <div style={{ fontSize:13, fontWeight:800, color:"#c8f000" }}>Signal Journal</div>
-          <div style={{ fontSize:10, color:"#555" }}>Research use only · Not financial advice</div>
-        </div>
-        <div style={{ display:"flex", gap:8 }}>
-          <button onClick={generateAll} disabled={loading==="generating"}
-            style={{ background:"#c8f000", color:"#0e0e0c", fontWeight:700, fontSize:11, border:"none", borderRadius:6, padding:"7px 14px", cursor:"pointer", opacity:loading==="generating"?0.6:1 }}>
-            {loading==="generating" ? "Generating..." : "⚡ Generate Today's Snapshots"}
-          </button>
-          <button onClick={updateFutureReturns} disabled={loading==="future"}
-            style={{ background:"#1a2a1a", color:"#7abd00", fontWeight:700, fontSize:11, border:"0.5px solid #2a5020", borderRadius:6, padding:"7px 14px", cursor:"pointer", opacity:loading==="future"?0.6:1 }}>
-            {loading==="future" ? "Updating..." : "📈 Update Future Returns"}
-          </button>
-          <button onClick={exportCSV}
-            style={{ background:"#1a1a2a", color:"#9090f0", fontWeight:700, fontSize:11, border:"0.5px solid #2a2a50", borderRadius:6, padding:"7px 14px", cursor:"pointer" }}>
-            ⬇ Export CSV
-          </button>
-        </div>
-      </div>
-
-      <div style={{ padding:"20px 24px" }}>
-
-        {/* Add Ticker — inline, no card section */}
-        <div style={{ display:"flex", gap:8, marginBottom:20 }}>
-          <input value={addTicker} onChange={function(e){ setAddTicker(e.target.value.toUpperCase()); }}
-            onKeyDown={function(e){ if(e.key==="Enter") handleAddTicker(); }}
-            placeholder="Add ticker e.g. AAPL"
-            style={{ background:"#181816", border:"0.5px solid #333", borderRadius:8, padding:"8px 12px", color:"#f0ede6", fontSize:13, outline:"none", width:180 }} />
-          <button onClick={handleAddTicker}
-            style={{ background:"#c8f000", color:"#0e0e0c", fontWeight:700, fontSize:12, border:"none", borderRadius:8, padding:"8px 16px", cursor:"pointer" }}>
-            Add
-          </button>
-        </div>
-
-        {/* Signal Journal */}
-        <div>
-          <div style={{ fontSize:12, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>Signal Journal ({fj.length} records)</div>
-
-          {/* Multi-select pill filters */}
-          <div style={{ background:"#181816", border:"0.5px solid #222", borderRadius:8, padding:"10px 14px", marginBottom:12 }}>
-            {(function(){
-              var SETUP_OPTS = ['Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
-              function toggle(key, v) { setFilter(function(prev){ var a=prev[key]; var next=a.indexOf(v)!==-1?a.filter(function(x){return x!==v;}):a.concat([v]); return Object.assign({},prev,{[key]:next}); }); }
-              var groups = [
-                ["Ticker",      "ticker",     activeTickers],
-                ["Trend",       "trend",      ["Strong Uptrend","Uptrend","Sideways","Downtrend","Strong Downtrend"]],
-                ["Momentum",    "momentum",   ["Strong","Building","Neutral","Fading","Weak"]],
-                ["Reversal",    "reversal",   ["Bull Spark","Bull Watch","Bull Forming","Bull Triggered","Bull Confirming","Bull Confirmed","Bear Watch","Bear Forming","Bear Triggered","Bear Confirmed","Mixed"]],
-                ["Money Flow",  "smartMoney", ["Strong Flow","Accumulating","Early Accum.","Constructive","ST Spike","No Signal"]],
-                ["Setup",       "setup",      SETUP_OPTS],
-                ["Outcome",     "outcome",    ["Strong Win","Win","Neutral","Failed","Strong Failed","Pending"]],
-              ];
-              var anyActive = Object.values(filter).some(function(a){return a.length>0;});
-              return (
-                <div>
-                  {groups.map(function(fg){
-                    var lbl=fg[0], key=fg[1], opts=fg[2];
-                    return (
-                      <div key={key} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:7 }}>
-                        <span style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", minWidth:74, paddingTop:3, flexShrink:0 }}>{lbl}</span>
-                        <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
-                          {opts.map(function(v){
-                            var sel = filter[key].indexOf(v)!==-1;
-                            var ac  = key==="setup" ? summaryCardDark(v).text : "#c8f000";
-                            return <button key={v} onClick={function(){ toggle(key,v); }}
-                              style={{ fontSize:9, padding:"2px 8px", borderRadius:10, cursor:"pointer", fontWeight:sel?700:400,
-                                background:sel?"#1e2a10":"#141412", color:sel?ac:"#555",
-                                border:"0.5px solid "+(sel?ac:"#2a2a28"), outline:"none" }}>{v}</button>;
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {anyActive && <button onClick={function(){ setFilter({ ticker:[], trend:[], momentum:[], reversal:[], smartMoney:[], outcome:[], setup:[] }); }}
-                    style={{ fontSize:10, padding:"3px 10px", background:"none", border:"0.5px solid #444", borderRadius:5, color:"#666", cursor:"pointer", marginTop:2 }}>Clear all filters</button>}
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Table */}
-          {fj.length === 0 ? (
-            <div style={{ fontSize:12, color:"#555", padding:"40px", textAlign:"center", background:"#181816", borderRadius:10 }}>
-              No records yet. Generate snapshots for your tracked tickers to start collecting data.
-            </div>
-          ) : (
-            <div style={{ borderRadius:10, border:"0.5px solid #2a2a28", width:"100%" }}>
-              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-                <thead>
-                  <tr>
-                    <Th col="snapshot_date">Date</Th>
-                    <Th col="ticker">Ticker</Th>
-                    <Th col="close_price">Close</Th>
-                    <Th col="trend_status">Trend</Th>
-                    <Th col="momentum_status">Momentum</Th>
-                    <Th col="momentum_score">M.Score</Th>
-                    <Th col="rsi_value">RSI</Th>
-                    <Th col="reversal_status">Reversal</Th>
-                    <Th col="bullish_reversal_score">Bull</Th>
-                    <Th col="bearish_reversal_score">Bear</Th>
-                    <Th col="smart_money_status">Smart Money</Th>
-                    <Th col="smart_money_score">SM.Score</Th>
-                    <Th col="rule_setup">Setup</Th>
-                    <Th col="future_return_5d">5D Ret.</Th>
-                    <Th col="future_return_10d">10D</Th>
-                    <Th col="future_return_20d">20D</Th>
-                    <Th col="future_return_30d">30D</Th>
-                    <Th col="future_return_60d">60D</Th>
-                    <Th col="future_return_90d">90D</Th>
-                    <Th col="max_gain_30d">Range 30D</Th>
-                    <Th col="bullish_outcome_label">Outcome</Th>
-                    <th style={{ padding:"8px 6px", fontSize:10, color:"#444", background:"#1a1a18", borderBottom:"1px solid #2a2a28" }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fj.map(function(r, i) {
-                    var er  = r;  // already enriched above
-                    var rowBg = i % 2 === 0 ? "#181816" : "#141412";
-                    var revCol = reversalColor(r.reversal_status);
-                    var smfCol = smfColor(r.smart_money_status);
-                    var setupC = ruleSetupColor(er.ruleScenarioId);
-                    return (
-                      <tr key={r.id} style={{ background:rowBg }}>
-                        <td style={{ padding:"5px 7px", color:"#888" }}>{r.snapshot_date}</td>
-                        <td style={{ padding:"5px 7px", fontWeight:700, color:"#c8f000" }}>{r.ticker}</td>
-                        <td style={{ padding:"5px 7px", color:"#f0ede6" }}>${r.close_price?.toFixed(2)}</td>
-                        <td style={{ padding:"5px 7px" }}>{StatusBadge(r.trend_status, r.trend_score>=55?"#7abd00":r.trend_score>=40?"#EF9F27":"#e05050")}</td>
-                        <td style={{ padding:"5px 7px" }}>{StatusBadge(r.momentum_status, r.momentum_score>=65?"#7abd00":r.momentum_score>=50?"#EF9F27":"#e05050")}</td>
-                        <td style={{ padding:"5px 7px", color:"#aaa", fontWeight:500 }}>{r.momentum_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"5px 7px", color:r.rsi_value>70?"#EF9F27":r.rsi_value>=50?"#7abd00":r.rsi_value>=30?"#888":"#e05050" }}>{r.rsi_value?.toFixed(1)||"—"}</td>
-                        <td style={{ padding:"5px 7px", fontSize:10, color:revCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.reversal_status||"—"}</td>
-                        <td style={{ padding:"5px 7px", color:"#aaa" }}>{r.bullish_reversal_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"5px 7px", color:"#aaa" }}>{r.bearish_reversal_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"5px 7px", fontSize:10, color:smfCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.smart_money_status||"—"}</td>
-                        <td style={{ padding:"5px 7px", color:"#aaa", fontWeight:500 }}>{r.smart_money_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"5px 7px" }} title={er.ruleVerdict||''}>
-                          <div style={{ fontSize:11, fontWeight:700, color:setupC.text, lineHeight:1.3, whiteSpace:"nowrap" }}>{er.ruleShortVerdict}</div>
-                          {er.ruleSubtitle && <div style={{ fontSize:9, color:setupC.text+"99", lineHeight:1.3, marginTop:1 }}>{er.ruleSubtitle}</div>}
-                        </td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_5d)}</td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_10d)}</td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_20d)}</td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_30d)}</td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_60d)}</td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_90d)}</td>
-                        <td style={{ padding:"5px 7px" }}>
-                          {(function(){
-                            var gain = r.max_gain_30d;
-                            var loss = r.max_drawdown_30d;
-                            if (gain == null && loss == null) return <span style={{color:"#444",fontSize:10}}>Pending</span>;
-                            var g = Math.max(0, gain || 0);
-                            var l = Math.min(0, loss || 0);
-                            var ret = r.future_return_20d;
-                            var total = g - l; // full range e.g. 8.5-(-10.2)=18.7
-                            if (total === 0) return <span style={{color:"#444",fontSize:10}}>—</span>;
-                            var W = 120;
-                            var zeroX = (-l / total) * W;   // 0% mark position
-                            var lossW = zeroX;               // red: left edge → zero
-                            var gainW = W - zeroX;           // green: zero → right edge
-                            // dot: where actual 20D return lands
-                            var dotX = ret != null ? Math.max(3, Math.min(W-3, ((-l + ret) / total) * W)) : null;
-                            return (
-                              <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                                <span style={{ fontSize:9, color:"#e05050", width:36, textAlign:"right", flexShrink:0 }}>
-                                  {l < 0 ? l.toFixed(1)+"%" : ""}
-                                </span>
-                                <div style={{ position:"relative", flexShrink:0 }}>
-                                  <svg width={W} height={10} style={{ display:"block" }}>
-                                    {/* Red loss segment */}
-                                    {lossW > 0 && <rect x={0} y={2} width={lossW} height={6} rx={2} fill="#e05050" opacity={0.85} />}
-                                    {/* Green gain segment */}
-                                    {gainW > 0 && <rect x={zeroX} y={2} width={gainW} height={6} rx={2} fill="#7abd00" opacity={0.85} />}
-                                    {/* Zero tick */}
-                                    <rect x={zeroX-0.5} y={0} width={1} height={10} fill="#888" />
-                                    {/* Actual return dot */}
-                                    {dotX != null && <circle cx={dotX} cy={5} r={3} fill="#fff" stroke="#111" strokeWidth={0.5} />}
-                                  </svg>
-                                </div>
-                                <span style={{ fontSize:9, color:"#7abd00", width:36, textAlign:"left", flexShrink:0 }}>
-                                  {g > 0 ? "+"+g.toFixed(1)+"%" : ""}
-                                </span>
-                              </div>
-                            );
-                          })()}
-                        </td>
-                        <td style={{ padding:"5px 7px" }}>{OutcomeBadge(r.bullish_outcome_label)}</td>
-                        <td style={{ padding:"5px 5px" }}>
-                          <div style={{ display:"flex", gap:4, alignItems:"center" }}>
-                            <button onClick={function(){ generateSnapshot(r.ticker); }}
-                              disabled={!!generating[r.ticker]}
-                              title={"Generate today's snapshot for " + r.ticker}
-                              style={{ background:"none", border:"0.5px solid #1a3a1a", borderRadius:4, color:generating[r.ticker]?"#444":"#5a9a40", fontSize:11, cursor:generating[r.ticker]?"not-allowed":"pointer", padding:"2px 7px", lineHeight:1 }}>
-                              {generating[r.ticker] ? "…" : "⚡"}
-                            </button>
-                            <button onClick={function(){ handleDeleteSnapshot(r.ticker, r.snapshot_date); }}
-                              title={"Delete " + r.ticker + " " + r.snapshot_date}
-                              style={{ background:"none", border:"0.5px solid #3a1a1a", borderRadius:4, color:"#663333", fontSize:11, cursor:"pointer", padding:"2px 7px", lineHeight:1 }}>✕</button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <div style={{ fontSize:10, color:"#333", marginTop:16, lineHeight:1.6 }}>
-            The Technical Signal Journal records historical technical signals and outcomes for research purposes only. It does not provide financial advice or guarantee future performance.
-          </div>
-        </div>
-        </div>
-      </div>
-  );
-}
 
 // ── Watchlist rank helpers ────────────────────────────────────────────────────
 function wlRbaRank(v){if(!v)return 0;var vl=v.toLowerCase();if(vl.indexOf('strong bullish')!==-1)return 3;if(vl.indexOf('bullish watch')!==-1)return 1;if(vl.indexOf('bullish')!==-1)return 2;if(vl.indexOf('risky bounce')!==-1)return -0.5;if(vl.indexOf('caution')!==-1)return -1;if(vl.indexOf('mixed')!==-1)return -0.5;if(vl.indexOf('bearish watch')!==-1)return -2;if(vl.indexOf('strong bearish')!==-1)return -4;if(vl.indexOf('bearish')!==-1)return -3;return 0;}
@@ -13909,8 +13290,9 @@ export default function App() {
   }
 
   if (hashSym === "JOURNAL") {
-  return <JournalPage />;
-}
+    window.location.hash = "";
+    return null;
+  }
 
   if (hashSym === "FORCESTRIKE") {
     return <ForceStrikePage isPaid={isPaid} clerkUser={clerkUser} />;
@@ -14041,7 +13423,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.157</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.158</span>
           </div>
         </div>
 
