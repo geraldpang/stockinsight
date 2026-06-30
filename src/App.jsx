@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.160</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.161</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.160</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.161</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11437,6 +11437,10 @@ function WatchlistPage({ clerkUser, isPaid }) {
     if (!snap) return false;
     var ms  = mData.snapshot || {};
     var aggs = mData.aggs || [];
+    // Provisional price from Massive — overwritten below by Yahoo's regularMarketPrice
+    // (same source the Detail page uses via getQuote()) once the chart fetch returns,
+    // so Watchlist price matches Detail price. Massive is kept only as a fallback if
+    // the Yahoo fetch fails entirely.
     var price = (ms.close && ms.close > 0) ? ms.close
               : (aggs.length > 0 ? (aggs[0].c || 0) : 0);
     var chg = (ms.change != null) ? parseFloat(ms.change) : null;
@@ -11477,8 +11481,14 @@ function WatchlistPage({ clerkUser, isPaid }) {
         var cr2 = cData2&&cData2.chart&&cData2.chart.result&&cData2.chart.result[0];
         if (cr2) {
           var meta2 = cr2.meta || {};
-          if ((!price || price <= 0) && meta2.regularMarketPrice > 0) {
+          // Yahoo regularMarketPrice is the same field Detail's getQuote() uses —
+          // use it as the primary price source so Watchlist matches Detail exactly.
+          if (meta2.regularMarketPrice > 0) {
             price = meta2.regularMarketPrice;
+            // Recompute % change from the same Yahoo fields/formula as getQuote(),
+            // so price and % change stay consistent with each other and with Detail.
+            var prevClose2 = meta2.chartPreviousClose || meta2.previousClose || price;
+            if (prevClose2 > 0) chg = (price - prevClose2) / prevClose2 * 100;
           }
           if (meta2.fiftyTwoWeekHigh > 0 && meta2.fiftyTwoWeekLow > 0 && meta2.fiftyTwoWeekHigh > meta2.fiftyTwoWeekLow) {
             hi52raw = meta2.fiftyTwoWeekHigh;
@@ -13447,7 +13457,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.160</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.161</span>
           </div>
         </div>
 
