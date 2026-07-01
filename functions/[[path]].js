@@ -970,6 +970,59 @@ export async function onRequest(context) {
           return new Response(JSON.stringify({ ok: true }), { headers: wHeaders });
         }
 
+        // POST savePosition — save Avg Buy Price + Qty and capture a locked signal snapshot.
+        // Reuses watchlist_signal_locks (Option A). New columns added via ALTER TABLE on first
+        // use — wrapped in try/catch so existing rows without these columns are unaffected.
+        if (wAction === "savePosition") {
+          var pTicker = (wBody.ticker || "").toUpperCase().trim();
+          if (!pTicker) return new Response(JSON.stringify({ error: "ticker required" }), { status: 400, headers: wHeaders });
+          var pAvgBuy = wBody.avgBuyPrice != null ? parseFloat(wBody.avgBuyPrice) : null;
+          var pQty    = wBody.quantity    != null ? parseFloat(wBody.quantity)    : null;
+          if (pAvgBuy != null && (isNaN(pAvgBuy) || pAvgBuy < 0)) pAvgBuy = null;
+          if (pQty    != null && (isNaN(pQty)    || pQty    < 0)) pQty    = null;
+          var ps = wBody.currentSnapshot || {};
+          var pLockedPrice = ps.closePrice || ps.close_price || null;
+          var pFsStatus = (ps.forceStrike && ps.forceStrike.fsStatus) ? ps.forceStrike.fsStatus : (ps.fsStatus || null);
+          // Best-effort schema migration: add position columns if not yet present.
+          // ALTER TABLE ADD COLUMN is a no-op if column already exists in D1.
+          var migCols = [
+            "ALTER TABLE watchlist_signal_locks ADD COLUMN avg_buy_price REAL",
+            "ALTER TABLE watchlist_signal_locks ADD COLUMN quantity REAL",
+            "ALTER TABLE watchlist_signal_locks ADD COLUMN position_updated_at TEXT",
+            "ALTER TABLE watchlist_signal_locks ADD COLUMN locked_force_strike_status TEXT",
+          ];
+          for (var mi = 0; mi < migCols.length; mi++) {
+            try { await wDB.prepare(migCols[mi]).run(); } catch(e) { /* already exists */ }
+          }
+          try {
+            await wDB.prepare(
+              "UPDATE watchlist_signal_locks SET is_active=0 WHERE user_id=? AND ticker=? AND is_active=1"
+            ).bind(wUserId, pTicker).run();
+            await wDB.prepare(
+              "INSERT INTO watchlist_signal_locks " +
+              "(user_id,ticker,locked_price,avg_buy_price,quantity,position_updated_at," +
+              "locked_rba_verdict,locked_rba_rank," +
+              "locked_trend_status,locked_trend_score,locked_trend_rank," +
+              "locked_momentum_status,locked_momentum_score,locked_momentum_rank," +
+              "locked_reversal_status,locked_reversal_score,locked_reversal_rank," +
+              "locked_money_flow_status,locked_money_flow_score,locked_money_flow_rank," +
+              "locked_force_strike_status,locked_snapshot_json,is_active) " +
+              "VALUES (?,?,?,?,?,datetime('now'),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)"
+            ).bind(
+              wUserId, pTicker, pLockedPrice, pAvgBuy, pQty,
+              ps.rbaVerdict||null, ps.rbaRank||null,
+              ps.trendStatus||null, ps.trendScore||null, ps.trendRank||null,
+              ps.momentumStatus||null, ps.momentumScore||null, ps.momentumRank||null,
+              ps.reversalStatus||null, ps.reversalScore||null, ps.reversalRank||null,
+              ps.moneyFlowStatus||null, ps.moneyFlowScore||null, ps.moneyFlowRank||null,
+              pFsStatus, JSON.stringify(ps)
+            ).run();
+          } catch(posErr) {
+            return new Response(JSON.stringify({ error: "Position save failed: " + posErr.message }), { status: 500, headers: wHeaders });
+          }
+          return new Response(JSON.stringify({ ok: true }), { headers: wHeaders });
+        }
+
         return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: wHeaders });
       } catch(wErr) {
         return new Response(JSON.stringify({ error: "Watchlist DB error: " + wErr.message }), { status: 500, headers: wHeaders });
