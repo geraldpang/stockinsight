@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.168</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.169</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.168</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.169</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11905,9 +11905,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
   // ── Paid user UI ───────────────────────────────────────────────────────────
   // Phase B simplified table: 9 columns
-  // Ticker | Price | Position | 52W Range | Technical View | 3M Trend | Signal Change | Force Strike | Actions
-  var COL  = '70px 90px 140px 140px 130px 80px 90px 100px 110px';
-  var HEAD = ['Ticker','Price','Position','52W Range','Technical View','3M Trend','Signal Change','Force Strike','Actions'];
+  // Ticker | Price | Position | 52W Range | Technical View | 3M Trend | Force Strike | Actions
+  var COL  = '70px 90px 140px 140px 130px 80px 100px 110px';
+  var HEAD = ['Ticker','Price','Position','52W Range','Technical View','3M Trend','Force Strike','Actions'];
 
   return (
     <div style={{minHeight:'100vh',background:'#0e0e0c',padding:'24px 20px',maxWidth:1400,margin:'0 auto'}}>
@@ -12101,33 +12101,6 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 <div title={priceHistory ? (priceHistory.length + ' days of data') : 'No data'}
                   style={{fontSize:13,letterSpacing:1,color:priceHistory&&priceHistory.length>=2?'#6a6a68':'#333',overflow:'hidden',whiteSpace:'nowrap',fontFamily:'monospace'}}>{sparkline}</div>
 
-                {/* Signal Change — vs position snapshot if position exists, else vs 5-day avg */}
-                <div style={{fontSize:10}}>
-                  {(function(){
-                    if (!snap) return <span style={{color:'#555'}}>{String.fromCharCode(0x2014)}</span>;
-                    if (lock && (lock.locked_rba_rank != null)) {
-                      var curTotal = (snap.rba_rank||0)+(snap.trend_rank||0)+(snap.momentum_rank||0)+(snap.reversal_rank||0)+(snap.money_flow_rank||0);
-                      var lkTotal  = (lock.locked_rba_rank||0)+(lock.locked_trend_rank||0)+(lock.locked_momentum_rank||0)+(lock.locked_reversal_rank||0)+(lock.locked_money_flow_rank||0);
-                      var delta    = curTotal - lkTotal;
-                      var label    = delta >= 1 ? 'Improved' : delta <= -1 ? 'Weakened' : 'Stable';
-                      var color    = delta >= 1 ? '#7abd00' : delta <= -1 ? '#e05050' : '#666';
-                      var arrow    = delta >= 1 ? '\u2191' : delta <= -1 ? '\u2193' : '\u2192';
-                      return <div>
-                        <div style={{color:color,fontWeight:700}}>{label+' '+arrow}</div>
-                        <div style={{fontSize:9,color:'#444'}}>vs position</div>
-                      </div>;
-                    }
-                    // No position — show overall signal arrow vs 5-day avg
-                    var overallRank = (snap.rba_rank||0)+(snap.trend_rank||0)+(snap.momentum_rank||0)+(snap.reversal_rank||0)+(snap.money_flow_rank||0);
-                    var prevTotals  = prevRows.map(function(r){ return (r.rba_rank||0)+(r.trend_rank||0)+(r.momentum_rank||0)+(r.reversal_rank||0)+(r.money_flow_rank||0); });
-                    var arr2 = wlArrow(overallRank, prevTotals);
-                    var c2   = wlArrowColor(arr2);
-                    return <div>
-                      <div style={{color:c2,fontWeight:700,fontSize:12}}>{arr2}</div>
-                      <div style={{fontSize:9,color:'#444'}}>vs 5-day avg</div>
-                    </div>;
-                  })()}
-                </div>
 
                 {/* Force Strike */}
                 <div style={{overflow:'hidden'}} title={fsTip}>
@@ -13761,7 +13734,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.168</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.169</span>
           </div>
         </div>
 
