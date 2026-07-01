@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.169</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.170</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.169</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.170</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11483,38 +11483,6 @@ function WatchlistPage({ clerkUser, isPaid }) {
     loadWatchlist();
   }
 
-  function lockSignal(item, snap) {
-    if (!snap) { setMsg('No signal data for ' + item.ticker + ' — Refresh Signals first.'); return; }
-    // Extract FS data from snapshot JSON
-    var sj = {};
-    try { if (snap.signal_snapshot_json) sj = JSON.parse(snap.signal_snapshot_json); } catch(e) {}
-    var payload = {
-      closePrice:      snap.close_price,
-      priceChangePct:  snap.price_change_pct,
-      hi52:            snap.hi52, lo52: snap.lo52,
-      rbaVerdict:      snap.rba_verdict,    rbaRank:      snap.rba_rank,
-      trendStatus:     snap.trend_status,   trendScore:   snap.trend_score,   trendRank:   snap.trend_rank,
-      momentumStatus:  snap.momentum_status,momentumScore:snap.momentum_score,momentumRank:snap.momentum_rank,
-      reversalStatus:  snap.reversal_status,reversalScore:snap.reversal_score,reversalRank:snap.reversal_rank,
-      moneyFlowStatus: snap.money_flow_status,moneyFlowScore:snap.money_flow_score,moneyFlowRank:snap.money_flow_rank,
-      // Force Strike snapshot at lock time
-      fsStatus:        sj.fsStatus      || null,
-      fsPattern:       sj.fsPattern     || null,
-      fsScenario:      sj.fsScenario    || null,
-      fsAge:           sj.fsAge         != null ? sj.fsAge : null,
-      fsTriggerType:   sj.fsTriggerType || null,
-      fsTriggerDate:   sj.fsTriggerDate || null,
-      fsMotherDate:    sj.fsMotherDate  || null,
-      fsBabyDate:      sj.fsBabyDate    || null,
-    };
-    fetch('/watchlist?action=lock', {
-      method: 'POST', headers: wlHeaders(),
-      body: JSON.stringify({ ticker: item.ticker, currentSnapshot: payload })
-    }).then(function(r){ return r.json(); })
-      .then(function(d){ if(d.ok) loadWatchlist(); else setMsg(d.error||'Lock failed'); })
-      .catch(function(e){ setMsg('Lock failed: '+e.message); });
-  }
-
   function resetLock(ticker) {
     fetch('/watchlist?action=resetLock', {
       method: 'POST', headers: wlHeaders(),
@@ -12041,7 +12009,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                       <button onClick={function(){
                         setEditPosTicker(editPosTicker===item.ticker?null:item.ticker);
                         setEditPosAvg(''); setEditPosQty('');
-                      }} style={{fontSize:9,padding:'3px 8px',background:'none',border:'0.5px solid #2a2a28',borderRadius:5,color:'#6090d0',cursor:'pointer',whiteSpace:'nowrap'}}>
+                      }} style={{fontSize:9,padding:'3px 8px',background:'none',border:'0.5px solid #333',borderRadius:5,color:'#888',cursor:'pointer',whiteSpace:'nowrap'}}>
                         + Add Position
                       </button>
                     </div>;
@@ -12052,7 +12020,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                   var plPct  = (price && avgBuy)  ? (price - avgBuy) / avgBuy * 100 : null;
                   var plColor = plPct == null ? '#666' : plPct > 0 ? '#7abd00' : plPct < 0 ? '#e05050' : '#666';
                   return <div style={{fontSize:10,lineHeight:1.6}}>
-                    <div style={{color:'#888'}}>Avg <span style={{color:'#f0ede6',fontWeight:600}}>${avgBuy.toFixed(2)}</span>{qty!=null&&<span style={{color:'#555'}}> \u00d7 {qty % 1 === 0 ? qty : qty.toFixed(2)}</span>}</div>
+                    <div style={{color:'#888'}}>Avg <span style={{color:'#f0ede6',fontWeight:600}}>${avgBuy.toFixed(2)}</span>{qty!=null&&<span style={{color:'#888'}}> \u00d7 {qty % 1 === 0 ? qty : qty.toFixed(2)}</span>}</div>
                     {plPct!=null&&<div style={{color:plColor,fontWeight:700,fontSize:11}}>
                       {(plPct>=0?'+':'')+plPct.toFixed(2)+'%'}
                       {plAmt!=null&&<span style={{fontSize:9,fontWeight:400,marginLeft:4,color:plColor}}>{(plAmt>=0?'+':'-')+'$'+Math.abs(plAmt).toFixed(0)}</span>}
@@ -12062,7 +12030,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                         setEditPosTicker(editPosTicker===item.ticker?null:item.ticker);
                         setEditPosAvg(avgBuy!=null?String(avgBuy):'');
                         setEditPosQty(qty!=null?String(qty):'');
-                      }} style={{fontSize:8,padding:'2px 5px',background:'none',border:'0.5px solid #2a3a4a',borderRadius:4,color:'#6090d0',cursor:'pointer'}}>Edit</button>
+                      }} style={{fontSize:8,padding:'2px 5px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#888',cursor:'pointer'}}>Edit</button>
                       <button onClick={function(){ resetLock(item.ticker); }}
                         style={{fontSize:8,padding:'2px 5px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer'}}>Remove</button>
                     </div>
@@ -12127,7 +12095,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     {viewLockTicker===item.ticker?'Close':'Details'}
                   </button>
                   <button onClick={function(){ removeTicker(item.ticker); }}
-                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #3a1a1a',borderRadius:4,color:'#e05050',cursor:'pointer',textAlign:'left'}}>
+                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
                     Remove
                   </button>
                 </div>
@@ -12135,8 +12103,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
               </div>
 
               {/* Position editor — inline below the row */}
-              {editPosTicker===item.ticker && <div style={{background:'#161614',border:'0.5px solid #2a3a4a',borderRadius:8,padding:'14px 16px',margin:'2px 0 4px 0'}}>
-                <div style={{fontSize:11,fontWeight:700,color:'#6090d0',marginBottom:10}}>Position — {item.ticker}</div>
+              {editPosTicker===item.ticker && <div style={{background:'#161614',border:'0.5px solid #2a2a28',borderRadius:8,padding:'14px 16px',margin:'2px 0 4px 0'}}>
+                <div style={{fontSize:11,fontWeight:700,color:'#888',marginBottom:10}}>Position — {item.ticker}</div>
                 <div style={{display:'flex',gap:16,alignItems:'flex-end',flexWrap:'wrap'}}>
                   <div>
                     <div style={{fontSize:9,color:'#555',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.05em'}}>Avg Buy Price</div>
@@ -12151,6 +12119,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                       style={{background:'#1e1e1c',border:'0.5px solid #333',borderRadius:5,color:'#f0ede6',fontSize:12,padding:'5px 9px',width:90,outline:'none'}} />
                   </div>
                   <button onClick={function(){
+                    if (!editPosAvg.trim() && !editPosQty.trim()) { setMsg('Enter Avg Buy Price or Qty to save a position.'); return; }
                     var avg = editPosAvg.trim() ? parseFloat(editPosAvg) : null;
                     var qty2 = editPosQty.trim() ? parseFloat(editPosQty) : null;
                     if (editPosAvg.trim() && (isNaN(avg)||avg<=0)) { setMsg('Invalid avg buy price'); return; }
@@ -12165,7 +12134,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     Cancel
                   </button>
                 </div>
-                {snap && <div style={{fontSize:9,color:'#555',marginTop:8}}>Saving captures the current signal ({snap.rba_verdict||'—'}) as your position snapshot.</div>}
+                {snap && <div style={{fontSize:9,color:'#555',marginTop:8}}>Captures signal snapshot at save time.</div>}
               </div>}
 
               {/* Details / Lock expanded panel — full-width below the row */}
@@ -12184,7 +12153,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 function sigChange2(curRank, lkRank) {
                   if (curRank == null || lkRank == null) return {label:String.fromCharCode(0x2014), color:'#555'};
                   var d = (curRank||0) - (lkRank||0);
-                  return d >= 0.5 ? {label:'Improved',color:'#7abd00'} : d <= -0.5 ? {label:'Weakened',color:'#e05050'} : {label:'Stable',color:'#EF9F27'};
+                  return d >= 0.75 ? {label:'Improved',color:'#7abd00'} : d <= -0.75 ? {label:'Weakened',color:'#e05050'} : {label:'Stable',color:'#555'};
                 }
                 var fields = [
                   ['Technical View', snap?snap.rba_verdict:null,      snap?snap.rba_rank:null,       lock?lock.locked_rba_verdict:null,      lock?lock.locked_rba_rank:null],
@@ -12195,72 +12164,69 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 ];
                 return <div style={{gridColumn:'1/-1',background:'#161614',border:'0.5px solid #2a2a28',borderRadius:8,padding:'14px 16px',marginTop:2,marginBottom:4}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-                    <div style={{fontSize:11,fontWeight:700,color:LIME}}>{item.ticker} — Details</div>
+                    <div style={{fontSize:11,fontWeight:700,color:'#888'}}>{item.ticker} — Details</div>
                     <button onClick={function(){ setViewLockTicker(null); }}
-                      style={{fontSize:9,padding:'2px 8px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#666',cursor:'pointer'}}>Close</button>
+                      style={{fontSize:9,padding:'2px 8px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#555',cursor:'pointer'}}>Close</button>
                   </div>
 
                   {/* A. Position */}
                   {lock && (avgBuy2 != null || qty2 != null) && <div style={{marginBottom:14,paddingBottom:12,borderBottom:'0.5px solid #222'}}>
-                    <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>A. Position</div>
+                    <div style={{fontSize:9,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Position</div>
                     <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'6px 20px',fontSize:10}}>
-                      {avgBuy2!=null&&<div style={{color:'#888'}}>Avg Buy Price <div style={{color:'#f0ede6',fontWeight:600,fontSize:12}}>${avgBuy2.toFixed(2)}</div></div>}
-                      {qty2!=null&&<div style={{color:'#888'}}>Qty <div style={{color:'#f0ede6',fontWeight:600,fontSize:12}}>{qty2%1===0?qty2:qty2.toFixed(2)}</div></div>}
-                      {costB2!=null&&<div style={{color:'#888'}}>Cost Basis <div style={{color:'#f0ede6',fontWeight:600,fontSize:12}}>${costB2.toFixed(2)}</div></div>}
-                      {curV2!=null&&<div style={{color:'#888'}}>Current Value <div style={{color:'#f0ede6',fontWeight:600,fontSize:12}}>${curV2.toFixed(2)}</div></div>}
-                      {plAmt2!=null&&<div style={{color:'#888'}}>Unrealised P/L <div style={{color:plAmt2>=0?'#7abd00':'#e05050',fontWeight:700,fontSize:12}}>{(plAmt2>=0?'+':'-')+'$'+Math.abs(plAmt2).toFixed(2)}</div></div>}
-                      {plPct2!=null&&<div style={{color:'#888'}}>Unrealised P/L % <div style={{color:plPct2>=0?'#7abd00':'#e05050',fontWeight:700,fontSize:12}}>{(plPct2>=0?'+':'')+plPct2.toFixed(2)+'%'}</div></div>}
+                      {avgBuy2!=null&&<div style={{color:'#555'}}>Avg Buy Price <div style={{color:'#f0ede6',fontWeight:600,fontSize:12}}>${avgBuy2.toFixed(2)}</div></div>}
+                      {qty2!=null&&<div style={{color:'#555'}}>Qty <div style={{color:'#f0ede6',fontWeight:600,fontSize:12}}>{qty2%1===0?qty2:qty2.toFixed(2)}</div></div>}
+                      {costB2!=null&&<div style={{color:'#555'}}>Cost Basis <div style={{color:'#f0ede6',fontWeight:600,fontSize:12}}>${costB2.toFixed(2)}</div></div>}
+                      {curV2!=null&&<div style={{color:'#555'}}>Current Value <div style={{color:'#f0ede6',fontWeight:600,fontSize:12}}>${curV2.toFixed(2)}</div></div>}
+                      {plAmt2!=null&&<div style={{color:'#555'}}>Unrealised P/L <div style={{color:plAmt2>=0?'#7abd00':'#e05050',fontWeight:700,fontSize:12}}>{(plAmt2>=0?'+':'-')+'$'+Math.abs(plAmt2).toFixed(2)}</div></div>}
+                      {plPct2!=null&&<div style={{color:'#555'}}>P/L % <div style={{color:plPct2>=0?'#7abd00':'#e05050',fontWeight:700,fontSize:12}}>{(plPct2>=0?'+':'')+plPct2.toFixed(2)+'%'}</div></div>}
                     </div>
                   </div>}
 
-                  {/* B. Then vs Now */}
+                  {/* B. Then vs Now — signal comparison + current snapshot */}
                   {lock && <div style={{marginBottom:14,paddingBottom:12,borderBottom:'0.5px solid #222'}}>
-                    <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>B. Then vs Now</div>
-                    <div style={{display:'flex',gap:20,fontSize:10,color:'#888',marginBottom:8}}>
-                      <span>At position: <span style={{color:'#aaa'}}>{lPrice?'$'+lPrice.toFixed(2):'—'}{lkDate?' ('+lkDate+')':''}</span></span>
+                    <div style={{fontSize:9,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Then vs Now</div>
+                    <div style={{display:'flex',gap:20,fontSize:10,color:'#555',marginBottom:8}}>
+                      <span>At position: <span style={{color:'#888'}}>{lPrice?'$'+lPrice.toFixed(2):'—'}{lkDate?' ('+lkDate+')':''}</span></span>
                       <span>Current: <span style={{color:'#f0ede6'}}>{price?'$'+price.toFixed(2):'—'}</span></span>
                       {pctChg!=null&&<span>Change: <span style={{color:pctChg>=0?'#7abd00':'#e05050',fontWeight:700}}>{(pctChg>=0?'+':'')+pctChg.toFixed(2)+'%'}</span></span>}
                     </div>
                     <div style={{display:'grid',gridTemplateColumns:'120px 1fr 1fr 80px',columnGap:12,marginBottom:4}}>
-                      {['Signal','At Position','Current','Change'].map(function(h){ return <div key={h} style={{fontSize:8,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>; })}
+                      {['Signal','At Position','Current','Change'].map(function(h){ return <div key={h} style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>; })}
                     </div>
                     {fields.map(function(f,i){
                       var chg2 = sigChange2(f[2],f[4]);
                       return <div key={i} style={{display:'grid',gridTemplateColumns:'120px 1fr 1fr 80px',columnGap:12,padding:'4px 0',borderBottom:'0.5px solid #1a1a18'}}>
                         <div style={{fontSize:10,color:'#555'}}>{f[0]}</div>
-                        <div style={{fontSize:10,color:'#888',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f[3]||String.fromCharCode(0x2014)}</div>
-                        <div style={{fontSize:10,color:'#b8b8b8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:600}}>{f[1]||String.fromCharCode(0x2014)}</div>
+                        <div style={{fontSize:10,color:'#666',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f[3]||String.fromCharCode(0x2014)}</div>
+                        <div style={{fontSize:10,color:'#aaa',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:600}}>{f[1]||String.fromCharCode(0x2014)}</div>
                         <div style={{fontSize:10,fontWeight:700,color:chg2.color}}>{chg2.label}</div>
                       </div>;
                     })}
                     {/* Force Strike in details */}
-                    {(lockedFsStatus||fsStatus!=='none')&&<div style={{marginTop:8,fontSize:10,color:'#888'}}>
+                    {(lockedFsStatus||fsStatus!=='none')&&<div style={{marginTop:8,fontSize:10,color:'#555'}}>
                       Force Strike: <span style={{color:lockedFsStatus==='active'?'#7abd00':'#555',fontWeight:700,marginRight:16}}>{lockedFsStatus==='active'?'Active FS':lockedFsStatus==='watch'?'FS Watch':String.fromCharCode(0x2014)} at position</span>
                       <span style={{color:fsStatus==='active'?'#7abd00':fsStatus==='watch'?'#EF9F27':'#555',fontWeight:700}}>{fsStatus==='active'?'Active FS':fsStatus==='watch'?'FS Watch':String.fromCharCode(0x2014)} current</span>
                     </div>}
                   </div>}
 
-                  {/* C. Signal Rationale */}
+                  {/* C. Signals — current snapshot values, concise */}
                   <div>
-                    <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>C. Signal Rationale (current)</div>
-                    <div style={{display:'flex',flexDirection:'column',gap:6,fontSize:10}}>
+                    <div style={{fontSize:9,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Signals</div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'4px 20px',fontSize:10}}>
                       {[
-                        {label:'Technical View', value:rbaV,    desc:null},
-                        {label:'Trend',          value:trendV,  desc:null},
-                        {label:'Momentum',       value:momV,    desc:null},
-                        {label:'Reversal',       value:revV,    desc:null},
-                        {label:'Money Flow',     value:smfV,    desc:null},
+                        ['Technical View', rbaV],
+                        ['Trend',          trendV],
+                        ['Momentum',       momV],
+                        ['Reversal',       revV],
+                        ['Money Flow',     smfV],
+                        ['Force Strike',   fsStatus==='active'?('Active'+(fsPattern?' \u2014 '+fsPattern:'')):null],
                       ].map(function(r){
-                        return <div key={r.label} style={{display:'flex',gap:8}}>
-                          <span style={{color:'#555',minWidth:90,flexShrink:0}}>{r.label}:</span>
-                          <span style={{color:'#aaa'}}>{r.value||String.fromCharCode(0x2014)}</span>
+                        if (!r[1]) return null;
+                        return <div key={r[0]} style={{display:'flex',gap:6}}>
+                          <span style={{color:'#555',minWidth:100,flexShrink:0}}>{r[0]}</span>
+                          <span style={{color:'#aaa',fontWeight:600}}>{r[1]}</span>
                         </div>;
                       })}
-                      {fsStatus==='active'&&<div style={{display:'flex',gap:8}}>
-                        <span style={{color:'#555',minWidth:90,flexShrink:0}}>Force Strike:</span>
-                        <span style={{color:'#7abd00'}}>{'Active pattern'+(fsPattern?' \u2014 '+fsPattern:'')+(fsAge!=null?'. Age: '+fsAge+' bars':'')+'.'}</span>
-                      </div>}
-                      <div style={{fontSize:9,color:'#333',marginTop:4,fontStyle:'italic'}}>For educational purposes only. Not financial advice.</div>
                     </div>
                   </div>
 
@@ -13734,7 +13700,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.169</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.170</span>
           </div>
         </div>
 
