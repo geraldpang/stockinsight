@@ -855,7 +855,7 @@ export async function onRequest(context) {
             try {
               for (var li = 0; li < tickers.length; li++) {
                 var lockRow = await wDB.prepare(
-                  "SELECT * FROM watchlist_signal_locks WHERE user_id=? AND ticker=? AND is_active=1 ORDER BY locked_at DESC LIMIT 1"
+                  "SELECT * FROM watchlist_signal_locks WHERE user_id=? AND ticker=? AND is_active=1 ORDER BY COALESCE(position_updated_at, locked_at) DESC LIMIT 1"
                 ).bind(wUserId, tickers[li]).first();
                 if (lockRow) lockMap[tickers[li]] = lockRow;
               }
@@ -923,7 +923,9 @@ export async function onRequest(context) {
           return new Response(JSON.stringify({ ok: true }), { headers: wHeaders });
         }
 
-        // POST lock — save current snapshot as active signal lock baseline
+        // POST lock — legacy manual lock action retained for backward compatibility.
+        // Current UI uses savePosition instead. Do not remove — old lock rows in D1
+        // may have been created via this action and are still read by the GET handler.
         if (wAction === "lock") {
           var lTicker = (wBody.ticker || "").toUpperCase().trim();
           if (!lTicker) return new Response(JSON.stringify({ error: "ticker required" }), { status: 400, headers: wHeaders });
