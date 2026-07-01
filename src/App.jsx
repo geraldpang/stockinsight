@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.171</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.172</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.171</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.172</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11872,10 +11872,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
   );
 
   // ── Paid user UI ───────────────────────────────────────────────────────────
-  // Phase B simplified table: 9 columns
-  // Ticker | Price | Position | 52W Range | Technical View | 3M Trend | Force Strike | Actions
-  var COL  = '70px 90px 140px 140px 130px 80px 100px 110px';
-  var HEAD = ['Ticker','Price','Position','52W Range','Technical View','3M Trend','Force Strike','Actions'];
+  // Ticker | Price | Position | Technical View | 52W Range | 3M Trend | Force Strike | Actions
+  var COL  = '70px 90px 140px 130px 140px 80px 100px 110px';
+  var HEAD = ['Ticker','Price','Position','Technical View','52W Range','3M Trend','Force Strike','Actions'];
 
   return (
     <div style={{minHeight:'100vh',background:'#0e0e0c',padding:'24px 20px',maxWidth:1400,margin:'0 auto'}}>
@@ -12037,9 +12036,6 @@ function WatchlistPage({ clerkUser, isPaid }) {
                   </div>;
                 })()}
 
-                {/* 52W Range */}
-                <div>{price&&hi52&&lo52 ? <Range52 price={price} lo52={lo52} hi52={hi52} /> : <span style={{color:'#555',fontSize:11}}>{String.fromCharCode(0x2014)}</span>}</div>
-
                 {/* Technical View — main label + compact factor strip T M R MF */}
                 <div style={{overflow:'hidden'}}>
                   <Sig label={rbaV} rank={snap?snap.rba_rank:0} prevRows={prevRows} field="rba_rank" />
@@ -12064,6 +12060,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     })()}
                   </div>}
                 </div>
+
+                {/* 52W Range */}
+                <div>{price&&hi52&&lo52 ? <Range52 price={price} lo52={lo52} hi52={hi52} /> : <span style={{color:'#555',fontSize:11}}>{String.fromCharCode(0x2014)}</span>}</div>
 
                 {/* 3M Trend sparkline */}
                 <div title={priceHistory ? (priceHistory.length + ' days of data') : 'No data'}
@@ -13660,7 +13659,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.171</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.172</span>
           </div>
         </div>
 
