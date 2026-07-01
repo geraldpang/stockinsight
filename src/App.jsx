@@ -2087,54 +2087,6 @@ function Screener() {
     } catch(e) { setScanStatus('error'); setScanMsg('Scan failed: '+(e.message||'Unknown error')); }
   }
 
-  // Add ticker snapshot to journal — must use nested structure matching worker expectation
-  async function addToJournal(row) {
-    var adminKey = localStorage.getItem('journal_admin_key');
-    if (!adminKey) {
-      setScanMsg('Open the Signal Journal first, then try again.');
-      window.location.hash = 'JOURNAL';
-      return;
-    }
-    if (!row.price || row.price <= 0) { setScanMsg('Cannot add '+row.ticker+' — price not available.'); return; }
-    try {
-      var today = new Date().toISOString().split('T')[0];
-      // Worker reads snap.trend.status, snap.reversalWatch.status etc. (nested structure)
-      var body = {
-        ticker: row.ticker, snapshotDate: today, close: row.price,
-        trend:         { status: row.trend,    score: row.trendScore },
-        momentum:      { status: row.momentum, score: row.momentumScore },
-        reversalWatch: {
-          status:       row.reversal,
-          score:        row.reversalScore,
-          bullishScore: row.bullishScore   || row.reversalScore,
-          bearishScore: row.bearishScore   || 0,
-          reversalDecision: row.reversalDecision || null,
-        },
-        smartMoneyFlow: {
-          status:                     row.moneyFlow,
-          score:                      row.moneyFlowScore,
-          smartMoneyDecision:         row.smartMoneyDecision         || null,
-          todayActivityScore:         row.todayActivityScore         || null,
-          fiveDayFlowScore:           row.fiveDayFlowScore           || null,
-          thirtyDayAccumulationScore: row.thirtyDayAccumulationScore || null,
-        },
-        // Rule Based Analytics — included where available (computed in enriched row)
-        ruleBasedAnalytics: row.ruleVerdict ? {
-          verdict:      row.ruleVerdict,
-          scenarioId:   row.ruleScenarioId   || null,
-          shortVerdict: row.ruleShortVerdict || null,
-          subtitle:     row.ruleSubtitle     || null,
-          tone:         row.ruleTone         || null,
-        } : undefined,
-      };
-      var res = await fetch('/journal?action=upsertSnapshot', {
-        method:'POST', headers:{ 'Content-Type':'application/json', 'X-Admin-Key':adminKey },
-        body: JSON.stringify(body)
-      });
-      setScanMsg(res.ok ? row.ticker+' added to Journal for '+today+'.' : 'Failed to add '+row.ticker+'. Please try again.');
-    } catch(e) { setScanMsg('Error: '+e.message); }
-  }
-
   var LIME  = '#c8f000';
   var [filterTrend,    setFilterTrend]    = useState([]);
   var [filterMomentum, setFilterMomentum] = useState([]);
@@ -2403,8 +2355,8 @@ function Screener() {
                 {label}{active?(scSortDir==='asc'?' ▲':' ▼'):''}
               </div>;
             }
-            // Column order: Ticker|Price|52W Range|Technical View|3M Trend|Trend|Daily Mom|Reversal|Money Flow|View|+Journal
-            var GRID = '70px 90px 155px 120px 72px 78px 78px 105px 115px 46px 66px';
+            // Column order: Ticker|Price|52W Range|Technical View|3M Trend|Trend|Daily Mom|Reversal|Money Flow|View
+            var GRID = '70px 90px 155px 120px 72px 78px 78px 105px 115px 46px';
             // Inline dot for supporting signals (matches Watchlist SigDot style)
             function ScDot(dotColor, label, type) {
               var shortLbl = shortSignalLabel(label, type);
@@ -2420,7 +2372,7 @@ function Screener() {
                   {ScTh('setup','Tech View')}{ScTh('sparkline','3M Trend')}
                   {ScTh('trend','Trend')}{ScTh('momentum','Daily Mom')}
                   {ScTh('reversal','Reversal')}{ScTh('moneyFlow','Money Flow')}
-                  <div></div><div></div>
+                  <div></div>
                 </div>
                 {enriched.map(function(row,i){
                   var revC   = revStatusColor(row.reversal,'main');
@@ -2476,9 +2428,6 @@ function Screener() {
                       {ScDot(smfC, row.moneyFlow, 'moneyFlow')}
                       <button onClick={function(){ window.open(window.location.origin+'/#'+row.ticker,'_blank','noopener,noreferrer'); }}
                         style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#888', fontSize:10, cursor:'pointer', padding:'4px 6px' }}>View</button>
-                      <button onClick={function(){ addToJournal(row); }}
-                        title={'Add '+row.ticker+' to Signal Journal'}
-                        style={{ background:'none', border:'0.5px solid #1a3a1a', borderRadius:6, color:'#5a9a40', fontSize:10, cursor:'pointer', padding:'4px 6px', whiteSpace:'nowrap' }}>+Journal</button>
                     </div>
                   );
                 })}
@@ -5130,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.157</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.172</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5184,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.157</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.172</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11336,574 +11285,6 @@ function PaywallCard({ sym, name, onBack, isPaid, clerkUser, mode }) {
 }
 
 // -- Landing page -------------------------------------------------------------
-// ─── Technical Signal Journal ─────────────────────────────────────────────────
-export function JournalPage() {
-  var F = "'Inter', system-ui, sans-serif";
-  var [adminKey, setAdminKey]       = useState(localStorage.getItem("journal_admin_key") || "");
-  var [authed, setAuthed]           = useState(false);
-  var [authError, setAuthError]     = useState("");
-  var [watchlist, setWatchlist]     = useState([]);
-  var [journal, setJournal]         = useState([]);
-  var [addTicker, setAddTicker]     = useState("");
-  var [loading, setLoading]         = useState("");
-  var [toast, setToast]             = useState(null);
-  var [filter, setFilter]           = useState({ ticker:[], trend:[], momentum:[], reversal:[], smartMoney:[], outcome:[], setup:[] });
-  var [generating, setGenerating]   = useState({});
-  var [sortCol, setSortCol]         = useState("snapshot_date");
-  var [sortDir, setSortDir]         = useState("desc");
-
-  function showToast(msg, type) {
-    setToast({ msg:msg, type:type||"ok" });
-    setTimeout(function(){ setToast(null); }, 3500);
-  }
-
-  function jFetch(action, method, body) {
-    var opts = { method: method||"GET", headers: { "X-Admin-Key": adminKey, "Content-Type": "application/json" } };
-    if (body) opts.body = JSON.stringify(body);
-    return fetch("/journal?action=" + action, opts).then(function(r) {
-      var ct = r.headers.get("content-type") || "";
-      if (!ct.includes("application/json")) {
-        return r.text().then(function(t) {
-          throw new Error("API returned non-JSON (" + r.status + "). Check D1 binding in Cloudflare Pages settings. Response: " + t.substring(0, 100));
-        });
-      }
-      return r.json();
-    });
-  }
-
-  function loadWatchlist() {
-    return jFetch("watchlist").then(function(d){ if (d.watchlist) setWatchlist(d.watchlist); });
-  }
-
-  function loadJournal(tk) {
-    var url = "/journal?action=journal&limit=500" + (tk ? "&ticker=" + tk : "");
-    return fetch(url, { headers:{ "X-Admin-Key": adminKey } }).then(function(r){ return r.json(); })
-      .then(function(d){
-        if (d.entries) {
-          setJournal(d.entries);
-          // Auto-fill any return windows that now have past prices
-          // Runs silently in background — no loading spinner, no toast
-          autoFillReturns(d.entries);
-        }
-      });
-  }
-
-  // Silently update future returns for any record where a window date has now passed.
-  // Runs automatically after journal loads — no manual click needed.
-  function autoFillReturns(entries) {
-    if (!entries || entries.length === 0) return;
-    var today = new Date().toISOString().split("T")[0];
-    // Find unique tickers that have at least one record with a pending return window
-    // A window is potentially fillable if the snapshot date is old enough
-    var tickers = [...new Set(entries
-      .filter(function(e) {
-        // Only process if at least 1 trading day has passed (snapshot date < today)
-        return e.snapshot_date < today && (
-          e.future_return_5d  === null || e.future_return_5d  === undefined ||
-          e.future_return_10d === null || e.future_return_10d === undefined ||
-          e.future_return_20d === null || e.future_return_20d === undefined ||
-          e.future_return_30d === null || e.future_return_30d === undefined ||
-          e.future_return_60d === null || e.future_return_60d === undefined ||
-          e.future_return_90d === null || e.future_return_90d === undefined
-        );
-      })
-      .map(function(e){ return e.ticker; })
-    )];
-    if (tickers.length === 0) return;
-    // Fire-and-forget — update each ticker silently, then reload journal
-    var chain = Promise.resolve();
-    tickers.forEach(function(tk) {
-      chain = chain.then(function() {
-        return jFetch("updateFutureReturns", "POST", { ticker: tk }).catch(function(){});
-      });
-    });
-    chain.then(function() {
-      // Reload journal silently to show updated figures
-      var url = "/journal?action=journal&limit=500";
-      fetch(url, { headers:{ "X-Admin-Key": adminKey } }).then(function(r){ return r.json(); })
-        .then(function(d){ if (d.entries) setJournal(d.entries); });
-    });
-  }
-
-  function handleAuth() {
-    setAuthError("");
-    jFetch("watchlist").then(function(d) {
-      if (d.error) { setAuthError("❌ " + d.error); return; }
-      localStorage.setItem("journal_admin_key", adminKey);
-      setAuthed(true);
-      setWatchlist(d.watchlist || []);
-      loadJournal();
-    }).catch(function(e) {
-      setAuthError("❌ " + e.message);
-    });
-  }
-
-  function handleAddTicker() {
-    var t = addTicker.trim().toUpperCase();
-    if (!t) return;
-    jFetch("addTicker", "POST", { ticker: t }).then(function(d) {
-      if (d.error) { showToast(d.error, "err"); return; }
-      setAddTicker(""); loadWatchlist();
-      // Auto-generate today's snapshot so it appears in the journal immediately
-      showToast(t + " added — generating snapshot...", "ok");
-      generateSnapshot(t).then(function() { loadJournal(); });
-    });
-  }
-
-  function handleRemove(ticker) {
-    jFetch("removeTicker", "POST", { ticker:ticker }).then(function(d) {
-      if (d.ok) { showToast(ticker + " removed.", "ok"); loadWatchlist(); }
-    });
-  }
-
-  async function fetchSnapshotData(ticker) {
-    var headers = { "X-Admin-Key": adminKey };
-    var [massRes, yahooRes] = await Promise.all([
-      fetch("/massive?sym=" + ticker, { headers: headers }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-      fetch("/proxy?url=https://query2.finance.yahoo.com/v8/finance/chart/" + ticker + "?range=2y%26interval=1d").then(function(r){ return r.json(); }).catch(function(){ return null; })
-    ]);
-    if (!massRes) return null;
-    var aggs = massRes.aggs || [];
-    var ind  = massRes.indicators || {};
-    var snap = massRes.snapshot || {};
-    // Massive aggs are newest-first → reverse to oldest-first
-    var bars = aggs.filter(function(b){ return b&&b.c>0; }).reverse().map(function(b) {
-      return { date: b.t ? new Date(b.t).toISOString().split("T")[0] : "", open:b.o, high:b.h, low:b.l, close:b.c, volume:b.v||0 };
-    });
-    var today = new Date().toISOString().split("T")[0];
-    var price = snap.close || (bars.length > 0 ? bars[bars.length-1].close : 0);
-    // Extract 52-week range from Yahoo chart meta — needed for reversal indicator consistency
-    var _ymeta = yahooRes && yahooRes.chart && yahooRes.chart.result && yahooRes.chart.result[0] && yahooRes.chart.result[0].meta ? yahooRes.chart.result[0].meta : null;
-    var hi52 = (_ymeta && _ymeta.fiftyTwoWeekHigh) || 0;
-    var lo52 = (_ymeta && _ymeta.fiftyTwoWeekLow)  || 0;
-    return { bars:bars, ind:ind, price:price, date:today, hi52:hi52, lo52:lo52 };
-  }
-
-  async function generateSnapshot(ticker) {
-    setGenerating(function(g){ return Object.assign({}, g, { [ticker]: true }); });
-    try {
-      var data = await fetchSnapshotData(ticker);
-      if (!data || !data.bars || data.bars.length === 0) {
-        showToast("No data returned for " + ticker + ". Check ticker is valid.", "err");
-        return;
-      }
-      if (!data.price || data.price <= 0) {
-        showToast("Could not get price for " + ticker + ".", "err");
-        return;
-      }
-      var snapshot = calculateTechnicalSignalSnapshot({
-        ticker:     ticker,
-        date:       data.date,
-        ohlcv:      data.bars,
-        indicators: data.ind,
-        meta:       { price: data.price, hi52: data.hi52||0, lo52: data.lo52||0 },
-      });
-      var postSnap = Object.assign({}, snapshot, {
-        open:   snapshot.open,   high:  snapshot.high,
-        low:    snapshot.low,    close: snapshot.close,
-        volume: snapshot.volume,
-      });
-      var res = await jFetch("upsertSnapshot", "POST", postSnap);
-      if (res.ok) {
-        showToast(ticker + " snapshot saved.", "ok");
-        loadWatchlist(); loadJournal();
-      } else {
-        showToast("Error saving " + ticker + ": " + (res.error||"unknown"), "err");
-      }
-    } catch(e) {
-      showToast("Error: " + e.message, "err");
-    } finally {
-      setGenerating(function(g){ var n=Object.assign({},g); delete n[ticker]; return n; });
-    }
-  }
-
-  async function generateAll() {
-    setLoading("generating");
-    // Use unique tickers from journal entries (watchlist may be empty)
-    var jTickers = [...new Set(journal.map(function(e){ return e.ticker; }))];
-    var wTickers = watchlist.map(function(w){ return w.ticker; });
-    var allTickers = [...new Set([...wTickers, ...jTickers])];
-    if (allTickers.length === 0) { showToast("No tickers to generate. Add tickers to watchlist first.", "err"); setLoading(""); return; }
-    for (var i = 0; i < allTickers.length; i++) {
-      await generateSnapshot(allTickers[i]);
-    }
-    setLoading("");
-    showToast("All snapshots generated (" + allTickers.length + " tickers).", "ok");
-  }
-
-  async function updateFutureReturns() {
-    setLoading("future");
-    var jTickers = [...new Set(journal.map(function(e){ return e.ticker; }))];
-    var wTickers = watchlist.map(function(w){ return w.ticker; });
-    var allTickers = [...new Set([...wTickers, ...jTickers])];
-    if (allTickers.length === 0) { showToast("No tickers found in journal.", "err"); setLoading(""); return; }
-    var debugOutput = [];
-    for (var tk of allTickers) {
-      var res = await jFetch("updateFutureReturns", "POST", { ticker:tk });
-      if (res && res.debug) {
-        debugOutput.push(res.debug);
-        console.log("[updateFutureReturns]", tk, res.debug);
-      }
-    }
-    // Show debug summary as toast
-    var summary = debugOutput.map(function(d){
-      return d.ticker + ": Yahoo=" + (d.yahooFetchSuccess ? "OK ("+d.pricesLoaded+" prices, "+d.dateRange.first+" to "+d.dateRange.last+")" : "FAILED") + ", updated=" + (debugOutput.find(function(x){return x.ticker===d.ticker;}) ? "see console" : "?");
-    }).join(" | ");
-    showToast("Debug: " + summary, "ok");
-    setLoading("");
-    showToast("Future returns updated (" + allTickers.length + " tickers). Check console for debug.", "ok");
-    loadJournal();
-  }
-
-  function exportCSV() {
-    var rows = filteredJournal();
-    if (rows.length === 0) { showToast("No data to export.", "err"); return; }
-    var cols = ["snapshot_date","ticker","close_price","trend_status","trend_score","momentum_status","momentum_score","reversal_status","bullish_reversal_score","bearish_reversal_score","smart_money_status","smart_money_score","today_activity_score","five_day_flow_score","thirty_day_accumulation_score","rsi_value","macd_histogram","future_return_1d","future_return_3d","future_return_5d","future_return_10d","future_return_20d","future_return_30d","future_return_60d","future_return_90d","max_gain_30d","max_drawdown_30d","bullish_outcome_label","bearish_outcome_label"];
-    var csv = cols.join(",") + "\n" + rows.map(function(r) {
-      return cols.map(function(c){ var v=r[c]; return v===null||v===undefined?"":String(v).includes(",")?"\""+v+"\"":v; }).join(",");
-    }).join("\n");
-    var a = document.createElement("a");
-    a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
-    a.download = "signal_journal_" + new Date().toISOString().split("T")[0] + ".csv";
-    a.click();
-    showToast("Exported " + rows.length + " rows.", "ok");
-  }
-
-  function handleDeleteSnapshot(ticker, date) {
-    if (!window.confirm("Delete " + ticker + " snapshot for " + date + "?")) return;
-    jFetch("deleteSnapshot", "POST", { ticker: ticker, date: date }).then(function(d) {
-      if (d.ok) { showToast(ticker + " " + date + " deleted.", "ok"); loadJournal(); }
-      else showToast("Delete failed: " + (d.error || "unknown"), "err");
-    }).catch(function(e) { showToast("Delete error: " + e.message, "err"); });
-  }
-
-  function reversalColor(status) {
-    if (!status) return "#555";
-    if (status === "Not Enough Data" || status === "No Clear Reversal") return "#555";
-    if (status.startsWith("Bullish") && (status.includes("Forming")||status.includes("Triggered")||status.includes("Confirmed")||status.includes("Confirming"))) return "#7abd00";
-    if (status.startsWith("Bullish") && (status.includes("Watch")||status.includes("Spark")||status.includes("Setup"))) return "#6090d0";
-    if (status.startsWith("Bearish") && (status.includes("Forming")||status.includes("Triggered")||status.includes("Confirmed")||status.includes("Confirming"))) return "#e05050";
-    if (status.startsWith("Bearish") && (status.includes("Watch")||status.includes("Setup"))) return "#EF9F27";
-    if (status === "Mixed Reversal Signals") return "#EF9F27";
-    return "#555";
-  }
-
-  function smfColor(status) {
-    if (!status) return "#555";
-    if (status === "Strong Multi-Timeframe Flow" || status === "Accumulation Trend Positive") return "#7abd00";
-    if (status === "Constructive but Cooling" || status === "Early Accumulation") return "#6090d0";
-    if (status === "Short-Term Spike") return "#EF9F27";
-    return "#555";
-  }
-  function filteredJournal() {
-    // Returns filtered (unsorted) rows; sort is applied after enrichment below
-    return journal.filter(function(r) {
-      if (filter.ticker.length    && filter.ticker.indexOf(r.ticker)===-1)                         return false;
-      if (filter.trend.length     && filter.trend.indexOf(r.trend_status)===-1)                    return false;
-      if (filter.momentum.length  && filter.momentum.indexOf(r.momentum_status)===-1)              return false;
-      if (filter.reversal.length  && !filter.reversal.some(function(v){ return (r.reversal_status||"").includes(v); })) return false;
-      if (filter.smartMoney.length&& filter.smartMoney.indexOf(r.smart_money_status)===-1)         return false;
-      if (filter.outcome.length   && filter.outcome.indexOf(r.bullish_outcome_label)===-1)         return false;
-      return true;
-    });
-  }
-
-  function Th(props) {
-    var active = sortCol === props.col;
-    return (
-      <th onClick={function(){ setSortDir(active&&sortDir==="asc"?"desc":"asc"); setSortCol(props.col); }}
-        style={{ padding:"6px 7px", fontSize:10, fontWeight:700, color: active?"#c8f000":"#666", textTransform:"uppercase", letterSpacing:"0.06em", cursor:"pointer", whiteSpace:"nowrap", background:"#1a1a18", borderBottom:"1px solid #2a2a28", userSelect:"none", textAlign:"left" }}>
-        {props.children}{active?(sortDir==="asc"?" ▲":" ▼"):""}
-      </th>
-    );
-  }
-
-  function FmtReturn(val) {
-    if (val === null || val === undefined) return <span style={{color:"#444", fontSize:10}}>Pending</span>;
-    var col = val >= 5 ? "#7abd00" : val >= 0 ? "#5a9a40" : val > -5 ? "#e08050" : "#e05050";
-    return <span style={{color:col, fontWeight:600}}>{val > 0 ? "+" : ""}{val.toFixed(1)}%</span>;
-  }
-
-  function OutcomeBadge(label) {
-    if (!label || label === "Pending") return <span style={{fontSize:9,color:"#444"}}>Pending</span>;
-    var col = label.includes("Strong Win")?"#7abd00":label==="Win"?"#5a9a40":label==="Neutral"?"#888":label.includes("Failed")?"#e05050":"#e08050";
-    return <span style={{fontSize:9,fontWeight:700,color:col,background:col+"20",padding:"2px 6px",borderRadius:3}}>{label}</span>;
-  }
-
-  function StatusBadge(val, col) {
-    if (!val) return <span style={{color:"#444", fontSize:10}}>—</span>;
-    var c = col || "#888";
-    return <span style={{fontSize:10, fontWeight:600, color:c}}>{val}</span>;
-  }
-
-  function scoreColor(s) {
-    if (s===null||s===undefined) return "#444";
-    return s >= 65 ? "#7abd00" : s >= 40 ? "#EF9F27" : "#e05050";
-  }
-
-  // ── Auth screen ─────────────────────────────────────────────────────────────
-  if (!authed) return (
-    <div style={{ fontFamily:F, background:"#0e0e0c", minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ background:"#181816", border:"0.5px solid #2a2a28", borderRadius:12, padding:32, width:340 }}>
-        <div style={{ fontSize:11, color:"#c8f000", fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:4 }}>Colaboree StockInsight</div>
-        <div style={{ fontSize:20, fontWeight:800, color:"#f0ede6", marginBottom:4 }}>Signal Journal</div>
-        <div style={{ fontSize:12, color:"#666", marginBottom:24 }}>Research access only. Enter your admin key to continue.</div>
-        <input value={adminKey} onChange={function(e){ setAdminKey(e.target.value); }}
-          onKeyDown={function(e){ if(e.key==="Enter") handleAuth(); }}
-          type="password" placeholder="Admin key"
-          style={{ width:"100%", background:"#111", border:"0.5px solid #333", borderRadius:8, padding:"10px 12px", color:"#f0ede6", fontSize:13, outline:"none", boxSizing:"border-box", marginBottom:10 }} />
-        {authError && <div style={{ fontSize:11, color:"#e05050", marginBottom:10 }}>{authError}</div>}
-        <button onClick={handleAuth}
-          style={{ width:"100%", background:"#c8f000", color:"#0e0e0c", fontWeight:800, fontSize:13, border:"none", borderRadius:8, padding:"10px", cursor:"pointer" }}>
-          Access Journal
-        </button>
-        <div style={{ marginTop:16, textAlign:"center" }}>
-          <a href="/" style={{ fontSize:11, color:"#555", textDecoration:"none" }}>← Back to StockInsight</a>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Enrich all filtered rows, apply Setup filter, then sort
-  var fjRaw = filteredJournal();
-  var fjEnriched = fjRaw.map(enrichRowWithRuleSetup);
-  if (filter.setup.length) fjEnriched = fjEnriched.filter(function(r){ return filter.setup.indexOf(r.ruleShortVerdict)!==-1; });
-  fjEnriched.sort(function(a,b){
-    var av = sortCol==='rule_setup' ? a.ruleShortVerdict : a[sortCol];
-    var bv = sortCol==='rule_setup' ? b.ruleShortVerdict : b[sortCol];
-    if (av===null||av===undefined) return 1;
-    if (bv===null||bv===undefined) return -1;
-    var cmp = av<bv?-1:av>bv?1:0;
-    return sortDir==='asc'?cmp:-cmp;
-  });
-  var fj = fjEnriched;
-  var activeTickers = [...new Set(journal.map(function(e){ return e.ticker; }))];
-
-  // ── Main journal UI ─────────────────────────────────────────────────────────
-  return (
-    <div style={{ fontFamily:F, background:"#0e0e0c", minHeight:"100vh", color:"#f0ede6" }}>
-      {/* Toast */}
-      {toast && <div style={{ position:"fixed", top:16, right:16, zIndex:9999, background: toast.type==="err"?"#3a1a1a":"#1a3a1a", border:"0.5px solid "+(toast.type==="err"?"#e05050":"#7abd00"), borderRadius:8, padding:"10px 16px", fontSize:12, color: toast.type==="err"?"#e05050":"#7abd00", boxShadow:"0 4px 20px rgba(0,0,0,0.5)" }}>{toast.msg}</div>}
-
-      {/* Header */}
-      <div style={{ borderBottom:"0.5px solid #2a2a28", padding:"14px 24px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-          <a href="/" style={{ fontSize:11, color:"#555", textDecoration:"none" }}>← StockInsight</a>
-          <div style={{ width:1, height:16, background:"#2a2a28" }} />
-          <div style={{ fontSize:13, fontWeight:800, color:"#c8f000" }}>Signal Journal</div>
-          <div style={{ fontSize:10, color:"#555" }}>Research use only · Not financial advice</div>
-        </div>
-        <div style={{ display:"flex", gap:8 }}>
-          <button onClick={generateAll} disabled={loading==="generating"}
-            style={{ background:"#c8f000", color:"#0e0e0c", fontWeight:700, fontSize:11, border:"none", borderRadius:6, padding:"7px 14px", cursor:"pointer", opacity:loading==="generating"?0.6:1 }}>
-            {loading==="generating" ? "Generating..." : "⚡ Generate Today's Snapshots"}
-          </button>
-          <button onClick={updateFutureReturns} disabled={loading==="future"}
-            style={{ background:"#1a2a1a", color:"#7abd00", fontWeight:700, fontSize:11, border:"0.5px solid #2a5020", borderRadius:6, padding:"7px 14px", cursor:"pointer", opacity:loading==="future"?0.6:1 }}>
-            {loading==="future" ? "Updating..." : "📈 Update Future Returns"}
-          </button>
-          <button onClick={exportCSV}
-            style={{ background:"#1a1a2a", color:"#9090f0", fontWeight:700, fontSize:11, border:"0.5px solid #2a2a50", borderRadius:6, padding:"7px 14px", cursor:"pointer" }}>
-            ⬇ Export CSV
-          </button>
-        </div>
-      </div>
-
-      <div style={{ padding:"20px 24px" }}>
-
-        {/* Add Ticker — inline, no card section */}
-        <div style={{ display:"flex", gap:8, marginBottom:20 }}>
-          <input value={addTicker} onChange={function(e){ setAddTicker(e.target.value.toUpperCase()); }}
-            onKeyDown={function(e){ if(e.key==="Enter") handleAddTicker(); }}
-            placeholder="Add ticker e.g. AAPL"
-            style={{ background:"#181816", border:"0.5px solid #333", borderRadius:8, padding:"8px 12px", color:"#f0ede6", fontSize:13, outline:"none", width:180 }} />
-          <button onClick={handleAddTicker}
-            style={{ background:"#c8f000", color:"#0e0e0c", fontWeight:700, fontSize:12, border:"none", borderRadius:8, padding:"8px 16px", cursor:"pointer" }}>
-            Add
-          </button>
-        </div>
-
-        {/* Signal Journal */}
-        <div>
-          <div style={{ fontSize:12, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>Signal Journal ({fj.length} records)</div>
-
-          {/* Multi-select pill filters */}
-          <div style={{ background:"#181816", border:"0.5px solid #222", borderRadius:8, padding:"10px 14px", marginBottom:12 }}>
-            {(function(){
-              var SETUP_OPTS = ['Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
-              function toggle(key, v) { setFilter(function(prev){ var a=prev[key]; var next=a.indexOf(v)!==-1?a.filter(function(x){return x!==v;}):a.concat([v]); return Object.assign({},prev,{[key]:next}); }); }
-              var groups = [
-                ["Ticker",      "ticker",     activeTickers],
-                ["Trend",       "trend",      ["Strong Uptrend","Uptrend","Sideways","Downtrend","Strong Downtrend"]],
-                ["Momentum",    "momentum",   ["Strong","Building","Neutral","Fading","Weak"]],
-                ["Reversal",    "reversal",   ["Bull Spark","Bull Watch","Bull Forming","Bull Triggered","Bull Confirming","Bull Confirmed","Bear Watch","Bear Forming","Bear Triggered","Bear Confirmed","Mixed"]],
-                ["Money Flow",  "smartMoney", ["Strong Flow","Accumulating","Early Accum.","Constructive","ST Spike","No Signal"]],
-                ["Setup",       "setup",      SETUP_OPTS],
-                ["Outcome",     "outcome",    ["Strong Win","Win","Neutral","Failed","Strong Failed","Pending"]],
-              ];
-              var anyActive = Object.values(filter).some(function(a){return a.length>0;});
-              return (
-                <div>
-                  {groups.map(function(fg){
-                    var lbl=fg[0], key=fg[1], opts=fg[2];
-                    return (
-                      <div key={key} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:7 }}>
-                        <span style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", minWidth:74, paddingTop:3, flexShrink:0 }}>{lbl}</span>
-                        <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
-                          {opts.map(function(v){
-                            var sel = filter[key].indexOf(v)!==-1;
-                            var ac  = key==="setup" ? summaryCardDark(v).text : "#c8f000";
-                            return <button key={v} onClick={function(){ toggle(key,v); }}
-                              style={{ fontSize:9, padding:"2px 8px", borderRadius:10, cursor:"pointer", fontWeight:sel?700:400,
-                                background:sel?"#1e2a10":"#141412", color:sel?ac:"#555",
-                                border:"0.5px solid "+(sel?ac:"#2a2a28"), outline:"none" }}>{v}</button>;
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {anyActive && <button onClick={function(){ setFilter({ ticker:[], trend:[], momentum:[], reversal:[], smartMoney:[], outcome:[], setup:[] }); }}
-                    style={{ fontSize:10, padding:"3px 10px", background:"none", border:"0.5px solid #444", borderRadius:5, color:"#666", cursor:"pointer", marginTop:2 }}>Clear all filters</button>}
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Table */}
-          {fj.length === 0 ? (
-            <div style={{ fontSize:12, color:"#555", padding:"40px", textAlign:"center", background:"#181816", borderRadius:10 }}>
-              No records yet. Generate snapshots for your tracked tickers to start collecting data.
-            </div>
-          ) : (
-            <div style={{ borderRadius:10, border:"0.5px solid #2a2a28", width:"100%" }}>
-              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-                <thead>
-                  <tr>
-                    <Th col="snapshot_date">Date</Th>
-                    <Th col="ticker">Ticker</Th>
-                    <Th col="close_price">Close</Th>
-                    <Th col="trend_status">Trend</Th>
-                    <Th col="momentum_status">Momentum</Th>
-                    <Th col="momentum_score">M.Score</Th>
-                    <Th col="rsi_value">RSI</Th>
-                    <Th col="reversal_status">Reversal</Th>
-                    <Th col="bullish_reversal_score">Bull</Th>
-                    <Th col="bearish_reversal_score">Bear</Th>
-                    <Th col="smart_money_status">Smart Money</Th>
-                    <Th col="smart_money_score">SM.Score</Th>
-                    <Th col="rule_setup">Setup</Th>
-                    <Th col="future_return_5d">5D Ret.</Th>
-                    <Th col="future_return_10d">10D</Th>
-                    <Th col="future_return_20d">20D</Th>
-                    <Th col="future_return_30d">30D</Th>
-                    <Th col="future_return_60d">60D</Th>
-                    <Th col="future_return_90d">90D</Th>
-                    <Th col="max_gain_30d">Range 30D</Th>
-                    <Th col="bullish_outcome_label">Outcome</Th>
-                    <th style={{ padding:"8px 6px", fontSize:10, color:"#444", background:"#1a1a18", borderBottom:"1px solid #2a2a28" }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fj.map(function(r, i) {
-                    var er  = r;  // already enriched above
-                    var rowBg = i % 2 === 0 ? "#181816" : "#141412";
-                    var revCol = reversalColor(r.reversal_status);
-                    var smfCol = smfColor(r.smart_money_status);
-                    var setupC = ruleSetupColor(er.ruleScenarioId);
-                    return (
-                      <tr key={r.id} style={{ background:rowBg }}>
-                        <td style={{ padding:"5px 7px", color:"#888" }}>{r.snapshot_date}</td>
-                        <td style={{ padding:"5px 7px", fontWeight:700, color:"#c8f000" }}>{r.ticker}</td>
-                        <td style={{ padding:"5px 7px", color:"#f0ede6" }}>${r.close_price?.toFixed(2)}</td>
-                        <td style={{ padding:"5px 7px" }}>{StatusBadge(r.trend_status, r.trend_score>=55?"#7abd00":r.trend_score>=40?"#EF9F27":"#e05050")}</td>
-                        <td style={{ padding:"5px 7px" }}>{StatusBadge(r.momentum_status, r.momentum_score>=65?"#7abd00":r.momentum_score>=50?"#EF9F27":"#e05050")}</td>
-                        <td style={{ padding:"5px 7px", color:"#aaa", fontWeight:500 }}>{r.momentum_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"5px 7px", color:r.rsi_value>70?"#EF9F27":r.rsi_value>=50?"#7abd00":r.rsi_value>=30?"#888":"#e05050" }}>{r.rsi_value?.toFixed(1)||"—"}</td>
-                        <td style={{ padding:"5px 7px", fontSize:10, color:revCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.reversal_status||"—"}</td>
-                        <td style={{ padding:"5px 7px", color:"#aaa" }}>{r.bullish_reversal_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"5px 7px", color:"#aaa" }}>{r.bearish_reversal_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"5px 7px", fontSize:10, color:smfCol, fontWeight:600, maxWidth:140, lineHeight:1.3 }}>{r.smart_money_status||"—"}</td>
-                        <td style={{ padding:"5px 7px", color:"#aaa", fontWeight:500 }}>{r.smart_money_score?.toFixed(0)||"—"}</td>
-                        <td style={{ padding:"5px 7px" }} title={er.ruleVerdict||''}>
-                          <div style={{ fontSize:11, fontWeight:700, color:setupC.text, lineHeight:1.3, whiteSpace:"nowrap" }}>{er.ruleShortVerdict}</div>
-                          {er.ruleSubtitle && <div style={{ fontSize:9, color:setupC.text+"99", lineHeight:1.3, marginTop:1 }}>{er.ruleSubtitle}</div>}
-                        </td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_5d)}</td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_10d)}</td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_20d)}</td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_30d)}</td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_60d)}</td>
-                        <td style={{ padding:"5px 7px" }}>{FmtReturn(r.future_return_90d)}</td>
-                        <td style={{ padding:"5px 7px" }}>
-                          {(function(){
-                            var gain = r.max_gain_30d;
-                            var loss = r.max_drawdown_30d;
-                            if (gain == null && loss == null) return <span style={{color:"#444",fontSize:10}}>Pending</span>;
-                            var g = Math.max(0, gain || 0);
-                            var l = Math.min(0, loss || 0);
-                            var ret = r.future_return_20d;
-                            var total = g - l; // full range e.g. 8.5-(-10.2)=18.7
-                            if (total === 0) return <span style={{color:"#444",fontSize:10}}>—</span>;
-                            var W = 120;
-                            var zeroX = (-l / total) * W;   // 0% mark position
-                            var lossW = zeroX;               // red: left edge → zero
-                            var gainW = W - zeroX;           // green: zero → right edge
-                            // dot: where actual 20D return lands
-                            var dotX = ret != null ? Math.max(3, Math.min(W-3, ((-l + ret) / total) * W)) : null;
-                            return (
-                              <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                                <span style={{ fontSize:9, color:"#e05050", width:36, textAlign:"right", flexShrink:0 }}>
-                                  {l < 0 ? l.toFixed(1)+"%" : ""}
-                                </span>
-                                <div style={{ position:"relative", flexShrink:0 }}>
-                                  <svg width={W} height={10} style={{ display:"block" }}>
-                                    {/* Red loss segment */}
-                                    {lossW > 0 && <rect x={0} y={2} width={lossW} height={6} rx={2} fill="#e05050" opacity={0.85} />}
-                                    {/* Green gain segment */}
-                                    {gainW > 0 && <rect x={zeroX} y={2} width={gainW} height={6} rx={2} fill="#7abd00" opacity={0.85} />}
-                                    {/* Zero tick */}
-                                    <rect x={zeroX-0.5} y={0} width={1} height={10} fill="#888" />
-                                    {/* Actual return dot */}
-                                    {dotX != null && <circle cx={dotX} cy={5} r={3} fill="#fff" stroke="#111" strokeWidth={0.5} />}
-                                  </svg>
-                                </div>
-                                <span style={{ fontSize:9, color:"#7abd00", width:36, textAlign:"left", flexShrink:0 }}>
-                                  {g > 0 ? "+"+g.toFixed(1)+"%" : ""}
-                                </span>
-                              </div>
-                            );
-                          })()}
-                        </td>
-                        <td style={{ padding:"5px 7px" }}>{OutcomeBadge(r.bullish_outcome_label)}</td>
-                        <td style={{ padding:"5px 5px" }}>
-                          <div style={{ display:"flex", gap:4, alignItems:"center" }}>
-                            <button onClick={function(){ generateSnapshot(r.ticker); }}
-                              disabled={!!generating[r.ticker]}
-                              title={"Generate today's snapshot for " + r.ticker}
-                              style={{ background:"none", border:"0.5px solid #1a3a1a", borderRadius:4, color:generating[r.ticker]?"#444":"#5a9a40", fontSize:11, cursor:generating[r.ticker]?"not-allowed":"pointer", padding:"2px 7px", lineHeight:1 }}>
-                              {generating[r.ticker] ? "…" : "⚡"}
-                            </button>
-                            <button onClick={function(){ handleDeleteSnapshot(r.ticker, r.snapshot_date); }}
-                              title={"Delete " + r.ticker + " " + r.snapshot_date}
-                              style={{ background:"none", border:"0.5px solid #3a1a1a", borderRadius:4, color:"#663333", fontSize:11, cursor:"pointer", padding:"2px 7px", lineHeight:1 }}>✕</button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <div style={{ fontSize:10, color:"#333", marginTop:16, lineHeight:1.6 }}>
-            The Technical Signal Journal records historical technical signals and outcomes for research purposes only. It does not provide financial advice or guarantee future performance.
-          </div>
-        </div>
-        </div>
-      </div>
-  );
-}
 
 // ── Watchlist rank helpers ────────────────────────────────────────────────────
 function wlRbaRank(v){if(!v)return 0;var vl=v.toLowerCase();if(vl.indexOf('strong bullish')!==-1)return 3;if(vl.indexOf('bullish watch')!==-1)return 1;if(vl.indexOf('bullish')!==-1)return 2;if(vl.indexOf('risky bounce')!==-1)return -0.5;if(vl.indexOf('caution')!==-1)return -1;if(vl.indexOf('mixed')!==-1)return -0.5;if(vl.indexOf('bearish watch')!==-1)return -2;if(vl.indexOf('strong bearish')!==-1)return -4;if(vl.indexOf('bearish')!==-1)return -3;return 0;}
@@ -11923,6 +11304,47 @@ function wlArrow(todayRank, history) {
   return "\u2192";
 }
 function wlArrowColor(arrow){ return arrow==="\u2191"?"#7abd00":arrow==="\u2193"?"#e05050":"#888"; }
+
+// Per-factor colour helpers for the Technical View compact strip.
+// Each maps a signal status string to the NervousGeek dark-theme colour bucket.
+function wlTrendColor(s) {
+  if (!s) return '#555';
+  var l = s.toLowerCase();
+  if (l.indexOf('strong up')!==-1||l==='uptrend') return '#7abd00';
+  if (l==='sideways') return '#EF9F27';
+  if (l.indexOf('down')!==-1) return '#e05050';
+  return '#555';
+}
+function wlMomColor(s) {
+  if (!s) return '#555';
+  var l = s.toLowerCase();
+  if (l==='strong') return '#7abd00';
+  if (l.indexOf('build')!==-1||l.indexOf('continuation')!==-1||l.indexOf('early recovery')!==-1||l.indexOf('waiting')!==-1) return '#6090d0';
+  if (l==='neutral'||l.indexOf('pullback')!==-1||l.indexOf('no clear')!==-1) return '#EF9F27';
+  if (l.indexOf('fad')!==-1||l.indexOf('weak')!==-1||l.indexOf('bearish mom')!==-1) return '#e05050';
+  return '#555';
+}
+function wlRevColor(s) {
+  if (!s) return '#555';
+  var l = s.toLowerCase();
+  if (l.indexOf('triggered')!==-1||l.indexOf('confirming')!==-1||l.indexOf('confirmed')!==-1) return '#7abd00';
+  if (l.indexOf('spark')!==-1||l.indexOf('watch')!==-1||l.indexOf('forming')!==-1||l.indexOf('setup')!==-1) {
+    if (l.indexOf('bear')===-1) return '#6090d0';
+  }
+  if (l.indexOf('mixed')!==-1) return '#EF9F27';
+  if (l.indexOf('bear')!==-1) return '#e05050';
+  if (l.indexOf('no clear')!==-1||l.indexOf('not enough')!==-1) return '#555';
+  return '#555';
+}
+function wlSmfColor(s) {
+  if (!s) return '#555';
+  var l = s.toLowerCase();
+  if (l.indexOf('strong accum')!==-1||l.indexOf('steady accum')!==-1||l.indexOf('daily spike')!==-1||l.indexOf('daily support')!==-1) return '#7abd00';
+  if (l.indexOf('long-term accum')!==-1||l.indexOf('lt accum')!==-1||l.indexOf('early accum')!==-1||l.indexOf('quiet')!==-1||l.indexOf('constructive')!==-1) return '#6090d0';
+  if (l.indexOf('mixed')!==-1||l.indexOf('cooling')!==-1||l.indexOf('short-term')!==-1||l.indexOf('no sustained')!==-1) return '#EF9F27';
+  if (l.indexOf('distribut')!==-1||l.indexOf('negative')!==-1||l.indexOf('deteriorat')!==-1) return '#e05050';
+  return '#555';
+}
 function makeSparkline(values) {
   var blocks = ["\u2581","\u2582","\u2583","\u2584","\u2585","\u2586","\u2587","\u2588"];
   if (!values || values.length < 2) return String.fromCharCode(0x2014);
@@ -11930,6 +11352,64 @@ function makeSparkline(values) {
   if (max===min) return "\u2584\u2584\u2584\u2584";
   return values.map(function(v){return blocks[Math.round((v-min)/(max-min)*(blocks.length-1))];}).join("");
 }
+
+// ─── Shared Force Strike helpers (module-level) ───────────────────────────────
+// These were previously private to ForceStrikePage.
+// Hoisted so WatchlistPage can call the exact same logic — both pages produce
+// identical FS Score, Trade Stars, and Technical Support results for the same data.
+
+function calcFsScore(r) {
+  var pts = 0, breakdown = [];
+  var tPts = r.triggerType==='PIN' ? 3 : r.triggerType==='MU' ? 2 : r.triggerType==='ICE' ? 2 : 0;
+  pts += tPts;
+  breakdown.push({ label: 'Trigger: ' + (r.triggerType==='PIN'?'Bullish Pin':r.triggerType==='MU'?'Mark Up':r.triggerType==='ICE'?'Ice Cream':'Unknown'), pts: tPts });
+  var sPts = r.scenario==='Shakeout Reversal' ? 4 : r.scenario==='Recovery Reversal' ? 3 : r.scenario==='Trend Pullback' ? 2 : 0;
+  pts += sPts;
+  breakdown.push({ label: 'Scenario: ' + (r.scenario||'Unclassified'), pts: sPts });
+  var tpPos = r.triggerPosition != null ? r.triggerPosition : 0;
+  var tpPts = tpPos>=5 ? 3 : tpPos===4 ? 2 : tpPos===3 ? 1 : 0;
+  pts += tpPts;
+  breakdown.push({ label: 'Trigger Position: Bar ' + (tpPos||'—'), pts: tpPts });
+  var mExp = r.motherBar && r.motherBar.rangeExpansion != null ? r.motherBar.rangeExpansion : 0;
+  var mPts = mExp >= 2.5 ? 0.5 : mExp >= 1.5 ? 1 : mExp >= 1.2 ? 0.5 : 0;
+  pts += mPts;
+  breakdown.push({ label: 'Mother Expansion: ' + (mExp>0?mExp.toFixed(2)+'x':'—'), pts: mPts });
+  var tBar = r.triggerBar;
+  var interacts = tBar && tBar.interactsWithMother === true;
+  var iPts = interacts ? 2 : 0;
+  pts += iPts;
+  breakdown.push({ label: 'Mother Range Interaction', pts: iPts });
+  var stars = pts <= 2 ? 1 : pts <= 4 ? 2 : pts <= 6 ? 3 : pts <= 8 ? 4 : 5;
+  return { pts: pts, stars: stars, breakdown: breakdown };
+}
+
+function calcTechSupport(tc) {
+  if (!tc) return { label:'\u2014', color:'#555' };
+  var tl  = (tc.trend||'').toLowerCase();
+  var ml  = (tc.momentum||'').toLowerCase();
+  var rl  = (tc.reversal||'').toLowerCase();
+  var sfl = (tc.moneyFlow||'').toLowerCase();
+  var trendBull = tl==='uptrend'||tl==='strong uptrend';
+  var trendBear = tl==='downtrend'||tl==='strong downtrend';
+  var momBull   = ml==='building'||ml==='strong';
+  var momBear   = ml==='fading'||ml==='weak';
+  var revBear   = rl.indexOf('bear')!==-1;
+  var mfBull    = sfl.indexOf('accumulation')!==-1&&sfl.indexOf('cooling')===-1;
+  var score     = (trendBull?1:0)+(momBull?1:0)+(mfBull?1:0)+(!revBear?0.5:0);
+  if ((trendBear||momBear)&&revBear) return { label:'Conflicting', color:'#e05050' };
+  if (trendBear||momBear)            return { label:'Conflicting', color:'#e05050' };
+  if (score >= 2.5) return { label:'Strong',   color:'#7abd00' };
+  if (score >= 1.5) return { label:'Moderate', color:'#EF9F27' };
+  return              { label:'Weak',     color:'#888' };
+}
+
+function renderStars(n, size) {
+  var s = size||12;
+  return <span style={{color:'#EF9F27',fontSize:s,letterSpacing:1}}>
+    {[1,2,3,4,5].map(function(i){ return <span key={i} style={{opacity:i<=n?1:0.22}}>{'\u2605'}</span>; })}
+  </span>;
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function WatchlistPage({ clerkUser, isPaid }) {
   var LIME = '#c8f000';
@@ -11944,6 +11424,10 @@ function WatchlistPage({ clerkUser, isPaid }) {
   var [msg,          setMsg]         = useState('');
   var [lastUpdated,  setLastUpdated] = useState(null);
   var [viewLockTicker,setViewLockTicker] = useState(null); // ticker whose lock detail panel is open
+  var [expandedRow,  setExpandedRow] = useState(null);     // ticker whose Details panel is open (Phase B)
+  var [editPosTicker,setEditPosTicker] = useState(null);   // ticker whose position editor is open (Phase B)
+  var [editPosAvg,   setEditPosAvg]  = useState('');       // position editor: avg buy price input
+  var [editPosQty,   setEditPosQty]  = useState('');       // position editor: qty input
 
   var isAdmin = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === 'admin');
   var canAccess = isPaid || isAdmin;
@@ -11955,54 +11439,48 @@ function WatchlistPage({ clerkUser, isPaid }) {
     return h;
   }
 
-  function loadWatchlist() {
+  function loadWatchlist(autoRefresh) {
     setLoading(true);
     fetch('/watchlist', { headers: wlHeaders() })
       .then(function(r){ return r.json(); })
       .then(function(d){
-        setItems(d.items || []);
+        var freshItems = d.items || [];
+        setItems(freshItems);
         var snaps = d.snapshots || {};
         var lockMap = snaps['__locks'] || {};
         setLocks(lockMap);
         setSnapshots(snaps);
         setLastUpdated(new Date().toLocaleTimeString());
+        setLoading(false);
+        // Auto-refresh live prices/signals right after load (e.g. on page open),
+        // without requiring a manual "Refresh Signals" click. Uses the freshly
+        // fetched item list directly rather than `items` state, since state from
+        // setItems() above has not flushed/re-rendered yet at this point.
+        if (autoRefresh && freshItems.length) {
+          refreshSnapshotsFor(freshItems);
+        }
       })
-      .catch(function(e){ setMsg('Load failed: ' + e.message); })
-      .finally(function(){ setLoading(false); });
+      .catch(function(e){ setMsg('Load failed: ' + e.message); setLoading(false); });
   }
 
-  useEffect(function(){ if(canAccess && clerkUser) loadWatchlist(); }, [clerkUser, isPaid]);
+  useEffect(function(){ if(canAccess && clerkUser) loadWatchlist(true); }, [clerkUser, isPaid]);
 
-  function lockSignal(item, snap) {
-    if (!snap) { setMsg('No signal data for ' + item.ticker + ' — Refresh Signals first.'); return; }
-    // Extract FS data from snapshot JSON
-    var sj = {};
-    try { if (snap.signal_snapshot_json) sj = JSON.parse(snap.signal_snapshot_json); } catch(e) {}
-    var payload = {
-      closePrice:      snap.close_price,
-      priceChangePct:  snap.price_change_pct,
-      hi52:            snap.hi52, lo52: snap.lo52,
-      rbaVerdict:      snap.rba_verdict,    rbaRank:      snap.rba_rank,
-      trendStatus:     snap.trend_status,   trendScore:   snap.trend_score,   trendRank:   snap.trend_rank,
-      momentumStatus:  snap.momentum_status,momentumScore:snap.momentum_score,momentumRank:snap.momentum_rank,
-      reversalStatus:  snap.reversal_status,reversalScore:snap.reversal_score,reversalRank:snap.reversal_rank,
-      moneyFlowStatus: snap.money_flow_status,moneyFlowScore:snap.money_flow_score,moneyFlowRank:snap.money_flow_rank,
-      // Force Strike snapshot at lock time
-      fsStatus:        sj.fsStatus      || null,
-      fsPattern:       sj.fsPattern     || null,
-      fsScenario:      sj.fsScenario    || null,
-      fsAge:           sj.fsAge         != null ? sj.fsAge : null,
-      fsTriggerType:   sj.fsTriggerType || null,
-      fsTriggerDate:   sj.fsTriggerDate || null,
-      fsMotherDate:    sj.fsMotherDate  || null,
-      fsBabyDate:      sj.fsBabyDate    || null,
-    };
-    fetch('/watchlist?action=lock', {
-      method: 'POST', headers: wlHeaders(),
-      body: JSON.stringify({ ticker: item.ticker, currentSnapshot: payload })
-    }).then(function(r){ return r.json(); })
-      .then(function(d){ if(d.ok) loadWatchlist(); else setMsg(d.error||'Lock failed'); })
-      .catch(function(e){ setMsg('Lock failed: '+e.message); });
+  // Live-refresh a given list of items (used by both the auto-refresh-on-load
+  // path and the manual "Refresh Signals" button).
+  async function refreshSnapshotsFor(list) {
+    if (!list || !list.length) return;
+    setRefreshing(true); setMsg('Refreshing signals...');
+    var hdrs = wlHeaders();
+    for (var i = 0; i < list.length; i++) {
+      var ticker = list[i].ticker;
+      try {
+        setMsg('Refreshing ' + ticker + ' (' + (i+1) + '/' + list.length + ')...');
+        await refreshSingleTicker(ticker, hdrs);
+      } catch(e) { /* skip failed tickers */ }
+    }
+    setMsg('');
+    setRefreshing(false);
+    loadWatchlist();
   }
 
   function resetLock(ticker) {
@@ -12022,8 +11500,14 @@ function WatchlistPage({ clerkUser, isPaid }) {
       method: 'POST', headers: wlHeaders(),
       body: JSON.stringify({ ticker: sym })
     }).then(function(r){ return r.json(); })
-      .then(function(d){
-        if (d.ok) { setAddInput(''); loadWatchlist(); }
+      .then(async function(d){
+        if (d.ok) {
+          setAddInput('');
+          setMsg('Fetching ' + sym + ' data...');
+          try { await refreshSingleTicker(sym, wlHeaders()); } catch(e) { /* fall through to plain load */ }
+          setMsg('');
+          loadWatchlist();
+        }
         else setMsg(d.error || 'Add failed');
       })
       .catch(function(e){ setMsg('Add failed: ' + e.message); })
@@ -12039,146 +11523,278 @@ function WatchlistPage({ clerkUser, isPaid }) {
       .catch(function(e){ setMsg('Remove failed: ' + e.message); });
   }
 
-  async function refreshSnapshots() {
-    if (!items.length) return;
-    setRefreshing(true); setMsg('Refreshing signals...');
-    var hdrs = wlHeaders();
-    // No KV cache lookup — always run fresh scanForceStrike() per ticker
-    // using same Yahoo chart source as Force Strike Screener for full consistency
+  // Save Avg Buy Price + Qty for a ticker position.
+  // Captures the current signal snapshot at the moment of saving — this becomes
+  // the locked position baseline for signal improvement/weakening comparison.
+  // avgBuyPrice and qty can be null (removes the position).
+  function savePosition(ticker, avgBuyPrice, qty, snap) {
+    if (!snap) { setMsg('No signal data for ' + ticker + ' — Refresh Signals first.'); return; }
+    var sj = {};
+    try { if (snap.signal_snapshot_json) sj = JSON.parse(snap.signal_snapshot_json); } catch(e) {}
+    var payload = {
+      ticker:          ticker,
+      avgBuyPrice:     avgBuyPrice,
+      quantity:        qty,
+      currentSnapshot: {
+        closePrice:      snap.close_price,
+        priceChangePct:  snap.price_change_pct,
+        hi52:            snap.hi52,  lo52: snap.lo52,
+        rbaVerdict:      snap.rba_verdict,    rbaRank:       snap.rba_rank,
+        trendStatus:     snap.trend_status,   trendScore:    snap.trend_score,   trendRank:    snap.trend_rank,
+        momentumStatus:  snap.momentum_status,momentumScore: snap.momentum_score,momentumRank: snap.momentum_rank,
+        reversalStatus:  snap.reversal_status,reversalScore: snap.reversal_score,reversalRank: snap.reversal_rank,
+        moneyFlowStatus: snap.money_flow_status,moneyFlowScore:snap.money_flow_score,moneyFlowRank:snap.money_flow_rank,
+        fsStatus:        sj.fsStatus  || null,
+        forceStrike:     sj.forceStrike || null,
+      },
+    };
+    fetch('/watchlist?action=savePosition', {
+      method: 'POST', headers: wlHeaders(),
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.json(); })
+      .then(function(d){ if (d.ok) loadWatchlist(); else setMsg(d.error || 'Position save failed'); })
+      .catch(function(e){ setMsg('Position save failed: ' + e.message); });
+  }
 
-    for (var i = 0; i < items.length; i++) {
-      var ticker = items[i].ticker;
-      try {
-        setMsg('Refreshing ' + ticker + ' (' + (i+1) + '/' + items.length + ')...');
-        var mRes = await fetch('/massive?sym=' + ticker, { headers: hdrs });
-        if (!mRes.ok) continue;
-        var mData = await mRes.json();
-        if (!mData || !mData.aggs || mData.aggs.length < 10) continue;
-        var snap = buildScreenerSnapshot(ticker, mData, { hi52: 0, lo52: 0, price: 0 });
-        if (!snap) continue;
-        var ms  = mData.snapshot || {};
-        var aggs = mData.aggs || [];
-        var price = (ms.close && ms.close > 0) ? ms.close
-                  : (aggs.length > 0 ? (aggs[0].c || 0) : 0);
-        var chg = (ms.change != null) ? parseFloat(ms.change) : null;
-        if (chg == null && aggs.length >= 2) {
-          var c0 = aggs[0].c, c1 = aggs[1].c;
-          if (c0 && c1) chg = (c0 - c1) / c1 * 100;
-        }
-        var hi52raw = 0, lo52raw = Infinity;
-        aggs.forEach(function(b){ if(b.h>hi52raw) hi52raw=b.h; if(b.l>0&&b.l<lo52raw) lo52raw=b.l; });
-        if (lo52raw===Infinity) lo52raw = 0;
-        var rbaSnap = buildRuleSnapshotFromRow({
-          trend: snap.trend.status, trendScore: snap.trend.score,
-          momentum: snap.momentum.status, momentumScore: snap.momentum.score,
-          reversal: snap.reversalWatch.status, reversalScore: snap.reversalWatch.score,
-          reversalDecision: snap.reversalWatch.reversalDecision,
-          bullishScore: snap.reversalWatch.bullishScore, bearishScore: snap.reversalWatch.bearishScore,
-          moneyFlow: snap.smartMoneyFlow.status, moneyFlowScore: snap.smartMoneyFlow.score,
-          smartMoneyDecision: snap.smartMoneyFlow.smartMoneyDecision,
-        });
-        var rba = generateRuleBasedAnalytics(rbaSnap);
-        var rbaVerdict = rba ? (rba.verdict || '') : '';
-        var rbaShort   = shortRuleVerdict(rbaVerdict);
+  // Fetch + calculate + save a snapshot for a single ticker.
+  // Shared by refreshSnapshotsFor() (auto-load + manual refresh) and addTicker() (auto-refresh on add).
+  async function refreshSingleTicker(ticker, hdrs) {
+    var mRes = await fetch('/massive?sym=' + ticker, { headers: hdrs });
+    if (!mRes.ok) return false;
+    var mData = await mRes.json();
+    if (!mData || !mData.aggs || mData.aggs.length < 10) return false;
+    var snap = buildScreenerSnapshot(ticker, mData, { hi52: 0, lo52: 0, price: 0 });
+    if (!snap) return false;
+    var ms  = mData.snapshot || {};
+    var aggs = mData.aggs || [];
+    // Provisional price from Massive — overwritten below by Yahoo's regularMarketPrice
+    // (same source the Detail page uses via getQuote()) once the chart fetch returns,
+    // so Watchlist price matches Detail price. Massive is kept only as a fallback if
+    // the Yahoo fetch fails entirely.
+    var price = (ms.close && ms.close > 0) ? ms.close
+              : (aggs.length > 0 ? (aggs[0].c || 0) : 0);
+    var chg = (ms.change != null) ? parseFloat(ms.change) : null;
+    if (chg == null && aggs.length >= 2) {
+      var c0 = aggs[0].c, c1 = aggs[1].c;
+      if (c0 && c1) chg = (c0 - c1) / c1 * 100;
+    }
+    var hi52raw = 0, lo52raw = Infinity;
+    aggs.forEach(function(b){ if(b.h>hi52raw) hi52raw=b.h; if(b.l>0&&b.l<lo52raw) lo52raw=b.l; });
+    if (lo52raw===Infinity) lo52raw = 0;
+    var rbaSnap = buildRuleSnapshotFromRow({
+      trend: snap.trend.status, trendScore: snap.trend.score,
+      momentum: snap.momentum.status, momentumScore: snap.momentum.score,
+      reversal: snap.reversalWatch.status, reversalScore: snap.reversalWatch.score,
+      reversalDecision: snap.reversalWatch.reversalDecision,
+      bullishScore: snap.reversalWatch.bullishScore, bearishScore: snap.reversalWatch.bearishScore,
+      moneyFlow: snap.smartMoneyFlow.status, moneyFlowScore: snap.smartMoneyFlow.score,
+      smartMoneyDecision: snap.smartMoneyFlow.smartMoneyDecision,
+    });
+    var rba = generateRuleBasedAnalytics(rbaSnap);
+    var rbaVerdict = rba ? (rba.verdict || '') : '';
+    var rbaShort   = shortRuleVerdict(rbaVerdict);
 
-        // Force Strike: always fresh scan using Yahoo chart (same as screener)
-        // Ensures Watchlist FS status is fully consistent with Force Strike Screener rules
-        var fsResult = null;
-        try {
-          var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=3mo';
-          var fsAbort = new AbortController();
-          var fsTimer = setTimeout(function(){ fsAbort.abort(); }, 10000);
-          var cRes2 = await fetch('/proxy?url=' + encodeURIComponent(chartUrl), { signal: fsAbort.signal });
-          clearTimeout(fsTimer);
-          if (cRes2.ok) {
-            var cData2 = await cRes2.json();
-            var cr2 = cData2&&cData2.chart&&cData2.chart.result&&cData2.chart.result[0];
-            if (cr2) {
-              var ts2    = cr2.timestamp||[];
-              var q2     = (cr2.indicators&&cr2.indicators.quote&&cr2.indicators.quote[0])||{};
-              var daily2 = [];
-              for (var di2=0; di2<ts2.length; di2++) {
-                var o2=q2.open&&q2.open[di2], h2=q2.high&&q2.high[di2],
-                    l2=q2.low&&q2.low[di2],   cv2=q2.close&&q2.close[di2];
-                if (o2&&h2&&l2&&cv2&&o2>0) daily2.push({ date:ts2[di2]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di2])||0 });
-              }
-              if (daily2.length >= 14) {
-                var closes2   = daily2.slice(-50).map(function(b){ return b.close; });
-                var closes200b = daily2.map(function(b){ return b.close; });
-                var sma50b    = closes2.length>=20    ? closes2.reduce(function(s,v){return s+v;},0)/closes2.length       : 0;
-                var sma200b   = closes200b.length>=20 ? closes200b.reduce(function(s,v){return s+v;},0)/closes200b.length : 0;
-                var pr2       = daily2[daily2.length-1].close;
-                var ts2status = 'Sideways';
-                if (sma50b>0&&sma200b>0) {
-                  if (pr2>sma50b&&sma50b>sma200b) ts2status = pr2>sma50b*1.03?'Strong Uptrend':'Uptrend';
-                  else if (pr2<sma50b&&sma50b<sma200b) ts2status = 'Downtrend';
+    // Force Strike: always fresh scan using Yahoo chart (same as #FORCESTRIKE screener)
+    // Ensures Watchlist FS result is identical to #FORCESTRIKE for the same ticker and data window.
+    // The Yahoo range=3mo chart is also the source for:
+    //   - priceHistory (true ~3-month daily closes, oldest-to-newest) used by 3M Trend sparkline
+    //   - price fallback (meta.regularMarketPrice) if Massive returned 0
+    //   - true 52-week high/low (meta.fiftyTwoWeekHigh/Low, range-independent)
+    var fsResult = null;
+    var daily2 = []; // Yahoo 3-month daily bars — populated below, used for FS + 3M Trend
+    try {
+      var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=3mo';
+      var fsAbort = new AbortController();
+      var fsTimer = setTimeout(function(){ fsAbort.abort(); }, 10000);
+      var cRes2 = await fetch('/proxy?url=' + encodeURIComponent(chartUrl), { signal: fsAbort.signal });
+      clearTimeout(fsTimer);
+      if (cRes2.ok) {
+        var cData2 = await cRes2.json();
+        var cr2 = cData2&&cData2.chart&&cData2.chart.result&&cData2.chart.result[0];
+        if (cr2) {
+          var meta2 = cr2.meta || {};
+          // Yahoo regularMarketPrice is the same field Detail's getQuote() uses —
+          // use it as the primary price source so Watchlist matches Detail exactly.
+          if (meta2.regularMarketPrice > 0) {
+            price = meta2.regularMarketPrice;
+            // NOTE: meta2.chartPreviousClose is NOT used here. Under range=3mo this
+            // field does not reliably reflect yesterday's close (unlike under the
+            // range=1d call Detail's getQuote() uses) — using it produced grossly
+            // inflated "daily" % changes. Instead, recompute % change from the live
+            // Yahoo price against Massive's own previous daily bar (aggs[1], the
+            // second most-recent bar — aggs[0] is today's), which is reliable and
+            // already proven correct elsewhere in this codebase.
+            var prevCloseBar = aggs.length >= 2 ? aggs[1].c : (aggs.length >= 1 ? aggs[0].c : null);
+            if (prevCloseBar > 0) chg = (price - prevCloseBar) / prevCloseBar * 100;
+          }
+          if (meta2.fiftyTwoWeekHigh > 0 && meta2.fiftyTwoWeekLow > 0 && meta2.fiftyTwoWeekHigh > meta2.fiftyTwoWeekLow) {
+            hi52raw = meta2.fiftyTwoWeekHigh;
+            lo52raw = meta2.fiftyTwoWeekLow;
+          }
+          // Build daily bars array oldest-to-newest — used for both FS scan and 3M Trend sparkline
+          var ts2    = cr2.timestamp||[];
+          var q2     = (cr2.indicators&&cr2.indicators.quote&&cr2.indicators.quote[0])||{};
+          for (var di2=0; di2<ts2.length; di2++) {
+            var o2=q2.open&&q2.open[di2], h2=q2.high&&q2.high[di2],
+                l2=q2.low&&q2.low[di2],   cv2=q2.close&&q2.close[di2];
+            if (o2&&h2&&l2&&cv2&&o2>0) daily2.push({ date:ts2[di2]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di2])||0 });
+          }
+          if (daily2.length >= 14) {
+            var closes2    = daily2.slice(-50).map(function(b){ return b.close; });
+            var closes200b = daily2.map(function(b){ return b.close; });
+            var sma50b    = closes2.length>=20    ? closes2.reduce(function(s,v){return s+v;},0)/closes2.length       : 0;
+            var sma200b   = closes200b.length>=20 ? closes200b.reduce(function(s,v){return s+v;},0)/closes200b.length : 0;
+            var pr2       = daily2[daily2.length-1].close;
+            var ts2status = 'Sideways';
+            if (sma50b>0&&sma200b>0) {
+              if (pr2>sma50b&&sma50b>sma200b) ts2status = pr2>sma50b*1.03?'Strong Uptrend':'Uptrend';
+              else if (pr2<sma50b&&sma50b<sma200b) ts2status = 'Downtrend';
+            }
+            // scanForceStrike() called with identical inputs as #FORCESTRIKE screener —
+            // same function, same data window, same trend-status convention (simplified
+            // SMA50/SMA200 cross, matching ForceStrikePage exactly — do NOT replace with
+            // calcTrendScore() as that would make the two pages disagree).
+            fsResult = scanForceStrike(ticker, daily2, ts2status);
+
+            // Build techContext (technical support context) for active FS patterns,
+            // using the same buildTechSnapshotFromYahoo + generateRuleBasedAnalytics
+            // pattern as #FORCESTRIKE screener — gives identical FS Score / Tech Support.
+            if (fsResult && fsResult.triggered) {
+              try {
+                var vc2 = daily2.map(function(b){ return b.close; });
+                var vv2 = daily2.map(function(b){ return b.volume||0; });
+                var techSnap2 = buildTechSnapshotFromYahoo(ticker, vc2, vv2, pr2, sma50b, sma200b);
+                if (techSnap2) {
+                  var rbaRow2 = buildRuleSnapshotFromRow({
+                    trend:        techSnap2.trend.status,        trendScore:      techSnap2.trend.score,
+                    momentum:     techSnap2.momentum.status,     momentumScore:   techSnap2.momentum.score,
+                    reversal:     techSnap2.reversalWatch ? techSnap2.reversalWatch.status : 'No Clear Reversal',
+                    reversalScore:techSnap2.reversalWatch ? techSnap2.reversalWatch.score  : 0,
+                    moneyFlow:    techSnap2.smartMoneyFlow ? techSnap2.smartMoneyFlow.status : 'No Clear Signal',
+                    moneyFlowScore:techSnap2.smartMoneyFlow ? techSnap2.smartMoneyFlow.score : 0,
+                  });
+                  var rba2 = generateRuleBasedAnalytics(rbaRow2);
+                  fsResult.techContext = {
+                    trend:         techSnap2.trend.status,
+                    trendScore:    techSnap2.trend.score,
+                    momentum:      techSnap2.momentum.status,
+                    momentumScore: techSnap2.momentum.score,
+                    reversal:      techSnap2.reversalWatch ? techSnap2.reversalWatch.status : 'No Clear Reversal',
+                    reversalScore: techSnap2.reversalWatch ? techSnap2.reversalWatch.score  : 0,
+                    moneyFlow:     techSnap2.smartMoneyFlow ? techSnap2.smartMoneyFlow.status : 'No Clear Signal',
+                    moneyFlowScore:techSnap2.smartMoneyFlow ? techSnap2.smartMoneyFlow.score  : 0,
+                    technicalView: rba2 ? shortRuleVerdict(rba2.verdict) : null,
+                  };
                 }
-                fsResult = scanForceStrike(ticker, daily2, ts2status);
-              }
+              } catch(tcErr) { fsResult.techContext = null; }
             }
           }
-        } catch(fsErr) { fsResult = null; }
-
-        // Determine FS display status
-        var fsStatus = 'none', fsPattern = null, fsScenario = null, fsAge = null,
-            fsTriggerType = null, fsTriggerDate = null, fsMotherDate = null, fsBabyDate = null;
-        if (fsResult) {
-          if (fsResult.triggered) {
-            fsStatus      = 'active';
-            fsPattern     = fsResult.pattern;
-            fsScenario    = fsResult.scenario;
-            fsAge         = fsResult.patternAge;
-            fsTriggerType = fsResult.triggerType;
-            fsTriggerDate = fsResult.triggerBar ? (fsResult.triggerBar.dateLabel||fsResult.triggerBar.date||null) : null;
-            fsMotherDate  = fsResult.motherBar  ? (fsResult.motherBar.dateLabel||fsResult.motherBar.date||null)   : null;
-            fsBabyDate    = fsResult.babyBar    ? (fsResult.babyBar.dateLabel||fsResult.babyBar.date||null)       : null;
-          } else if (fsResult.result === 'Expired') {
-            fsStatus  = 'expired';
-            fsPattern = fsResult.pattern || (fsResult.motherBar ? 'M\u2192B\u2192?' : null);
-            fsAge     = fsResult.patternAge;
-          } else if (fsResult.motherBar && fsResult.babyBar && !fsResult.triggerBar) {
-            fsStatus = 'watch'; // Mother + Baby found, no trigger yet
-          }
         }
+      }
+    } catch(fsErr) { fsResult = null; }
 
-        var snapPayload = {
-          closePrice:      price,
-          priceChangePct:  chg,
-          hi52:            hi52raw,
-          lo52:            lo52raw,
-          rbaVerdict:      rbaShort,
-          rbaRank:         wlRbaRank(rbaShort),
-          trendStatus:     snap.trend.status,
-          trendScore:      snap.trend.score,
-          trendRank:       wlTrendRank(snap.trend.status),
-          momentumStatus:  snap.momentum.status,
-          momentumScore:   snap.momentum.score,
-          momentumRank:    wlMomRank(snap.momentum.status),
-          reversalStatus:  snap.reversalWatch.status,
-          reversalScore:   snap.reversalWatch.score,
-          reversalRank:    wlRevRank(snap.reversalWatch.status),
-          moneyFlowStatus: snap.smartMoneyFlow.status,
-          moneyFlowScore:  snap.smartMoneyFlow.score,
-          moneyFlowRank:   wlSmfRank(snap.smartMoneyFlow.status),
-          priceHistory:    (mData.aggs||[]).slice().reverse().map(function(b){return b.c||0;}),
-          fsStatus:        fsStatus,
-          fsPattern:       fsPattern,
-          fsScenario:      fsScenario,
-          fsAge:           fsAge,
-          fsTriggerType:   fsTriggerType,
-          fsTriggerDate:   fsTriggerDate,
-          fsMotherDate:    fsMotherDate,
-          fsBabyDate:      fsBabyDate,
+    // Determine FS display status + compute FS Score / Tech Support (shared with #FORCESTRIKE)
+    var fsStatus = 'none', fsPattern = null, fsScenario = null, fsAge = null,
+        fsTriggerType = null, fsTriggerDate = null, fsMotherDate = null, fsBabyDate = null;
+    // Rich FS fields — same structure stored by #FORCESTRIKE, stored under forceStrike key in JSON
+    var fsFull = null;
+    if (fsResult) {
+      if (fsResult.triggered) {
+        fsStatus      = 'active';
+        fsPattern     = fsResult.pattern;
+        fsScenario    = fsResult.scenario;
+        fsAge         = fsResult.patternAge;
+        fsTriggerType = fsResult.triggerType;
+        fsTriggerDate = fsResult.triggerBar ? (fsResult.triggerBar.dateLabel||fsResult.triggerBar.date||null) : null;
+        fsMotherDate  = fsResult.motherBar  ? (fsResult.motherBar.dateLabel||fsResult.motherBar.date||null)   : null;
+        fsBabyDate    = fsResult.babyBar    ? (fsResult.babyBar.dateLabel||fsResult.babyBar.date||null)       : null;
+        // Compute FS Score and Technical Support using the exact same module-level
+        // functions that #FORCESTRIKE uses — guarantees identical values for same data
+        var fsSc  = calcFsScore(fsResult);
+        var fsTsp = calcTechSupport(fsResult.techContext || null);
+        fsFull = {
+          fsStatus:         'active',
+          fsScore:          fsSc.pts,
+          fsStars:          fsSc.stars,
+          fsScoreBreakdown: fsSc.breakdown,
+          tradeStars:       fsResult.tradeQualityStars != null ? fsResult.tradeQualityStars : null,
+          tradeRiskPct:     fsResult.tradeRiskPct != null ? fsResult.tradeRiskPct : null,
+          technicalSupport: fsTsp.label,
+          techSupportColor: fsTsp.color,
+          patternAge:       fsResult.patternAge,
+          patternType:      fsResult.pattern,
+          triggerType:      fsResult.triggerType,
+          triggerDate:      fsTriggerDate,
+          motherDate:       fsMotherDate,
+          babyDate:         fsBabyDate,
+          scenario:         fsResult.scenario,
+          techContext:      fsResult.techContext || null,
+          barsSinceTrigger: fsResult.barsSinceTrigger != null ? fsResult.barsSinceTrigger : null,
+          triggerPosition:  fsResult.triggerPosition != null ? fsResult.triggerPosition : null,
         };
-        await fetch('/watchlist?action=snapshot', {
-          method: 'POST', headers: hdrs,
-          body: JSON.stringify({ ticker: ticker, snap: snapPayload })
-        });
-      } catch(e) { /* skip failed tickers */ }
+      } else if (fsResult.result === 'Expired') {
+        fsStatus  = 'expired';
+        fsPattern = fsResult.pattern || (fsResult.motherBar ? 'M\u2192B\u2192?' : null);
+        fsAge     = fsResult.patternAge;
+        fsFull    = { fsStatus:'expired', patternAge:fsResult.patternAge, patternType:fsResult.pattern };
+      } else if (fsResult.motherBar && fsResult.babyBar && !fsResult.triggerBar) {
+        fsStatus = 'watch';
+        fsFull   = { fsStatus:'watch' };
+      } else {
+        fsFull = { fsStatus:'none' };
+      }
     }
-    setMsg('');
-    setRefreshing(false);
-    loadWatchlist();
+
+    // priceHistory: true ~3-month daily closes oldest-to-newest from Yahoo range=3mo.
+    // Falls back to reversed Massive aggs (30-day) if Yahoo fetch failed.
+    var priceHistory3m = daily2.length >= 2
+      ? daily2.map(function(b){ return b.close; })
+      : (mData.aggs||[]).slice().reverse().map(function(b){ return b.c||0; });
+
+    var snapPayload = {
+      closePrice:      price,
+      priceChangePct:  chg,
+      hi52:            hi52raw,
+      lo52:            lo52raw,
+      rbaVerdict:      rbaShort,
+      rbaRank:         wlRbaRank(rbaShort),
+      trendStatus:     snap.trend.status,
+      trendScore:      snap.trend.score,
+      trendRank:       wlTrendRank(snap.trend.status),
+      momentumStatus:  snap.momentum.status,
+      momentumScore:   snap.momentum.score,
+      momentumRank:    wlMomRank(snap.momentum.status),
+      reversalStatus:  snap.reversalWatch.status,
+      reversalScore:   snap.reversalWatch.score,
+      reversalRank:    wlRevRank(snap.reversalWatch.status),
+      moneyFlowStatus: snap.smartMoneyFlow.status,
+      moneyFlowScore:  snap.smartMoneyFlow.score,
+      moneyFlowRank:   wlSmfRank(snap.smartMoneyFlow.status),
+      // 3M Trend: true ~3-month daily closes from Yahoo range=3mo (oldest-to-newest).
+      // Replaces the previous Massive 30-day aggs source — matches the column label.
+      priceHistory:    priceHistory3m,
+      fsStatus:        fsStatus,
+      fsPattern:       fsPattern,
+      fsScenario:      fsScenario,
+      fsAge:           fsAge,
+      fsTriggerType:   fsTriggerType,
+      fsTriggerDate:   fsTriggerDate,
+      fsMotherDate:    fsMotherDate,
+      fsBabyDate:      fsBabyDate,
+      // Full Force Strike detail object — same fields produced by #FORCESTRIKE screener,
+      // stored here for the Details panel and signal comparison. null if no pattern.
+      forceStrike:     fsFull,
+    };
+    await fetch('/watchlist?action=snapshot', {
+      method: 'POST', headers: hdrs,
+      body: JSON.stringify({ ticker: ticker, snap: snapPayload })
+    });
+    return true;
+  }
+
+  // Manual "Refresh Signals" button — refreshes the current items list.
+  function refreshSnapshots() {
+    return refreshSnapshotsFor(items);
   }
 
   // ── Render helpers ─────────────────────────────────────────────────────────
@@ -12256,8 +11872,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
   );
 
   // ── Paid user UI ───────────────────────────────────────────────────────────
-  var COL = '70px 85px 150px 120px 100px 80px 90px 90px 130px 150px 130px 44px 36px';
-  var HEAD = ['Ticker','Price','52W Range','Technical View','Force Strike','3M Trend','Trend','Momentum','Reversal','Money Flow','Lock','',''];
+  // Ticker | Price | Position | Technical View | 52W Range | 3M Trend | Force Strike | Actions
+  var COL  = '70px 90px 140px 130px 140px 80px 100px 110px';
+  var HEAD = ['Ticker','Price','Position','Technical View','52W Range','3M Trend','Force Strike','Actions'];
 
   return (
     <div style={{minHeight:'100vh',background:'#0e0e0c',padding:'24px 20px',maxWidth:1400,margin:'0 auto'}}>
@@ -12311,11 +11928,12 @@ function WatchlistPage({ clerkUser, isPaid }) {
           {items.map(function(item, idx) {
             var snap = snapshots[item.ticker];
             var prevRows = (snapshots['__prev'] && snapshots['__prev'][item.ticker]) || [];
-            // Price history for sparkline from stored json
+            // Price history for 3M Trend sparkline — sourced from signal_snapshot_json.priceHistory.
+            // Now contains true ~3-month daily closes (Yahoo range=3mo, oldest-to-newest).
             var priceHistory = null;
             try { if (snap && snap.signal_snapshot_json) { var sj=JSON.parse(snap.signal_snapshot_json); priceHistory=sj.priceHistory||null; } } catch(e){}
             var sparkline = priceHistory && priceHistory.length >= 2
-              ? makeSparkline(priceHistory.slice(-12))
+              ? makeSparkline(priceHistory)
               : String.fromCharCode(0x2014);
             var price      = snap ? snap.close_price : null;
             var chgPct     = snap ? snap.price_change_pct : null;
@@ -12365,7 +11983,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                   background:idx%2===0?'#111':'#131311',alignItems:'center'}}>
 
                 {/* Ticker */}
-                <div style={{cursor:'pointer'}} onClick={function(){ window.location.hash=item.ticker; }}>
+                <div style={{cursor:'pointer'}} onClick={function(){ window.open(window.location.origin+'/#'+item.ticker,'_blank','noopener,noreferrer'); }}>
                   <div style={{fontSize:13,fontWeight:800,color:LIME}}>{item.ticker}</div>
                   {item.company_name&&<div style={{fontSize:9,color:'#555',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.company_name}</div>}
                 </div>
@@ -12376,151 +11994,204 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     ? <><div style={{fontSize:12,fontWeight:600,color:'#f0ede6'}}>${price.toFixed(2)}</div>
                         {chgPct != null && <div style={{fontSize:10,color:chgPct>=0?'#7abd00':'#e05050'}}>{(chgPct>=0?'+':'')+chgPct.toFixed(2)+'%'}</div>}
                       </>
-                    : <span style={{color:'#555',fontSize:11}}>—</span>}
+                    : <span style={{color:'#555',fontSize:11}}>{String.fromCharCode(0x2014)}</span>}
                 </div>
 
-                {/* 52W Range */}
-                <div>{price&&hi52&&lo52 ? <Range52 price={price} lo52={lo52} hi52={hi52} /> : <span style={{color:'#555',fontSize:11}}>—</span>}</div>
-
-                {/* Technical View (RBA) — full colour */}
-                <div style={{overflow:'hidden'}}><Sig label={rbaV} rank={snap?snap.rba_rank:0} prevRows={prevRows} field="rba_rank" /></div>
-
-                {/* Force Strike — inline render, no nested component */}
-                <div style={{overflow:'hidden'}} title={fsTip}>
-                  {displayFsStatus==='active' && <div>
-                    <div style={{fontSize:10,fontWeight:700,color:'#7abd00'}}>{(lock?'\uD83D\uDD12':'\uD83D\uDFE2')+' Active FS'}</div>
-                    <div style={{fontSize:9,color:'#555'}}>{displayFsPattern||'—'}</div>
-                    {displayFsScenario&&displayFsScenario!=='None'&&<div style={{fontSize:8,color:'#444'}}>{displayFsScenario}</div>}
-                  </div>}
-                  {displayFsStatus==='watch' && <div>
-                    <div style={{fontSize:10,fontWeight:700,color:'#EF9F27'}}>{'\uD83D\uDFE1 FS Watch'}</div>
-                    <div style={{fontSize:9,color:'#555'}}>Waiting for trigger</div>
-                  </div>}
-                  {displayFsStatus==='expired' && <div>
-                    <div style={{fontSize:10,fontWeight:600,color:'#555'}}>{'\u26AA Expired FS'}</div>
-                    <div style={{fontSize:9,color:'#444'}}>Pattern too old</div>
-                  </div>}
-                  {(displayFsStatus==='none'||!displayFsStatus) && <span style={{fontSize:10,color:'#444'}}>{String.fromCharCode(0x2014)}</span>}
-                </div>
-
-                {/* 3M Trend sparkline — muted single colour */}
-                <div style={{fontSize:11,letterSpacing:0,color:'#555',overflow:'hidden',whiteSpace:'nowrap'}}>{sparkline}</div>
-
-                {/* Trend — dot + neutral */}
-                <div style={{overflow:'hidden'}}><SigDot label={trendV} type="trend" dotColor={summaryCardDark(trendV).text} rank={snap?snap.trend_rank:0} prevRows={prevRows} field="trend_rank" /></div>
-
-                {/* Momentum — dot + neutral */}
-                <div style={{overflow:'hidden'}}><SigDot label={momV} type="momentum" dotColor={momentumStateColor(momV)} rank={snap?snap.momentum_rank:0} prevRows={prevRows} field="momentum_rank" /></div>
-
-                {/* Reversal — dot + neutral */}
-                <div style={{overflow:'hidden'}}><SigDot label={revV} type="reversal" dotColor={revStatusColor(revV,'main')} rank={snap?snap.reversal_rank:0} prevRows={prevRows} field="reversal_rank" /></div>
-
-                {/* Money Flow — dot + neutral */}
-                <div style={{overflow:'hidden'}}><SigDot label={smfV} type="moneyFlow" dotColor={smfStatusColor(smfV,'main')} rank={snap?snap.money_flow_rank:0} prevRows={prevRows} field="money_flow_rank" /></div>
-
-                {/* Lock column */}
+                {/* Position */}
                 {(function(){
-                  var lock = locks[item.ticker] || null;
-                  if (!lock) {
+                  var avgBuy  = lock ? lock.avg_buy_price  : null;
+                  var qty     = lock ? lock.quantity       : null;
+                  var posDate = lock ? lock.position_updated_at : null;
+                  // Show Add Position button if no lock or no position data
+                  if (!lock || (avgBuy == null && qty == null)) {
                     return <div>
-                      <button onClick={function(){ lockSignal(item, snap); }}
-                        style={{fontSize:9,padding:'3px 8px',background:'none',border:'0.5px solid #444',borderRadius:5,color:'#888',cursor:'pointer',whiteSpace:'nowrap'}}>
-                        Lock Signal
+                      <button onClick={function(){
+                        setEditPosTicker(editPosTicker===item.ticker?null:item.ticker);
+                        setEditPosAvg(''); setEditPosQty('');
+                      }} style={{fontSize:9,padding:'3px 8px',background:'none',border:'0.5px solid #333',borderRadius:5,color:'#888',cursor:'pointer',whiteSpace:'nowrap'}}>
+                        + Add Position
                       </button>
                     </div>;
                   }
-                  var lPrice  = lock.locked_price;
-                  var curPrice= price;
-                  var pctChg  = (lPrice && curPrice) ? ((curPrice-lPrice)/lPrice*100) : null;
-                  // Overall signal delta
-                  var curTotal = (snap ? ((snap.rba_rank||0)+(snap.trend_rank||0)+(snap.momentum_rank||0)+(snap.reversal_rank||0)+(snap.money_flow_rank||0)) : 0);
-                  var lkTotal  = ((lock.locked_rba_rank||0)+(lock.locked_trend_rank||0)+(lock.locked_momentum_rank||0)+(lock.locked_reversal_rank||0)+(lock.locked_money_flow_rank||0));
-                  var delta    = curTotal - lkTotal;
-                  var sigStatus = delta >= 1 ? 'Signal Improved' : delta <= -1 ? 'Signal Weakened' : 'Signal Stable';
-                  var sigColor  = delta >= 1 ? '#7abd00' : delta <= -1 ? '#e05050' : '#666';
-                  var lockedDate = lock.locked_at ? lock.locked_at.split('T')[0] : '—';
-                  return <div style={{fontSize:9,lineHeight:1.5}}>
-                    <div style={{color:'#888',whiteSpace:'nowrap'}}>{'Locked @ $'+(lPrice?lPrice.toFixed(2):'—')}</div>
-                    {pctChg!=null&&<div style={{color:pctChg>=0?'#7abd00':'#e05050',fontWeight:700}}>{(pctChg>=0?'+':'')+pctChg.toFixed(1)+'% since lock'}</div>}
-                    <div style={{color:sigColor,fontWeight:700}}>{sigStatus}</div>
-                    <div style={{display:'flex',gap:4,marginTop:3}}>
-                      <button onClick={function(){ setViewLockTicker(viewLockTicker===item.ticker?null:item.ticker); }}
-                        style={{fontSize:8,padding:'2px 6px',background:'none',border:'0.5px solid #444',borderRadius:4,color:'#aaa',cursor:'pointer'}}>
-                        {viewLockTicker===item.ticker?'Close':'View Lock'}
-                      </button>
+                  var curV   = (price && qty)     ? price * qty     : null;
+                  var costB  = (avgBuy && qty)    ? avgBuy * qty    : null;
+                  var plAmt  = (curV != null && costB != null) ? curV - costB   : null;
+                  var plPct  = (price && avgBuy)  ? (price - avgBuy) / avgBuy * 100 : null;
+                  var plColor = plPct == null ? '#666' : plPct > 0 ? '#7abd00' : plPct < 0 ? '#e05050' : '#666';
+                  return <div style={{fontSize:10,lineHeight:1.6}}>
+                    <div style={{color:'#888'}}>Avg <span style={{color:'#f0ede6',fontWeight:600}}>${avgBuy.toFixed(2)}</span>{qty!=null&&<span style={{color:'#888'}}> \u00d7 {qty % 1 === 0 ? qty : qty.toFixed(2)}</span>}</div>
+                    {plPct!=null&&<div style={{color:plColor,fontWeight:700,fontSize:11}}>
+                      {(plPct>=0?'+':'')+plPct.toFixed(2)+'%'}
+                      {plAmt!=null&&<span style={{fontSize:9,fontWeight:400,marginLeft:4,color:plColor}}>{(plAmt>=0?'+':'-')+'$'+Math.abs(plAmt).toFixed(0)}</span>}
+                    </div>}
+                    <div style={{display:'flex',gap:4,marginTop:2}}>
+                      <button onClick={function(){
+                        setEditPosTicker(editPosTicker===item.ticker?null:item.ticker);
+                        setEditPosAvg(avgBuy!=null?String(avgBuy):'');
+                        setEditPosQty(qty!=null?String(qty):'');
+                      }} style={{fontSize:8,padding:'2px 5px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#888',cursor:'pointer'}}>Edit</button>
                       <button onClick={function(){ resetLock(item.ticker); }}
-                        style={{fontSize:8,padding:'2px 6px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#777',cursor:'pointer'}}>
-                        Reset
-                      </button>
+                        style={{fontSize:8,padding:'2px 5px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer'}}>Remove</button>
                     </div>
                   </div>;
                 })()}
 
-                {/* View */}
-                <button onClick={function(){ window.location.hash=item.ticker; }}
-                  style={{fontSize:10,padding:'3px 6px',background:'none',border:'0.5px solid #333',borderRadius:5,color:'#888',cursor:'pointer'}}>
-                  View
-                </button>
+                {/* Technical View — main label + compact factor strip T M R MF */}
+                <div style={{overflow:'hidden'}}>
+                  <Sig label={rbaV} rank={snap?snap.rba_rank:0} prevRows={prevRows} field="rba_rank" />
+                  {snap && <div style={{display:'flex',gap:6,marginTop:3,fontSize:10,fontFamily:'monospace',letterSpacing:0}}>
+                    {(function(){
+                      var factors = [
+                        { key:'T',  status:trendV, rank:snap.trend_rank,      field:'trend_rank',      color:wlTrendColor(trendV) },
+                        { key:'M',  status:momV,   rank:snap.momentum_rank,   field:'momentum_rank',   color:wlMomColor(momV) },
+                        { key:'R',  status:revV,   rank:snap.reversal_rank,   field:'reversal_rank',   color:wlRevColor(revV) },
+                        { key:'MF', status:smfV,   rank:snap.money_flow_rank, field:'money_flow_rank', color:wlSmfColor(smfV) },
+                      ];
+                      var labels = { T:'Trend', M:'Momentum', R:'Reversal', MF:'Money Flow' };
+                      return factors.map(function(f){
+                        var arr = wlArrow(f.rank, [f.rank].concat(prevRows.map(function(r){ return r[f.field]!=null?r[f.field]:null; })));
+                        var aC  = wlArrowColor(arr);
+                        return <span key={f.key}
+                          title={(labels[f.key]||f.key)+': '+(f.status||'—')+' '+arr}
+                          style={{color:f.color,fontWeight:600}}>
+                          {f.key}<span style={{color:aC,fontSize:9}}>{arr}</span>
+                        </span>;
+                      });
+                    })()}
+                  </div>}
+                </div>
 
-                {/* Remove */}
-                <button onClick={function(){ removeTicker(item.ticker); }}
-                  style={{fontSize:10,padding:'3px 6px',background:'none',border:'0.5px solid #3a1a1a',borderRadius:5,color:'#e05050',cursor:'pointer'}}>
-                  ✕
-                </button>
+                {/* 52W Range */}
+                <div>{price&&hi52&&lo52 ? <Range52 price={price} lo52={lo52} hi52={hi52} /> : <span style={{color:'#555',fontSize:11}}>{String.fromCharCode(0x2014)}</span>}</div>
+
+                {/* 3M Trend sparkline */}
+                <div title={priceHistory ? (priceHistory.length + ' days of data') : 'No data'}
+                  style={{fontSize:13,letterSpacing:1,color:priceHistory&&priceHistory.length>=2?'#6a6a68':'#333',overflow:'hidden',whiteSpace:'nowrap',fontFamily:'monospace'}}>{sparkline}</div>
+
+
+                {/* Force Strike */}
+                <div style={{overflow:'hidden'}} title={fsTip}>
+                  {displayFsStatus==='active' && <div>
+                    <div style={{fontSize:10,fontWeight:700,color:'#7abd00'}}>{'&#x1F7E2; Active FS'.replace('&#x1F7E2;','\uD83D\uDFE2')}</div>
+                    <div style={{fontSize:9,color:'#555'}}>{displayFsPattern||String.fromCharCode(0x2014)}</div>
+                    {displayFsScenario&&displayFsScenario!=='None'&&<div style={{fontSize:8,color:'#444'}}>{displayFsScenario}</div>}
+                  </div>}
+                  {displayFsStatus==='watch' && <div>
+                    <div style={{fontSize:10,fontWeight:700,color:'#EF9F27'}}>{'&#x1F7E1; FS Watch'.replace('&#x1F7E1;','\uD83D\uDFE1')}</div>
+                    <div style={{fontSize:9,color:'#555'}}>Waiting for trigger</div>
+                  </div>}
+                  {(displayFsStatus==='expired'||displayFsStatus==='none'||!displayFsStatus) && <span style={{fontSize:10,color:'#444'}}>{String.fromCharCode(0x2014)}</span>}
+                </div>
+
+                {/* Actions */}
+                <div style={{display:'flex',flexDirection:'column',gap:3}}>
+                  <button onClick={function(){ window.open(window.location.origin+'/#'+item.ticker,'_blank','noopener,noreferrer'); }}
+                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#888',cursor:'pointer',textAlign:'left'}}>
+                    View {'\u2197'}
+                  </button>
+                  <button onClick={function(){ setViewLockTicker(viewLockTicker===item.ticker?null:item.ticker); }}
+                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
+                    {viewLockTicker===item.ticker?'Close':'Details'}
+                  </button>
+                  <button onClick={function(){ removeTicker(item.ticker); }}
+                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
+                    Remove
+                  </button>
+                </div>
+
               </div>
 
-              {/* View Lock expanded panel — full-width below the row */}
-              {viewLockTicker===item.ticker && locks[item.ticker] && (function(){
-                var lock = locks[item.ticker];
-                var lkDate = lock.locked_at ? lock.locked_at.split('T')[0] : '—';
-                var lPrice = lock.locked_price;
-                var pctChg = (lPrice && price) ? ((price-lPrice)/lPrice*100) : null;
-                function sigChange(curRank, lkRank) {
-                  if (curRank == null || lkRank == null) return {label:'—', color:'#555'};
-                  var d = (curRank||0) - (lkRank||0);
-                  return d >= 0.5 ? {label:'Improved',color:'#7abd00'} : d <= -0.5 ? {label:'Weakened',color:'#e05050'} : {label:'Stable',color:'#EF9F27'};
+              {/* Position editor — inline below the row */}
+              {editPosTicker===item.ticker && <div style={{background:'#161614',border:'0.5px solid #2a2a28',borderRadius:8,padding:'14px 16px',margin:'2px 0 4px 0'}}>
+                <div style={{fontSize:11,fontWeight:700,color:'#888',marginBottom:10}}>Position — {item.ticker}</div>
+                <div style={{display:'flex',gap:16,alignItems:'flex-end',flexWrap:'wrap'}}>
+                  <div>
+                    <div style={{fontSize:9,color:'#555',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.05em'}}>Avg Buy Price</div>
+                    <input value={editPosAvg} onChange={function(e){ setEditPosAvg(e.target.value); }}
+                      placeholder="e.g. 18.50"
+                      style={{background:'#1e1e1c',border:'0.5px solid #333',borderRadius:5,color:'#f0ede6',fontSize:12,padding:'5px 9px',width:110,outline:'none'}} />
+                  </div>
+                  <div>
+                    <div style={{fontSize:9,color:'#555',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.05em'}}>Qty</div>
+                    <input value={editPosQty} onChange={function(e){ setEditPosQty(e.target.value); }}
+                      placeholder="e.g. 100"
+                      style={{background:'#1e1e1c',border:'0.5px solid #333',borderRadius:5,color:'#f0ede6',fontSize:12,padding:'5px 9px',width:90,outline:'none'}} />
+                  </div>
+                  <button onClick={function(){
+                    if (!editPosAvg.trim() && !editPosQty.trim()) { setMsg('Enter Avg Buy Price or Qty to save a position.'); return; }
+                    var avg = editPosAvg.trim() ? parseFloat(editPosAvg) : null;
+                    var qty2 = editPosQty.trim() ? parseFloat(editPosQty) : null;
+                    if (editPosAvg.trim() && (isNaN(avg)||avg<=0)) { setMsg('Invalid avg buy price'); return; }
+                    if (editPosQty.trim() && (isNaN(qty2)||qty2<0)) { setMsg('Invalid qty'); return; }
+                    savePosition(item.ticker, avg, qty2, snap);
+                    setEditPosTicker(null);
+                  }} style={{fontSize:11,padding:'5px 14px',background:LIME,border:'none',borderRadius:5,color:'#000',fontWeight:700,cursor:'pointer'}}>
+                    Save
+                  </button>
+                  <button onClick={function(){ setEditPosTicker(null); }}
+                    style={{fontSize:11,padding:'5px 10px',background:'none',border:'0.5px solid #333',borderRadius:5,color:'#888',cursor:'pointer'}}>
+                    Cancel
+                  </button>
+                </div>
+                {snap && <div style={{fontSize:9,color:'#555',marginTop:8}}>Captures signal snapshot at save time.</div>}
+              </div>}
+
+              {/* Details / Lock expanded panel — full-width below the row */}
+              {viewLockTicker===item.ticker && (function(){
+                // Signal direction arrows — same wlArrow logic as main row factor strip
+                function detArrow(rank, field) {
+                  return wlArrow(rank != null ? rank : 0, [rank != null ? rank : 0].concat(prevRows.map(function(r){ return r[field]!=null?r[field]:null; })));
                 }
-                var fields = [
-                  ['Technical View', snap?snap.rba_verdict:null,       snap?snap.rba_rank:null,       lock.locked_rba_verdict,       lock.locked_rba_rank],
-                  ['Trend',          snap?snap.trend_status:null,       snap?snap.trend_rank:null,     lock.locked_trend_status,      lock.locked_trend_rank],
-                  ['Momentum',       snap?snap.momentum_status:null,    snap?snap.momentum_rank:null,  lock.locked_momentum_status,   lock.locked_momentum_rank],
-                  ['Reversal',       snap?snap.reversal_status:null,    snap?snap.reversal_rank:null,  lock.locked_reversal_status,   lock.locked_reversal_rank],
-                  ['Money Flow',     snap?snap.money_flow_status:null,  snap?snap.money_flow_rank:null,lock.locked_money_flow_status, lock.locked_money_flow_rank],
-                ];
+                var tArr  = snap ? detArrow(snap.trend_rank,      'trend_rank')      : String.fromCharCode(0x2014);
+                var mArr  = snap ? detArrow(snap.momentum_rank,   'momentum_rank')   : String.fromCharCode(0x2014);
+                var rArr  = snap ? detArrow(snap.reversal_rank,   'reversal_rank')   : String.fromCharCode(0x2014);
+                var sfArr = snap ? detArrow(snap.money_flow_rank, 'money_flow_rank') : String.fromCharCode(0x2014);
+                // Safe ticker for TradingView — alphanumeric, dots, dashes only
+                var tvTicker = item.ticker.replace(/[^A-Z0-9.\-]/g,'');
                 return <div style={{gridColumn:'1/-1',background:'#161614',border:'0.5px solid #2a2a28',borderRadius:8,padding:'14px 16px',marginTop:2,marginBottom:4}}>
-                  <div style={{fontSize:11,fontWeight:700,color:LIME,marginBottom:10}}>Signal Lock — {item.ticker}</div>
-                  <div style={{display:'flex',flexDirection:'column',gap:4,marginBottom:12}}>
-                    <div style={{fontSize:10,color:'#888'}}>Locked on: <span style={{color:'#aaa'}}>{lkDate}</span></div>
-                    <div style={{fontSize:10,color:'#888'}}>Locked price: <span style={{color:'#aaa'}}>{lPrice?'$'+lPrice.toFixed(2):'—'}</span></div>
-                    <div style={{fontSize:10,color:'#888'}}>Current price: <span style={{color:'#f0ede6'}}>{price?'$'+price.toFixed(2):'—'}</span></div>
-                    <div style={{fontSize:10,color:'#888'}}>Price change: <span style={{color:pctChg!=null?(pctChg>=0?'#7abd00':pctChg<0?'#e05050':'#555'):'#555',fontWeight:700}}>{pctChg!=null?(pctChg>=0?'+':'')+pctChg.toFixed(2)+'%':'—'}</span></div>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+                    <div style={{fontSize:11,fontWeight:700,color:'#888'}}>{item.ticker}</div>
+                    <button onClick={function(){ setViewLockTicker(null); }}
+                      style={{fontSize:9,padding:'2px 8px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#555',cursor:'pointer'}}>Close</button>
                   </div>
-                  <div style={{display:'grid',gridTemplateColumns:'100px 1fr 1fr 80px',columnGap:12,marginBottom:4}}>
-                    {['Signal','At Lock','Current','Change'].map(function(h){ return <div key={h} style={{fontSize:8,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>; })}
+
+                  {/* Signal Summary — 4 rows */}
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:16}}>
+                    {[
+                      { label:'Trend',       status:trendV, color:wlTrendColor(trendV), arr:tArr },
+                      { label:'Momentum',    status:momV,   color:wlMomColor(momV),     arr:mArr },
+                      { label:'Reversal',    status:revV,   color:wlRevColor(revV),     arr:rArr },
+                      { label:'Smart Money', status:smfV,   color:wlSmfColor(smfV),     arr:sfArr },
+                    ].map(function(f){
+                      var arrC = wlArrowColor(f.arr);
+                      return <div key={f.label} style={{padding:'8px 10px',background:'#1a1a18',borderRadius:6,border:'0.5px solid #252523'}}>
+                        <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:4}}>{f.label}</div>
+                        <div style={{fontSize:11,fontWeight:700,color:f.color||'#888',lineHeight:1.3}}>
+                          {f.status||String.fromCharCode(0x2014)}
+                          {f.arr!==String.fromCharCode(0x2014)&&<span style={{color:arrC,marginLeft:4,fontSize:10}}>{f.arr}</span>}
+                        </div>
+                      </div>;
+                    })}
                   </div>
-                  {fields.map(function(f,i){
-                    var chg = sigChange(f[2],f[4]);
-                    return <div key={i} style={{display:'grid',gridTemplateColumns:'100px 1fr 1fr 80px',columnGap:12,padding:'4px 0',borderBottom:'0.5px solid #222'}}>
-                      <div style={{fontSize:10,color:'#555'}}>{f[0]}</div>
-                      <div style={{fontSize:10,color:'#888',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f[3]||'—'}</div>
-                      <div style={{fontSize:10,color:'#b8b8b8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:600}}>{f[1]||'—'}</div>
-                      <div style={{fontSize:10,fontWeight:700,color:chg.color}}>{chg.label}</div>
-                    </div>;
-                  })}
-                  <div style={{fontSize:9,color:'#444',marginTop:8}}>Signal arrows beside each label compare current signal versus 5-day average. Lock status compares current signal versus the day you locked it.</div>
-                  {/* Force Strike section in lock panel */}
-                  {(lockedFsStatus||fsStatus!=='none')&&<div style={{marginTop:10,paddingTop:10,borderTop:'0.5px solid #222'}}>
-                    <div style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',marginBottom:6}}>Force Strike</div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'4px 20px',fontSize:10}}>
-                      <div style={{color:'#888'}}>At Lock: <span style={{color:lockedFsStatus==='active'?'#7abd00':lockedFsStatus==='watch'?'#EF9F27':'#555',fontWeight:700}}>{lockedFsStatus==='active'?'Active FS':lockedFsStatus==='watch'?'FS Watch':lockedFsStatus==='expired'?'Expired FS':'—'}</span></div>
-                      <div style={{color:'#888'}}>Current: <span style={{color:fsStatus==='active'?'#7abd00':fsStatus==='watch'?'#EF9F27':'#555',fontWeight:700}}>{fsStatus==='active'?'Active FS':fsStatus==='watch'?'FS Watch':fsStatus==='expired'?'Expired FS':'—'}</span></div>
-                      {lockedFsPattern&&<div style={{color:'#555'}}>Pattern: <span style={{color:'#6090d0'}}>{lockedFsPattern}</span></div>}
-                      {lockedFsScenario&&lockedFsScenario!=='None'&&<div style={{color:'#555'}}>Scenario: <span style={{color:'#aaa'}}>{lockedFsScenario}</span></div>}
-                      {lockedFsAge!=null&&<div style={{color:'#555'}}>Age at lock: <span style={{color:'#aaa'}}>{lockedFsAge} bars</span></div>}
+
+                  {/* TradingView Daily Chart */}
+                  <div style={{borderRadius:6,overflow:'hidden',border:'0.5px solid #252523'}}>
+                    <div style={{fontSize:9,color:'#555',padding:'5px 10px',background:'#1a1a18',letterSpacing:'0.04em',textTransform:'uppercase'}}>
+                      {tvTicker} {'\u00B7'} Daily
                     </div>
-                  </div>}
+                    <iframe
+                      key={tvTicker}
+                      src={'https://s.tradingview.com/widgetembed/?frameElementId=tv_wl_'+tvTicker+'&symbol='+tvTicker+'&interval=D&theme=dark&style=1&timezone=exchange&withdateranges=1&hide_side_toolbar=1&allow_symbol_change=0&save_image=0'}
+                      style={{width:'100%',height:300,border:'none',display:'block'}}
+                      title={tvTicker+' Daily Chart'}
+                      loading="lazy"
+                      sandbox="allow-scripts allow-same-origin allow-popups"
+                    />
+                  </div>
+
                 </div>;
               })()}
+
               <div style={{borderBottom:idx<items.length-1?'1px solid #1a1a16':'none'}}></div>
               </React.Fragment>
             );
@@ -12926,65 +12597,11 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     return { color:'#555', desc:'No scenario classification' };
   }
 
-  // ── Force Strike Score calculator ─────────────────────────────────────────
-  function calcFsScore(r) {
-    var pts = 0, breakdown = [];
-    // 1. Trigger Type
-    var tPts = r.triggerType==='PIN' ? 3 : r.triggerType==='MU' ? 2 : r.triggerType==='ICE' ? 2 : 0;
-    pts += tPts;
-    breakdown.push({ label: 'Trigger: ' + (r.triggerType==='PIN'?'Bullish Pin':r.triggerType==='MU'?'Mark Up':r.triggerType==='ICE'?'Ice Cream':'Unknown'), pts: tPts });
-    // 2. Scenario
-    var sPts = r.scenario==='Shakeout Reversal' ? 4 : r.scenario==='Recovery Reversal' ? 3 : r.scenario==='Trend Pullback' ? 2 : 0;
-    pts += sPts;
-    breakdown.push({ label: 'Scenario: ' + (r.scenario||'Unclassified'), pts: sPts });
-    // 3. Trigger Position (Bar 3/4/5/6 — Bar 5&6 most confirmed)
-    var tpPos = r.triggerPosition != null ? r.triggerPosition : 0;
-    var tpPts = tpPos>=5 ? 3 : tpPos===4 ? 2 : tpPos===3 ? 1 : 0;
-    pts += tpPts;
-    breakdown.push({ label: 'Trigger Position: Bar ' + (tpPos||'—'), pts: tpPts });
-    // 4. Mother Bar Expansion (use rangeExpansion)
-    var mExp = r.motherBar && r.motherBar.rangeExpansion != null ? r.motherBar.rangeExpansion : 0;
-    var mPts = mExp >= 2.5 ? 0.5 : mExp >= 1.5 ? 1 : mExp >= 1.2 ? 0.5 : 0;
-    pts += mPts;
-    breakdown.push({ label: 'Mother Expansion: ' + (mExp>0?mExp.toFixed(2)+'x':'—'), pts: mPts });
-    // 5. Trigger interacts with Mother range
-    var tBar = r.triggerBar;
-    var interacts = tBar && tBar.interactsWithMother === true;
-    var iPts = interacts ? 2 : 0;
-    pts += iPts;
-    breakdown.push({ label: 'Mother Range Interaction', pts: iPts });
-    // Star conversion
-    var stars = pts <= 2 ? 1 : pts <= 4 ? 2 : pts <= 6 ? 3 : pts <= 8 ? 4 : 5;
-    return { pts: pts, stars: stars, breakdown: breakdown };
-  }
-  function renderStars(n, size) {
-    var s = size||12;
-    return <span style={{color:'#EF9F27',fontSize:s,letterSpacing:1}}>
-      {[1,2,3,4,5].map(function(i){ return <span key={i} style={{opacity:i<=n?1:0.22}}>{'\u2605'}</span>; })}
-    </span>;
-  }
-
-  // ── Technical Support classifier ──────────────────────────────────────────
-  function calcTechSupport(tc) {
-    if (!tc) return { label:'—', color:'#555' };
-    var tl  = (tc.trend||'').toLowerCase();
-    var ml  = (tc.momentum||'').toLowerCase();
-    var rl  = (tc.reversal||'').toLowerCase();
-    var sfl = (tc.moneyFlow||'').toLowerCase();
-    var trendBull  = tl==='uptrend'||tl==='strong uptrend';
-    var trendBear  = tl==='downtrend'||tl==='strong downtrend';
-    var momBull    = ml==='building'||ml==='strong';
-    var momBear    = ml==='fading'||ml==='weak';
-    var revBear    = rl.indexOf('bear')!==-1;
-    var mfBull     = sfl.indexOf('accumulation')!==-1&&sfl.indexOf('cooling')===-1;
-    var score      = (trendBull?1:0)+(momBull?1:0)+(mfBull?1:0)+(!revBear?0.5:0);
-    // Conflicting: bearish trend or momentum while FS is bullish
-    if ((trendBear||momBear)&&revBear) return { label:'Conflicting', color:'#e05050' };
-    if (trendBear||momBear)            return { label:'Conflicting', color:'#e05050' };
-    if (score >= 2.5) return { label:'Strong',   color:'#7abd00' };
-    if (score >= 1.5) return { label:'Moderate', color:'#EF9F27' };
-    return              { label:'Weak',     color:'#888' };
-  }
+  // ── Force Strike Score / Tech Support — delegated to module-level shared functions ──
+  // calcFsScore(), calcTechSupport(), and renderStars() are now defined at module level
+  // so WatchlistPage can call the exact same logic. These names kept as local aliases
+  // for all existing call sites inside ForceStrikePage.
+  // (No redefinition needed — module-level functions are already in scope here.)
 
   // ── Mini SVG candlestick chart with Mother zone ────────────────────────────
   function MiniChart({ chartBars, motherHigh, motherLow }) {
@@ -13909,8 +13526,9 @@ export default function App() {
   }
 
   if (hashSym === "JOURNAL") {
-  return <JournalPage />;
-}
+    window.location.hash = "";
+    return null;
+  }
 
   if (hashSym === "FORCESTRIKE") {
     return <ForceStrikePage isPaid={isPaid} clerkUser={clerkUser} />;
@@ -14041,7 +13659,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.157</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.172</span>
           </div>
         </div>
 
