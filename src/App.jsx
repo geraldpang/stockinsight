@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.163</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.164</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.163</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.164</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11312,6 +11312,64 @@ function makeSparkline(values) {
   return values.map(function(v){return blocks[Math.round((v-min)/(max-min)*(blocks.length-1))];}).join("");
 }
 
+// ─── Shared Force Strike helpers (module-level) ───────────────────────────────
+// These were previously private to ForceStrikePage.
+// Hoisted so WatchlistPage can call the exact same logic — both pages produce
+// identical FS Score, Trade Stars, and Technical Support results for the same data.
+
+function calcFsScore(r) {
+  var pts = 0, breakdown = [];
+  var tPts = r.triggerType==='PIN' ? 3 : r.triggerType==='MU' ? 2 : r.triggerType==='ICE' ? 2 : 0;
+  pts += tPts;
+  breakdown.push({ label: 'Trigger: ' + (r.triggerType==='PIN'?'Bullish Pin':r.triggerType==='MU'?'Mark Up':r.triggerType==='ICE'?'Ice Cream':'Unknown'), pts: tPts });
+  var sPts = r.scenario==='Shakeout Reversal' ? 4 : r.scenario==='Recovery Reversal' ? 3 : r.scenario==='Trend Pullback' ? 2 : 0;
+  pts += sPts;
+  breakdown.push({ label: 'Scenario: ' + (r.scenario||'Unclassified'), pts: sPts });
+  var tpPos = r.triggerPosition != null ? r.triggerPosition : 0;
+  var tpPts = tpPos>=5 ? 3 : tpPos===4 ? 2 : tpPos===3 ? 1 : 0;
+  pts += tpPts;
+  breakdown.push({ label: 'Trigger Position: Bar ' + (tpPos||'—'), pts: tpPts });
+  var mExp = r.motherBar && r.motherBar.rangeExpansion != null ? r.motherBar.rangeExpansion : 0;
+  var mPts = mExp >= 2.5 ? 0.5 : mExp >= 1.5 ? 1 : mExp >= 1.2 ? 0.5 : 0;
+  pts += mPts;
+  breakdown.push({ label: 'Mother Expansion: ' + (mExp>0?mExp.toFixed(2)+'x':'—'), pts: mPts });
+  var tBar = r.triggerBar;
+  var interacts = tBar && tBar.interactsWithMother === true;
+  var iPts = interacts ? 2 : 0;
+  pts += iPts;
+  breakdown.push({ label: 'Mother Range Interaction', pts: iPts });
+  var stars = pts <= 2 ? 1 : pts <= 4 ? 2 : pts <= 6 ? 3 : pts <= 8 ? 4 : 5;
+  return { pts: pts, stars: stars, breakdown: breakdown };
+}
+
+function calcTechSupport(tc) {
+  if (!tc) return { label:'\u2014', color:'#555' };
+  var tl  = (tc.trend||'').toLowerCase();
+  var ml  = (tc.momentum||'').toLowerCase();
+  var rl  = (tc.reversal||'').toLowerCase();
+  var sfl = (tc.moneyFlow||'').toLowerCase();
+  var trendBull = tl==='uptrend'||tl==='strong uptrend';
+  var trendBear = tl==='downtrend'||tl==='strong downtrend';
+  var momBull   = ml==='building'||ml==='strong';
+  var momBear   = ml==='fading'||ml==='weak';
+  var revBear   = rl.indexOf('bear')!==-1;
+  var mfBull    = sfl.indexOf('accumulation')!==-1&&sfl.indexOf('cooling')===-1;
+  var score     = (trendBull?1:0)+(momBull?1:0)+(mfBull?1:0)+(!revBear?0.5:0);
+  if ((trendBear||momBear)&&revBear) return { label:'Conflicting', color:'#e05050' };
+  if (trendBear||momBear)            return { label:'Conflicting', color:'#e05050' };
+  if (score >= 2.5) return { label:'Strong',   color:'#7abd00' };
+  if (score >= 1.5) return { label:'Moderate', color:'#EF9F27' };
+  return              { label:'Weak',     color:'#888' };
+}
+
+function renderStars(n, size) {
+  var s = size||12;
+  return <span style={{color:'#EF9F27',fontSize:s,letterSpacing:1}}>
+    {[1,2,3,4,5].map(function(i){ return <span key={i} style={{opacity:i<=n?1:0.22}}>{'\u2605'}</span>; })}
+  </span>;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function WatchlistPage({ clerkUser, isPaid }) {
   var LIME = '#c8f000';
   var [items,        setItems]       = useState([]);
@@ -11325,6 +11383,10 @@ function WatchlistPage({ clerkUser, isPaid }) {
   var [msg,          setMsg]         = useState('');
   var [lastUpdated,  setLastUpdated] = useState(null);
   var [viewLockTicker,setViewLockTicker] = useState(null); // ticker whose lock detail panel is open
+  var [expandedRow,  setExpandedRow] = useState(null);     // ticker whose Details panel is open (Phase B)
+  var [editPosTicker,setEditPosTicker] = useState(null);   // ticker whose position editor is open (Phase B)
+  var [editPosAvg,   setEditPosAvg]  = useState('');       // position editor: avg buy price input
+  var [editPosQty,   setEditPosQty]  = useState('');       // position editor: qty input
 
   var isAdmin = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === 'admin');
   var canAccess = isPaid || isAdmin;
@@ -11452,6 +11514,39 @@ function WatchlistPage({ clerkUser, isPaid }) {
       .catch(function(e){ setMsg('Remove failed: ' + e.message); });
   }
 
+  // Save Avg Buy Price + Qty for a ticker position.
+  // Captures the current signal snapshot at the moment of saving — this becomes
+  // the locked position baseline for signal improvement/weakening comparison.
+  // avgBuyPrice and qty can be null (removes the position).
+  function savePosition(ticker, avgBuyPrice, qty, snap) {
+    if (!snap) { setMsg('No signal data for ' + ticker + ' — Refresh Signals first.'); return; }
+    var sj = {};
+    try { if (snap.signal_snapshot_json) sj = JSON.parse(snap.signal_snapshot_json); } catch(e) {}
+    var payload = {
+      ticker:          ticker,
+      avgBuyPrice:     avgBuyPrice,
+      quantity:        qty,
+      currentSnapshot: {
+        closePrice:      snap.close_price,
+        priceChangePct:  snap.price_change_pct,
+        hi52:            snap.hi52,  lo52: snap.lo52,
+        rbaVerdict:      snap.rba_verdict,    rbaRank:       snap.rba_rank,
+        trendStatus:     snap.trend_status,   trendScore:    snap.trend_score,   trendRank:    snap.trend_rank,
+        momentumStatus:  snap.momentum_status,momentumScore: snap.momentum_score,momentumRank: snap.momentum_rank,
+        reversalStatus:  snap.reversal_status,reversalScore: snap.reversal_score,reversalRank: snap.reversal_rank,
+        moneyFlowStatus: snap.money_flow_status,moneyFlowScore:snap.money_flow_score,moneyFlowRank:snap.money_flow_rank,
+        fsStatus:        sj.fsStatus  || null,
+        forceStrike:     sj.forceStrike || null,
+      },
+    };
+    fetch('/watchlist?action=savePosition', {
+      method: 'POST', headers: wlHeaders(),
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.json(); })
+      .then(function(d){ if (d.ok) loadWatchlist(); else setMsg(d.error || 'Position save failed'); })
+      .catch(function(e){ setMsg('Position save failed: ' + e.message); });
+  }
+
   // Fetch + calculate + save a snapshot for a single ticker.
   // Shared by refreshSnapshotsFor() (auto-load + manual refresh) and addTicker() (auto-refresh on add).
   async function refreshSingleTicker(ticker, hdrs) {
@@ -11490,12 +11585,14 @@ function WatchlistPage({ clerkUser, isPaid }) {
     var rbaVerdict = rba ? (rba.verdict || '') : '';
     var rbaShort   = shortRuleVerdict(rbaVerdict);
 
-    // Force Strike: always fresh scan using Yahoo chart (same as screener)
-    // Ensures Watchlist FS status is fully consistent with Force Strike Screener rules
-    // Also used as fallback source for price (if Massive returned 0) and for the
-    // true 52-week high/low (Yahoo's chart `meta` reports fiftyTwoWeekHigh/Low
-    // regardless of the requested `range`, unlike the 30-day Massive aggs above).
+    // Force Strike: always fresh scan using Yahoo chart (same as #FORCESTRIKE screener)
+    // Ensures Watchlist FS result is identical to #FORCESTRIKE for the same ticker and data window.
+    // The Yahoo range=3mo chart is also the source for:
+    //   - priceHistory (true ~3-month daily closes, oldest-to-newest) used by 3M Trend sparkline
+    //   - price fallback (meta.regularMarketPrice) if Massive returned 0
+    //   - true 52-week high/low (meta.fiftyTwoWeekHigh/Low, range-independent)
     var fsResult = null;
+    var daily2 = []; // Yahoo 3-month daily bars — populated below, used for FS + 3M Trend
     try {
       var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=3mo';
       var fsAbort = new AbortController();
@@ -11525,16 +11622,16 @@ function WatchlistPage({ clerkUser, isPaid }) {
             hi52raw = meta2.fiftyTwoWeekHigh;
             lo52raw = meta2.fiftyTwoWeekLow;
           }
+          // Build daily bars array oldest-to-newest — used for both FS scan and 3M Trend sparkline
           var ts2    = cr2.timestamp||[];
           var q2     = (cr2.indicators&&cr2.indicators.quote&&cr2.indicators.quote[0])||{};
-          var daily2 = [];
           for (var di2=0; di2<ts2.length; di2++) {
             var o2=q2.open&&q2.open[di2], h2=q2.high&&q2.high[di2],
                 l2=q2.low&&q2.low[di2],   cv2=q2.close&&q2.close[di2];
             if (o2&&h2&&l2&&cv2&&o2>0) daily2.push({ date:ts2[di2]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di2])||0 });
           }
           if (daily2.length >= 14) {
-            var closes2   = daily2.slice(-50).map(function(b){ return b.close; });
+            var closes2    = daily2.slice(-50).map(function(b){ return b.close; });
             var closes200b = daily2.map(function(b){ return b.close; });
             var sma50b    = closes2.length>=20    ? closes2.reduce(function(s,v){return s+v;},0)/closes2.length       : 0;
             var sma200b   = closes200b.length>=20 ? closes200b.reduce(function(s,v){return s+v;},0)/closes200b.length : 0;
@@ -11544,15 +11641,54 @@ function WatchlistPage({ clerkUser, isPaid }) {
               if (pr2>sma50b&&sma50b>sma200b) ts2status = pr2>sma50b*1.03?'Strong Uptrend':'Uptrend';
               else if (pr2<sma50b&&sma50b<sma200b) ts2status = 'Downtrend';
             }
+            // scanForceStrike() called with identical inputs as #FORCESTRIKE screener —
+            // same function, same data window, same trend-status convention (simplified
+            // SMA50/SMA200 cross, matching ForceStrikePage exactly — do NOT replace with
+            // calcTrendScore() as that would make the two pages disagree).
             fsResult = scanForceStrike(ticker, daily2, ts2status);
+
+            // Build techContext (technical support context) for active FS patterns,
+            // using the same buildTechSnapshotFromYahoo + generateRuleBasedAnalytics
+            // pattern as #FORCESTRIKE screener — gives identical FS Score / Tech Support.
+            if (fsResult && fsResult.triggered) {
+              try {
+                var vc2 = daily2.map(function(b){ return b.close; });
+                var vv2 = daily2.map(function(b){ return b.volume||0; });
+                var techSnap2 = buildTechSnapshotFromYahoo(ticker, vc2, vv2, pr2, sma50b, sma200b);
+                if (techSnap2) {
+                  var rbaRow2 = buildRuleSnapshotFromRow({
+                    trend:        techSnap2.trend.status,        trendScore:      techSnap2.trend.score,
+                    momentum:     techSnap2.momentum.status,     momentumScore:   techSnap2.momentum.score,
+                    reversal:     techSnap2.reversalWatch ? techSnap2.reversalWatch.status : 'No Clear Reversal',
+                    reversalScore:techSnap2.reversalWatch ? techSnap2.reversalWatch.score  : 0,
+                    moneyFlow:    techSnap2.smartMoneyFlow ? techSnap2.smartMoneyFlow.status : 'No Clear Signal',
+                    moneyFlowScore:techSnap2.smartMoneyFlow ? techSnap2.smartMoneyFlow.score : 0,
+                  });
+                  var rba2 = generateRuleBasedAnalytics(rbaRow2);
+                  fsResult.techContext = {
+                    trend:         techSnap2.trend.status,
+                    trendScore:    techSnap2.trend.score,
+                    momentum:      techSnap2.momentum.status,
+                    momentumScore: techSnap2.momentum.score,
+                    reversal:      techSnap2.reversalWatch ? techSnap2.reversalWatch.status : 'No Clear Reversal',
+                    reversalScore: techSnap2.reversalWatch ? techSnap2.reversalWatch.score  : 0,
+                    moneyFlow:     techSnap2.smartMoneyFlow ? techSnap2.smartMoneyFlow.status : 'No Clear Signal',
+                    moneyFlowScore:techSnap2.smartMoneyFlow ? techSnap2.smartMoneyFlow.score  : 0,
+                    technicalView: rba2 ? shortRuleVerdict(rba2.verdict) : null,
+                  };
+                }
+              } catch(tcErr) { fsResult.techContext = null; }
+            }
           }
         }
       }
     } catch(fsErr) { fsResult = null; }
 
-    // Determine FS display status
+    // Determine FS display status + compute FS Score / Tech Support (shared with #FORCESTRIKE)
     var fsStatus = 'none', fsPattern = null, fsScenario = null, fsAge = null,
         fsTriggerType = null, fsTriggerDate = null, fsMotherDate = null, fsBabyDate = null;
+    // Rich FS fields — same structure stored by #FORCESTRIKE, stored under forceStrike key in JSON
+    var fsFull = null;
     if (fsResult) {
       if (fsResult.triggered) {
         fsStatus      = 'active';
@@ -11563,14 +11699,48 @@ function WatchlistPage({ clerkUser, isPaid }) {
         fsTriggerDate = fsResult.triggerBar ? (fsResult.triggerBar.dateLabel||fsResult.triggerBar.date||null) : null;
         fsMotherDate  = fsResult.motherBar  ? (fsResult.motherBar.dateLabel||fsResult.motherBar.date||null)   : null;
         fsBabyDate    = fsResult.babyBar    ? (fsResult.babyBar.dateLabel||fsResult.babyBar.date||null)       : null;
+        // Compute FS Score and Technical Support using the exact same module-level
+        // functions that #FORCESTRIKE uses — guarantees identical values for same data
+        var fsSc  = calcFsScore(fsResult);
+        var fsTsp = calcTechSupport(fsResult.techContext || null);
+        fsFull = {
+          fsStatus:         'active',
+          fsScore:          fsSc.pts,
+          fsStars:          fsSc.stars,
+          fsScoreBreakdown: fsSc.breakdown,
+          tradeStars:       fsResult.tradeQualityStars != null ? fsResult.tradeQualityStars : null,
+          tradeRiskPct:     fsResult.tradeRiskPct != null ? fsResult.tradeRiskPct : null,
+          technicalSupport: fsTsp.label,
+          techSupportColor: fsTsp.color,
+          patternAge:       fsResult.patternAge,
+          patternType:      fsResult.pattern,
+          triggerType:      fsResult.triggerType,
+          triggerDate:      fsTriggerDate,
+          motherDate:       fsMotherDate,
+          babyDate:         fsBabyDate,
+          scenario:         fsResult.scenario,
+          techContext:      fsResult.techContext || null,
+          barsSinceTrigger: fsResult.barsSinceTrigger != null ? fsResult.barsSinceTrigger : null,
+          triggerPosition:  fsResult.triggerPosition != null ? fsResult.triggerPosition : null,
+        };
       } else if (fsResult.result === 'Expired') {
         fsStatus  = 'expired';
         fsPattern = fsResult.pattern || (fsResult.motherBar ? 'M\u2192B\u2192?' : null);
         fsAge     = fsResult.patternAge;
+        fsFull    = { fsStatus:'expired', patternAge:fsResult.patternAge, patternType:fsResult.pattern };
       } else if (fsResult.motherBar && fsResult.babyBar && !fsResult.triggerBar) {
-        fsStatus = 'watch'; // Mother + Baby found, no trigger yet
+        fsStatus = 'watch';
+        fsFull   = { fsStatus:'watch' };
+      } else {
+        fsFull = { fsStatus:'none' };
       }
     }
+
+    // priceHistory: true ~3-month daily closes oldest-to-newest from Yahoo range=3mo.
+    // Falls back to reversed Massive aggs (30-day) if Yahoo fetch failed.
+    var priceHistory3m = daily2.length >= 2
+      ? daily2.map(function(b){ return b.close; })
+      : (mData.aggs||[]).slice().reverse().map(function(b){ return b.c||0; });
 
     var snapPayload = {
       closePrice:      price,
@@ -11591,7 +11761,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
       moneyFlowStatus: snap.smartMoneyFlow.status,
       moneyFlowScore:  snap.smartMoneyFlow.score,
       moneyFlowRank:   wlSmfRank(snap.smartMoneyFlow.status),
-      priceHistory:    (mData.aggs||[]).slice().reverse().map(function(b){return b.c||0;}),
+      // 3M Trend: true ~3-month daily closes from Yahoo range=3mo (oldest-to-newest).
+      // Replaces the previous Massive 30-day aggs source — matches the column label.
+      priceHistory:    priceHistory3m,
       fsStatus:        fsStatus,
       fsPattern:       fsPattern,
       fsScenario:      fsScenario,
@@ -11600,6 +11772,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
       fsTriggerDate:   fsTriggerDate,
       fsMotherDate:    fsMotherDate,
       fsBabyDate:      fsBabyDate,
+      // Full Force Strike detail object — same fields produced by #FORCESTRIKE screener,
+      // stored here for the Details panel and signal comparison. null if no pattern.
+      forceStrike:     fsFull,
     };
     await fetch('/watchlist?action=snapshot', {
       method: 'POST', headers: hdrs,
@@ -11743,11 +11918,12 @@ function WatchlistPage({ clerkUser, isPaid }) {
           {items.map(function(item, idx) {
             var snap = snapshots[item.ticker];
             var prevRows = (snapshots['__prev'] && snapshots['__prev'][item.ticker]) || [];
-            // Price history for sparkline from stored json
+            // Price history for 3M Trend sparkline — sourced from signal_snapshot_json.priceHistory.
+            // Now contains true ~3-month daily closes (Yahoo range=3mo, oldest-to-newest).
             var priceHistory = null;
             try { if (snap && snap.signal_snapshot_json) { var sj=JSON.parse(snap.signal_snapshot_json); priceHistory=sj.priceHistory||null; } } catch(e){}
             var sparkline = priceHistory && priceHistory.length >= 2
-              ? makeSparkline(priceHistory.slice(-12))
+              ? makeSparkline(priceHistory)
               : String.fromCharCode(0x2014);
             var price      = snap ? snap.close_price : null;
             var chgPct     = snap ? snap.price_change_pct : null;
@@ -12358,65 +12534,11 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     return { color:'#555', desc:'No scenario classification' };
   }
 
-  // ── Force Strike Score calculator ─────────────────────────────────────────
-  function calcFsScore(r) {
-    var pts = 0, breakdown = [];
-    // 1. Trigger Type
-    var tPts = r.triggerType==='PIN' ? 3 : r.triggerType==='MU' ? 2 : r.triggerType==='ICE' ? 2 : 0;
-    pts += tPts;
-    breakdown.push({ label: 'Trigger: ' + (r.triggerType==='PIN'?'Bullish Pin':r.triggerType==='MU'?'Mark Up':r.triggerType==='ICE'?'Ice Cream':'Unknown'), pts: tPts });
-    // 2. Scenario
-    var sPts = r.scenario==='Shakeout Reversal' ? 4 : r.scenario==='Recovery Reversal' ? 3 : r.scenario==='Trend Pullback' ? 2 : 0;
-    pts += sPts;
-    breakdown.push({ label: 'Scenario: ' + (r.scenario||'Unclassified'), pts: sPts });
-    // 3. Trigger Position (Bar 3/4/5/6 — Bar 5&6 most confirmed)
-    var tpPos = r.triggerPosition != null ? r.triggerPosition : 0;
-    var tpPts = tpPos>=5 ? 3 : tpPos===4 ? 2 : tpPos===3 ? 1 : 0;
-    pts += tpPts;
-    breakdown.push({ label: 'Trigger Position: Bar ' + (tpPos||'—'), pts: tpPts });
-    // 4. Mother Bar Expansion (use rangeExpansion)
-    var mExp = r.motherBar && r.motherBar.rangeExpansion != null ? r.motherBar.rangeExpansion : 0;
-    var mPts = mExp >= 2.5 ? 0.5 : mExp >= 1.5 ? 1 : mExp >= 1.2 ? 0.5 : 0;
-    pts += mPts;
-    breakdown.push({ label: 'Mother Expansion: ' + (mExp>0?mExp.toFixed(2)+'x':'—'), pts: mPts });
-    // 5. Trigger interacts with Mother range
-    var tBar = r.triggerBar;
-    var interacts = tBar && tBar.interactsWithMother === true;
-    var iPts = interacts ? 2 : 0;
-    pts += iPts;
-    breakdown.push({ label: 'Mother Range Interaction', pts: iPts });
-    // Star conversion
-    var stars = pts <= 2 ? 1 : pts <= 4 ? 2 : pts <= 6 ? 3 : pts <= 8 ? 4 : 5;
-    return { pts: pts, stars: stars, breakdown: breakdown };
-  }
-  function renderStars(n, size) {
-    var s = size||12;
-    return <span style={{color:'#EF9F27',fontSize:s,letterSpacing:1}}>
-      {[1,2,3,4,5].map(function(i){ return <span key={i} style={{opacity:i<=n?1:0.22}}>{'\u2605'}</span>; })}
-    </span>;
-  }
-
-  // ── Technical Support classifier ──────────────────────────────────────────
-  function calcTechSupport(tc) {
-    if (!tc) return { label:'—', color:'#555' };
-    var tl  = (tc.trend||'').toLowerCase();
-    var ml  = (tc.momentum||'').toLowerCase();
-    var rl  = (tc.reversal||'').toLowerCase();
-    var sfl = (tc.moneyFlow||'').toLowerCase();
-    var trendBull  = tl==='uptrend'||tl==='strong uptrend';
-    var trendBear  = tl==='downtrend'||tl==='strong downtrend';
-    var momBull    = ml==='building'||ml==='strong';
-    var momBear    = ml==='fading'||ml==='weak';
-    var revBear    = rl.indexOf('bear')!==-1;
-    var mfBull     = sfl.indexOf('accumulation')!==-1&&sfl.indexOf('cooling')===-1;
-    var score      = (trendBull?1:0)+(momBull?1:0)+(mfBull?1:0)+(!revBear?0.5:0);
-    // Conflicting: bearish trend or momentum while FS is bullish
-    if ((trendBear||momBear)&&revBear) return { label:'Conflicting', color:'#e05050' };
-    if (trendBear||momBear)            return { label:'Conflicting', color:'#e05050' };
-    if (score >= 2.5) return { label:'Strong',   color:'#7abd00' };
-    if (score >= 1.5) return { label:'Moderate', color:'#EF9F27' };
-    return              { label:'Weak',     color:'#888' };
-  }
+  // ── Force Strike Score / Tech Support — delegated to module-level shared functions ──
+  // calcFsScore(), calcTechSupport(), and renderStars() are now defined at module level
+  // so WatchlistPage can call the exact same logic. These names kept as local aliases
+  // for all existing call sites inside ForceStrikePage.
+  // (No redefinition needed — module-level functions are already in scope here.)
 
   // ── Mini SVG candlestick chart with Mother zone ────────────────────────────
   function MiniChart({ chartBars, motherHigh, motherLow }) {
@@ -13474,7 +13596,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.163</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.164</span>
           </div>
         </div>
 
