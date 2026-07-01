@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.167</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.168</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.167</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.168</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12149,14 +12149,6 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#888',cursor:'pointer',textAlign:'left'}}>
                     View {'\u2197'}
                   </button>
-                  <button onClick={function(){
-                    setEditPosTicker(editPosTicker===item.ticker?null:item.ticker);
-                    var l2 = locks[item.ticker];
-                    setEditPosAvg(l2&&l2.avg_buy_price!=null?String(l2.avg_buy_price):'');
-                    setEditPosQty(l2&&l2.quantity!=null?String(l2.quantity):'');
-                  }} style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a3a4a',borderRadius:4,color:'#6090d0',cursor:'pointer',textAlign:'left'}}>
-                    Position
-                  </button>
                   <button onClick={function(){ setViewLockTicker(viewLockTicker===item.ticker?null:item.ticker); }}
                     style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
                     {viewLockTicker===item.ticker?'Close':'Details'}
@@ -13769,7 +13761,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.167</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.168</span>
           </div>
         </div>
 
