@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.170</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.171</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.170</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.171</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12139,95 +12139,55 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
               {/* Details / Lock expanded panel — full-width below the row */}
               {viewLockTicker===item.ticker && (function(){
-                var lock = locks[item.ticker];
-                var lkDate = lock ? (lock.position_updated_at||lock.locked_at||null) : null;
-                if (lkDate) lkDate = lkDate.split('T')[0];
-                var lPrice = lock ? lock.locked_price : null;
-                var avgBuy2 = lock ? lock.avg_buy_price : null;
-                var qty2    = lock ? lock.quantity : null;
-                var pctChg  = (lPrice && price) ? ((price-lPrice)/lPrice*100) : null;
-                var plPct2  = (price && avgBuy2) ? (price - avgBuy2) / avgBuy2 * 100 : null;
-                var plAmt2  = (price && avgBuy2 && qty2) ? (price - avgBuy2) * qty2 : null;
-                var curV2   = (price && qty2)  ? price   * qty2 : null;
-                var costB2  = (avgBuy2 && qty2) ? avgBuy2 * qty2 : null;
-                function sigChange2(curRank, lkRank) {
-                  if (curRank == null || lkRank == null) return {label:String.fromCharCode(0x2014), color:'#555'};
-                  var d = (curRank||0) - (lkRank||0);
-                  return d >= 0.75 ? {label:'Improved',color:'#7abd00'} : d <= -0.75 ? {label:'Weakened',color:'#e05050'} : {label:'Stable',color:'#555'};
+                // Signal direction arrows — same wlArrow logic as main row factor strip
+                function detArrow(rank, field) {
+                  return wlArrow(rank != null ? rank : 0, [rank != null ? rank : 0].concat(prevRows.map(function(r){ return r[field]!=null?r[field]:null; })));
                 }
-                var fields = [
-                  ['Technical View', snap?snap.rba_verdict:null,      snap?snap.rba_rank:null,       lock?lock.locked_rba_verdict:null,      lock?lock.locked_rba_rank:null],
-                  ['Trend',          snap?snap.trend_status:null,      snap?snap.trend_rank:null,     lock?lock.locked_trend_status:null,     lock?lock.locked_trend_rank:null],
-                  ['Momentum',       snap?snap.momentum_status:null,   snap?snap.momentum_rank:null,  lock?lock.locked_momentum_status:null,  lock?lock.locked_momentum_rank:null],
-                  ['Reversal',       snap?snap.reversal_status:null,   snap?snap.reversal_rank:null,  lock?lock.locked_reversal_status:null,  lock?lock.locked_reversal_rank:null],
-                  ['Money Flow',     snap?snap.money_flow_status:null, snap?snap.money_flow_rank:null,lock?lock.locked_money_flow_status:null,lock?lock.locked_money_flow_rank:null],
-                ];
+                var tArr  = snap ? detArrow(snap.trend_rank,      'trend_rank')      : String.fromCharCode(0x2014);
+                var mArr  = snap ? detArrow(snap.momentum_rank,   'momentum_rank')   : String.fromCharCode(0x2014);
+                var rArr  = snap ? detArrow(snap.reversal_rank,   'reversal_rank')   : String.fromCharCode(0x2014);
+                var sfArr = snap ? detArrow(snap.money_flow_rank, 'money_flow_rank') : String.fromCharCode(0x2014);
+                // Safe ticker for TradingView — alphanumeric, dots, dashes only
+                var tvTicker = item.ticker.replace(/[^A-Z0-9.\-]/g,'');
                 return <div style={{gridColumn:'1/-1',background:'#161614',border:'0.5px solid #2a2a28',borderRadius:8,padding:'14px 16px',marginTop:2,marginBottom:4}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-                    <div style={{fontSize:11,fontWeight:700,color:'#888'}}>{item.ticker} — Details</div>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+                    <div style={{fontSize:11,fontWeight:700,color:'#888'}}>{item.ticker}</div>
                     <button onClick={function(){ setViewLockTicker(null); }}
                       style={{fontSize:9,padding:'2px 8px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#555',cursor:'pointer'}}>Close</button>
                   </div>
 
-                  {/* A. Position */}
-                  {lock && (avgBuy2 != null || qty2 != null) && <div style={{marginBottom:14,paddingBottom:12,borderBottom:'0.5px solid #222'}}>
-                    <div style={{fontSize:9,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Position</div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'6px 20px',fontSize:10}}>
-                      {avgBuy2!=null&&<div style={{color:'#555'}}>Avg Buy Price <div style={{color:'#f0ede6',fontWeight:600,fontSize:12}}>${avgBuy2.toFixed(2)}</div></div>}
-                      {qty2!=null&&<div style={{color:'#555'}}>Qty <div style={{color:'#f0ede6',fontWeight:600,fontSize:12}}>{qty2%1===0?qty2:qty2.toFixed(2)}</div></div>}
-                      {costB2!=null&&<div style={{color:'#555'}}>Cost Basis <div style={{color:'#f0ede6',fontWeight:600,fontSize:12}}>${costB2.toFixed(2)}</div></div>}
-                      {curV2!=null&&<div style={{color:'#555'}}>Current Value <div style={{color:'#f0ede6',fontWeight:600,fontSize:12}}>${curV2.toFixed(2)}</div></div>}
-                      {plAmt2!=null&&<div style={{color:'#555'}}>Unrealised P/L <div style={{color:plAmt2>=0?'#7abd00':'#e05050',fontWeight:700,fontSize:12}}>{(plAmt2>=0?'+':'-')+'$'+Math.abs(plAmt2).toFixed(2)}</div></div>}
-                      {plPct2!=null&&<div style={{color:'#555'}}>P/L % <div style={{color:plPct2>=0?'#7abd00':'#e05050',fontWeight:700,fontSize:12}}>{(plPct2>=0?'+':'')+plPct2.toFixed(2)+'%'}</div></div>}
-                    </div>
-                  </div>}
-
-                  {/* B. Then vs Now — signal comparison + current snapshot */}
-                  {lock && <div style={{marginBottom:14,paddingBottom:12,borderBottom:'0.5px solid #222'}}>
-                    <div style={{fontSize:9,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Then vs Now</div>
-                    <div style={{display:'flex',gap:20,fontSize:10,color:'#555',marginBottom:8}}>
-                      <span>At position: <span style={{color:'#888'}}>{lPrice?'$'+lPrice.toFixed(2):'—'}{lkDate?' ('+lkDate+')':''}</span></span>
-                      <span>Current: <span style={{color:'#f0ede6'}}>{price?'$'+price.toFixed(2):'—'}</span></span>
-                      {pctChg!=null&&<span>Change: <span style={{color:pctChg>=0?'#7abd00':'#e05050',fontWeight:700}}>{(pctChg>=0?'+':'')+pctChg.toFixed(2)+'%'}</span></span>}
-                    </div>
-                    <div style={{display:'grid',gridTemplateColumns:'120px 1fr 1fr 80px',columnGap:12,marginBottom:4}}>
-                      {['Signal','At Position','Current','Change'].map(function(h){ return <div key={h} style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>; })}
-                    </div>
-                    {fields.map(function(f,i){
-                      var chg2 = sigChange2(f[2],f[4]);
-                      return <div key={i} style={{display:'grid',gridTemplateColumns:'120px 1fr 1fr 80px',columnGap:12,padding:'4px 0',borderBottom:'0.5px solid #1a1a18'}}>
-                        <div style={{fontSize:10,color:'#555'}}>{f[0]}</div>
-                        <div style={{fontSize:10,color:'#666',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f[3]||String.fromCharCode(0x2014)}</div>
-                        <div style={{fontSize:10,color:'#aaa',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:600}}>{f[1]||String.fromCharCode(0x2014)}</div>
-                        <div style={{fontSize:10,fontWeight:700,color:chg2.color}}>{chg2.label}</div>
+                  {/* Signal Summary — 4 rows */}
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:16}}>
+                    {[
+                      { label:'Trend',       status:trendV, color:wlTrendColor(trendV), arr:tArr },
+                      { label:'Momentum',    status:momV,   color:wlMomColor(momV),     arr:mArr },
+                      { label:'Reversal',    status:revV,   color:wlRevColor(revV),     arr:rArr },
+                      { label:'Smart Money', status:smfV,   color:wlSmfColor(smfV),     arr:sfArr },
+                    ].map(function(f){
+                      var arrC = wlArrowColor(f.arr);
+                      return <div key={f.label} style={{padding:'8px 10px',background:'#1a1a18',borderRadius:6,border:'0.5px solid #252523'}}>
+                        <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:4}}>{f.label}</div>
+                        <div style={{fontSize:11,fontWeight:700,color:f.color||'#888',lineHeight:1.3}}>
+                          {f.status||String.fromCharCode(0x2014)}
+                          {f.arr!==String.fromCharCode(0x2014)&&<span style={{color:arrC,marginLeft:4,fontSize:10}}>{f.arr}</span>}
+                        </div>
                       </div>;
                     })}
-                    {/* Force Strike in details */}
-                    {(lockedFsStatus||fsStatus!=='none')&&<div style={{marginTop:8,fontSize:10,color:'#555'}}>
-                      Force Strike: <span style={{color:lockedFsStatus==='active'?'#7abd00':'#555',fontWeight:700,marginRight:16}}>{lockedFsStatus==='active'?'Active FS':lockedFsStatus==='watch'?'FS Watch':String.fromCharCode(0x2014)} at position</span>
-                      <span style={{color:fsStatus==='active'?'#7abd00':fsStatus==='watch'?'#EF9F27':'#555',fontWeight:700}}>{fsStatus==='active'?'Active FS':fsStatus==='watch'?'FS Watch':String.fromCharCode(0x2014)} current</span>
-                    </div>}
-                  </div>}
+                  </div>
 
-                  {/* C. Signals — current snapshot values, concise */}
-                  <div>
-                    <div style={{fontSize:9,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Signals</div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'4px 20px',fontSize:10}}>
-                      {[
-                        ['Technical View', rbaV],
-                        ['Trend',          trendV],
-                        ['Momentum',       momV],
-                        ['Reversal',       revV],
-                        ['Money Flow',     smfV],
-                        ['Force Strike',   fsStatus==='active'?('Active'+(fsPattern?' \u2014 '+fsPattern:'')):null],
-                      ].map(function(r){
-                        if (!r[1]) return null;
-                        return <div key={r[0]} style={{display:'flex',gap:6}}>
-                          <span style={{color:'#555',minWidth:100,flexShrink:0}}>{r[0]}</span>
-                          <span style={{color:'#aaa',fontWeight:600}}>{r[1]}</span>
-                        </div>;
-                      })}
+                  {/* TradingView Daily Chart */}
+                  <div style={{borderRadius:6,overflow:'hidden',border:'0.5px solid #252523'}}>
+                    <div style={{fontSize:9,color:'#555',padding:'5px 10px',background:'#1a1a18',letterSpacing:'0.04em',textTransform:'uppercase'}}>
+                      {tvTicker} {'\u00B7'} Daily
                     </div>
+                    <iframe
+                      key={tvTicker}
+                      src={'https://s.tradingview.com/widgetembed/?frameElementId=tv_wl_'+tvTicker+'&symbol='+tvTicker+'&interval=D&theme=dark&style=1&timezone=exchange&withdateranges=1&hide_side_toolbar=1&allow_symbol_change=0&save_image=0'}
+                      style={{width:'100%',height:300,border:'none',display:'block'}}
+                      title={tvTicker+' Daily Chart'}
+                      loading="lazy"
+                      sandbox="allow-scripts allow-same-origin allow-popups"
+                    />
                   </div>
 
                 </div>;
@@ -13700,7 +13660,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.170</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.171</span>
           </div>
         </div>
 
