@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.191</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.192</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.191</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.192</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11803,6 +11803,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
   var [editPosTicker,setEditPosTicker] = useState(null);   // ticker whose position editor is open (Phase B)
   var [editPosAvg,   setEditPosAvg]  = useState('');       // position editor: avg buy price input
   var [editPosQty,   setEditPosQty]  = useState('');       // position editor: qty input
+  var [sortField,    setSortField]   = useState('ticker'); // default alphabetical
+  var [sortDir,      setSortDir]     = useState(1);        // 1=asc, -1=desc
 
   var isAdmin = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === 'admin');
   var canAccess = isPaid || isAdmin;
@@ -12313,12 +12315,52 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
       {!loading && items.length > 0 && (
         <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflow:'auto'}}>
-          {/* Table header */}
-          <div style={{display:'grid',gridTemplateColumns:COL,columnGap:12,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
-            {HEAD.map(function(h,i){ return <div key={i} style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>; })}
-          </div>
+          {/* Table header — click to sort */}
+          {(function(){
+            // Map header label to the snap field used for sorting
+            var sortKeys = {
+              'Ticker':         function(item){ return item.ticker; },
+              'Price':          function(item){ var s=snapshots[item.ticker]; return s?s.close_price:0; },
+              'Technical View': function(item){ var s=snapshots[item.ticker]; return s?s.rba_rank:0; },
+              'Key Levels':     function(item){ return item.ticker; }, // not sortable — keep ticker order
+              'Wave Guide':     function(item){ return item.ticker; },
+              'Force Strike':   function(item){ return item.ticker; },
+              'Actions':        function(item){ return item.ticker; },
+              'Position':       function(item){ var l=locks[item.ticker]; return l&&l.avg_buy_price?l.avg_buy_price:0; },
+            };
+            function toggleSort(h) {
+              var hasSortKey = sortKeys[h] && h!=='Key Levels'&&h!=='Wave Guide'&&h!=='Force Strike'&&h!=='Actions';
+              if (!hasSortKey) return;
+              if (sortField===h) setSortDir(function(d){ return d*-1; });
+              else { setSortField(h); setSortDir(1); }
+            }
+            return <div style={{display:'grid',gridTemplateColumns:COL,columnGap:12,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
+              {HEAD.map(function(h,i){
+                var sortable = h!=='Key Levels'&&h!=='Wave Guide'&&h!=='Force Strike'&&h!=='Actions'&&h!=='Position';
+                var isActive = sortField===h;
+                var arrow    = isActive ? (sortDir===1?'\u2191':'\u2193') : '';
+                return <div key={i} onClick={function(){ toggleSort(h); }}
+                  style={{fontSize:9,fontWeight:700,color:isActive?'#888':'#555',textTransform:'uppercase',letterSpacing:'0.06em',cursor:sortable?'pointer':'default',userSelect:'none',whiteSpace:'nowrap'}}>
+                  {h}{arrow?<span style={{marginLeft:3,color:'#888'}}>{arrow}</span>:null}
+                </div>;
+              })}
+            </div>;
+          })()}
 
-          {items.map(function(item, idx) {
+          {(function(){
+            // Sort items before rendering
+            var sortKeys = {
+              'Ticker':         function(item){ return item.ticker; },
+              'Price':          function(item){ var s=snapshots[item.ticker]; return s?s.close_price:0; },
+              'Technical View': function(item){ var s=snapshots[item.ticker]; return s?s.rba_rank:0; },
+            };
+            var getFn = sortKeys[sortField] || function(item){ return item.ticker; };
+            var sortedItems = items.slice().sort(function(a,b){
+              var va=getFn(a), vb=getFn(b);
+              if (typeof va==='string') return va<vb?-sortDir:va>vb?sortDir:0;
+              return (va-vb)*sortDir;
+            });
+            return sortedItems.map(function(item, idx) {
             var snap = snapshots[item.ticker];
             var prevRows = (snapshots['__prev'] && snapshots['__prev'][item.ticker]) || [];
             // Price history for 3M Trend sparkline — sourced from signal_snapshot_json.priceHistory.
@@ -12610,21 +12652,17 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
                 {/* Actions */}
                 <div style={{display:'flex',flexDirection:'column',gap:3}}>
-                  <button onClick={function(){ window.open(window.location.origin+'/#'+item.ticker,'_blank','noopener,noreferrer'); }}
-                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#888',cursor:'pointer',textAlign:'left'}}>
-                    View {'\u2197'}
-                  </button>
                   <button onClick={function(){ setViewLockTicker(viewLockTicker===item.ticker?null:item.ticker); }}
-                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
-                    {viewLockTicker===item.ticker?'Close':'Details'}
+                    title="Details"
+                    style={{fontSize:12,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
+                    {viewLockTicker===item.ticker ? '\u274C' : '\uD83D\uDC41'}
                   </button>
                   <button onClick={function(){
-                    // Audit download: all data used to calculate Key Levels and Wave Guide
+                    // Audit download
                     var auditData = {
                       ticker:          item.ticker,
                       exportedAt:      new Date().toISOString(),
                       snapshotDate:    snap ? snap.snapshot_date : null,
-                      // Current price and signals from D1 snapshot row
                       currentPrice:    price,
                       priceChangePct:  snap ? snap.price_change_pct : null,
                       signals: {
@@ -12634,25 +12672,18 @@ function WatchlistPage({ clerkUser, isPaid }) {
                         reversal:      snap ? snap.reversal_status : null,
                         moneyFlow:     snap ? snap.money_flow_status : null,
                       },
-                      // Position data (from lock table)
                       position: lock ? {
                         avgBuyPrice:        lock.avg_buy_price,
                         quantity:           lock.quantity,
                         positionUpdatedAt:  lock.position_updated_at,
                         lockedPrice:        lock.locked_price,
                       } : null,
-                      // Key Levels source: Fib levels from both timeframes
                       shortTermMap: snapJson.shortTermMap || null,
                       longTermMap:  snapJson.fibMap       || null,
-                      // Derived Key Levels (combined + deduped)
                       keyLevels:    snapJson.keyLevels   || null,
-                      // Wave Guide result
                       waveGuide:    snapJson.waveGuide   || null,
-                      // Full weekly bars used for Long-Term Fib calculation
                       weeklyBars:   (snapJson.fibMap && snapJson.fibMap.weeklyBars) ? snapJson.fibMap.weeklyBars : [],
-                      // Price history (daily closes, oldest-to-newest)
                       priceHistory: snapJson.priceHistory || [],
-                      // Force Strike snapshot
                       forceStrike:  snapJson.forceStrike || null,
                     };
                     var blob = new Blob([JSON.stringify(auditData, null, 2)], {type:'application/json'});
@@ -12662,12 +12693,14 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     a.download = item.ticker+'_audit_'+new Date().toISOString().split('T')[0]+'.json';
                     a.click();
                     URL.revokeObjectURL(url);
-                  }} style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
+                  }} title="Download audit data"
+                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
                     Audit {'\u2193'}
                   </button>
                   <button onClick={function(){ removeTicker(item.ticker); }}
-                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
-                    Remove
+                    title="Remove from watchlist"
+                    style={{fontSize:12,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
+                    {'\uD83D\uDDD1'}
                   </button>
                 </div>
 
@@ -12875,10 +12908,11 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 </div>;
               })()}
 
-              <div style={{borderBottom:idx<items.length-1?'1px solid #1a1a16':'none'}}></div>
+              <div style={{borderBottom:idx<sortedItems.length-1?'1px solid #1a1a16':'none'}}></div>
               </React.Fragment>
             );
-          })}
+          });
+          })()}
         </div>
       )}
 
@@ -14342,7 +14376,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.191</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.192</span>
           </div>
         </div>
 
