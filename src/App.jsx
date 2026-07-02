@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.190</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.191</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.190</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.191</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12618,6 +12618,53 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
                     {viewLockTicker===item.ticker?'Close':'Details'}
                   </button>
+                  <button onClick={function(){
+                    // Audit download: all data used to calculate Key Levels and Wave Guide
+                    var auditData = {
+                      ticker:          item.ticker,
+                      exportedAt:      new Date().toISOString(),
+                      snapshotDate:    snap ? snap.snapshot_date : null,
+                      // Current price and signals from D1 snapshot row
+                      currentPrice:    price,
+                      priceChangePct:  snap ? snap.price_change_pct : null,
+                      signals: {
+                        technicalView: snap ? snap.rba_verdict   : null,
+                        trend:         snap ? snap.trend_status  : null,
+                        momentum:      snap ? snap.momentum_status : null,
+                        reversal:      snap ? snap.reversal_status : null,
+                        moneyFlow:     snap ? snap.money_flow_status : null,
+                      },
+                      // Position data (from lock table)
+                      position: lock ? {
+                        avgBuyPrice:        lock.avg_buy_price,
+                        quantity:           lock.quantity,
+                        positionUpdatedAt:  lock.position_updated_at,
+                        lockedPrice:        lock.locked_price,
+                      } : null,
+                      // Key Levels source: Fib levels from both timeframes
+                      shortTermMap: snapJson.shortTermMap || null,
+                      longTermMap:  snapJson.fibMap       || null,
+                      // Derived Key Levels (combined + deduped)
+                      keyLevels:    snapJson.keyLevels   || null,
+                      // Wave Guide result
+                      waveGuide:    snapJson.waveGuide   || null,
+                      // Full weekly bars used for Long-Term Fib calculation
+                      weeklyBars:   (snapJson.fibMap && snapJson.fibMap.weeklyBars) ? snapJson.fibMap.weeklyBars : [],
+                      // Price history (daily closes, oldest-to-newest)
+                      priceHistory: snapJson.priceHistory || [],
+                      // Force Strike snapshot
+                      forceStrike:  snapJson.forceStrike || null,
+                    };
+                    var blob = new Blob([JSON.stringify(auditData, null, 2)], {type:'application/json'});
+                    var url  = URL.createObjectURL(blob);
+                    var a    = document.createElement('a');
+                    a.href   = url;
+                    a.download = item.ticker+'_audit_'+new Date().toISOString().split('T')[0]+'.json';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }} style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
+                    Audit {'\u2193'}
+                  </button>
                   <button onClick={function(){ removeTicker(item.ticker); }}
                     style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
                     Remove
@@ -14295,7 +14342,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.190</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.191</span>
           </div>
         </div>
 
