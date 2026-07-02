@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.192</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.193</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.192</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.193</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12650,56 +12650,16 @@ function WatchlistPage({ clerkUser, isPaid }) {
                   {(displayFsStatus==='expired'||displayFsStatus==='none'||!displayFsStatus) && <span style={{fontSize:10,color:'#444'}}>{String.fromCharCode(0x2014)}</span>}
                 </div>
 
-                {/* Actions */}
-                <div style={{display:'flex',flexDirection:'column',gap:3}}>
+                {/* Actions — 2 square icon buttons */}
+                <div style={{display:'flex',flexDirection:'column',gap:4}}>
                   <button onClick={function(){ setViewLockTicker(viewLockTicker===item.ticker?null:item.ticker); }}
-                    title="Details"
-                    style={{fontSize:12,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
-                    {viewLockTicker===item.ticker ? '\u274C' : '\uD83D\uDC41'}
-                  </button>
-                  <button onClick={function(){
-                    // Audit download
-                    var auditData = {
-                      ticker:          item.ticker,
-                      exportedAt:      new Date().toISOString(),
-                      snapshotDate:    snap ? snap.snapshot_date : null,
-                      currentPrice:    price,
-                      priceChangePct:  snap ? snap.price_change_pct : null,
-                      signals: {
-                        technicalView: snap ? snap.rba_verdict   : null,
-                        trend:         snap ? snap.trend_status  : null,
-                        momentum:      snap ? snap.momentum_status : null,
-                        reversal:      snap ? snap.reversal_status : null,
-                        moneyFlow:     snap ? snap.money_flow_status : null,
-                      },
-                      position: lock ? {
-                        avgBuyPrice:        lock.avg_buy_price,
-                        quantity:           lock.quantity,
-                        positionUpdatedAt:  lock.position_updated_at,
-                        lockedPrice:        lock.locked_price,
-                      } : null,
-                      shortTermMap: snapJson.shortTermMap || null,
-                      longTermMap:  snapJson.fibMap       || null,
-                      keyLevels:    snapJson.keyLevels   || null,
-                      waveGuide:    snapJson.waveGuide   || null,
-                      weeklyBars:   (snapJson.fibMap && snapJson.fibMap.weeklyBars) ? snapJson.fibMap.weeklyBars : [],
-                      priceHistory: snapJson.priceHistory || [],
-                      forceStrike:  snapJson.forceStrike || null,
-                    };
-                    var blob = new Blob([JSON.stringify(auditData, null, 2)], {type:'application/json'});
-                    var url  = URL.createObjectURL(blob);
-                    var a    = document.createElement('a');
-                    a.href   = url;
-                    a.download = item.ticker+'_audit_'+new Date().toISOString().split('T')[0]+'.json';
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }} title="Download audit data"
-                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
-                    Audit {'\u2193'}
+                    title={viewLockTicker===item.ticker?'Close details':'Open details'}
+                    style={{width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',background:viewLockTicker===item.ticker?'#2a2a28':'none',border:'0.5px solid #333',borderRadius:4,color:'#666',cursor:'pointer',fontSize:13,flexShrink:0}}>
+                    {'\uD83D\uDC41'}
                   </button>
                   <button onClick={function(){ removeTicker(item.ticker); }}
                     title="Remove from watchlist"
-                    style={{fontSize:12,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
+                    style={{width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',fontSize:13,flexShrink:0}}>
                     {'\uD83D\uDDD1'}
                   </button>
                 </div>
@@ -12742,169 +12702,92 @@ function WatchlistPage({ clerkUser, isPaid }) {
               </div>}
 
               {/* Details / Lock expanded panel — full-width below the row */}
+              {/* Details / Lock expanded panel */}
               {viewLockTicker===item.ticker && (function(){
-                // Signal direction arrows — same wlArrow logic as main row factor strip
-                function detArrow(rank, field) {
-                  return wlArrow(rank != null ? rank : 0, [rank != null ? rank : 0].concat(prevRows.map(function(r){ return r[field]!=null?r[field]:null; })));
-                }
-                var tArr  = snap ? detArrow(snap.trend_rank,      'trend_rank')      : String.fromCharCode(0x2014);
-                var mArr  = snap ? detArrow(snap.momentum_rank,   'momentum_rank')   : String.fromCharCode(0x2014);
-                var rArr  = snap ? detArrow(snap.reversal_rank,   'reversal_rank')   : String.fromCharCode(0x2014);
-                var sfArr = snap ? detArrow(snap.money_flow_rank, 'money_flow_rank') : String.fromCharCode(0x2014);
-                // Safe ticker for TradingView — alphanumeric, dots, dashes only
                 var tvTicker = item.ticker.replace(/[^A-Z0-9.\-]/g,'');
-                return <div style={{gridColumn:'1/-1',background:'#161614',border:'0.5px solid #2a2a28',borderRadius:8,padding:'14px 16px',marginTop:2,marginBottom:4}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-                    <div style={{fontSize:11,fontWeight:700,color:'#888'}}>{item.ticker}</div>
-                    <button onClick={function(){ setViewLockTicker(null); }}
-                      style={{fontSize:9,padding:'2px 8px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#555',cursor:'pointer'}}>Close</button>
-                  </div>
-
-                  {/* Signal Summary — 4 rows */}
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:16}}>
-                    {[
-                      { label:'Trend',       status:trendV, color:wlTrendColor(trendV), arr:tArr },
-                      { label:'Momentum',    status:momV,   color:wlMomColor(momV),     arr:mArr },
-                      { label:'Reversal',    status:revV,   color:wlRevColor(revV),     arr:rArr },
-                      { label:'Smart Money', status:smfV,   color:wlSmfColor(smfV),     arr:sfArr },
-                    ].map(function(f){
-                      var arrC = wlArrowColor(f.arr);
-                      return <div key={f.label} style={{padding:'8px 10px',background:'#1a1a18',borderRadius:6,border:'0.5px solid #252523'}}>
-                        <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:4}}>{f.label}</div>
-                        <div style={{fontSize:11,fontWeight:700,color:f.color||'#888',lineHeight:1.3}}>
-                          {f.status||String.fromCharCode(0x2014)}
-                          {f.arr!==String.fromCharCode(0x2014)&&<span style={{color:arrC,marginLeft:4,fontSize:10}}>{f.arr}</span>}
-                        </div>
-                      </div>;
-                    })}
-                  </div>
-
-                  {/* Short-Term Map (Daily Fib) section */}
-                  {(function(){
-                    var pm = shortTermMap;
-                    var status = normalisePriceMapStatus(pm ? pm.priceMapStatus : null);
-                    var isBroken = status === 'Broken';
-                    var statusColor = status==='At Support'?'#6090d0':status==='Holding Support'?'#7abd00':status==='Testing Target'?'#7abd00':status==='Extended'?'#EF9F27':status==='Broken'?'#e05050':'#555';
-                    var fmt = function(v){ return v!=null?('$'+Number(v).toFixed(2)):String.fromCharCode(0x2014); };
-                    return <div style={{marginBottom:12,paddingBottom:12,borderBottom:'0.5px solid #222'}}>
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                        <div style={{fontSize:9,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em'}}>Short-Term Map (Daily Fib)</div>
-                        {pm&&<div style={{fontSize:10,fontWeight:700,color:statusColor}}>{status}</div>}
-                      </div>
-                      {!pm
-                        ? <div style={{fontSize:10,color:'#555'}}>No data — refresh signals to calculate.</div>
-                        : <div>
-                            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'5px 14px',fontSize:10}}>
-                              <div style={{color:'#555'}}>Swing Low <div style={{color:'#f0ede6'}}>{fmt(pm.fibSwingLow)}{pm.swingLowDate&&<span style={{color:'#444',fontSize:8,marginLeft:4}}>{pm.swingLowDate}</span>}</div></div>
-                              <div style={{color:'#555'}}>Swing High <div style={{color:'#f0ede6'}}>{fmt(pm.fibSwingHigh)}{pm.swingHighDate&&<span style={{color:'#444',fontSize:8,marginLeft:4}}>{pm.swingHighDate}</span>}</div></div>
-                              <div style={{color:'#555'}}>Invalidation <div style={{color:'#e05050'}}>{fmt(pm.fibInvalidation)}</div></div>
-                              <div style={{color:'#555'}}>Support Zone <div style={{color:'#6090d0'}}>{fmt(pm.fibSupportZoneHigh)+' \u2013 '+fmt(pm.fibSupportZoneLow)}</div></div>
-                              <div style={{color:'#555'}}>Target 1 <div style={{color:isBroken?'#555':'#f0ede6'}}>{fmt(pm.fibTarget1)}{isBroken&&<span style={{color:'#555',fontSize:8,marginLeft:4}}>inactive</span>}</div></div>
-                              <div style={{color:'#555'}}>Target 2 <div style={{color:isBroken?'#555':'#f0ede6'}}>{fmt(pm.fibTarget2)}{isBroken&&<span style={{color:'#555',fontSize:8,marginLeft:4}}>inactive</span>}</div></div>
-                              <div style={{color:'#555'}}>Target 3 <div style={{color:isBroken?'#555':'#f0ede6'}}>{fmt(pm.fibTarget3)}{isBroken&&<span style={{color:'#555',fontSize:8,marginLeft:4}}>inactive</span>}</div></div>
-                              <div style={{color:'#555'}}>Daily Bars <div style={{color:'#888'}}>{pm.dailyBarCount||0}</div></div>
-                            </div>
-                            {isBroken&&<div style={{fontSize:9,color:'#e05050',marginTop:6}}>Targets inactive until support zone is reclaimed.</div>}
-                            <div style={{fontSize:8,color:'#444',marginTop:6,fontStyle:'italic'}}>{pm.priceMapCommentary||'Fibonacci levels are projection zones, not guaranteed price predictions.'}</div>
-                          </div>
-                      }
-                    </div>;
-                  })()}
-
-                  {/* Long-Term Map (Weekly Fib) section */}
-                  {(function(){
-                    var pm = fibMap;
-                    var status = normalisePriceMapStatus(pm ? pm.priceMapStatus : null);
-                    if (!pm) return <div style={{marginBottom:12,paddingBottom:12,borderBottom:'0.5px solid #222'}}>
-                      <div style={{fontSize:9,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Long-Term Map (Weekly Fib)</div>
-                      <div style={{fontSize:10,color:'#555'}}>No data — refresh signals to calculate.</div>
-                    </div>;
-                    var statusColor = status==='At Support'      ? '#6090d0'
-                                    : status==='Holding Support' ? '#7abd00'
-                                    : status==='Testing Target'  ? '#7abd00'
-                                    : status==='Extended'        ? '#EF9F27'
-                                    : status==='Broken'          ? '#e05050'
-                                    : '#555';
-                    var isBroken = status === 'Broken';
-                    var fmt = function(v){ return v!=null ? ('$'+Number(v).toFixed(2)) : String.fromCharCode(0x2014); };
-                    return <div style={{marginBottom:12,paddingBottom:12,borderBottom:'0.5px solid #222'}}>
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                        <div style={{fontSize:9,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em'}}>Long-Term Map (Weekly Fib)</div>
-                        <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                          <div style={{fontSize:10,fontWeight:700,color:statusColor}}>{status}</div>
-                          <button onClick={function(){
-                            var exportData = {
-                              ticker:         item.ticker,
-                              exportedAt:     new Date().toISOString(),
-                              snapshotDate:   snap ? snap.snapshot_date : null,
-                              currentPrice:   snap ? snap.close_price : null,
-                              fibResult: {
-                                priceMapStatus:    pm.priceMapStatus,
-                                normalisedStatus:  status,
-                                fibSwingLow:       pm.fibSwingLow,
-                                fibSwingHigh:      pm.fibSwingHigh,
-                                swingLowDate:      pm.swingLowDate,
-                                swingHighDate:     pm.swingHighDate,
-                                fibSupportZoneLow: pm.fibSupportZoneLow,
-                                fibSupportZoneHigh:pm.fibSupportZoneHigh,
-                                fibTarget1:        pm.fibTarget1,
-                                fibTarget2:        pm.fibTarget2,
-                                fibTarget3:        pm.fibTarget3,
-                                fibInvalidation:   pm.fibInvalidation,
-                                fibSupport:        pm.fibSupport,
-                                fibTarget:         pm.fibTarget,
-                                weeklyBarCount:    pm.weeklyBarCount,
-                              },
-                              weeklyBars: pm.weeklyBars || [],
-                            };
-                            var blob = new Blob([JSON.stringify(exportData, null, 2)], { type:'application/json' });
-                            var url  = URL.createObjectURL(blob);
-                            var a    = document.createElement('a');
-                            a.href  = url;
-                            a.download = item.ticker + '_fib_audit_' + new Date().toISOString().split('T')[0] + '.json';
-                            a.click();
-                            URL.revokeObjectURL(url);
-                          }} style={{fontSize:8,padding:'2px 7px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#666',cursor:'pointer'}}>
-                            Export JSON
-                          </button>
-                        </div>
-                      </div>
-                      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'5px 14px',fontSize:10}}>
-                        <div style={{color:'#555'}}>Swing Low <div style={{color:'#f0ede6'}}>{fmt(pm.fibSwingLow)}{pm.swingLowDate&&<span style={{color:'#444',fontSize:8,marginLeft:4}}>{pm.swingLowDate}</span>}</div></div>
-                        <div style={{color:'#555'}}>Swing High <div style={{color:'#f0ede6'}}>{fmt(pm.fibSwingHigh)}{pm.swingHighDate&&<span style={{color:'#444',fontSize:8,marginLeft:4}}>{pm.swingHighDate}</span>}</div></div>
-                        <div style={{color:'#555'}}>Invalidation <div style={{color:'#e05050'}}>{fmt(pm.fibInvalidation)}</div></div>
-                        <div style={{color:'#555'}}>Support Zone <div style={{color:'#6090d0'}}>{fmt(pm.fibSupportZoneHigh)+' \u2013 '+fmt(pm.fibSupportZoneLow)}</div></div>
-                        <div style={{color:'#555'}}>Target 1 <div style={{color:isBroken?'#555':'#f0ede6'}}>{fmt(pm.fibTarget1)}{isBroken&&<span style={{color:'#555',fontSize:8,marginLeft:4}}>inactive</span>}</div></div>
-                        <div style={{color:'#555'}}>Target 2 <div style={{color:isBroken?'#555':'#f0ede6'}}>{fmt(pm.fibTarget2)}{isBroken&&<span style={{color:'#555',fontSize:8,marginLeft:4}}>inactive</span>}</div></div>
-                        <div style={{color:'#555'}}>Target 3 <div style={{color:isBroken?'#555':'#f0ede6'}}>{fmt(pm.fibTarget3)}{isBroken&&<span style={{color:'#555',fontSize:8,marginLeft:4}}>inactive</span>}</div></div>
-                        <div style={{color:'#555'}}>Weekly Bars <div style={{color:'#888'}}>{pm.weeklyBarCount||0}</div></div>
-                      </div>
-                      {isBroken&&<div style={{fontSize:9,color:'#e05050',marginTop:6}}>Targets inactive until support zone is reclaimed.</div>}
-                      <div style={{fontSize:8,color:'#444',marginTop:6,fontStyle:'italic'}}>{pm.priceMapCommentary||'Fibonacci levels are projection zones, not guaranteed price predictions.'}</div>
-                    </div>;
-                  })()}
-
-                  {/* 3M Trend sparkline — moved from main table to Details panel */}
-                  {priceHistory && priceHistory.length >= 2 && <div style={{marginBottom:12,paddingBottom:12,borderBottom:'0.5px solid #222'}}>
-                    <div style={{fontSize:9,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Price Trend (~1yr)</div>
-                    <div title={priceHistory.length+' days of data'} style={{fontSize:14,letterSpacing:1,color:'#6a6a68',fontFamily:'monospace',overflow:'hidden',whiteSpace:'nowrap'}}>{sparkline}</div>
-                  </div>}
-
-                  {/* TradingView Daily Chart */}
-                  <div style={{borderRadius:6,overflow:'hidden',border:'0.5px solid #252523'}}>
-                    <div style={{fontSize:9,color:'#555',padding:'5px 10px',background:'#1a1a18',letterSpacing:'0.04em',textTransform:'uppercase'}}>
-                      {tvTicker} {'\u00B7'} Daily
+                var stm = shortTermMap || null;
+                var ltm = fibMap || null;
+                var wg  = waveGuide || null;
+                var fmt = function(v){ return v!=null?('$'+Number(v).toFixed(2)):String.fromCharCode(0x2014); };
+                var fmtR = function(v){ return v!=null?('$'+Math.round(v)):String.fromCharCode(0x2014); };
+                function doAudit() {
+                  var auditData = {
+                    ticker:       item.ticker,
+                    exportedAt:   new Date().toISOString(),
+                    snapshotDate: snap ? snap.snapshot_date : null,
+                    currentPrice: price,
+                    signals: { technicalView:snap?snap.rba_verdict:null, trend:snap?snap.trend_status:null, momentum:snap?snap.momentum_status:null, reversal:snap?snap.reversal_status:null, moneyFlow:snap?snap.money_flow_status:null },
+                    position: lock ? { avgBuyPrice:lock.avg_buy_price, quantity:lock.quantity, lockedPrice:lock.locked_price } : null,
+                    shortTermMap: snapJson.shortTermMap || null,
+                    longTermMap:  snapJson.fibMap       || null,
+                    keyLevels:    snapJson.keyLevels    || null,
+                    waveGuide:    snapJson.waveGuide    || null,
+                    weeklyBars:   (snapJson.fibMap && snapJson.fibMap.weeklyBars) ? snapJson.fibMap.weeklyBars : [],
+                    priceHistory: snapJson.priceHistory || [],
+                    forceStrike:  snapJson.forceStrike  || null,
+                  };
+                  var blob = new Blob([JSON.stringify(auditData, null, 2)], {type:'application/json'});
+                  var url  = URL.createObjectURL(blob);
+                  var a    = document.createElement('a');
+                  a.href   = url;
+                  a.download = item.ticker+'_audit_'+new Date().toISOString().split('T')[0]+'.json';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }
+                return <div style={{gridColumn:'1/-1',background:'#161614',border:'0.5px solid #2a2a28',borderRadius:8,padding:'12px 14px',marginTop:2,marginBottom:4}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                    <div style={{fontSize:10,fontWeight:700,color:'#888'}}>{item.ticker}</div>
+                    <div style={{display:'flex',gap:6}}>
+                      <button onClick={doAudit} style={{fontSize:9,padding:'2px 8px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#555',cursor:'pointer'}}>Audit JSON {'\u2193'}</button>
+                      <button onClick={function(){ setViewLockTicker(null); }} style={{fontSize:9,padding:'2px 8px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#555',cursor:'pointer'}}>Close</button>
                     </div>
-                    <iframe
-                      key={tvTicker}
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+                    <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px'}}>
+                      <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Long-Term (Weekly Fib)</div>
+                      {!ltm ? <div style={{fontSize:10,color:'#555'}}>No data</div>
+                        : <div style={{fontSize:10,display:'flex',flexDirection:'column',gap:5}}>
+                            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>S Zone</span><span style={{color:'#6090d0',fontWeight:600}}>{fmt(ltm.fibSupportZoneHigh)+' \u2013 '+fmt(ltm.fibSupportZoneLow)}</span></div>
+                            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>Invalidation</span><span style={{color:'#e05050'}}>{fmt(ltm.fibInvalidation)}</span></div>
+                            <div style={{borderTop:'0.5px solid #222',paddingTop:5,marginTop:2}}>
+                              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R1</span><span style={{color:'#888'}}>{fmt(ltm.fibTarget1)}</span></div>
+                              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R2</span><span style={{color:'#888'}}>{fmt(ltm.fibTarget2)}</span></div>
+                              <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>R3</span><span style={{color:'#888'}}>{fmt(ltm.fibTarget3)}</span></div>
+                            </div>
+                          </div>}
+                    </div>
+                    <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px'}}>
+                      <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Short-Term (Daily Fib)</div>
+                      {!stm ? <div style={{fontSize:10,color:'#555'}}>No data</div>
+                        : <div style={{fontSize:10,display:'flex',flexDirection:'column',gap:5}}>
+                            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>S Zone</span><span style={{color:'#6090d0',fontWeight:600}}>{fmt(stm.fibSupportZoneHigh)+' \u2013 '+fmt(stm.fibSupportZoneLow)}</span></div>
+                            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>Invalidation</span><span style={{color:'#e05050'}}>{fmt(stm.fibInvalidation)}</span></div>
+                            <div style={{borderTop:'0.5px solid #222',paddingTop:5,marginTop:2}}>
+                              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R1</span><span style={{color:'#888'}}>{fmt(stm.fibTarget1)}</span></div>
+                              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R2</span><span style={{color:'#888'}}>{fmt(stm.fibTarget2)}</span></div>
+                              <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>R3</span><span style={{color:'#888'}}>{fmt(stm.fibTarget3)}</span></div>
+                            </div>
+                          </div>}
+                    </div>
+                  </div>
+                  {(ltm||stm)&&<div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px',marginBottom:12}}>
+                    <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Wave Targets & Pullback Range</div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'5px 10px',fontSize:10}}>
+                      <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>LT Wave Target</div><div style={{color:'#888',fontWeight:600}}>{fmtR(ltm&&ltm.fibTarget1)}</div></div>
+                      <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>ST Wave Target</div><div style={{color:'#888',fontWeight:600}}>{fmtR(stm&&stm.fibTarget1)}</div></div>
+                      <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>LT Pullback Zone</div><div style={{color:'#6090d0'}}>{ltm?(fmtR(ltm.fibSupportZoneHigh)+'\u2013'+fmtR(ltm.fibSupportZoneLow)):String.fromCharCode(0x2014)}</div></div>
+                      <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>ST Pullback Zone</div><div style={{color:'#6090d0'}}>{stm?(fmtR(stm.fibSupportZoneHigh)+'\u2013'+fmtR(stm.fibSupportZoneLow)):String.fromCharCode(0x2014)}</div></div>
+                      {wg&&<div><div style={{color:'#555',fontSize:8,marginBottom:2}}>Wave Stage</div><div style={{color:'#888'}}>{wg.waveStatus||String.fromCharCode(0x2014)}</div></div>}
+                    </div>
+                  </div>}
+                  <div style={{borderRadius:6,overflow:'hidden',border:'0.5px solid #252523'}}>
+                    <div style={{fontSize:9,color:'#555',padding:'5px 10px',background:'#111',letterSpacing:'0.04em',textTransform:'uppercase'}}>{tvTicker} {'\u00B7'} Daily</div>
+                    <iframe key={tvTicker}
                       src={'https://s.tradingview.com/widgetembed/?frameElementId=tv_wl_'+tvTicker+'&symbol='+tvTicker+'&interval=D&theme=dark&style=1&timezone=exchange&withdateranges=1&hide_side_toolbar=1&allow_symbol_change=0&save_image=0'}
-                      style={{width:'100%',height:300,border:'none',display:'block'}}
-                      title={tvTicker+' Daily Chart'}
-                      loading="lazy"
-                      sandbox="allow-scripts allow-same-origin allow-popups"
+                      style={{width:'100%',height:280,border:'none',display:'block'}}
+                      title={tvTicker+' Daily Chart'} loading="lazy" sandbox="allow-scripts allow-same-origin allow-popups"
                     />
                   </div>
-
                 </div>;
               })()}
 
@@ -14376,7 +14259,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.192</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.193</span>
           </div>
         </div>
 
