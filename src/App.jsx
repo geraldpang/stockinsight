@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.176</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.177</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.176</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.177</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11431,13 +11431,15 @@ function getNextFibTarget(price, levels) {
 // Determine Price Map status from current price and Fib levels.
 function getPriceMapStatus(price, levels, swingValid) {
   if (!swingValid || !price || price <= 0) return 'No Clear Map';
-  // Below or near 61.8% retracement (fibSupportZoneLow) = structure breaking down
-  if (price < levels.fibSupportZoneLow  * 1.01) return 'Support Broken';
-  // Inside the support zone (between 61.8% and 50%) = Near Support
-  if (price <= levels.fibSupportZoneHigh) return 'Near Support';
-  // Above the support zone — assess where vs targets
-  var nextTarget = getNextFibTarget(price, levels);
+  // Below 61.8% level = support zone broken
+  if (price < levels.fibSupportZoneLow * 0.99) return 'Support Broken';
+  // Inside the support zone (between 61.8% and 50%) = At Support
+  if (price <= levels.fibSupportZoneHigh) return 'At Support';
+  // Just above the 50% level (within 3-5%) = Near Support
+  if (price <= levels.fibSupportZoneHigh * 1.04) return 'Near Support';
+  // Above support zone — assess where vs targets
   if (price >= levels.fibTarget2 * 0.95) return 'Overextended';
+  var nextTarget = getNextFibTarget(price, levels);
   if (price >= nextTarget * 0.95)        return 'Near Target';
   return 'Moving Up';
 }
@@ -12213,18 +12215,25 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     if (!pm || pm.priceMapStatus === 'No Clear Map') {
                       return <span style={{fontSize:10,color:'#444'}}>{String.fromCharCode(0x2014)}</span>;
                     }
-                    var statusColor = pm.priceMapStatus==='Moving Up'    ? '#7abd00'
-                                    : pm.priceMapStatus==='Near Support' ? '#6090d0'
-                                    : pm.priceMapStatus==='Near Target'  ? '#7abd00'
-                                    : pm.priceMapStatus==='Overextended' ? '#EF9F27'
-                                    : pm.priceMapStatus==='Support Broken'? '#e05050'
+                    var statusColor = pm.priceMapStatus==='Moving Up'      ? '#7abd00'
+                                    : pm.priceMapStatus==='At Support'     ? '#6090d0'
+                                    : pm.priceMapStatus==='Near Support'   ? '#6090d0'
+                                    : pm.priceMapStatus==='Near Target'    ? '#7abd00'
+                                    : pm.priceMapStatus==='Overextended'   ? '#EF9F27'
+                                    : pm.priceMapStatus==='Support Broken' ? '#e05050'
                                     : '#555';
+                    // Support zone display: S $356–$382 (rounded to whole dollars for compactness)
+                    var zLo = pm.fibSupportZoneLow  != null ? Math.round(pm.fibSupportZoneLow)  : null;
+                    var zHi = pm.fibSupportZoneHigh != null ? Math.round(pm.fibSupportZoneHigh) : null;
+                    var zoneStr = (zLo!=null && zHi!=null) ? ('S $'+zLo+'\u2013$'+zHi) : (zHi!=null ? 'S $'+zHi : null);
+                    var tgt     = pm.fibTarget != null ? ('T $'+Math.round(pm.fibTarget)) : null;
+                    var isBroken = pm.priceMapStatus === 'Support Broken';
                     return <div>
                       <div style={{fontSize:10,fontWeight:700,color:statusColor}}>{pm.priceMapStatus}</div>
                       <div style={{fontSize:9,color:'#666',whiteSpace:'nowrap'}}>
-                        {pm.fibSupport!=null&&<span>{'S $'+pm.fibSupport.toFixed(2)}</span>}
-                        {pm.fibSupport!=null&&pm.fibTarget!=null&&<span style={{color:'#444'}}>{' | '}</span>}
-                        {pm.fibTarget!=null&&<span>{'T $'+pm.fibTarget.toFixed(2)}</span>}
+                        {zoneStr&&<span>{zoneStr}</span>}
+                        {zoneStr&&tgt&&!isBroken&&<span style={{color:'#444'}}>{' | '}</span>}
+                        {tgt&&!isBroken&&<span>{tgt}</span>}
                       </div>
                     </div>;
                   })()}
@@ -12342,11 +12351,12 @@ function WatchlistPage({ clerkUser, isPaid }) {
                       <div style={{fontSize:9,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Weekly Fib Price Map</div>
                       <div style={{fontSize:10,color:'#555'}}>No data — refresh signals to calculate.</div>
                     </div>;
-                    var statusColor = pm.priceMapStatus==='Moving Up'    ? '#7abd00'
-                                    : pm.priceMapStatus==='Near Support' ? '#6090d0'
-                                    : pm.priceMapStatus==='Near Target'  ? '#7abd00'
-                                    : pm.priceMapStatus==='Overextended' ? '#EF9F27'
-                                    : pm.priceMapStatus==='Support Broken'? '#e05050'
+                    var statusColor = pm.priceMapStatus==='Moving Up'      ? '#7abd00'
+                                    : pm.priceMapStatus==='At Support'     ? '#6090d0'
+                                    : pm.priceMapStatus==='Near Support'   ? '#6090d0'
+                                    : pm.priceMapStatus==='Near Target'    ? '#7abd00'
+                                    : pm.priceMapStatus==='Overextended'   ? '#EF9F27'
+                                    : pm.priceMapStatus==='Support Broken' ? '#e05050'
                                     : '#555';
                     var fmt = function(v){ return v!=null ? ('$'+Number(v).toFixed(2)) : String.fromCharCode(0x2014); };
                     return <div style={{marginBottom:12,paddingBottom:12,borderBottom:'0.5px solid #222'}}>
@@ -13889,7 +13899,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.176</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.177</span>
           </div>
         </div>
 
