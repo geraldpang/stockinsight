@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.178</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.179</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.178</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.179</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11500,6 +11500,69 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
     };
   } catch(e) { return null; }
 }
+
+// Short-Term Map: find swing low/high from the last 90 daily bars of daily2.
+// Same global min/max approach as findFibSwings, but daily resolution.
+// daily2 uses ms timestamps — normalised to ISO string for consistent date comparison.
+function findDailyFibSwings(dailyBars) {
+  if (!dailyBars || dailyBars.length < 60) return null;
+  var bars = dailyBars.slice(-90); // last ~4 months of trading days
+  var swingLowBar = bars[0], swingHighBar = bars[0];
+  for (var di = 1; di < bars.length; di++) {
+    var b = bars[di];
+    var bLow  = b.low  || b.close;
+    var bHigh = b.high || b.close;
+    var bDate = typeof b.date === 'number' ? new Date(b.date).toISOString().split('T')[0] : String(b.date).split('T')[0];
+    var curLow  = swingLowBar.low  || swingLowBar.close;
+    var curHigh = swingHighBar.high || swingHighBar.close;
+    if (bLow  < curLow)  swingLowBar  = { date:bDate, low:bLow,  high:bHigh, close:b.close };
+    if (bHigh > curHigh) swingHighBar = { date:bDate, low:bLow,  high:bHigh, close:b.close };
+  }
+  var swingLow  = swingLowBar.low  || swingLowBar.close;
+  var swingHigh = swingHighBar.high || swingHighBar.close;
+  var range = swingHigh - swingLow;
+  if (range / swingLow < 0.05) return null; // 5% minimum for daily — tighter than weekly's 10%
+  var lowDate  = typeof swingLowBar.date  === 'number' ? new Date(swingLowBar.date).toISOString().split('T')[0]  : String(swingLowBar.date).split('T')[0];
+  var highDate = typeof swingHighBar.date === 'number' ? new Date(swingHighBar.date).toISOString().split('T')[0] : String(swingHighBar.date).split('T')[0];
+  return { swingLow:swingLow, swingHigh:swingHigh, swingLowDate:lowDate, swingHighDate:highDate };
+}
+
+// Build Short-Term Fib map from daily bars (reuses existing calcFibLevels, getPriceMapStatus).
+// daily2Arr passed in directly — no aggregation needed. No extra fetch.
+function buildShortTermFibMap(daily2Arr, currentPrice) {
+  try {
+    if (!daily2Arr || daily2Arr.length < 60) return null;
+    var swings = findDailyFibSwings(daily2Arr);
+    if (!swings) {
+      return { priceMapStatus:'No Clear Map', fibSupport:null, fibTarget:null, fibInvalidation:null, fibTimeframe:'Daily',
+               fibSwingLow:null, fibSwingHigh:null, fibSupportZoneLow:null, fibSupportZoneHigh:null,
+               fibTarget1:null, fibTarget2:null, fibTarget3:null,
+               priceMapCommentary:'No clear short-term swing structure detected.', swingLowDate:null, swingHighDate:null, dailyBarCount:daily2Arr.length };
+    }
+    var levels  = calcFibLevels(swings.swingLow, swings.swingHigh);
+    var status  = getPriceMapStatus(currentPrice, levels, true);
+    var fibSupport = levels.fibSupportZoneHigh;
+    var fibTarget  = getNextFibTarget(currentPrice, levels);
+    return {
+      priceMapStatus:    status,
+      fibSupport:        Math.round(fibSupport         * 100) / 100,
+      fibTarget:         Math.round(fibTarget           * 100) / 100,
+      fibInvalidation:   Math.round(swings.swingLow    * 100) / 100,
+      fibTimeframe:      'Daily',
+      fibSwingLow:       Math.round(swings.swingLow    * 100) / 100,
+      fibSwingHigh:      Math.round(swings.swingHigh   * 100) / 100,
+      fibSupportZoneLow: Math.round(levels.fibSupportZoneLow  * 100) / 100,
+      fibSupportZoneHigh:Math.round(levels.fibSupportZoneHigh * 100) / 100,
+      fibTarget1:        Math.round(levels.fibTarget1 * 100) / 100,
+      fibTarget2:        Math.round(levels.fibTarget2 * 100) / 100,
+      fibTarget3:        Math.round(levels.fibTarget3 * 100) / 100,
+      priceMapCommentary:'Fibonacci levels are projection zones, not guaranteed price predictions.',
+      swingLowDate:      swings.swingLowDate,
+      swingHighDate:     swings.swingHighDate,
+      dailyBarCount:     daily2Arr.length,
+    };
+  } catch(e) { return null; }
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Shared Force Strike helpers (module-level) ───────────────────────────────
@@ -11937,6 +12000,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
       // Weekly Fib Price Map — calculated from daily2 aggregated to weekly bars.
       // null if insufficient data or unclear swing structure (safe fallback: "No Clear Map").
       fibMap:          buildFibMapFromDailyBars(daily2, price),
+      // Short-Term Map: daily Fib using last 90 bars of daily2 — no extra fetch needed.
+      shortTermMap:    buildShortTermFibMap(daily2, price),
     };
     await fetch('/watchlist?action=snapshot', {
       method: 'POST', headers: hdrs,
@@ -12027,7 +12092,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
   // ── Paid user UI ───────────────────────────────────────────────────────────
   // Ticker | Price | Position | Technical View | 52W Range | 3M Trend | Force Strike | Actions
   var COL  = '70px 90px 140px 130px 140px 80px 110px 100px 110px';
-  var HEAD = ['Ticker','Price','Position','Technical View','52W Range','3M Trend','Long-Term Map','Force Strike','Actions'];
+  var HEAD = ['Ticker','Price','Position','Technical View','52W Range','3M Trend','Price Map','Force Strike','Actions'];
 
   return (
     <div style={{minHeight:'100vh',background:'#0e0e0c',padding:'24px 20px',maxWidth:1400,margin:'0 auto'}}>
@@ -12107,7 +12172,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
             var fsTriggerType = snapJson.fsTriggerType || null;
             var fsTriggerDate = snapJson.fsTriggerDate || null;
             // Weekly Fib Price Map — from snapshot JSON (null for older snapshots without fibMap)
-            var fibMap = (snapJson.fibMap && snapJson.fibMap.priceMapStatus) ? snapJson.fibMap : null;
+            var fibMap      = (snapJson.fibMap      && snapJson.fibMap.priceMapStatus)      ? snapJson.fibMap      : null;
+            var shortTermMap= (snapJson.shortTermMap && snapJson.shortTermMap.priceMapStatus) ? snapJson.shortTermMap : null;
             // Locked FS — from lock record
             var lock = locks[item.ticker] || null;
             var lockedSnapJson = {};
@@ -12223,39 +12289,81 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 <div title={priceHistory ? (priceHistory.length + ' days of data') : 'No data'}
                   style={{fontSize:13,letterSpacing:1,color:priceHistory&&priceHistory.length>=2?'#6a6a68':'#333',overflow:'hidden',whiteSpace:'nowrap',fontFamily:'monospace'}}>{sparkline}</div>
 
-                {/* Long-Term Map — Weekly Fib */}
-                <div style={{overflow:'hidden',lineHeight:1.4}}>
+                {/* Price Map — ST (Daily Fib) then LT (Weekly Fib) with progressive bar */}
+                <div style={{overflow:'hidden',lineHeight:1.5}}>
                   {(function(){
-                    var pm = fibMap;
-                    // Normalise status — handles old snapshots with legacy label strings
-                    var rawStatus = pm ? pm.priceMapStatus : null;
-                    var status = normalisePriceMapStatus(rawStatus);
-                    if (!pm || status === 'No Clear Map') {
-                      return <span style={{fontSize:10,color:'#444'}}>{String.fromCharCode(0x2014)}</span>;
-                    }
-                    var statusColor = status==='At Support'      ? '#6090d0'
-                                    : status==='Holding Support' ? '#7abd00'
-                                    : status==='Testing Target'  ? '#7abd00'
-                                    : status==='Extended'        ? '#EF9F27'
-                                    : status==='Broken'          ? '#e05050'
-                                    : '#555';
-                    var zLo = pm.fibSupportZoneLow  != null ? Math.round(pm.fibSupportZoneLow)  : null;
-                    var zHi = pm.fibSupportZoneHigh != null ? Math.round(pm.fibSupportZoneHigh) : null;
-                    var zoneStr = (zLo!=null && zHi!=null) ? ('$'+zLo+'\u2013$'+zHi) : (zHi!=null ? '$'+zHi : null);
-                    var tgt = pm.fibTarget != null ? ('T $'+Math.round(pm.fibTarget)) : null;
-                    var isBroken = status === 'Broken';
-                    return <div>
-                      <div style={{fontSize:10,fontWeight:700,color:statusColor}}>{status}</div>
-                      {isBroken
-                        ? <div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>
-                            {zoneStr ? ('Recover > '+zoneStr) : String.fromCharCode(0x2014)}
-                          </div>
-                        : <div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>
-                            {zoneStr&&<span>{'S '+zoneStr}</span>}
-                            {zoneStr&&tgt&&<span style={{color:'#555'}}>{' | '}</span>}
-                            {tgt&&<span>{tgt}</span>}
-                          </div>
+                    // Helper: render one map row (ST or LT)
+                    function renderMapRow(pm, label) {
+                      var status = normalisePriceMapStatus(pm ? pm.priceMapStatus : null);
+                      var isBroken  = status === 'Broken';
+                      var isNoClear = !pm || status === 'No Clear Map';
+                      var statusColor = status==='At Support'      ? '#6090d0'
+                                      : status==='Holding Support' ? '#7abd00'
+                                      : status==='Testing Target'  ? '#7abd00'
+                                      : status==='Extended'        ? '#EF9F27'
+                                      : status==='Broken'          ? '#e05050'
+                                      : '#555';
+                      // Progressive bar: S ━━●━━ T
+                      // Position ● based on price relative to support zone and target
+                      function makeBar(pm2, price2) {
+                        if (!pm2 || !price2) return null;
+                        var lo = pm2.fibSupportZoneLow  || 0;
+                        var hi = pm2.fibSupportZoneHigh || 0;
+                        var t  = pm2.fibTarget          || 0;
+                        if (!lo || !hi || !t || t <= lo) return null;
+                        // Map price onto 0–1 within [lo, t] range
+                        var pct = Math.max(0, Math.min(1.15, (price2 - lo) / (t - lo)));
+                        // 5-segment bar, dot position derived from pct
+                        var segs = 5;
+                        var dotSeg = Math.round(pct * segs); // 0=far left, 5=at T, >5=beyond T
+                        var bar = '';
+                        for (var s = 0; s < segs; s++) {
+                          bar += (s === dotSeg) ? '\u25CF' : '\u2501';
+                        }
+                        if (dotSeg >= segs) bar += '\u25CF'; // dot beyond T
+                        return bar;
                       }
+                      var zLo = pm && pm.fibSupportZoneLow  != null ? Math.round(pm.fibSupportZoneLow)  : null;
+                      var zHi = pm && pm.fibSupportZoneHigh != null ? Math.round(pm.fibSupportZoneHigh) : null;
+                      var zoneStr = (zLo!=null&&zHi!=null) ? ('$'+zLo+'\u2013$'+zHi) : (zHi!=null ? '$'+zHi : null);
+                      var tgtNum = pm && pm.fibTarget != null ? Math.round(pm.fibTarget) : null;
+                      var barStr = (!isBroken && pm && price) ? makeBar(pm, price) : null;
+                      return <div style={{marginBottom:3}}>
+                        <div style={{fontSize:8,color:'#555',letterSpacing:'0.03em'}}>{label}</div>
+                        {isNoClear
+                          ? <div style={{fontSize:9,color:'#444'}}>No Clear Map</div>
+                          : isBroken
+                            ? <div>
+                                <div style={{fontSize:9,fontWeight:700,color:statusColor}}>{status}</div>
+                                <div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>
+                                  {zoneStr ? ('Recover > '+zoneStr) : String.fromCharCode(0x2014)}
+                                </div>
+                              </div>
+                            : <div>
+                                <div style={{fontSize:9,fontWeight:700,color:statusColor}}>{status}</div>
+                                {barStr
+                                  ? <div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap',fontFamily:'monospace',letterSpacing:1}}>
+                                      {zoneStr&&<span style={{color:'#888',marginRight:3}}>{'S'}</span>}
+                                      {barStr}
+                                      {tgtNum!=null&&<span style={{color:'#888',marginLeft:3}}>{'T $'+tgtNum}</span>}
+                                    </div>
+                                  : <div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>
+                                      {zoneStr&&<span>{'S '+zoneStr}</span>}
+                                      {zoneStr&&tgtNum!=null&&<span style={{color:'#555'}}>{' | '}</span>}
+                                      {tgtNum!=null&&<span>{'T $'+tgtNum}</span>}
+                                    </div>
+                                }
+                              </div>
+                        }
+                      </div>;
+                    }
+                    var hasST = !!shortTermMap;
+                    var hasLT = !!fibMap;
+                    if (!hasST && !hasLT) return <span style={{fontSize:10,color:'#444'}}>{String.fromCharCode(0x2014)}</span>;
+                    return <div>
+                      {renderMapRow(shortTermMap, 'ST')}
+                      {hasST&&hasLT&&<div style={{borderTop:'0.5px solid #222',margin:'2px 0'}}></div>}
+                      {renderMapRow(fibMap, 'LT')}
                     </div>;
                   })()}
                 </div>
@@ -12364,6 +12472,38 @@ function WatchlistPage({ clerkUser, isPaid }) {
                       </div>;
                     })}
                   </div>
+
+                  {/* Short-Term Map (Daily Fib) section */}
+                  {(function(){
+                    var pm = shortTermMap;
+                    var status = normalisePriceMapStatus(pm ? pm.priceMapStatus : null);
+                    var isBroken = status === 'Broken';
+                    var statusColor = status==='At Support'?'#6090d0':status==='Holding Support'?'#7abd00':status==='Testing Target'?'#7abd00':status==='Extended'?'#EF9F27':status==='Broken'?'#e05050':'#555';
+                    var fmt = function(v){ return v!=null?('$'+Number(v).toFixed(2)):String.fromCharCode(0x2014); };
+                    return <div style={{marginBottom:12,paddingBottom:12,borderBottom:'0.5px solid #222'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                        <div style={{fontSize:9,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em'}}>Short-Term Map (Daily Fib)</div>
+                        {pm&&<div style={{fontSize:10,fontWeight:700,color:statusColor}}>{status}</div>}
+                      </div>
+                      {!pm
+                        ? <div style={{fontSize:10,color:'#555'}}>No data — refresh signals to calculate.</div>
+                        : <div>
+                            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'5px 14px',fontSize:10}}>
+                              <div style={{color:'#555'}}>Swing Low <div style={{color:'#f0ede6'}}>{fmt(pm.fibSwingLow)}{pm.swingLowDate&&<span style={{color:'#444',fontSize:8,marginLeft:4}}>{pm.swingLowDate}</span>}</div></div>
+                              <div style={{color:'#555'}}>Swing High <div style={{color:'#f0ede6'}}>{fmt(pm.fibSwingHigh)}{pm.swingHighDate&&<span style={{color:'#444',fontSize:8,marginLeft:4}}>{pm.swingHighDate}</span>}</div></div>
+                              <div style={{color:'#555'}}>Invalidation <div style={{color:'#e05050'}}>{fmt(pm.fibInvalidation)}</div></div>
+                              <div style={{color:'#555'}}>Support Zone <div style={{color:'#6090d0'}}>{fmt(pm.fibSupportZoneHigh)+' \u2013 '+fmt(pm.fibSupportZoneLow)}</div></div>
+                              <div style={{color:'#555'}}>Target 1 <div style={{color:isBroken?'#555':'#f0ede6'}}>{fmt(pm.fibTarget1)}{isBroken&&<span style={{color:'#555',fontSize:8,marginLeft:4}}>inactive</span>}</div></div>
+                              <div style={{color:'#555'}}>Target 2 <div style={{color:isBroken?'#555':'#f0ede6'}}>{fmt(pm.fibTarget2)}{isBroken&&<span style={{color:'#555',fontSize:8,marginLeft:4}}>inactive</span>}</div></div>
+                              <div style={{color:'#555'}}>Target 3 <div style={{color:isBroken?'#555':'#f0ede6'}}>{fmt(pm.fibTarget3)}{isBroken&&<span style={{color:'#555',fontSize:8,marginLeft:4}}>inactive</span>}</div></div>
+                              <div style={{color:'#555'}}>Daily Bars <div style={{color:'#888'}}>{pm.dailyBarCount||0}</div></div>
+                            </div>
+                            {isBroken&&<div style={{fontSize:9,color:'#e05050',marginTop:6}}>Targets inactive until support zone is reclaimed.</div>}
+                            <div style={{fontSize:8,color:'#444',marginTop:6,fontStyle:'italic'}}>{pm.priceMapCommentary||'Fibonacci levels are projection zones, not guaranteed price predictions.'}</div>
+                          </div>
+                      }
+                    </div>;
+                  })()}
 
                   {/* Long-Term Map (Weekly Fib) section */}
                   {(function(){
@@ -13923,7 +14063,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.178</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.179</span>
           </div>
         </div>
 
