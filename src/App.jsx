@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.196</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.197</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.196</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.197</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11736,7 +11736,7 @@ function buildActionBias(opts) {
   var price        = opts.price        || 0;
   var avgBuyPrice  = opts.avgBuyPrice  || null;
   var qty          = opts.qty          || null;
-  var rbaV         = opts.rbaV         || '';  // Technical View label
+  var rbaV         = opts.rbaV         || '';
   var trendV       = opts.trendV       || '';
   var momV         = opts.momV         || '';
   var revV         = opts.revV         || '';
@@ -11745,20 +11745,21 @@ function buildActionBias(opts) {
   var wgStatus     = opts.wgStatus     || '';
   var nearestS     = opts.nearestS     || null;
   var nearestR     = opts.nearestR     || null;
+  // Full keyLevels object — used to distinguish daily vs weekly support breaks
+  var klObj        = opts.klObj        || null;
 
   var hasPosition  = (avgBuyPrice != null && avgBuyPrice > 0 && qty != null && qty > 0);
   var positionPct  = hasPosition ? (price - avgBuyPrice) / avgBuyPrice * 100 : null;
 
-  // Helper colour
   function col(label) {
-    if (label==='Hold'||label==='Hold / Watch')             return '#888';
-    if (label==='Add 10%'||label==='Add 25%')              return '#6090d0';
-    if (label==='Accumulate Watch')                         return '#6090d0';
-    if (label==='Sell 10%'||label==='Sell 20%')            return '#EF9F27';
+    if (label==='Hold'||label==='Hold / Watch')                 return '#888';
+    if (label==='Add 10%'||label==='Add 25%')                  return '#6090d0';
+    if (label==='Accumulate Watch')                             return '#6090d0';
+    if (label==='Sell 10%'||label==='Sell 20%')                return '#EF9F27';
     if (label==='Sell 30%'||label==='Sell 40%'||label==='Exit') return '#e05050';
-    if (label==='Reduce Risk')                             return '#EF9F27';
-    if (label==='Stop Loss Watch')                         return '#e05050';
-    if (label==='Avoid / Wait')                            return '#555';
+    if (label==='Reduce Risk')                                  return '#EF9F27';
+    if (label==='Stop Loss Watch')                             return '#e05050';
+    if (label==='Avoid / Wait')                                return '#555';
     return '#888';
   }
   function out(label, reason) { return { label:label, reason:reason, color:col(label) }; }
@@ -11773,19 +11774,19 @@ function buildActionBias(opts) {
     return r.indexOf('bearish')!==-1 || r.indexOf('caution')!==-1 || r.indexOf('neutral')!==-1;
   })();
 
-  // Technical weakness score
+  // Technical weakness score (max 4)
   var techWeakness = 0;
-  if ((trendV||'').toLowerCase().indexOf('down')!==-1)                         techWeakness++;
-  if ((momV||'').toLowerCase().indexOf('fad')!==-1||(momV||'').toLowerCase().indexOf('weak')!==-1) techWeakness++;
-  if ((revV||'').toLowerCase().indexOf('bear')!==-1)                           techWeakness++;
+  if ((trendV||'').toLowerCase().indexOf('down')!==-1)                                                    techWeakness++;
+  if ((momV||'').toLowerCase().indexOf('fad')!==-1||(momV||'').toLowerCase().indexOf('weak')!==-1)        techWeakness++;
+  if ((revV||'').toLowerCase().indexOf('bear')!==-1)                                                      techWeakness++;
   if ((smfV||'').toLowerCase().indexOf('distribut')!==-1||(smfV||'').toLowerCase().indexOf('negative')!==-1) techWeakness++;
 
-  // Technical support score
+  // Technical support score (max 4)
   var techSupport = 0;
-  if ((trendV||'').toLowerCase().indexOf('up')!==-1)                           techSupport++;
-  if ((momV||'').toLowerCase().indexOf('build')!==-1||(momV||'').toLowerCase().indexOf('strong')!==-1) techSupport++;
+  if ((trendV||'').toLowerCase().indexOf('up')!==-1)                                                      techSupport++;
+  if ((momV||'').toLowerCase().indexOf('build')!==-1||(momV||'').toLowerCase().indexOf('strong')!==-1)    techSupport++;
   if ((revV||'').toLowerCase().indexOf('trigger')!==-1||(revV||'').toLowerCase().indexOf('confirm')!==-1) techSupport++;
-  if ((smfV||'').toLowerCase().indexOf('accum')!==-1)                          techSupport++;
+  if ((smfV||'').toLowerCase().indexOf('accum')!==-1)                                                     techSupport++;
 
   var klBroken   = klStatus==='Broken';
   var klNoClear  = !klStatus || klStatus==='No Clear Levels';
@@ -11798,53 +11799,80 @@ function buildActionBias(opts) {
   var wgPullback = wgStatus==='Pullback' || wgStatus==='Recovery';
   var wgCont     = wgStatus==='Continuation';
 
+  // Distinguish weekly (major) support break from daily-only break.
+  // Only a weekly/major support break constitutes a structural break for risk purposes.
+  // A daily support break with weekly support intact and supportive technicals = recovery watch.
+  var majorSupportBroken = false;
+  if (klBroken && klObj && klObj.supports) {
+    // Check if any MAJOR (weekly) support level is below current price
+    // i.e. price has broken below a weekly-tagged support
+    var majorSupports = klObj.supports.filter(function(s){ return s.strength === 'major'; });
+    if (majorSupports.length > 0) {
+      // If price is below the highest major support, that major support is broken
+      var highestMajorS = majorSupports[0].price; // sorted nearest-first = highest first
+      majorSupportBroken = price < highestMajorS * 0.99;
+    } else {
+      // No major levels — treat the break as structural
+      majorSupportBroken = true;
+    }
+  } else if (klBroken) {
+    // No klObj to inspect — fall back to treating as structural
+    majorSupportBroken = true;
+  }
+
+  // Daily-only break: klBroken but major (weekly) support still intact
+  var dailyOnlyBreak = klBroken && !majorSupportBroken;
+
   // Near resistance: within 3% of nearestR
   var nearResistance = nearestR && price >= nearestR * 0.97;
   // Near support: within 3% above nearestS
   var nearSupport    = nearestS && price <= nearestS * 1.03;
 
   // ── Priority 1: Avoid / Wait ──────────────────────────────────────────────
-  // Only for no-position; existing positions get Hold/Reduce Risk/Stop Loss
   if (!hasPosition) {
     if (klNoClear || wgNoClear) return out('Avoid / Wait', 'No clear setup');
     if (rbaLow && techWeakness >= 2) return out('Avoid / Wait', 'Weak structure');
-    if (klBroken) return out('Avoid / Wait', 'Structure broken');
+    if (majorSupportBroken) return out('Avoid / Wait', 'Structure broken');
+    // Daily-only break without position — watch but don't avoid
+    if (dailyOnlyBreak && techWeakness >= 2) return out('Avoid / Wait', 'Weak structure');
   }
 
   // ── Priority 2: Stop Loss Watch ───────────────────────────────────────────
+  // Requires: has position + negative + major support broken + rbaWeak + techWeakness >= 2
   if (hasPosition && positionPct !== null && positionPct < 0 &&
-      (klBroken || nearestS && price < nearestS) &&
-      rbaWeak && techWeakness >= 2) {
+      majorSupportBroken && rbaWeak && techWeakness >= 2) {
     return out('Stop Loss Watch', 'Below support + weak technicals');
   }
 
   // ── Priority 3: Reduce Risk ───────────────────────────────────────────────
-  if (klBroken && hasPosition) return out('Reduce Risk', 'Support broken');
-  if (wgInactive && hasPosition) return out('Reduce Risk', 'WT inactive');
-  if (klBroken && !hasPosition) return out('Reduce Risk', 'Structure weakening');
-  if (techWeakness >= 3) return out('Reduce Risk', 'Structure weakening');
+  // Only trigger on MAJOR support break, WT inactive, or confirmed technical weakness
+  // Daily-only break with supportive technicals does NOT trigger Reduce Risk
+  if (majorSupportBroken && hasPosition) return out('Reduce Risk', 'Support broken');
+  if (wgInactive && hasPosition)         return out('Reduce Risk', 'WT inactive');
+  if (majorSupportBroken && !hasPosition) return out('Reduce Risk', 'Structure weakening');
+  if (techWeakness >= 3)                 return out('Reduce Risk', 'Structure weakening');
+  // Daily-only break with weak technicals — softer warning
+  if (dailyOnlyBreak && techWeakness >= 2 && hasPosition) return out('Reduce Risk', 'ST support weak');
 
   // ── Priority 4: Profit-taking ladder ──────────────────────────────────────
   if (hasPosition && positionPct !== null) {
     var nearWT = wgTestingWT || wgExtended;
     var nearR  = nearResistance || klTestingR;
-    var techFading = techWeakness >= 2;
-    // Only take profit if near resistance or WT, or extended with large gain
     if (nearWT || nearR || (wgExtended && positionPct >= 45)) {
-      if (positionPct >= 100) return out('Exit', '100%+ gain');
-      if (positionPct >=  60) return out('Sell 40%', wgExtended?'Extended':'High gain');
-      if (positionPct >=  45) return out('Sell 30%', nearWT?'WT hit':'Extended');
-      if (positionPct >=  35) return out('Sell 20%', nearWT?'WT hit':'Near resistance');
-      if (positionPct >=  25) return out('Sell 10%', 'Near resistance');
-      // Gain but not yet at thresholds — watch
+      if (positionPct >= 100) return out('Exit',      '100%+ gain');
+      if (positionPct >=  60) return out('Sell 40%',  wgExtended?'Extended':'High gain');
+      if (positionPct >=  45) return out('Sell 30%',  nearWT?'WT hit':'Extended');
+      if (positionPct >=  35) return out('Sell 20%',  nearWT?'WT hit':'Near resistance');
+      if (positionPct >=  25) return out('Sell 10%',  'Near resistance');
       if (positionPct >=  15) return out('Hold / Watch', 'Approaching resistance');
     }
   }
 
   // ── Priority 5: Accumulation ladder ──────────────────────────────────────
+  // Never add when major support is broken or WT inactive
   if (hasPosition && positionPct !== null && positionPct < 0 &&
+      !majorSupportBroken && !wgInactive &&
       (klTestingS || nearSupport) &&
-      !klBroken && !wgInactive &&
       !rbaLow && techSupport >= 2) {
     if (positionPct <= -25) return out('Add 25%', 'Support + recovery');
     if (positionPct <= -15) return out('Add 10%', 'Support holding');
@@ -11856,10 +11884,12 @@ function buildActionBias(opts) {
     if (wgCont || klStatus==='Holding Support') return out('Hold / Watch', 'Structure intact');
     return out('Hold / Watch', 'Monitor signals');
   }
-  // Has position
+  // Has position — daily-only break with supportive technicals = recovery forming
+  if (dailyOnlyBreak && techSupport >= 2) return out('Hold', 'Recovery forming');
+  if (dailyOnlyBreak && wgPullback)       return out('Hold', 'Recovery forming');
   if (positionPct !== null && positionPct < -5 && nearSupport) return out('Hold', 'Recovery forming');
   if (positionPct !== null && positionPct >= 15 && wgCont && !nearResistance) return out('Hold', 'Trend intact');
-  if (klTestingS || wgPullback) return out('Hold', 'Support holding');
+  if (klTestingS || wgPullback)           return out('Hold', 'Support holding');
   if (positionPct !== null && positionPct < 0) return out('Hold', 'Support intact');
   return out('Hold', 'Between levels');
 }
@@ -12788,6 +12818,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     wgStatus:    waveGuide ? waveGuide.waveStatus : null,
                     nearestS:    keyLevels ? keyLevels.nearestSupport    : null,
                     nearestR:    keyLevels ? keyLevels.nearestResistance : null,
+                    klObj:       keyLevels || null,
                   });
                   return <div style={{overflow:'hidden',lineHeight:1.5}}>
                     <div style={{fontSize:10,fontWeight:700,color:ab.color}}>{ab.label}</div>
@@ -12882,7 +12913,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                   var abNearS     = abNearestS && price <= abNearestS * 1.03;
                   var abRbaWeak   = (function(){ var r=(rbaV||'').toLowerCase(); return r.indexOf('bearish')!==-1||r.indexOf('caution')!==-1||r.indexOf('neutral')!==-1; })();
                   // Final bias result
-                  var abResult = buildActionBias({ price:price, avgBuyPrice:abAvgBuy, qty:abQty, rbaV:rbaV, trendV:trendV, momV:momV, revV:revV, smfV:smfV, klStatus:abKlStatus, wgStatus:abWgStatus, nearestS:abNearestS, nearestR:abNearestR });
+                  var abResult = buildActionBias({ price:price, avgBuyPrice:abAvgBuy, qty:abQty, rbaV:rbaV, trendV:trendV, momV:momV, revV:revV, smfV:smfV, klStatus:abKlStatus, wgStatus:abWgStatus, nearestS:abNearestS, nearestR:abNearestR, klObj:keyLevels||null });
                   var auditData = {
                     ticker:       item.ticker,
                     exportedAt:   new Date().toISOString(),
@@ -12912,6 +12943,22 @@ function WatchlistPage({ clerkUser, isPaid }) {
                       nearResistance:     abNearR,
                       nearSupport:        abNearS,
                       rbaIsWeak:          abRbaWeak,
+                      // Support break classification — key for Reduce Risk gating
+                      klBroken:           abKlStatus === 'Broken',
+                      majorSupportBroken: (function(){
+                        if (abKlStatus !== 'Broken') return false;
+                        if (!keyLevels || !keyLevels.supports) return true;
+                        var majS = keyLevels.supports.filter(function(s){ return s.strength==='major'; });
+                        if (!majS.length) return true;
+                        return price < majS[0].price * 0.99;
+                      })(),
+                      dailyOnlyBreak: (function(){
+                        if (abKlStatus !== 'Broken') return false;
+                        if (!keyLevels || !keyLevels.supports) return false;
+                        var majS = keyLevels.supports.filter(function(s){ return s.strength==='major'; });
+                        if (!majS.length) return false;
+                        return price >= majS[0].price * 0.99;
+                      })(),
                       // Weakness scoring (each component = 1pt, total max 4)
                       techWeaknessScore:  abWeakScore,
                       weaknessComponents: {
@@ -14473,7 +14520,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.196</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.197</span>
           </div>
         </div>
 
