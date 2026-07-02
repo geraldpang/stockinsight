@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.172</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.173</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.172</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.173</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11353,6 +11353,130 @@ function makeSparkline(values) {
   return values.map(function(v){return blocks[Math.round((v-min)/(max-min)*(blocks.length-1))];}).join("");
 }
 
+// ─── Weekly Fib Price Map helpers (module-level, pure functions) ──────────────
+// These are standalone — they do not touch any existing signal calculation logic.
+
+// Aggregate daily bars (oldest-to-newest, {date:ISO,...} or {date:ms,...}) into weekly candles.
+// Uses Monday-anchored weeks. Safe against null/missing OHLCV fields.
+function aggregateWeekly(dailyBars) {
+  if (!dailyBars || dailyBars.length < 5) return [];
+  var weeks = {}, order = [];
+  for (var di = 0; di < dailyBars.length; di++) {
+    var b = dailyBars[di];
+    if (!b || !b.close || b.close <= 0) continue;
+    // Normalise date to ISO string (handles both ms and ISO input)
+    var dateStr = typeof b.date === 'number'
+      ? new Date(b.date).toISOString().split('T')[0]
+      : (b.date ? String(b.date).split('T')[0] : null);
+    if (!dateStr) continue;
+    var d = new Date(dateStr);
+    var dow = d.getDay(); // 0=Sun, 1=Mon...
+    var monday = new Date(d);
+    monday.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+    var key = monday.toISOString().split('T')[0];
+    if (!weeks[key]) {
+      weeks[key] = { date:key, open:b.open||b.close, high:b.high||b.close, low:b.low||b.close, close:b.close, volume:b.volume||0 };
+      order.push(key);
+    } else {
+      var w = weeks[key];
+      if ((b.high||b.close) > w.high) w.high = b.high||b.close;
+      if ((b.low||b.close)  < w.low)  w.low  = b.low||b.close;
+      w.close = b.close;
+      w.volume += (b.volume||0);
+    }
+  }
+  return order.map(function(k){ return weeks[k]; });
+}
+
+// Find major swing low and swing high from weekly bars.
+// Returns {swingLow, swingHigh, swingLowDate, swingHighDate} or null if structure unclear.
+function findFibSwings(weeklyBars) {
+  if (!weeklyBars || weeklyBars.length < 26) return null;
+  var bars = weeklyBars.slice(-52); // use up to last 52 weeks
+  var swingLowBar = bars[0], swingHighBar = bars[0];
+  for (var wi = 1; wi < bars.length; wi++) {
+    var b = bars[wi];
+    if (b.low  < swingLowBar.low)   swingLowBar  = b;
+    if (b.high > swingHighBar.high) swingHighBar = b;
+  }
+  // Bullish structure: swing low must occur before swing high
+  if (swingLowBar.date >= swingHighBar.date) return null;
+  // Range must be at least 10% of swing low to avoid flat/choppy structures
+  var range = swingHighBar.high - swingLowBar.low;
+  if (range / swingLowBar.low < 0.10) return null;
+  return { swingLow:swingLowBar.low, swingHigh:swingHighBar.high, swingLowDate:swingLowBar.date, swingHighDate:swingHighBar.date };
+}
+
+// Calculate Fib retracement and extension levels from swing points.
+function calcFibLevels(swingLow, swingHigh) {
+  var range = swingHigh - swingLow;
+  return {
+    fibSupportZoneHigh: swingHigh - range * 0.500,  // 50% retracement
+    fibSupportZoneLow:  swingHigh - range * 0.618,  // 61.8% retracement
+    fibTarget1:         swingHigh,                   // swing high = T1
+    fibTarget2:         swingHigh + range * 0.272,   // 127.2% extension
+    fibTarget3:         swingHigh + range * 0.618,   // 161.8% extension
+    fibInvalidation:    swingLow,                    // below this = structure broken
+  };
+}
+
+// Return the next relevant Fib target above current price.
+function getNextFibTarget(price, levels) {
+  if (price < levels.fibTarget1 * 0.98) return levels.fibTarget1;
+  if (price < levels.fibTarget2 * 0.98) return levels.fibTarget2;
+  return levels.fibTarget3;
+}
+
+// Determine Price Map status from current price and Fib levels.
+function getPriceMapStatus(price, levels, swingValid) {
+  if (!swingValid || !price || price <= 0) return 'No Clear Map';
+  if (price < levels.fibSupportZoneLow  * 1.01) return 'Support Broken';
+  if (price <= levels.fibSupportZoneHigh * 1.02) return 'Near Support';
+  var nextTarget = getNextFibTarget(price, levels);
+  if (price >= nextTarget * 0.95)        return 'Near Target';
+  if (price >= levels.fibTarget2 * 0.95) return 'Overextended';
+  return 'Moving Up';
+}
+
+// Top-level entry: takes daily2 (Watchlist Yahoo chart bars) and current price.
+// Returns a fibMap object suitable for signal_snapshot_json.fibMap, or null on failure.
+function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
+  try {
+    if (!daily2Arr || daily2Arr.length < 30) return null;
+    var weekly = aggregateWeekly(daily2Arr);
+    var swings = findFibSwings(weekly);
+    if (!swings) {
+      return { priceMapStatus:'No Clear Map', fibSupport:null, fibTarget:null, fibInvalidation:null, fibTimeframe:'Weekly',
+               fibSwingLow:null, fibSwingHigh:null, fibSupportZoneLow:null, fibSupportZoneHigh:null,
+               fibTarget1:null, fibTarget2:null, fibTarget3:null,
+               priceMapCommentary:'No clear weekly swing structure detected.', swingLowDate:null, swingHighDate:null, weeklyBarCount:weekly.length };
+    }
+    var levels   = calcFibLevels(swings.swingLow, swings.swingHigh);
+    var status   = getPriceMapStatus(currentPrice, levels, true);
+    var fibSupport = levels.fibSupportZoneHigh;
+    var fibTarget  = getNextFibTarget(currentPrice, levels);
+    return {
+      priceMapStatus:    status,
+      fibSupport:        Math.round(fibSupport   * 100) / 100,
+      fibTarget:         Math.round(fibTarget    * 100) / 100,
+      fibInvalidation:   Math.round(swings.swingLow    * 100) / 100,
+      fibTimeframe:      'Weekly',
+      fibSwingLow:       Math.round(swings.swingLow  * 100) / 100,
+      fibSwingHigh:      Math.round(swings.swingHigh * 100) / 100,
+      fibSupportZoneLow: Math.round(levels.fibSupportZoneLow  * 100) / 100,
+      fibSupportZoneHigh:Math.round(levels.fibSupportZoneHigh * 100) / 100,
+      fibTarget1:        Math.round(levels.fibTarget1 * 100) / 100,
+      fibTarget2:        Math.round(levels.fibTarget2 * 100) / 100,
+      fibTarget3:        Math.round(levels.fibTarget3 * 100) / 100,
+      priceMapCommentary:'Fibonacci levels are projection zones, not guaranteed price predictions.',
+      swingLowDate:      swings.swingLowDate,
+      swingHighDate:     swings.swingHighDate,
+      weeklyBarCount:    weekly.length,
+    };
+  } catch(e) { return null; }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ─── Shared Force Strike helpers (module-level) ───────────────────────────────
 // These were previously private to ForceStrikePage.
 // Hoisted so WatchlistPage can call the exact same logic — both pages produce
@@ -11596,14 +11720,15 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
     // Force Strike: always fresh scan using Yahoo chart (same as #FORCESTRIKE screener)
     // Ensures Watchlist FS result is identical to #FORCESTRIKE for the same ticker and data window.
-    // The Yahoo range=3mo chart is also the source for:
-    //   - priceHistory (true ~3-month daily closes, oldest-to-newest) used by 3M Trend sparkline
+    // The Yahoo range=1y chart (changed from 3mo) is also the source for:
+    //   - Weekly Fib Price Map: needs 26-52 weekly candles; 3mo only gave ~12, 1y gives ~50
+    //   - priceHistory (~1yr daily closes, oldest-to-newest) used by 3M Trend sparkline
     //   - price fallback (meta.regularMarketPrice) if Massive returned 0
     //   - true 52-week high/low (meta.fiftyTwoWeekHigh/Low, range-independent)
     var fsResult = null;
-    var daily2 = []; // Yahoo 3-month daily bars — populated below, used for FS + 3M Trend
+    var daily2 = []; // Yahoo 1-year daily bars — populated below, used for FS + 3M Trend + Weekly Fib
     try {
-      var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=3mo';
+      var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=1y';
       var fsAbort = new AbortController();
       var fsTimer = setTimeout(function(){ fsAbort.abort(); }, 10000);
       var cRes2 = await fetch('/proxy?url=' + encodeURIComponent(chartUrl), { signal: fsAbort.signal });
@@ -11770,8 +11895,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
       moneyFlowStatus: snap.smartMoneyFlow.status,
       moneyFlowScore:  snap.smartMoneyFlow.score,
       moneyFlowRank:   wlSmfRank(snap.smartMoneyFlow.status),
-      // 3M Trend: true ~3-month daily closes from Yahoo range=3mo (oldest-to-newest).
-      // Replaces the previous Massive 30-day aggs source — matches the column label.
+      // 3M Trend: ~1yr daily closes from Yahoo range=1y (oldest-to-newest).
+      // Sparkline uses makeSparkline(priceHistory) which handles any array length.
       priceHistory:    priceHistory3m,
       fsStatus:        fsStatus,
       fsPattern:       fsPattern,
@@ -11784,6 +11909,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
       // Full Force Strike detail object — same fields produced by #FORCESTRIKE screener,
       // stored here for the Details panel and signal comparison. null if no pattern.
       forceStrike:     fsFull,
+      // Weekly Fib Price Map — calculated from daily2 aggregated to weekly bars.
+      // null if insufficient data or unclear swing structure (safe fallback: "No Clear Map").
+      fibMap:          buildFibMapFromDailyBars(daily2, price),
     };
     await fetch('/watchlist?action=snapshot', {
       method: 'POST', headers: hdrs,
@@ -11873,8 +12001,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
   // ── Paid user UI ───────────────────────────────────────────────────────────
   // Ticker | Price | Position | Technical View | 52W Range | 3M Trend | Force Strike | Actions
-  var COL  = '70px 90px 140px 130px 140px 80px 100px 110px';
-  var HEAD = ['Ticker','Price','Position','Technical View','52W Range','3M Trend','Force Strike','Actions'];
+  var COL  = '70px 90px 140px 130px 140px 80px 110px 100px 110px';
+  var HEAD = ['Ticker','Price','Position','Technical View','52W Range','3M Trend','Price Map','Force Strike','Actions'];
 
   return (
     <div style={{minHeight:'100vh',background:'#0e0e0c',padding:'24px 20px',maxWidth:1400,margin:'0 auto'}}>
@@ -11953,6 +12081,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
             var fsAge         = snapJson.fsAge         != null ? snapJson.fsAge : null;
             var fsTriggerType = snapJson.fsTriggerType || null;
             var fsTriggerDate = snapJson.fsTriggerDate || null;
+            // Weekly Fib Price Map — from snapshot JSON (null for older snapshots without fibMap)
+            var fibMap = (snapJson.fibMap && snapJson.fibMap.priceMapStatus) ? snapJson.fibMap : null;
             // Locked FS — from lock record
             var lock = locks[item.ticker] || null;
             var lockedSnapJson = {};
@@ -12068,6 +12198,29 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 <div title={priceHistory ? (priceHistory.length + ' days of data') : 'No data'}
                   style={{fontSize:13,letterSpacing:1,color:priceHistory&&priceHistory.length>=2?'#6a6a68':'#333',overflow:'hidden',whiteSpace:'nowrap',fontFamily:'monospace'}}>{sparkline}</div>
 
+                {/* Price Map — Weekly Fib */}
+                <div style={{overflow:'hidden',lineHeight:1.4}}>
+                  {(function(){
+                    var pm = fibMap;
+                    if (!pm || pm.priceMapStatus === 'No Clear Map') {
+                      return <span style={{fontSize:10,color:'#444'}}>{String.fromCharCode(0x2014)}</span>;
+                    }
+                    var statusColor = pm.priceMapStatus==='Moving Up'    ? '#7abd00'
+                                    : pm.priceMapStatus==='Near Support' ? '#6090d0'
+                                    : pm.priceMapStatus==='Near Target'  ? '#7abd00'
+                                    : pm.priceMapStatus==='Overextended' ? '#EF9F27'
+                                    : pm.priceMapStatus==='Support Broken'? '#e05050'
+                                    : '#555';
+                    return <div>
+                      <div style={{fontSize:10,fontWeight:700,color:statusColor}}>{pm.priceMapStatus}</div>
+                      <div style={{fontSize:9,color:'#666',whiteSpace:'nowrap'}}>
+                        {pm.fibSupport!=null&&<span>{'S $'+pm.fibSupport.toFixed(2)}</span>}
+                        {pm.fibSupport!=null&&pm.fibTarget!=null&&<span style={{color:'#444'}}>{' | '}</span>}
+                        {pm.fibTarget!=null&&<span>{'T $'+pm.fibTarget.toFixed(2)}</span>}
+                      </div>
+                    </div>;
+                  })()}
+                </div>
 
                 {/* Force Strike */}
                 <div style={{overflow:'hidden'}} title={fsTip}>
@@ -12173,6 +12326,39 @@ function WatchlistPage({ clerkUser, isPaid }) {
                       </div>;
                     })}
                   </div>
+
+                  {/* Weekly Fib Price Map section */}
+                  {(function(){
+                    var pm = fibMap;
+                    if (!pm) return <div style={{marginBottom:12,paddingBottom:12,borderBottom:'0.5px solid #222'}}>
+                      <div style={{fontSize:9,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Weekly Fib Price Map</div>
+                      <div style={{fontSize:10,color:'#555'}}>No data — refresh signals to calculate.</div>
+                    </div>;
+                    var statusColor = pm.priceMapStatus==='Moving Up'    ? '#7abd00'
+                                    : pm.priceMapStatus==='Near Support' ? '#6090d0'
+                                    : pm.priceMapStatus==='Near Target'  ? '#7abd00'
+                                    : pm.priceMapStatus==='Overextended' ? '#EF9F27'
+                                    : pm.priceMapStatus==='Support Broken'? '#e05050'
+                                    : '#555';
+                    var fmt = function(v){ return v!=null ? ('$'+Number(v).toFixed(2)) : String.fromCharCode(0x2014); };
+                    return <div style={{marginBottom:12,paddingBottom:12,borderBottom:'0.5px solid #222'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                        <div style={{fontSize:9,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em'}}>Weekly Fib Price Map</div>
+                        <div style={{fontSize:10,fontWeight:700,color:statusColor}}>{pm.priceMapStatus}</div>
+                      </div>
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'5px 14px',fontSize:10}}>
+                        <div style={{color:'#555'}}>Swing Low <div style={{color:'#f0ede6'}}>{fmt(pm.fibSwingLow)}{pm.swingLowDate&&<span style={{color:'#444',fontSize:8,marginLeft:4}}>{pm.swingLowDate}</span>}</div></div>
+                        <div style={{color:'#555'}}>Swing High <div style={{color:'#f0ede6'}}>{fmt(pm.fibSwingHigh)}{pm.swingHighDate&&<span style={{color:'#444',fontSize:8,marginLeft:4}}>{pm.swingHighDate}</span>}</div></div>
+                        <div style={{color:'#555'}}>Invalidation <div style={{color:'#e05050'}}>{fmt(pm.fibInvalidation)}</div></div>
+                        <div style={{color:'#555'}}>Support Zone <div style={{color:'#6090d0'}}>{fmt(pm.fibSupportZoneHigh)+' \u2013 '+fmt(pm.fibSupportZoneLow)}</div></div>
+                        <div style={{color:'#555'}}>Target 1 <div style={{color:'#f0ede6'}}>{fmt(pm.fibTarget1)}</div></div>
+                        <div style={{color:'#555'}}>Target 2 <div style={{color:'#f0ede6'}}>{fmt(pm.fibTarget2)}</div></div>
+                        <div style={{color:'#555'}}>Target 3 <div style={{color:'#f0ede6'}}>{fmt(pm.fibTarget3)}</div></div>
+                        <div style={{color:'#555'}}>Timeframe <div style={{color:'#888'}}>{'Weekly ('+(pm.weeklyBarCount||0)+' bars)'}</div></div>
+                      </div>
+                      <div style={{fontSize:8,color:'#444',marginTop:8,fontStyle:'italic'}}>{pm.priceMapCommentary||'Fibonacci levels are projection zones, not guaranteed price predictions.'}</div>
+                    </div>;
+                  })()}
 
                   {/* TradingView Daily Chart */}
                   <div style={{borderRadius:6,overflow:'hidden',border:'0.5px solid #252523'}}>
@@ -13659,7 +13845,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.172</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.173</span>
           </div>
         </div>
 
