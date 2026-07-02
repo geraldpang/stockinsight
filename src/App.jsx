@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.182</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.183</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.182</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.183</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12462,22 +12462,17 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 {/* 52W Range */}
                 <div>{price&&hi52&&lo52 ? <Range52 price={price} lo52={lo52} hi52={hi52} /> : <span style={{color:'#555',fontSize:11}}>{String.fromCharCode(0x2014)}</span>}</div>
 
-                {/* Key Levels — combined support/resistance ladder */}
+                {/* Key Levels — support/resistance ladder; status heading only on fallback */}
                 {(function(){
-                  // Derive from keyLevels if available; fall back to fibMap/shortTermMap for old snapshots
                   var kl = keyLevels;
                   var klStatus = kl ? kl.status : null;
-                  // Backward compat: if no keyLevels, derive status from existing fibMap
+                  // Backward compat: derive status from fibMap/shortTermMap if no keyLevels
                   if (!klStatus && (fibMap || shortTermMap)) {
                     var pm2 = fibMap || shortTermMap;
                     klStatus = normalisePriceMapStatus(pm2.priceMapStatus);
-                    // Remap to Key Levels status vocabulary
                     klStatus = klStatus==='At Support'?'Testing Support':klStatus==='Holding Support'?'Holding Support':klStatus==='Broken'?'Broken':'Holding Support';
                   }
-                  if (!klStatus) return <div style={{overflow:'hidden'}}><div style={{fontSize:10,color:'#444'}}>No Clear Levels</div></div>;
-                  var statusColor = klStatus==='Holding Support'?'#7abd00':klStatus==='Testing Support'?'#EF9F27':klStatus==='Testing Resistance'?'#EF9F27':klStatus==='Extended'?'#EF9F27':klStatus==='Broken'?'#e05050':'#555';
-                  var isBroken = klStatus === 'Broken';
-                  // avgBuyPrice for % calc base (from lock)
+                  // avgBuyPrice for resistance % base (Avg Buy Price if position exists, else current price)
                   var avgBuy = lock ? lock.avg_buy_price : null;
                   var pctBase = (avgBuy && avgBuy > 0) ? avgBuy : price;
                   function lvlPct(lvlPrice) {
@@ -12485,34 +12480,54 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     var p = (lvlPrice - pctBase) / pctBase * 100;
                     return (p >= 0 ? '+' : '') + p.toFixed(1) + '%';
                   }
-                  if (isBroken) {
-                    // Broken: show recover level and next supports, high-contrast text
-                    var recoverLevel = kl ? kl.nearestSupport : (fibMap ? fibMap.fibSupportZoneHigh : null);
-                    var nextSupports = kl ? kl.supports.slice(1, 4) : [];
+
+                  // Collect levels — max 3 supports + 3 resistances.
+                  // Priority: daily Fib (shortTermMap) first so daily levels always show even if weekly is broken.
+                  // kl.supports / kl.resistances are already sorted nearest-first and deduplicated.
+                  var supps = kl ? kl.supports.slice(0,3)
+                            : (function(){
+                                var fb = [];
+                                if (shortTermMap) { if(shortTermMap.fibSupportZoneHigh) fb.push({price:shortTermMap.fibSupportZoneHigh,strength:'normal'}); if(shortTermMap.fibSupportZoneLow) fb.push({price:shortTermMap.fibSupportZoneLow,strength:'normal'}); }
+                                if (fibMap)       { if(fibMap.fibSupportZoneHigh) fb.push({price:fibMap.fibSupportZoneHigh,strength:'major'}); if(fibMap.fibSupportZoneLow) fb.push({price:fibMap.fibSupportZoneLow,strength:'major'}); }
+                                return fb.filter(function(l){ return l.price < currentPrice; }).sort(function(a,b){ return b.price-a.price; }).slice(0,3);
+                              })();
+                  var ress  = kl ? kl.resistances.slice(0,3)
+                            : (function(){
+                                var fb = [];
+                                if (shortTermMap) { if(shortTermMap.fibTarget1) fb.push({price:shortTermMap.fibTarget1,strength:'normal'}); if(shortTermMap.fibTarget2) fb.push({price:shortTermMap.fibTarget2,strength:'normal'}); }
+                                if (fibMap)       { if(fibMap.fibTarget1) fb.push({price:fibMap.fibTarget1,strength:'major'}); if(fibMap.fibTarget2) fb.push({price:fibMap.fibTarget2,strength:'major'}); }
+                                return fb.filter(function(l){ return l.price > currentPrice; }).sort(function(a,b){ return a.price-b.price; }).slice(0,3);
+                              })();
+
+                  var hasLevels = supps.length > 0 || ress.length > 0;
+
+                  // If usable levels exist, show the ladder — no status heading, no broken gate.
+                  // The ladder is shown even if the weekly structure is broken (daily Fib still useful).
+                  // Broken structure warning is communicated in the Wave Guide column, not here.
+                  if (hasLevels) {
                     return <div style={{overflow:'hidden',lineHeight:1.5}}>
-                      <div style={{fontSize:10,fontWeight:700,color:statusColor}}>Broken</div>
-                      {recoverLevel&&<div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>{'Recover > $'+Math.round(recoverLevel)}</div>}
-                      {nextSupports.length>0&&<div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>
-                        {'Next S: '+nextSupports.map(function(s){ return (s.strength==='major'?'\u25CF ':'')+'$'+Math.round(s.price); }).join(' / ')}
-                      </div>}
+                      <div style={{display:'flex',gap:6,fontSize:9,alignItems:'flex-start'}}>
+                        {supps.length>0 && <div style={{color:'#f0ede6',minWidth:36}}>
+                          <div style={{color:'#555',fontSize:8,marginBottom:1}}>S</div>
+                          {supps.map(function(s,i){ return <div key={i} style={{fontWeight:s.strength==='major'?700:400,whiteSpace:'nowrap'}}>{'$'+Math.round(s.price)}</div>; })}
+                        </div>}
+                        {ress.length>0 && <div style={{color:'#f0ede6',textAlign:'right',marginLeft:'auto'}}>
+                          <div style={{color:'#555',fontSize:8,marginBottom:1}}>R</div>
+                          {ress.map(function(r,i){ return <div key={i} style={{fontWeight:r.strength==='major'?700:400,whiteSpace:'nowrap'}}>{'$'+Math.round(r.price)+' ('+lvlPct(r.price)+')'}</div>; })}
+                        </div>}
+                      </div>
                     </div>;
                   }
-                  // Normal display: top 3 supports and top 3 resistances
-                  var supps = kl ? kl.supports.slice(0,3)    : (fibMap ? [{price:fibMap.fibSupportZoneHigh,strength:'major'},{price:fibMap.fibSupportZoneLow,strength:'major'}] : []);
-                  var ress  = kl ? kl.resistances.slice(0,3) : (fibMap ? [{price:fibMap.fibTarget1,strength:'major'},{price:fibMap.fibTarget2,strength:'normal'}] : []);
-                  return <div style={{overflow:'hidden',lineHeight:1.5}}>
-                    <div style={{fontSize:10,fontWeight:700,color:statusColor}}>{klStatus}</div>
-                    <div style={{display:'flex',gap:6,fontSize:9,alignItems:'flex-start'}}>
-                      {supps.length>0&&<div style={{color:'#f0ede6'}}>
-                        <div style={{color:'#555',fontSize:8,marginBottom:1}}>S</div>
-                        {supps.map(function(s,i){ return <div key={i} style={{fontWeight:s.strength==='major'?700:400,whiteSpace:'nowrap'}}>{'$'+Math.round(s.price)}</div>; })}
-                      </div>}
-                      {ress.length>0&&<div style={{color:'#f0ede6',marginLeft:'auto'}}>
-                        <div style={{color:'#555',fontSize:8,marginBottom:1}}>R</div>
-                        {ress.map(function(r,i){ return <div key={i} style={{fontWeight:r.strength==='major'?700:400,whiteSpace:'nowrap'}}>{'$'+Math.round(r.price)+' ('+lvlPct(r.price)+')'}</div>; })}
-                      </div>}
-                    </div>
-                  </div>;
+
+                  // Fallback: no usable ladder — show Broken/No Clear Levels text only
+                  if (klStatus === 'Broken') {
+                    var recoverLevel = kl ? kl.nearestSupport : (fibMap ? fibMap.fibSupportZoneHigh : null);
+                    return <div style={{overflow:'hidden',lineHeight:1.5}}>
+                      <div style={{fontSize:10,fontWeight:700,color:'#e05050'}}>Broken</div>
+                      {recoverLevel&&<div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>{'Recover > $'+Math.round(recoverLevel)}</div>}
+                    </div>;
+                  }
+                  return <div style={{overflow:'hidden'}}><div style={{fontSize:10,color:'#444'}}>No Clear Levels</div></div>;
                 })()}
 
                 {/* Wave Guide — practical stage model (current price position vs Fib structure) */}
@@ -14252,7 +14267,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.182</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.183</span>
           </div>
         </div>
 
