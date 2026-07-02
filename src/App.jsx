@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.186</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.187</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.186</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.187</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12512,24 +12512,37 @@ function WatchlistPage({ clerkUser, isPaid }) {
                       for (var si = 0; si <= segs; si++) b += (si === dot) ? '\u25CF' : '\u2501';
                       barStr1 = b;
                     }
-                    return <div style={{overflow:'hidden',lineHeight:1.7,fontFamily:'monospace'}}>
-                      {/* Row 1 — S label + bar + R label, light grey */}
-                      <div style={{fontSize:10,color:'#666',whiteSpace:'nowrap'}}>
-                        <span style={{color:'#555'}}>S </span>
-                        {s0 && <span>{'$'+Math.round(s0.price)}</span>}
-                        <span>{' '}{barStr1 || '\u25CF'}{' '}</span>
-                        <span style={{color:'#555'}}>R </span>
-                        {r0 && <span>{'$'+Math.round(r0.price)+' ('+lvlPct(r0.price)+')'}</span>}
+                    // Fixed column widths so all 3 rows align vertically:
+                    // [S label 10px] [S price 38px] [bar ~50px] [R label 10px] [R price+pct rest]
+                    var colS  = {display:'inline-block', width:38, flexShrink:0};
+                    var colR  = {display:'inline-block', flexShrink:0};
+                    var colBar= {display:'inline-block', width:50, textAlign:'center', flexShrink:0, fontFamily:'monospace'};
+                    var rowStyle = {display:'flex', alignItems:'baseline', whiteSpace:'nowrap'};
+                    var lbl   = {color:'#555', fontSize:9, marginRight:2, flexShrink:0};
+                    return <div style={{overflow:'hidden',lineHeight:1.7}}>
+                      {/* Row 1 — white prices, monospace bar */}
+                      <div style={rowStyle}>
+                        <span style={lbl}>S</span>
+                        <span style={{...colS, fontSize:11, color:'#f0ede6', fontWeight:600}}>{s0 ? '$'+Math.round(s0.price) : ''}</span>
+                        <span style={{...colBar, fontSize:10, color:'#555'}}>{barStr1 || '\u25CF'}</span>
+                        <span style={lbl}>R</span>
+                        <span style={{...colR, fontSize:11, color:'#f0ede6', fontWeight:600}}>{r0 ? '$'+Math.round(r0.price)+' ('+lvlPct(r0.price)+')' : ''}</span>
                       </div>
-                      {/* Row 2 — S and R side by side, smaller darker grey */}
-                      {(supps[1]||ress[1]) && <div style={{fontSize:9,color:'#444',whiteSpace:'nowrap',display:'flex',gap:8}}>
-                        <span style={{fontWeight:supps[1]&&supps[1].strength==='major'?700:400,minWidth:36}}>{supps[1]?'$'+Math.round(supps[1].price):''}</span>
-                        <span style={{fontWeight:ress[1]&&ress[1].strength==='major'?700:400}}>{ress[1]?'$'+Math.round(ress[1].price)+' ('+lvlPct(ress[1].price)+')':''}</span>
+                      {/* Row 2 — light grey, smaller */}
+                      {(supps[1]||ress[1]) && <div style={rowStyle}>
+                        <span style={{...lbl, visibility:'hidden'}}>S</span>
+                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[1]&&supps[1].strength==='major'?700:400}}>{supps[1]?'$'+Math.round(supps[1].price):''}</span>
+                        <span style={{...colBar}}></span>
+                        <span style={{...lbl, visibility:'hidden'}}>R</span>
+                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[1]&&ress[1].strength==='major'?700:400}}>{ress[1]?'$'+Math.round(ress[1].price)+' ('+lvlPct(ress[1].price)+')':''}</span>
                       </div>}
-                      {/* Row 3 — same as row 2 */}
-                      {(supps[2]||ress[2]) && <div style={{fontSize:9,color:'#444',whiteSpace:'nowrap',display:'flex',gap:8}}>
-                        <span style={{fontWeight:supps[2]&&supps[2].strength==='major'?700:400,minWidth:36}}>{supps[2]?'$'+Math.round(supps[2].price):''}</span>
-                        <span style={{fontWeight:ress[2]&&ress[2].strength==='major'?700:400}}>{ress[2]?'$'+Math.round(ress[2].price)+' ('+lvlPct(ress[2].price)+')':''}</span>
+                      {/* Row 3 — light grey, smaller */}
+                      {(supps[2]||ress[2]) && <div style={rowStyle}>
+                        <span style={{...lbl, visibility:'hidden'}}>S</span>
+                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[2]&&supps[2].strength==='major'?700:400}}>{supps[2]?'$'+Math.round(supps[2].price):''}</span>
+                        <span style={{...colBar}}></span>
+                        <span style={{...lbl, visibility:'hidden'}}>R</span>
+                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[2]&&ress[2].strength==='major'?700:400}}>{ress[2]?'$'+Math.round(ress[2].price)+' ('+lvlPct(ress[2].price)+')':''}</span>
                       </div>}
                     </div>;
                   }
@@ -14282,7 +14295,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.186</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.187</span>
           </div>
         </div>
 
