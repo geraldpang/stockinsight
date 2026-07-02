@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.181</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.182</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.181</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.182</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11680,10 +11680,10 @@ function buildWaveGuide(fibMapData, stMapData, currentPrice) {
       waveTargetActive = false;
       waveCommentary = 'Support broken. Wave target is inactive until support is recovered.';
     } else if (szLo && currentPrice < szLo) {
-      waveStatus = 'Correction';
+      waveStatus = 'Correction Risk'; // below support zone but above invalidation — caution, not confirmed breakdown
       waveTarget = t1;
       waveTargetActive = false;
-      waveCommentary = 'Price is below the support zone. Watch for recovery above support.';
+      waveCommentary = 'Price is below the support zone. Watch for recovery above support before acting on the wave target.';
     } else if (t2 && currentPrice >= t2 * 0.95) {
       waveStatus = 'Extended';
       waveTarget = t3 || t2;
@@ -12486,13 +12486,15 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     return (p >= 0 ? '+' : '') + p.toFixed(1) + '%';
                   }
                   if (isBroken) {
-                    // Broken: show recover level and next supports
+                    // Broken: show recover level and next supports, high-contrast text
                     var recoverLevel = kl ? kl.nearestSupport : (fibMap ? fibMap.fibSupportZoneHigh : null);
                     var nextSupports = kl ? kl.supports.slice(1, 4) : [];
                     return <div style={{overflow:'hidden',lineHeight:1.5}}>
                       <div style={{fontSize:10,fontWeight:700,color:statusColor}}>Broken</div>
                       {recoverLevel&&<div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>{'Recover > $'+Math.round(recoverLevel)}</div>}
-                      {nextSupports.length>0&&<div style={{fontSize:9,color:'#888'}}>{'Next S: '+nextSupports.map(function(s){return(s.strength==='major'?'**$':' $')+Math.round(s.price)+(s.strength==='major'?'**':'');}).join(', ')}</div>}
+                      {nextSupports.length>0&&<div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>
+                        {'Next S: '+nextSupports.map(function(s){ return (s.strength==='major'?'\u25CF ':'')+'$'+Math.round(s.price); }).join(' / ')}
+                      </div>}
                     </div>;
                   }
                   // Normal display: top 3 supports and top 3 resistances
@@ -12524,18 +12526,27 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     wgStatus = s3==='Extended'?'Extended':s3==='Broken'?'WT Inactive':s3==='Testing Target'?'Testing WT':'Continuation';
                   }
                   if (!wgStatus) return <div style={{overflow:'hidden'}}><div style={{fontSize:10,color:'#444'}}>No Clear Wave</div></div>;
-                  var wgColor = wgStatus==='Continuation'?'#7abd00':wgStatus==='Testing WT'?'#7abd00':wgStatus==='Recovery'?'#6090d0':wgStatus==='Pullback'?'#EF9F27':wgStatus==='Extended'?'#EF9F27':wgStatus==='WT Inactive'?'#e05050':wgStatus==='Correction'?'#e05050':'#888';
+                  var wgColor = wgStatus==='Continuation'   ?'#7abd00'
+                              : wgStatus==='Testing WT'     ?'#7abd00'
+                              : wgStatus==='Recovery'       ?'#6090d0'
+                              : wgStatus==='Pullback'       ?'#EF9F27'
+                              : wgStatus==='Correction Risk'?'#e05050'
+                              : wgStatus==='Extended'       ?'#EF9F27'
+                              : wgStatus==='WT Inactive'    ?'#e05050'
+                              : wgStatus==='Correction'     ?'#e05050'
+                              : '#888';
                   var avgBuy2  = lock ? lock.avg_buy_price : null;
                   var pctBase2 = (avgBuy2 && avgBuy2 > 0) ? avgBuy2 : price;
                   var wt = wg ? wg.waveTarget : (fibMap ? fibMap.fibTarget1 : null);
                   var wtPct = (wt && pctBase2) ? ((wt - pctBase2) / pctBase2 * 100) : null;
-                  var isInactive = wgStatus==='WT Inactive' || wgStatus==='Correction';
+                  var isInactive = wgStatus==='WT Inactive' || wgStatus==='Correction' || wgStatus==='Correction Risk';
+                  var isPullback = wgStatus === 'Pullback';
                   return <div style={{overflow:'hidden',lineHeight:1.5}}>
-                    <div style={{fontSize:10,fontWeight:700,color:wgColor}}>Current Wave Guide</div>
-                    <div style={{fontSize:9,fontWeight:600,color:'#888'}}>{wgStatus}</div>
+                    <div style={{fontSize:10,fontWeight:700,color:wgColor}}>{wgStatus}</div>
                     {wt&&!isInactive&&<div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>
                       {(function(){ var ps = wtPct!=null ? (' ('+(wtPct>=0?'+':'')+wtPct.toFixed(1)+'%)') : ''; return 'WT $'+Math.round(wt)+ps; })()}
                     </div>}
+                    {isPullback&&<div style={{fontSize:9,color:'#888'}}>Hold support</div>}
                     {isInactive&&<div style={{fontSize:9,color:'#555'}}>Target inactive</div>}
                   </div>;
                 })()}
@@ -14241,7 +14252,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.181</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.182</span>
           </div>
         </div>
 
