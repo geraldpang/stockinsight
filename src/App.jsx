@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.195</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.196</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.195</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.196</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12856,6 +12856,33 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 var fmt = function(v){ return v!=null?('$'+Number(v).toFixed(2)):String.fromCharCode(0x2014); };
                 var fmtR = function(v){ return v!=null?('$'+Math.round(v)):String.fromCharCode(0x2014); };
                 function doAudit() {
+                  // Recompute Action Bias inputs for audit — same logic as buildActionBias()
+                  var abAvgBuy   = lock ? lock.avg_buy_price : null;
+                  var abQty      = lock ? lock.quantity : null;
+                  var abHasPos   = (abAvgBuy != null && abAvgBuy > 0 && abQty != null && abQty > 0);
+                  var abPosPct   = abHasPos ? (price - abAvgBuy) / abAvgBuy * 100 : null;
+                  var abKlStatus = keyLevels ? keyLevels.status : null;
+                  var abWgStatus = waveGuide ? waveGuide.waveStatus : null;
+                  var abNearestS = keyLevels ? keyLevels.nearestSupport    : null;
+                  var abNearestR = keyLevels ? keyLevels.nearestResistance : null;
+                  // Technical weakness components (1 pt each)
+                  var abTrendWeak = (trendV||'').toLowerCase().indexOf('down')!==-1;
+                  var abMomWeak   = (momV||'').toLowerCase().indexOf('fad')!==-1||(momV||'').toLowerCase().indexOf('weak')!==-1;
+                  var abRevBear   = (revV||'').toLowerCase().indexOf('bear')!==-1;
+                  var abSmfDist   = (smfV||'').toLowerCase().indexOf('distribut')!==-1||(smfV||'').toLowerCase().indexOf('negative')!==-1;
+                  var abWeakScore = (abTrendWeak?1:0)+(abMomWeak?1:0)+(abRevBear?1:0)+(abSmfDist?1:0);
+                  // Technical support components (1 pt each)
+                  var abTrendUp   = (trendV||'').toLowerCase().indexOf('up')!==-1;
+                  var abMomBuild  = (momV||'').toLowerCase().indexOf('build')!==-1||(momV||'').toLowerCase().indexOf('strong')!==-1;
+                  var abRevConf   = (revV||'').toLowerCase().indexOf('trigger')!==-1||(revV||'').toLowerCase().indexOf('confirm')!==-1;
+                  var abSmfAccum  = (smfV||'').toLowerCase().indexOf('accum')!==-1;
+                  var abSuppScore = (abTrendUp?1:0)+(abMomBuild?1:0)+(abRevConf?1:0)+(abSmfAccum?1:0);
+                  // Proximity flags
+                  var abNearR     = abNearestR && price >= abNearestR * 0.97;
+                  var abNearS     = abNearestS && price <= abNearestS * 1.03;
+                  var abRbaWeak   = (function(){ var r=(rbaV||'').toLowerCase(); return r.indexOf('bearish')!==-1||r.indexOf('caution')!==-1||r.indexOf('neutral')!==-1; })();
+                  // Final bias result
+                  var abResult = buildActionBias({ price:price, avgBuyPrice:abAvgBuy, qty:abQty, rbaV:rbaV, trendV:trendV, momV:momV, revV:revV, smfV:smfV, klStatus:abKlStatus, wgStatus:abWgStatus, nearestS:abNearestS, nearestR:abNearestR });
                   var auditData = {
                     ticker:       item.ticker,
                     exportedAt:   new Date().toISOString(),
@@ -12863,6 +12890,48 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     currentPrice: price,
                     signals: { technicalView:snap?snap.rba_verdict:null, trend:snap?snap.trend_status:null, momentum:snap?snap.momentum_status:null, reversal:snap?snap.reversal_status:null, moneyFlow:snap?snap.money_flow_status:null },
                     position: lock ? { avgBuyPrice:lock.avg_buy_price, quantity:lock.quantity, lockedPrice:lock.locked_price } : null,
+                    // Action Bias audit — all inputs, scores, flags, and final result
+                    actionBiasAudit: {
+                      // Inputs
+                      currentPrice:       price,
+                      avgBuyPrice:        abAvgBuy,
+                      quantity:           abQty,
+                      hasPosition:        abHasPos,
+                      positionPct:        abPosPct != null ? Math.round(abPosPct * 10) / 10 : null,
+                      // Raw signal values used
+                      technicalView:      rbaV,
+                      trend:              trendV,
+                      momentum:           momV,
+                      reversal:           revV,
+                      smartMoneyFlow:     smfV,
+                      keyLevelsStatus:    abKlStatus,
+                      waveGuideStatus:    abWgStatus,
+                      nearestSupport:     abNearestS,
+                      nearestResistance:  abNearestR,
+                      // Derived flags
+                      nearResistance:     abNearR,
+                      nearSupport:        abNearS,
+                      rbaIsWeak:          abRbaWeak,
+                      // Weakness scoring (each component = 1pt, total max 4)
+                      techWeaknessScore:  abWeakScore,
+                      weaknessComponents: {
+                        trendDowntrend:   abTrendWeak,
+                        momentumFading:   abMomWeak,
+                        reversalBearish:  abRevBear,
+                        smfDistribution:  abSmfDist,
+                      },
+                      // Support scoring (each component = 1pt, total max 4)
+                      techSupportScore:   abSuppScore,
+                      supportComponents: {
+                        trendUptrend:     abTrendUp,
+                        momentumBuilding: abMomBuild,
+                        reversalConfirm:  abRevConf,
+                        smfAccumulation:  abSmfAccum,
+                      },
+                      // Result
+                      actionBiasLabel:    abResult.label,
+                      actionBiasReason:   abResult.reason,
+                    },
                     shortTermMap: snapJson.shortTermMap || null,
                     longTermMap:  snapJson.fibMap       || null,
                     keyLevels:    snapJson.keyLevels    || null,
@@ -14404,7 +14473,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.195</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.196</span>
           </div>
         </div>
 
