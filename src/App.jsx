@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.187</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.189</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.187</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.189</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12266,7 +12266,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
   // ── Paid user UI ───────────────────────────────────────────────────────────
   // Ticker | Price | Position | Technical View | 52W Range | 3M Trend | Force Strike | Actions
   // Ticker | Price | Position | Technical View | Key Levels | Wave Guide | Force Strike | Actions
-  var COL  = '70px 90px 140px 130px 140px 130px 120px 100px 110px';
+  var COL  = '70px 90px 140px 130px 160px 120px 100px 110px';
   var HEAD = ['Ticker','Price','Position','Technical View','Key Levels','Wave Guide','Force Strike','Actions'];
 
   return (
@@ -12378,7 +12378,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
               <div
                 style={{display:'grid',gridTemplateColumns:COL,columnGap:12,padding:'10px 14px',
                   borderBottom:'none',
-                  background:idx%2===0?'#111':'#131311',alignItems:'center'}}>
+                  background:idx%2===0?'#111':'#131311',alignItems:'flex-start'}}>
 
                 {/* Ticker */}
                 <div style={{cursor:'pointer'}} onClick={function(){ window.open(window.location.origin+'/#'+item.ticker,'_blank','noopener,noreferrer'); }}>
@@ -12523,10 +12523,10 @@ function WatchlistPage({ clerkUser, isPaid }) {
                       {/* Row 1 — white prices, monospace bar */}
                       <div style={rowStyle}>
                         <span style={lbl}>S</span>
-                        <span style={{...colS, fontSize:11, color:'#f0ede6', fontWeight:600}}>{s0 ? '$'+Math.round(s0.price) : ''}</span>
+                        <span style={{...colS, fontSize:11, color:'#888', fontWeight:600}}>{s0 ? '$'+Math.round(s0.price) : ''}</span>
                         <span style={{...colBar, fontSize:10, color:'#555'}}>{barStr1 || '\u25CF'}</span>
                         <span style={lbl}>R</span>
-                        <span style={{...colR, fontSize:11, color:'#f0ede6', fontWeight:600}}>{r0 ? '$'+Math.round(r0.price)+' ('+lvlPct(r0.price)+')' : ''}</span>
+                        <span style={{...colR, fontSize:11, color:'#888', fontWeight:600}}>{r0 ? '$'+Math.round(r0.price)+' ('+lvlPct(r0.price)+')' : ''}</span>
                       </div>
                       {/* Row 2 — light grey, smaller */}
                       {(supps[1]||ress[1]) && <div style={rowStyle}>
@@ -14295,7 +14295,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.187</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.189</span>
           </div>
         </div>
 
