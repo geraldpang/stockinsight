@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.180</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.181</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.180</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.181</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11565,6 +11565,169 @@ function buildShortTermFibMap(daily2Arr, currentPrice) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── Key Levels + Wave Guide helpers (module-level, pure functions) ──────────
+// These derive from existing fibMap / shortTermMap data — no new API calls.
+// buildKeyLevels: combine daily + weekly Fib levels into a sorted support/resistance ladder.
+// buildWaveGuide: classify current price position into a practical stage label.
+
+function buildKeyLevels(fibMapData, stMapData, currentPrice) {
+  try {
+    if (!currentPrice || currentPrice <= 0) return null;
+    var levels = [];
+
+    function addLevel(price, type, timeframe, source) {
+      if (!price || price <= 0 || isNaN(price)) return;
+      // Dedup: skip if within 2% of an existing level
+      for (var i = 0; i < levels.length; i++) {
+        if (Math.abs(levels[i].price - price) / price < 0.02) {
+          // If new level is weekly and existing is daily, upgrade to major
+          if (timeframe === 'weekly') { levels[i].strength = 'major'; levels[i].timeframe = 'weekly'; }
+          return;
+        }
+      }
+      levels.push({ price: Math.round(price * 100) / 100, type: type, timeframe: timeframe, source: source,
+                    strength: timeframe === 'weekly' ? 'major' : 'normal' });
+    }
+
+    // Short-term (daily) levels
+    if (stMapData) {
+      addLevel(stMapData.fibSupportZoneHigh, 'support',    'daily',  'fib');
+      addLevel(stMapData.fibSupportZoneLow,  'support',    'daily',  'fib');
+      addLevel(stMapData.fibInvalidation,    'support',    'daily',  'fib');
+      addLevel(stMapData.fibTarget1,         'resistance', 'daily',  'fib');
+      addLevel(stMapData.fibTarget2,         'resistance', 'daily',  'fib');
+    }
+    // Long-term (weekly) levels — tagged as major
+    if (fibMapData) {
+      addLevel(fibMapData.fibSupportZoneHigh, 'support',    'weekly', 'fib');
+      addLevel(fibMapData.fibSupportZoneLow,  'support',    'weekly', 'fib');
+      addLevel(fibMapData.fibInvalidation,    'support',    'weekly', 'fib');
+      addLevel(fibMapData.fibTarget1,         'resistance', 'weekly', 'fib');
+      addLevel(fibMapData.fibTarget2,         'resistance', 'weekly', 'fib');
+      addLevel(fibMapData.fibTarget3,         'resistance', 'weekly', 'fib');
+    }
+
+    // Split into support (below price) and resistance (above price)
+    var supports    = levels.filter(function(l){ return l.type==='support'    && l.price < currentPrice; })
+                            .sort(function(a,b){ return b.price - a.price; }); // nearest first
+    var resistances = levels.filter(function(l){ return l.type==='resistance' && l.price > currentPrice; })
+                            .sort(function(a,b){ return a.price - b.price; }); // nearest first
+
+    // Determine status
+    // Find the nearest support level
+    var nearestSupport    = supports[0]    ? supports[0].price    : null;
+    var nearestResistance = resistances[0] ? resistances[0].price : null;
+
+    // Check if price is inside or very near a support zone
+    var inSupportZone = false;
+    var supportZoneHi = (stMapData && stMapData.fibSupportZoneHigh) || (fibMapData && fibMapData.fibSupportZoneHigh) || null;
+    var supportZoneLo = (stMapData && stMapData.fibSupportZoneLow)  || (fibMapData && fibMapData.fibSupportZoneLow)  || null;
+    var invalidation  = (stMapData && stMapData.fibInvalidation)    || (fibMapData && fibMapData.fibInvalidation)    || null;
+
+    if (supportZoneLo && currentPrice < supportZoneLo * 0.99) {
+      var status = 'Broken';
+    } else if (supportZoneHi && currentPrice <= supportZoneHi) {
+      var status = 'Testing Support';
+      inSupportZone = true;
+    } else if (supportZoneHi && currentPrice <= supportZoneHi * 1.03) {
+      var status = 'Testing Support'; // within 3% above support zone
+    } else if (nearestResistance && currentPrice >= nearestResistance * 0.97) {
+      var status = 'Testing Resistance';
+    } else if (fibMapData && fibMapData.fibTarget2 && currentPrice >= fibMapData.fibTarget2 * 0.95) {
+      var status = 'Extended';
+    } else {
+      var status = 'Holding Support';
+    }
+
+    return {
+      status:         status,
+      supports:       supports,       // full list, sorted nearest first
+      resistances:    resistances,    // full list, sorted nearest first
+      nearestSupport: nearestSupport,
+      nearestResistance: nearestResistance,
+      supportZoneHigh: supportZoneHi ? Math.round(supportZoneHi * 100) / 100 : null,
+      supportZoneLow:  supportZoneLo ? Math.round(supportZoneLo * 100) / 100 : null,
+      invalidation:    invalidation  ? Math.round(invalidation  * 100) / 100 : null,
+    };
+  } catch(e) { return null; }
+}
+
+function buildWaveGuide(fibMapData, stMapData, currentPrice) {
+  try {
+    if (!currentPrice || currentPrice <= 0) return null;
+    // Use long-term (weekly) map as the primary wave structure.
+    // Short-term map provides context for early-stage detection.
+    var pm = fibMapData || stMapData;
+    if (!pm || !pm.fibTarget1) return { waveStatus:'No Clear Wave', waveTarget:null, waveTargetPct:null, waveCommentary:'No reliable wave structure detected.' };
+
+    var t1 = pm.fibTarget1;
+    var t2 = pm.fibTarget2;
+    var t3 = pm.fibTarget3;
+    var szHi = pm.fibSupportZoneHigh;
+    var szLo = pm.fibSupportZoneLow;
+    var inv  = pm.fibInvalidation;
+
+    // Fallback levels after T1 is reached
+    var fallback1 = szHi ? Math.round(szHi * 100) / 100 : null;
+    var fallback2 = szLo ? Math.round(szLo * 100) / 100 : null;
+
+    // Stage classification based on current price position
+    var waveStatus, waveTarget, waveCommentary, waveTargetActive;
+
+    if (inv && currentPrice < inv * 0.99) {
+      waveStatus = 'WT Inactive';
+      waveTarget = t1;
+      waveTargetActive = false;
+      waveCommentary = 'Support broken. Wave target is inactive until support is recovered.';
+    } else if (szLo && currentPrice < szLo) {
+      waveStatus = 'Correction';
+      waveTarget = t1;
+      waveTargetActive = false;
+      waveCommentary = 'Price is below the support zone. Watch for recovery above support.';
+    } else if (t2 && currentPrice >= t2 * 0.95) {
+      waveStatus = 'Extended';
+      waveTarget = t3 || t2;
+      waveTargetActive = false;
+      waveCommentary = 'Price has moved well beyond the primary wave target. Structure may be stretched.';
+    } else if (t1 && currentPrice >= t1 * 0.95) {
+      waveStatus = 'Testing WT';
+      waveTarget = t1;
+      waveTargetActive = true;
+      waveCommentary = 'Price is near the wave target. Watch for a reaction or breakout.';
+    } else if (t1 && currentPrice >= t1 * 0.85) {
+      waveStatus = 'Continuation';
+      waveTarget = t1;
+      waveTargetActive = true;
+      waveCommentary = 'Price is advancing toward the wave target. Structure remains valid.';
+    } else if (szHi && currentPrice <= szHi) {
+      waveStatus = 'Pullback';
+      waveTarget = t1;
+      waveTargetActive = szLo ? currentPrice >= szLo * 0.99 : true;
+      waveCommentary = 'Price is pulling back into the support zone. Wave target active if support holds.';
+    } else if (szHi && currentPrice <= szHi * 1.05) {
+      waveStatus = 'Recovery';
+      waveTarget = t1;
+      waveTargetActive = true;
+      waveCommentary = 'Price is recovering from support. Watch for continuation above the support zone.';
+    } else {
+      waveStatus = 'Continuation';
+      waveTarget = t1;
+      waveTargetActive = true;
+      waveCommentary = 'Price is holding structure and moving toward the wave target.';
+    }
+
+    return {
+      waveStatus:       waveStatus,
+      waveTarget:       waveTarget ? Math.round(waveTarget * 100) / 100 : null,
+      waveTargetActive: waveTargetActive,
+      waveFallback1:    fallback1,
+      waveFallback2:    fallback2,
+      waveCommentary:   waveCommentary,
+    };
+  } catch(e) { return null; }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ─── Shared Force Strike helpers (module-level) ───────────────────────────────
 // These were previously private to ForceStrikePage.
 // Hoisted so WatchlistPage can call the exact same logic — both pages produce
@@ -11964,6 +12127,12 @@ function WatchlistPage({ clerkUser, isPaid }) {
       ? daily2.map(function(b){ return b.close; })
       : (mData.aggs||[]).slice().reverse().map(function(b){ return b.c||0; });
 
+    // Pre-compute map objects so keyLevels and waveGuide can cross-reference them
+    var snapFibMap     = buildFibMapFromDailyBars(daily2, price);
+    var snapStMap      = buildShortTermFibMap(daily2, price);
+    var snapKeyLevels  = buildKeyLevels(snapFibMap, snapStMap, price);
+    var snapWaveGuide  = buildWaveGuide(snapFibMap, snapStMap, price);
+
     var snapPayload = {
       closePrice:      price,
       priceChangePct:  chg,
@@ -11999,9 +12168,14 @@ function WatchlistPage({ clerkUser, isPaid }) {
       forceStrike:     fsFull,
       // Weekly Fib Price Map — calculated from daily2 aggregated to weekly bars.
       // null if insufficient data or unclear swing structure (safe fallback: "No Clear Map").
-      fibMap:          buildFibMapFromDailyBars(daily2, price),
-      // Short-Term Map: daily Fib using last 90 bars of daily2 — no extra fetch needed.
-      shortTermMap:    buildShortTermFibMap(daily2, price),
+      // Pre-computed map objects (computed above so keyLevels/waveGuide can reference both)
+      fibMap:          snapFibMap,
+      shortTermMap:    snapStMap,
+      // Key Levels: combined support/resistance ladder from daily + weekly Fib levels.
+      keyLevels:       snapKeyLevels,
+      // Wave Guide: practical stage model based on current price vs Fib structure.
+      // v1: computed fresh each refresh — stage reflects current price position only.
+      waveGuide:       snapWaveGuide,
     };
     await fetch('/watchlist?action=snapshot', {
       method: 'POST', headers: hdrs,
@@ -12091,9 +12265,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
   // ── Paid user UI ───────────────────────────────────────────────────────────
   // Ticker | Price | Position | Technical View | 52W Range | 3M Trend | Force Strike | Actions
-  // Ticker | Price | Position | Technical View | 52W Range | Short-Term Map | Long-Term Map | Force Strike | Actions
-  var COL  = '70px 90px 140px 130px 140px 110px 110px 100px 110px';
-  var HEAD = ['Ticker','Price','Position','Technical View','52W Range','Short-Term Map','Long-Term Map','Force Strike','Actions'];
+  // Ticker | Price | Position | Technical View | 52W Range | Key Levels | Wave Guide | Force Strike | Actions
+  var COL  = '70px 90px 140px 130px 140px 130px 120px 100px 110px';
+  var HEAD = ['Ticker','Price','Position','Technical View','52W Range','Key Levels','Wave Guide','Force Strike','Actions'];
 
   return (
     <div style={{minHeight:'100vh',background:'#0e0e0c',padding:'24px 20px',maxWidth:1400,margin:'0 auto'}}>
@@ -12175,6 +12349,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
             // Weekly Fib Price Map — from snapshot JSON (null for older snapshots without fibMap)
             var fibMap      = (snapJson.fibMap      && snapJson.fibMap.priceMapStatus)      ? snapJson.fibMap      : null;
             var shortTermMap= (snapJson.shortTermMap && snapJson.shortTermMap.priceMapStatus) ? snapJson.shortTermMap : null;
+            var keyLevels   = snapJson.keyLevels   || null;
+            var waveGuide   = snapJson.waveGuide   || null;
             // Locked FS — from lock record
             var lock = locks[item.ticker] || null;
             var lockedSnapJson = {};
@@ -12286,77 +12462,81 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 {/* 52W Range */}
                 <div>{price&&hi52&&lo52 ? <Range52 price={price} lo52={lo52} hi52={hi52} /> : <span style={{color:'#555',fontSize:11}}>{String.fromCharCode(0x2014)}</span>}</div>
 
-                {/* Short-Term Map (Daily Fib) */}
+                {/* Key Levels — combined support/resistance ladder */}
                 {(function(){
-                  // pm = shortTermMap; fall back to null safely for old snapshots
-                  var pm = shortTermMap || null;
-                  var status = normalisePriceMapStatus(pm ? pm.priceMapStatus : null);
-                  var isBroken  = status === 'Broken';
-                  var isNoClear = !pm || status === 'No Clear Map';
-                  var statusColor = status==='At Support'?'#6090d0':status==='Holding Support'?'#7abd00':status==='Testing Target'?'#7abd00':status==='Extended'?'#EF9F27':status==='Broken'?'#e05050':'#555';
-                  if (isNoClear) return <div style={{overflow:'hidden',lineHeight:1.4}}><div style={{fontSize:10,color:'#444'}}>No Clear Map</div></div>;
-                  var zLo = pm.fibSupportZoneLow  != null ? Math.round(pm.fibSupportZoneLow)  : null;
-                  var zHi = pm.fibSupportZoneHigh != null ? Math.round(pm.fibSupportZoneHigh) : null;
-                  var zoneStr = (zLo!=null&&zHi!=null)?('$'+zLo+'\u2013$'+zHi):(zHi!=null?'$'+zHi:null);
-                  var tgtNum = pm.fibTarget != null ? Math.round(pm.fibTarget) : null;
-                  // Progressive bar with zone values inline: S $27–$28 ━●━━ T $34
-                  function stBar(pm2, price2) {
-                    if (!pm2||!price2||!pm2.fibSupportZoneLow||!pm2.fibTarget) return null;
-                    var pct = Math.max(0,Math.min(1.15,(price2-pm2.fibSupportZoneLow)/(pm2.fibTarget-pm2.fibSupportZoneLow)));
-                    var segs=5; var dot=Math.round(pct*segs); var b='';
-                    for (var s=0;s<segs;s++) b+=(s===dot)?'\u25CF':'\u2501';
-                    if(dot>=segs) b+='\u25CF';
-                    return b;
+                  // Derive from keyLevels if available; fall back to fibMap/shortTermMap for old snapshots
+                  var kl = keyLevels;
+                  var klStatus = kl ? kl.status : null;
+                  // Backward compat: if no keyLevels, derive status from existing fibMap
+                  if (!klStatus && (fibMap || shortTermMap)) {
+                    var pm2 = fibMap || shortTermMap;
+                    klStatus = normalisePriceMapStatus(pm2.priceMapStatus);
+                    // Remap to Key Levels status vocabulary
+                    klStatus = klStatus==='At Support'?'Testing Support':klStatus==='Holding Support'?'Holding Support':klStatus==='Broken'?'Broken':'Holding Support';
                   }
-                  var barStr = !isBroken ? stBar(pm, price) : null;
-                  return <div style={{overflow:'hidden',lineHeight:1.4}}>
-                    <div style={{fontSize:10,fontWeight:700,color:statusColor}}>{status}</div>
-                    {isBroken
-                      ? <div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>{zoneStr?'Recover > '+zoneStr:String.fromCharCode(0x2014)}</div>
-                      : barStr
-                        ? <div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap',fontFamily:'monospace'}}>
-                            {zoneStr&&<span>{'S '+zoneStr+' '}</span>}{barStr}{tgtNum!=null&&<span>{' T $'+tgtNum}</span>}
-                          </div>
-                        : <div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>
-                            {zoneStr&&<span>{'S '+zoneStr}</span>}{zoneStr&&tgtNum!=null&&<span style={{color:'#555'}}>{' | '}</span>}{tgtNum!=null&&<span>{'T $'+tgtNum}</span>}
-                          </div>
-                    }
+                  if (!klStatus) return <div style={{overflow:'hidden'}}><div style={{fontSize:10,color:'#444'}}>No Clear Levels</div></div>;
+                  var statusColor = klStatus==='Holding Support'?'#7abd00':klStatus==='Testing Support'?'#EF9F27':klStatus==='Testing Resistance'?'#EF9F27':klStatus==='Extended'?'#EF9F27':klStatus==='Broken'?'#e05050':'#555';
+                  var isBroken = klStatus === 'Broken';
+                  // avgBuyPrice for % calc base (from lock)
+                  var avgBuy = lock ? lock.avg_buy_price : null;
+                  var pctBase = (avgBuy && avgBuy > 0) ? avgBuy : price;
+                  function lvlPct(lvlPrice) {
+                    if (!pctBase || !lvlPrice) return '';
+                    var p = (lvlPrice - pctBase) / pctBase * 100;
+                    return (p >= 0 ? '+' : '') + p.toFixed(1) + '%';
+                  }
+                  if (isBroken) {
+                    // Broken: show recover level and next supports
+                    var recoverLevel = kl ? kl.nearestSupport : (fibMap ? fibMap.fibSupportZoneHigh : null);
+                    var nextSupports = kl ? kl.supports.slice(1, 4) : [];
+                    return <div style={{overflow:'hidden',lineHeight:1.5}}>
+                      <div style={{fontSize:10,fontWeight:700,color:statusColor}}>Broken</div>
+                      {recoverLevel&&<div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>{'Recover > $'+Math.round(recoverLevel)}</div>}
+                      {nextSupports.length>0&&<div style={{fontSize:9,color:'#888'}}>{'Next S: '+nextSupports.map(function(s){return(s.strength==='major'?'**$':' $')+Math.round(s.price)+(s.strength==='major'?'**':'');}).join(', ')}</div>}
+                    </div>;
+                  }
+                  // Normal display: top 3 supports and top 3 resistances
+                  var supps = kl ? kl.supports.slice(0,3)    : (fibMap ? [{price:fibMap.fibSupportZoneHigh,strength:'major'},{price:fibMap.fibSupportZoneLow,strength:'major'}] : []);
+                  var ress  = kl ? kl.resistances.slice(0,3) : (fibMap ? [{price:fibMap.fibTarget1,strength:'major'},{price:fibMap.fibTarget2,strength:'normal'}] : []);
+                  return <div style={{overflow:'hidden',lineHeight:1.5}}>
+                    <div style={{fontSize:10,fontWeight:700,color:statusColor}}>{klStatus}</div>
+                    <div style={{display:'flex',gap:6,fontSize:9,alignItems:'flex-start'}}>
+                      {supps.length>0&&<div style={{color:'#f0ede6'}}>
+                        <div style={{color:'#555',fontSize:8,marginBottom:1}}>S</div>
+                        {supps.map(function(s,i){ return <div key={i} style={{fontWeight:s.strength==='major'?700:400,whiteSpace:'nowrap'}}>{'$'+Math.round(s.price)}</div>; })}
+                      </div>}
+                      {ress.length>0&&<div style={{color:'#f0ede6',marginLeft:'auto'}}>
+                        <div style={{color:'#555',fontSize:8,marginBottom:1}}>R</div>
+                        {ress.map(function(r,i){ return <div key={i} style={{fontWeight:r.strength==='major'?700:400,whiteSpace:'nowrap'}}>{'$'+Math.round(r.price)+' ('+lvlPct(r.price)+')'}</div>; })}
+                      </div>}
+                    </div>
                   </div>;
                 })()}
 
-                {/* Long-Term Map (Weekly Fib) — uses fibMap; falls back to old fibMap for backward compat */}
+                {/* Wave Guide — practical stage model (current price position vs Fib structure) */}
                 {(function(){
-                  var pm = fibMap || null;
-                  var status = normalisePriceMapStatus(pm ? pm.priceMapStatus : null);
-                  var isBroken  = status === 'Broken';
-                  var isNoClear = !pm || status === 'No Clear Map';
-                  var statusColor = status==='At Support'?'#6090d0':status==='Holding Support'?'#7abd00':status==='Testing Target'?'#7abd00':status==='Extended'?'#EF9F27':status==='Broken'?'#e05050':'#555';
-                  if (isNoClear) return <div style={{overflow:'hidden',lineHeight:1.4}}><div style={{fontSize:10,color:'#444'}}>No Clear Map</div></div>;
-                  var zLo = pm.fibSupportZoneLow  != null ? Math.round(pm.fibSupportZoneLow)  : null;
-                  var zHi = pm.fibSupportZoneHigh != null ? Math.round(pm.fibSupportZoneHigh) : null;
-                  var zoneStr = (zLo!=null&&zHi!=null)?('$'+zLo+'\u2013$'+zHi):(zHi!=null?'$'+zHi:null);
-                  var tgtNum = pm.fibTarget != null ? Math.round(pm.fibTarget) : null;
-                  function ltBar(pm2, price2) {
-                    if (!pm2||!price2||!pm2.fibSupportZoneLow||!pm2.fibTarget) return null;
-                    var pct = Math.max(0,Math.min(1.15,(price2-pm2.fibSupportZoneLow)/(pm2.fibTarget-pm2.fibSupportZoneLow)));
-                    var segs=5; var dot=Math.round(pct*segs); var b='';
-                    for (var s=0;s<segs;s++) b+=(s===dot)?'\u25CF':'\u2501';
-                    if(dot>=segs) b+='\u25CF';
-                    return b;
+                  var wg = waveGuide;
+                  var wgStatus = wg ? wg.waveStatus : null;
+                  // Backward compat: if no waveGuide, derive rough stage from existing fibMap
+                  if (!wgStatus && fibMap) {
+                    var pm3 = fibMap;
+                    var s3 = normalisePriceMapStatus(pm3.priceMapStatus);
+                    wgStatus = s3==='Extended'?'Extended':s3==='Broken'?'WT Inactive':s3==='Testing Target'?'Testing WT':'Continuation';
                   }
-                  var barStr = !isBroken ? ltBar(pm, price) : null;
-                  return <div style={{overflow:'hidden',lineHeight:1.4}}>
-                    <div style={{fontSize:10,fontWeight:700,color:statusColor}}>{status}</div>
-                    {isBroken
-                      ? <div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>{zoneStr?'Recover > '+zoneStr:String.fromCharCode(0x2014)}</div>
-                      : barStr
-                        ? <div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap',fontFamily:'monospace'}}>
-                            {zoneStr&&<span>{'S '+zoneStr+' '}</span>}{barStr}{tgtNum!=null&&<span>{' T $'+tgtNum}</span>}
-                          </div>
-                        : <div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>
-                            {zoneStr&&<span>{'S '+zoneStr}</span>}{zoneStr&&tgtNum!=null&&<span style={{color:'#555'}}>{' | '}</span>}{tgtNum!=null&&<span>{'T $'+tgtNum}</span>}
-                          </div>
-                    }
+                  if (!wgStatus) return <div style={{overflow:'hidden'}}><div style={{fontSize:10,color:'#444'}}>No Clear Wave</div></div>;
+                  var wgColor = wgStatus==='Continuation'?'#7abd00':wgStatus==='Testing WT'?'#7abd00':wgStatus==='Recovery'?'#6090d0':wgStatus==='Pullback'?'#EF9F27':wgStatus==='Extended'?'#EF9F27':wgStatus==='WT Inactive'?'#e05050':wgStatus==='Correction'?'#e05050':'#888';
+                  var avgBuy2  = lock ? lock.avg_buy_price : null;
+                  var pctBase2 = (avgBuy2 && avgBuy2 > 0) ? avgBuy2 : price;
+                  var wt = wg ? wg.waveTarget : (fibMap ? fibMap.fibTarget1 : null);
+                  var wtPct = (wt && pctBase2) ? ((wt - pctBase2) / pctBase2 * 100) : null;
+                  var isInactive = wgStatus==='WT Inactive' || wgStatus==='Correction';
+                  return <div style={{overflow:'hidden',lineHeight:1.5}}>
+                    <div style={{fontSize:10,fontWeight:700,color:wgColor}}>Current Wave Guide</div>
+                    <div style={{fontSize:9,fontWeight:600,color:'#888'}}>{wgStatus}</div>
+                    {wt&&!isInactive&&<div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>
+                      {(function(){ var ps = wtPct!=null ? (' ('+(wtPct>=0?'+':'')+wtPct.toFixed(1)+'%)') : ''; return 'WT $'+Math.round(wt)+ps; })()}
+                    </div>}
+                    {isInactive&&<div style={{fontSize:9,color:'#555'}}>Target inactive</div>}
                   </div>;
                 })()}
 
@@ -14061,7 +14241,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.180</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.181</span>
           </div>
         </div>
 
