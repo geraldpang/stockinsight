@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.193</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.195</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.193</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.195</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11728,6 +11728,143 @@ function buildWaveGuide(fibMapData, stMapData, currentPrice) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── Action Bias helper (module-level, pure function) ────────────────────────
+// Derives position-management guidance from combined signal + position data.
+// Priority order: Avoid/Wait → Stop Loss Watch → Reduce Risk → Profit-taking → Accumulation → Hold
+// Returns: { label, reason, color }
+function buildActionBias(opts) {
+  var price        = opts.price        || 0;
+  var avgBuyPrice  = opts.avgBuyPrice  || null;
+  var qty          = opts.qty          || null;
+  var rbaV         = opts.rbaV         || '';  // Technical View label
+  var trendV       = opts.trendV       || '';
+  var momV         = opts.momV         || '';
+  var revV         = opts.revV         || '';
+  var smfV         = opts.smfV         || '';
+  var klStatus     = opts.klStatus     || '';
+  var wgStatus     = opts.wgStatus     || '';
+  var nearestS     = opts.nearestS     || null;
+  var nearestR     = opts.nearestR     || null;
+
+  var hasPosition  = (avgBuyPrice != null && avgBuyPrice > 0 && qty != null && qty > 0);
+  var positionPct  = hasPosition ? (price - avgBuyPrice) / avgBuyPrice * 100 : null;
+
+  // Helper colour
+  function col(label) {
+    if (label==='Hold'||label==='Hold / Watch')             return '#888';
+    if (label==='Add 10%'||label==='Add 25%')              return '#6090d0';
+    if (label==='Accumulate Watch')                         return '#6090d0';
+    if (label==='Sell 10%'||label==='Sell 20%')            return '#EF9F27';
+    if (label==='Sell 30%'||label==='Sell 40%'||label==='Exit') return '#e05050';
+    if (label==='Reduce Risk')                             return '#EF9F27';
+    if (label==='Stop Loss Watch')                         return '#e05050';
+    if (label==='Avoid / Wait')                            return '#555';
+    return '#888';
+  }
+  function out(label, reason) { return { label:label, reason:reason, color:col(label) }; }
+
+  // Signal quality helpers
+  var rbaLow = (function(){
+    var r = (rbaV||'').toLowerCase();
+    return r.indexOf('bearish')!==-1 && r.indexOf('watch')===-1;
+  })();
+  var rbaWeak = (function(){
+    var r = (rbaV||'').toLowerCase();
+    return r.indexOf('bearish')!==-1 || r.indexOf('caution')!==-1 || r.indexOf('neutral')!==-1;
+  })();
+
+  // Technical weakness score
+  var techWeakness = 0;
+  if ((trendV||'').toLowerCase().indexOf('down')!==-1)                         techWeakness++;
+  if ((momV||'').toLowerCase().indexOf('fad')!==-1||(momV||'').toLowerCase().indexOf('weak')!==-1) techWeakness++;
+  if ((revV||'').toLowerCase().indexOf('bear')!==-1)                           techWeakness++;
+  if ((smfV||'').toLowerCase().indexOf('distribut')!==-1||(smfV||'').toLowerCase().indexOf('negative')!==-1) techWeakness++;
+
+  // Technical support score
+  var techSupport = 0;
+  if ((trendV||'').toLowerCase().indexOf('up')!==-1)                           techSupport++;
+  if ((momV||'').toLowerCase().indexOf('build')!==-1||(momV||'').toLowerCase().indexOf('strong')!==-1) techSupport++;
+  if ((revV||'').toLowerCase().indexOf('trigger')!==-1||(revV||'').toLowerCase().indexOf('confirm')!==-1) techSupport++;
+  if ((smfV||'').toLowerCase().indexOf('accum')!==-1)                          techSupport++;
+
+  var klBroken   = klStatus==='Broken';
+  var klNoClear  = !klStatus || klStatus==='No Clear Levels';
+  var klTestingS = klStatus==='Testing Support' || klStatus==='At Support';
+  var klTestingR = klStatus==='Testing Resistance';
+  var wgNoClear  = !wgStatus || wgStatus==='No Clear Wave';
+  var wgInactive = wgStatus==='WT Inactive' || wgStatus==='Correction' || wgStatus==='Correction Risk';
+  var wgTestingWT= wgStatus==='Testing WT';
+  var wgExtended = wgStatus==='Extended';
+  var wgPullback = wgStatus==='Pullback' || wgStatus==='Recovery';
+  var wgCont     = wgStatus==='Continuation';
+
+  // Near resistance: within 3% of nearestR
+  var nearResistance = nearestR && price >= nearestR * 0.97;
+  // Near support: within 3% above nearestS
+  var nearSupport    = nearestS && price <= nearestS * 1.03;
+
+  // ── Priority 1: Avoid / Wait ──────────────────────────────────────────────
+  // Only for no-position; existing positions get Hold/Reduce Risk/Stop Loss
+  if (!hasPosition) {
+    if (klNoClear || wgNoClear) return out('Avoid / Wait', 'No clear setup');
+    if (rbaLow && techWeakness >= 2) return out('Avoid / Wait', 'Weak structure');
+    if (klBroken) return out('Avoid / Wait', 'Structure broken');
+  }
+
+  // ── Priority 2: Stop Loss Watch ───────────────────────────────────────────
+  if (hasPosition && positionPct !== null && positionPct < 0 &&
+      (klBroken || nearestS && price < nearestS) &&
+      rbaWeak && techWeakness >= 2) {
+    return out('Stop Loss Watch', 'Below support + weak technicals');
+  }
+
+  // ── Priority 3: Reduce Risk ───────────────────────────────────────────────
+  if (klBroken && hasPosition) return out('Reduce Risk', 'Support broken');
+  if (wgInactive && hasPosition) return out('Reduce Risk', 'WT inactive');
+  if (klBroken && !hasPosition) return out('Reduce Risk', 'Structure weakening');
+  if (techWeakness >= 3) return out('Reduce Risk', 'Structure weakening');
+
+  // ── Priority 4: Profit-taking ladder ──────────────────────────────────────
+  if (hasPosition && positionPct !== null) {
+    var nearWT = wgTestingWT || wgExtended;
+    var nearR  = nearResistance || klTestingR;
+    var techFading = techWeakness >= 2;
+    // Only take profit if near resistance or WT, or extended with large gain
+    if (nearWT || nearR || (wgExtended && positionPct >= 45)) {
+      if (positionPct >= 100) return out('Exit', '100%+ gain');
+      if (positionPct >=  60) return out('Sell 40%', wgExtended?'Extended':'High gain');
+      if (positionPct >=  45) return out('Sell 30%', nearWT?'WT hit':'Extended');
+      if (positionPct >=  35) return out('Sell 20%', nearWT?'WT hit':'Near resistance');
+      if (positionPct >=  25) return out('Sell 10%', 'Near resistance');
+      // Gain but not yet at thresholds — watch
+      if (positionPct >=  15) return out('Hold / Watch', 'Approaching resistance');
+    }
+  }
+
+  // ── Priority 5: Accumulation ladder ──────────────────────────────────────
+  if (hasPosition && positionPct !== null && positionPct < 0 &&
+      (klTestingS || nearSupport) &&
+      !klBroken && !wgInactive &&
+      !rbaLow && techSupport >= 2) {
+    if (positionPct <= -25) return out('Add 25%', 'Support + recovery');
+    if (positionPct <= -15) return out('Add 10%', 'Support holding');
+  }
+
+  // ── Priority 6: Hold ─────────────────────────────────────────────────────
+  if (!hasPosition) {
+    if (klTestingS || wgPullback) return out('Hold / Watch', 'Watch setup');
+    if (wgCont || klStatus==='Holding Support') return out('Hold / Watch', 'Structure intact');
+    return out('Hold / Watch', 'Monitor signals');
+  }
+  // Has position
+  if (positionPct !== null && positionPct < -5 && nearSupport) return out('Hold', 'Recovery forming');
+  if (positionPct !== null && positionPct >= 15 && wgCont && !nearResistance) return out('Hold', 'Trend intact');
+  if (klTestingS || wgPullback) return out('Hold', 'Support holding');
+  if (positionPct !== null && positionPct < 0) return out('Hold', 'Support intact');
+  return out('Hold', 'Between levels');
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ─── Shared Force Strike helpers (module-level) ───────────────────────────────
 // These were previously private to ForceStrikePage.
 // Hoisted so WatchlistPage can call the exact same logic — both pages produce
@@ -12268,8 +12405,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
   // ── Paid user UI ───────────────────────────────────────────────────────────
   // Ticker | Price | Position | Technical View | 52W Range | 3M Trend | Force Strike | Actions
   // Ticker | Price | Position | Technical View | Key Levels | Wave Guide | Force Strike | Actions
-  var COL  = '70px 90px 140px 130px 185px 110px 100px 110px';
-  var HEAD = ['Ticker','Price','Position','Technical View','Key Levels','Wave Guide','Force Strike','Actions'];
+  var COL  = '70px 90px 140px 130px 210px 120px 100px 110px';
+  var HEAD = ['Ticker','Price','Position','Technical View','Key Levels','Wave Guide','Action Bias','Actions'];
 
   return (
     <div style={{minHeight:'100vh',background:'#0e0e0c',padding:'24px 20px',maxWidth:1400,margin:'0 auto'}}>
@@ -12636,19 +12773,27 @@ function WatchlistPage({ clerkUser, isPaid }) {
                   </div>;
                 })()}
 
-                {/* Force Strike */}
-                <div style={{overflow:'hidden'}} title={fsTip}>
-                  {displayFsStatus==='active' && <div>
-                    <div style={{fontSize:10,fontWeight:700,color:'#7abd00'}}>{'&#x1F7E2; Active FS'.replace('&#x1F7E2;','\uD83D\uDFE2')}</div>
-                    <div style={{fontSize:9,color:'#555'}}>{displayFsPattern||String.fromCharCode(0x2014)}</div>
-                    {displayFsScenario&&displayFsScenario!=='None'&&<div style={{fontSize:8,color:'#444'}}>{displayFsScenario}</div>}
-                  </div>}
-                  {displayFsStatus==='watch' && <div>
-                    <div style={{fontSize:10,fontWeight:700,color:'#EF9F27'}}>{'&#x1F7E1; FS Watch'.replace('&#x1F7E1;','\uD83D\uDFE1')}</div>
-                    <div style={{fontSize:9,color:'#555'}}>Waiting for trigger</div>
-                  </div>}
-                  {(displayFsStatus==='expired'||displayFsStatus==='none'||!displayFsStatus) && <span style={{fontSize:10,color:'#444'}}>{String.fromCharCode(0x2014)}</span>}
-                </div>
+                {/* Action Bias */}
+                {(function(){
+                  var ab = buildActionBias({
+                    price:       price,
+                    avgBuyPrice: lock ? lock.avg_buy_price : null,
+                    qty:         lock ? lock.quantity : null,
+                    rbaV:        rbaV,
+                    trendV:      trendV,
+                    momV:        momV,
+                    revV:        revV,
+                    smfV:        smfV,
+                    klStatus:    keyLevels ? keyLevels.status : null,
+                    wgStatus:    waveGuide ? waveGuide.waveStatus : null,
+                    nearestS:    keyLevels ? keyLevels.nearestSupport    : null,
+                    nearestR:    keyLevels ? keyLevels.nearestResistance : null,
+                  });
+                  return <div style={{overflow:'hidden',lineHeight:1.5}}>
+                    <div style={{fontSize:10,fontWeight:700,color:ab.color}}>{ab.label}</div>
+                    <div style={{fontSize:9,color:'#555'}}>{ab.reason}</div>
+                  </div>;
+                })()}
 
                 {/* Actions — 2 square icon buttons */}
                 <div style={{display:'flex',flexDirection:'column',gap:4}}>
@@ -14259,7 +14404,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.193</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.195</span>
           </div>
         </div>
 
