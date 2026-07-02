@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.183</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.185</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.183</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.185</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12265,9 +12265,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
   // ── Paid user UI ───────────────────────────────────────────────────────────
   // Ticker | Price | Position | Technical View | 52W Range | 3M Trend | Force Strike | Actions
-  // Ticker | Price | Position | Technical View | 52W Range | Key Levels | Wave Guide | Force Strike | Actions
+  // Ticker | Price | Position | Technical View | Key Levels | Wave Guide | Force Strike | Actions
   var COL  = '70px 90px 140px 130px 140px 130px 120px 100px 110px';
-  var HEAD = ['Ticker','Price','Position','Technical View','52W Range','Key Levels','Wave Guide','Force Strike','Actions'];
+  var HEAD = ['Ticker','Price','Position','Technical View','Key Levels','Wave Guide','Force Strike','Actions'];
 
   return (
     <div style={{minHeight:'100vh',background:'#0e0e0c',padding:'24px 20px',maxWidth:1400,margin:'0 auto'}}>
@@ -12459,9 +12459,6 @@ function WatchlistPage({ clerkUser, isPaid }) {
                   </div>}
                 </div>
 
-                {/* 52W Range */}
-                <div>{price&&hi52&&lo52 ? <Range52 price={price} lo52={lo52} hi52={hi52} /> : <span style={{color:'#555',fontSize:11}}>{String.fromCharCode(0x2014)}</span>}</div>
-
                 {/* Key Levels — support/resistance ladder; status heading only on fallback */}
                 {(function(){
                   var kl = keyLevels;
@@ -12505,17 +12502,36 @@ function WatchlistPage({ clerkUser, isPaid }) {
                   // The ladder is shown even if the weekly structure is broken (daily Fib still useful).
                   // Broken structure warning is communicated in the Wave Guide column, not here.
                   if (hasLevels) {
-                    return <div style={{overflow:'hidden',lineHeight:1.5}}>
-                      <div style={{display:'flex',gap:6,fontSize:9,alignItems:'flex-start'}}>
-                        {supps.length>0 && <div style={{color:'#f0ede6',minWidth:36}}>
-                          <div style={{color:'#555',fontSize:8,marginBottom:1}}>S</div>
-                          {supps.map(function(s,i){ return <div key={i} style={{fontWeight:s.strength==='major'?700:400,whiteSpace:'nowrap'}}>{'$'+Math.round(s.price)}</div>; })}
-                        </div>}
-                        {ress.length>0 && <div style={{color:'#f0ede6',textAlign:'right',marginLeft:'auto'}}>
-                          <div style={{color:'#555',fontSize:8,marginBottom:1}}>R</div>
-                          {ress.map(function(r,i){ return <div key={i} style={{fontWeight:r.strength==='major'?700:400,whiteSpace:'nowrap'}}>{'$'+Math.round(r.price)+' ('+lvlPct(r.price)+')'}</div>; })}
-                        </div>}
+                    var s0 = supps[0] || null;
+                    var r0 = ress[0] || null;
+                    // Build the horizontal bar for row 1: S $414 ━━━●━━ R $432 (+15%)
+                    // ● position proportional between nearest support and nearest resistance
+                    var barStr1 = null;
+                    if (s0 && r0 && price) {
+                      var pct1 = Math.max(0, Math.min(1, (price - s0.price) / (r0.price - s0.price)));
+                      var segs = 6;
+                      var dot  = Math.round(pct1 * segs);
+                      var b = '';
+                      for (var si = 0; si <= segs; si++) b += (si === dot) ? '\u25CF' : '\u2501';
+                      barStr1 = b;
+                    }
+                    return <div style={{overflow:'hidden',lineHeight:1.6,fontFamily:'monospace'}}>
+                      {/* Row 1 — horizontal bar, light grey */}
+                      <div style={{fontSize:9,color:'#666',whiteSpace:'nowrap'}}>
+                        {s0 && <span>{'$'+Math.round(s0.price)+' '}</span>}
+                        {barStr1 && <span>{barStr1}</span>}
+                        {!barStr1 && <span>{'\u25CF'}</span>}
+                        {r0 && <span>{' $'+Math.round(r0.price)+'('+lvlPct(r0.price)+')'}</span>}
                       </div>
+                      {/* Rows 2 and 3 — smaller, darker grey */}
+                      {(supps[1]||ress[1]) && <div style={{fontSize:8,color:'#444',whiteSpace:'nowrap',display:'flex',justifyContent:'space-between'}}>
+                        <span style={{fontWeight:supps[1]&&supps[1].strength==='major'?700:400}}>{supps[1]?'$'+Math.round(supps[1].price):''}</span>
+                        <span style={{fontWeight:ress[1]&&ress[1].strength==='major'?700:400}}>{ress[1]?'$'+Math.round(ress[1].price)+'('+lvlPct(ress[1].price)+')':''}</span>
+                      </div>}
+                      {(supps[2]||ress[2]) && <div style={{fontSize:8,color:'#444',whiteSpace:'nowrap',display:'flex',justifyContent:'space-between'}}>
+                        <span style={{fontWeight:supps[2]&&supps[2].strength==='major'?700:400}}>{supps[2]?'$'+Math.round(supps[2].price):''}</span>
+                        <span style={{fontWeight:ress[2]&&ress[2].strength==='major'?700:400}}>{ress[2]?'$'+Math.round(ress[2].price)+'('+lvlPct(ress[2].price)+')':''}</span>
+                      </div>}
                     </div>;
                   }
 
@@ -14267,7 +14283,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.183</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.185</span>
           </div>
         </div>
 
