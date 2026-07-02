@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.175</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.176</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.175</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.176</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11453,7 +11453,8 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
       return { priceMapStatus:'No Clear Map', fibSupport:null, fibTarget:null, fibInvalidation:null, fibTimeframe:'Weekly',
                fibSwingLow:null, fibSwingHigh:null, fibSupportZoneLow:null, fibSupportZoneHigh:null,
                fibTarget1:null, fibTarget2:null, fibTarget3:null,
-               priceMapCommentary:'No clear weekly swing structure detected.', swingLowDate:null, swingHighDate:null, weeklyBarCount:weekly.length };
+               priceMapCommentary:'No clear weekly swing structure detected.', swingLowDate:null, swingHighDate:null,
+               weeklyBarCount:weekly.length, weeklyBars:weekly };
     }
     var levels   = calcFibLevels(swings.swingLow, swings.swingHigh);
     var status   = getPriceMapStatus(currentPrice, levels, true);
@@ -11476,6 +11477,9 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
       swingLowDate:      swings.swingLowDate,
       swingHighDate:     swings.swingHighDate,
       weeklyBarCount:    weekly.length,
+      // Full weekly OHLCV bars used for swing detection — included for audit/verification.
+      // Each bar: { date, open, high, low, close, volume }
+      weeklyBars:        weekly,
     };
   } catch(e) { return null; }
 }
@@ -12348,7 +12352,43 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     return <div style={{marginBottom:12,paddingBottom:12,borderBottom:'0.5px solid #222'}}>
                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
                         <div style={{fontSize:9,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em'}}>Weekly Fib Price Map</div>
-                        <div style={{fontSize:10,fontWeight:700,color:statusColor}}>{pm.priceMapStatus}</div>
+                        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                          <div style={{fontSize:10,fontWeight:700,color:statusColor}}>{pm.priceMapStatus}</div>
+                          <button onClick={function(){
+                            var exportData = {
+                              ticker:         item.ticker,
+                              exportedAt:     new Date().toISOString(),
+                              snapshotDate:   snap ? snap.snapshot_date : null,
+                              currentPrice:   snap ? snap.close_price : null,
+                              fibResult: {
+                                priceMapStatus:    pm.priceMapStatus,
+                                fibSwingLow:       pm.fibSwingLow,
+                                fibSwingHigh:      pm.fibSwingHigh,
+                                swingLowDate:      pm.swingLowDate,
+                                swingHighDate:     pm.swingHighDate,
+                                fibSupportZoneLow: pm.fibSupportZoneLow,
+                                fibSupportZoneHigh:pm.fibSupportZoneHigh,
+                                fibTarget1:        pm.fibTarget1,
+                                fibTarget2:        pm.fibTarget2,
+                                fibTarget3:        pm.fibTarget3,
+                                fibInvalidation:   pm.fibInvalidation,
+                                fibSupport:        pm.fibSupport,
+                                fibTarget:         pm.fibTarget,
+                                weeklyBarCount:    pm.weeklyBarCount,
+                              },
+                              weeklyBars: pm.weeklyBars || [],
+                            };
+                            var blob = new Blob([JSON.stringify(exportData, null, 2)], { type:'application/json' });
+                            var url  = URL.createObjectURL(blob);
+                            var a    = document.createElement('a');
+                            a.href  = url;
+                            a.download = item.ticker + '_fib_audit_' + new Date().toISOString().split('T')[0] + '.json';
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          }} style={{fontSize:8,padding:'2px 7px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#666',cursor:'pointer'}}>
+                            Export JSON
+                          </button>
+                        </div>
                       </div>
                       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'5px 14px',fontSize:10}}>
                         <div style={{color:'#555'}}>Swing Low <div style={{color:'#f0ede6'}}>{fmt(pm.fibSwingLow)}{pm.swingLowDate&&<span style={{color:'#444',fontSize:8,marginLeft:4}}>{pm.swingLowDate}</span>}</div></div>
@@ -13849,7 +13889,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.175</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.176</span>
           </div>
         </div>
 
