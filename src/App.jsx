@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.198</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.199</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.198</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.199</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11753,13 +11753,14 @@ function buildActionBias(opts) {
 
   function col(label) {
     if (label==='Hold'||label==='Hold / Watch'||label==='Hold / Watch Support') return '#888';
-    if (label==='Add 10%'||label==='Add 25%'||label==='Accumulate Watch')       return '#6090d0';
-    if (label==='Trail Profit')                                                  return '#EF9F27';
-    if (label==='Sell 10%'||label==='Sell 20%'||label==='Take Profit')          return '#EF9F27';
-    if (label==='Sell 30%'||label==='Sell 40%'||label==='Exit')                 return '#e05050';
+    if (label==='Accumulate 10%'||label==='Accumulate 25%'||label==='Accumulate Watch') return '#6090d0';
+    if (label==='Trail Profit')                                                  return '#4caf50';
+    if (label==='Take Profit 10%'||label==='Take Profit 20%')                   return '#4caf50';
+    if (label==='Take Profit 30%'||label==='Take Profit 40%')                   return '#4caf50';
+    if (label==='Take Profit'||label==='Exit')                                   return '#4caf50';
     if (label==='Reduce Risk')                                                   return '#EF9F27';
     if (label==='Stop Loss Watch')                                               return '#e05050';
-    if (label==='Avoid / Wait')                                                  return '#555';
+    if (label==='Avoid / Wait')                                                  return '#e05050';
     return '#888';
   }
   function out(label, reason) { return { label:label, reason:reason, color:col(label) }; }
@@ -11873,12 +11874,12 @@ function buildActionBias(opts) {
     }
     // Take profit / sell ladder: near resistance or WT
     if (nearWT || nearR || (wgExtended && positionPct >= 45)) {
-      if (positionPct >= 100) return out('Exit',       '100%+ gain');
-      if (positionPct >=  60) return out('Sell 40%',   wgExtended?'Extended':'High gain');
-      if (positionPct >=  45) return out('Sell 30%',   nearWT?'WT hit':'Extended');
-      if (positionPct >=  35) return out('Sell 20%',   nearWT?'WT hit':'Near resistance');
-      if (positionPct >=  25) return out('Sell 10%',   'Near resistance');
-      if (positionPct >=  15) return out('Take Profit', 'Near resistance');
+      if (positionPct >= 100) return out('Exit',            '100%+ gain');
+      if (positionPct >=  60) return out('Take Profit 40%', wgExtended?'Extended':'High gain');
+      if (positionPct >=  45) return out('Take Profit 30%', nearWT?'WT hit':'Extended');
+      if (positionPct >=  35) return out('Take Profit 20%', nearWT?'WT hit':'Near resistance');
+      if (positionPct >=  25) return out('Take Profit 10%', 'Near resistance');
+      if (positionPct >=  15) return out('Take Profit',      'Near resistance');
     }
   }
 
@@ -11887,8 +11888,8 @@ function buildActionBias(opts) {
       !majorSupportBroken && !wgInactive &&
       (klTestingS || nearSupport) &&
       !rbaLow && techSupport >= 2) {
-    if (positionPct <= -25) return out('Add 25%', 'Support + recovery');
-    if (positionPct <= -15) return out('Add 10%', 'Support holding');
+    if (positionPct <= -25) return out('Accumulate 25%', 'Support + recovery');
+    if (positionPct <= -15) return out('Accumulate 10%', 'Support holding');
   }
 
   // ── Priority 6: Hold ─────────────────────────────────────────────────────
@@ -14533,7 +14534,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.198</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.199</span>
           </div>
         </div>
 
