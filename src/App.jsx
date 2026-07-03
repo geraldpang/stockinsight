@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.172</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.198</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.172</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.198</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11353,6 +11353,561 @@ function makeSparkline(values) {
   return values.map(function(v){return blocks[Math.round((v-min)/(max-min)*(blocks.length-1))];}).join("");
 }
 
+// ─── Weekly Fib Price Map helpers (module-level, pure functions) ──────────────
+// These are standalone — they do not touch any existing signal calculation logic.
+
+// Aggregate daily bars (oldest-to-newest, {date:ISO,...} or {date:ms,...}) into weekly candles.
+// Uses Monday-anchored weeks. Safe against null/missing OHLCV fields.
+function aggregateWeekly(dailyBars) {
+  if (!dailyBars || dailyBars.length < 5) return [];
+  var weeks = {}, order = [];
+  for (var di = 0; di < dailyBars.length; di++) {
+    var b = dailyBars[di];
+    if (!b || !b.close || b.close <= 0) continue;
+    // Normalise date to ISO string (handles both ms and ISO input)
+    var dateStr = typeof b.date === 'number'
+      ? new Date(b.date).toISOString().split('T')[0]
+      : (b.date ? String(b.date).split('T')[0] : null);
+    if (!dateStr) continue;
+    var d = new Date(dateStr);
+    var dow = d.getDay(); // 0=Sun, 1=Mon...
+    var monday = new Date(d);
+    monday.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+    var key = monday.toISOString().split('T')[0];
+    if (!weeks[key]) {
+      weeks[key] = { date:key, open:b.open||b.close, high:b.high||b.close, low:b.low||b.close, close:b.close, volume:b.volume||0 };
+      order.push(key);
+    } else {
+      var w = weeks[key];
+      if ((b.high||b.close) > w.high) w.high = b.high||b.close;
+      if ((b.low||b.close)  < w.low)  w.low  = b.low||b.close;
+      w.close = b.close;
+      w.volume += (b.volume||0);
+    }
+  }
+  return order.map(function(k){ return weeks[k]; });
+}
+
+// Find major swing low and swing high from weekly bars.
+// Returns {swingLow, swingHigh, swingLowDate, swingHighDate} or null if structure unclear.
+function findFibSwings(weeklyBars) {
+  if (!weeklyBars || weeklyBars.length < 26) return null;
+  var bars = weeklyBars.slice(-52); // use up to last 52 weeks
+  var swingLowBar = bars[0], swingHighBar = bars[0];
+  for (var wi = 1; wi < bars.length; wi++) {
+    var b = bars[wi];
+    if (b.low  < swingLowBar.low)   swingLowBar  = b;
+    if (b.high > swingHighBar.high) swingHighBar = b;
+  }
+  // Range must be at least 10% of swing low to avoid flat/choppy structures
+  var range = swingHighBar.high - swingLowBar.low;
+  if (range / swingLowBar.low < 0.10) return null;
+  // Note: we do NOT require swingLow to precede swingHigh in time.
+  // Many valid tickers hit their yearly high first then consolidated — we still
+  // want to show the Fib map. priceMapStatus logic handles direction context.
+  return { swingLow:swingLowBar.low, swingHigh:swingHighBar.high, swingLowDate:swingLowBar.date, swingHighDate:swingHighBar.date };
+}
+
+// Calculate Fib retracement and extension levels from swing points.
+function calcFibLevels(swingLow, swingHigh) {
+  var range = swingHigh - swingLow;
+  return {
+    fibSupportZoneHigh: swingHigh - range * 0.500,  // 50% retracement
+    fibSupportZoneLow:  swingHigh - range * 0.618,  // 61.8% retracement
+    fibTarget1:         swingHigh,                   // swing high = T1
+    fibTarget2:         swingHigh + range * 0.272,   // 127.2% extension
+    fibTarget3:         swingHigh + range * 0.618,   // 161.8% extension
+    fibInvalidation:    swingLow,                    // below this = structure broken
+  };
+}
+
+// Return the next relevant Fib target above current price.
+function getNextFibTarget(price, levels) {
+  if (price < levels.fibTarget1 * 0.98) return levels.fibTarget1;
+  if (price < levels.fibTarget2 * 0.98) return levels.fibTarget2;
+  return levels.fibTarget3;
+}
+
+// Determine Price Map status from current price and Fib levels.
+// Returns new label set: At Support / Holding Support / Testing Target / Extended / Broken / No Clear Map
+function getPriceMapStatus(price, levels, swingValid) {
+  if (!swingValid || !price || price <= 0) return 'No Clear Map';
+  // Below 61.8% level = support zone broken
+  if (price < levels.fibSupportZoneLow * 0.99) return 'Broken';
+  // Inside the support zone (between 61.8% and 50%)
+  if (price <= levels.fibSupportZoneHigh) return 'At Support';
+  // Just above the 50% level (within ~4%) — still constructive support
+  if (price <= levels.fibSupportZoneHigh * 1.04) return 'Holding Support';
+  // Above support zone — assess vs targets
+  if (price >= levels.fibTarget2 * 0.95) return 'Extended';
+  var nextTarget = getNextFibTarget(price, levels);
+  if (price >= nextTarget * 0.95) return 'Testing Target';
+  return 'Holding Support';
+}
+
+// Normalise old stored status strings to the current label set.
+// Handles snapshots saved before the label rename — no re-fetch required.
+function normalisePriceMapStatus(s) {
+  if (!s) return 'No Clear Map';
+  var legacyMap = {
+    'Near Support':   'At Support',
+    'Moving Up':      'Holding Support',
+    'Near Target':    'Testing Target',
+    'Overextended':   'Extended',
+    'Support Broken': 'Broken',
+  };
+  return legacyMap[s] || s;
+}
+
+// Top-level entry: takes daily2 (Watchlist Yahoo chart bars) and current price.
+// Returns a fibMap object suitable for signal_snapshot_json.fibMap, or null on failure.
+function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
+  try {
+    if (!daily2Arr || daily2Arr.length < 30) return null;
+    var weekly = aggregateWeekly(daily2Arr);
+    var swings = findFibSwings(weekly);
+    if (!swings) {
+      return { priceMapStatus:'No Clear Map', fibSupport:null, fibTarget:null, fibInvalidation:null, fibTimeframe:'Weekly',
+               fibSwingLow:null, fibSwingHigh:null, fibSupportZoneLow:null, fibSupportZoneHigh:null,
+               fibTarget1:null, fibTarget2:null, fibTarget3:null,
+               priceMapCommentary:'No clear weekly swing structure detected.', swingLowDate:null, swingHighDate:null,
+               weeklyBarCount:weekly.length, weeklyBars:weekly };
+    }
+    var levels   = calcFibLevels(swings.swingLow, swings.swingHigh);
+    var status   = getPriceMapStatus(currentPrice, levels, true);
+    var fibSupport = levels.fibSupportZoneHigh;
+    var fibTarget  = getNextFibTarget(currentPrice, levels);
+    return {
+      priceMapStatus:    status,
+      fibSupport:        Math.round(fibSupport   * 100) / 100,
+      fibTarget:         Math.round(fibTarget    * 100) / 100,
+      fibInvalidation:   Math.round(swings.swingLow    * 100) / 100,
+      fibTimeframe:      'Weekly',
+      fibSwingLow:       Math.round(swings.swingLow  * 100) / 100,
+      fibSwingHigh:      Math.round(swings.swingHigh * 100) / 100,
+      fibSupportZoneLow: Math.round(levels.fibSupportZoneLow  * 100) / 100,
+      fibSupportZoneHigh:Math.round(levels.fibSupportZoneHigh * 100) / 100,
+      fibTarget1:        Math.round(levels.fibTarget1 * 100) / 100,
+      fibTarget2:        Math.round(levels.fibTarget2 * 100) / 100,
+      fibTarget3:        Math.round(levels.fibTarget3 * 100) / 100,
+      priceMapCommentary:'Fibonacci levels are projection zones, not guaranteed price predictions.',
+      swingLowDate:      swings.swingLowDate,
+      swingHighDate:     swings.swingHighDate,
+      weeklyBarCount:    weekly.length,
+      // Full weekly OHLCV bars used for swing detection — included for audit/verification.
+      // Each bar: { date, open, high, low, close, volume }
+      weeklyBars:        weekly,
+    };
+  } catch(e) { return null; }
+}
+
+// Short-Term Map: find swing low/high from the last 90 daily bars of daily2.
+// Same global min/max approach as findFibSwings, but daily resolution.
+// daily2 uses ms timestamps — normalised to ISO string for consistent date comparison.
+function findDailyFibSwings(dailyBars) {
+  if (!dailyBars || dailyBars.length < 60) return null;
+  var bars = dailyBars.slice(-90); // last ~4 months of trading days
+  var swingLowBar = bars[0], swingHighBar = bars[0];
+  for (var di = 1; di < bars.length; di++) {
+    var b = bars[di];
+    var bLow  = b.low  || b.close;
+    var bHigh = b.high || b.close;
+    var bDate = typeof b.date === 'number' ? new Date(b.date).toISOString().split('T')[0] : String(b.date).split('T')[0];
+    var curLow  = swingLowBar.low  || swingLowBar.close;
+    var curHigh = swingHighBar.high || swingHighBar.close;
+    if (bLow  < curLow)  swingLowBar  = { date:bDate, low:bLow,  high:bHigh, close:b.close };
+    if (bHigh > curHigh) swingHighBar = { date:bDate, low:bLow,  high:bHigh, close:b.close };
+  }
+  var swingLow  = swingLowBar.low  || swingLowBar.close;
+  var swingHigh = swingHighBar.high || swingHighBar.close;
+  var range = swingHigh - swingLow;
+  if (range / swingLow < 0.05) return null; // 5% minimum for daily — tighter than weekly's 10%
+  var lowDate  = typeof swingLowBar.date  === 'number' ? new Date(swingLowBar.date).toISOString().split('T')[0]  : String(swingLowBar.date).split('T')[0];
+  var highDate = typeof swingHighBar.date === 'number' ? new Date(swingHighBar.date).toISOString().split('T')[0] : String(swingHighBar.date).split('T')[0];
+  return { swingLow:swingLow, swingHigh:swingHigh, swingLowDate:lowDate, swingHighDate:highDate };
+}
+
+// Build Short-Term Fib map from daily bars (reuses existing calcFibLevels, getPriceMapStatus).
+// daily2Arr passed in directly — no aggregation needed. No extra fetch.
+function buildShortTermFibMap(daily2Arr, currentPrice) {
+  try {
+    if (!daily2Arr || daily2Arr.length < 60) return null;
+    var swings = findDailyFibSwings(daily2Arr);
+    if (!swings) {
+      return { priceMapStatus:'No Clear Map', fibSupport:null, fibTarget:null, fibInvalidation:null, fibTimeframe:'Daily',
+               fibSwingLow:null, fibSwingHigh:null, fibSupportZoneLow:null, fibSupportZoneHigh:null,
+               fibTarget1:null, fibTarget2:null, fibTarget3:null,
+               priceMapCommentary:'No clear short-term swing structure detected.', swingLowDate:null, swingHighDate:null, dailyBarCount:daily2Arr.length };
+    }
+    var levels  = calcFibLevels(swings.swingLow, swings.swingHigh);
+    var status  = getPriceMapStatus(currentPrice, levels, true);
+    var fibSupport = levels.fibSupportZoneHigh;
+    var fibTarget  = getNextFibTarget(currentPrice, levels);
+    return {
+      priceMapStatus:    status,
+      fibSupport:        Math.round(fibSupport         * 100) / 100,
+      fibTarget:         Math.round(fibTarget           * 100) / 100,
+      fibInvalidation:   Math.round(swings.swingLow    * 100) / 100,
+      fibTimeframe:      'Daily',
+      fibSwingLow:       Math.round(swings.swingLow    * 100) / 100,
+      fibSwingHigh:      Math.round(swings.swingHigh   * 100) / 100,
+      fibSupportZoneLow: Math.round(levels.fibSupportZoneLow  * 100) / 100,
+      fibSupportZoneHigh:Math.round(levels.fibSupportZoneHigh * 100) / 100,
+      fibTarget1:        Math.round(levels.fibTarget1 * 100) / 100,
+      fibTarget2:        Math.round(levels.fibTarget2 * 100) / 100,
+      fibTarget3:        Math.round(levels.fibTarget3 * 100) / 100,
+      priceMapCommentary:'Fibonacci levels are projection zones, not guaranteed price predictions.',
+      swingLowDate:      swings.swingLowDate,
+      swingHighDate:     swings.swingHighDate,
+      dailyBarCount:     daily2Arr.length,
+    };
+  } catch(e) { return null; }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Key Levels + Wave Guide helpers (module-level, pure functions) ──────────
+// These derive from existing fibMap / shortTermMap data — no new API calls.
+// buildKeyLevels: combine daily + weekly Fib levels into a sorted support/resistance ladder.
+// buildWaveGuide: classify current price position into a practical stage label.
+
+function buildKeyLevels(fibMapData, stMapData, currentPrice) {
+  try {
+    if (!currentPrice || currentPrice <= 0) return null;
+    var levels = [];
+
+    function addLevel(price, type, timeframe, source) {
+      if (!price || price <= 0 || isNaN(price)) return;
+      // Dedup: skip if within 2% of an existing level
+      for (var i = 0; i < levels.length; i++) {
+        if (Math.abs(levels[i].price - price) / price < 0.02) {
+          // If new level is weekly and existing is daily, upgrade to major
+          if (timeframe === 'weekly') { levels[i].strength = 'major'; levels[i].timeframe = 'weekly'; }
+          return;
+        }
+      }
+      levels.push({ price: Math.round(price * 100) / 100, type: type, timeframe: timeframe, source: source,
+                    strength: timeframe === 'weekly' ? 'major' : 'normal' });
+    }
+
+    // Short-term (daily) levels
+    if (stMapData) {
+      addLevel(stMapData.fibSupportZoneHigh, 'support',    'daily',  'fib');
+      addLevel(stMapData.fibSupportZoneLow,  'support',    'daily',  'fib');
+      addLevel(stMapData.fibInvalidation,    'support',    'daily',  'fib');
+      addLevel(stMapData.fibTarget1,         'resistance', 'daily',  'fib');
+      addLevel(stMapData.fibTarget2,         'resistance', 'daily',  'fib');
+    }
+    // Long-term (weekly) levels — tagged as major
+    if (fibMapData) {
+      addLevel(fibMapData.fibSupportZoneHigh, 'support',    'weekly', 'fib');
+      addLevel(fibMapData.fibSupportZoneLow,  'support',    'weekly', 'fib');
+      addLevel(fibMapData.fibInvalidation,    'support',    'weekly', 'fib');
+      addLevel(fibMapData.fibTarget1,         'resistance', 'weekly', 'fib');
+      addLevel(fibMapData.fibTarget2,         'resistance', 'weekly', 'fib');
+      addLevel(fibMapData.fibTarget3,         'resistance', 'weekly', 'fib');
+    }
+
+    // Split into support (below price) and resistance (above price)
+    var supports    = levels.filter(function(l){ return l.type==='support'    && l.price < currentPrice; })
+                            .sort(function(a,b){ return b.price - a.price; }); // nearest first
+    var resistances = levels.filter(function(l){ return l.type==='resistance' && l.price > currentPrice; })
+                            .sort(function(a,b){ return a.price - b.price; }); // nearest first
+
+    // Determine status
+    // Find the nearest support level
+    var nearestSupport    = supports[0]    ? supports[0].price    : null;
+    var nearestResistance = resistances[0] ? resistances[0].price : null;
+
+    // Check if price is inside or very near a support zone
+    var inSupportZone = false;
+    var supportZoneHi = (stMapData && stMapData.fibSupportZoneHigh) || (fibMapData && fibMapData.fibSupportZoneHigh) || null;
+    var supportZoneLo = (stMapData && stMapData.fibSupportZoneLow)  || (fibMapData && fibMapData.fibSupportZoneLow)  || null;
+    var invalidation  = (stMapData && stMapData.fibInvalidation)    || (fibMapData && fibMapData.fibInvalidation)    || null;
+
+    if (supportZoneLo && currentPrice < supportZoneLo * 0.99) {
+      var status = 'Broken';
+    } else if (supportZoneHi && currentPrice <= supportZoneHi) {
+      var status = 'Testing Support';
+      inSupportZone = true;
+    } else if (supportZoneHi && currentPrice <= supportZoneHi * 1.03) {
+      var status = 'Testing Support'; // within 3% above support zone
+    } else if (nearestResistance && currentPrice >= nearestResistance * 0.97) {
+      var status = 'Testing Resistance';
+    } else if (fibMapData && fibMapData.fibTarget2 && currentPrice >= fibMapData.fibTarget2 * 0.95) {
+      var status = 'Extended';
+    } else {
+      var status = 'Holding Support';
+    }
+
+    return {
+      status:         status,
+      supports:       supports,       // full list, sorted nearest first
+      resistances:    resistances,    // full list, sorted nearest first
+      nearestSupport: nearestSupport,
+      nearestResistance: nearestResistance,
+      supportZoneHigh: supportZoneHi ? Math.round(supportZoneHi * 100) / 100 : null,
+      supportZoneLow:  supportZoneLo ? Math.round(supportZoneLo * 100) / 100 : null,
+      invalidation:    invalidation  ? Math.round(invalidation  * 100) / 100 : null,
+    };
+  } catch(e) { return null; }
+}
+
+function buildWaveGuide(fibMapData, stMapData, currentPrice) {
+  try {
+    if (!currentPrice || currentPrice <= 0) return null;
+    // Use long-term (weekly) map as the primary wave structure.
+    // Short-term map provides context for early-stage detection.
+    var pm = fibMapData || stMapData;
+    if (!pm || !pm.fibTarget1) return { waveStatus:'No Clear Wave', waveTarget:null, waveTargetPct:null, waveCommentary:'No reliable wave structure detected.' };
+
+    var t1 = pm.fibTarget1;
+    var t2 = pm.fibTarget2;
+    var t3 = pm.fibTarget3;
+    var szHi = pm.fibSupportZoneHigh;
+    var szLo = pm.fibSupportZoneLow;
+    var inv  = pm.fibInvalidation;
+
+    // Fallback levels after T1 is reached
+    var fallback1 = szHi ? Math.round(szHi * 100) / 100 : null;
+    var fallback2 = szLo ? Math.round(szLo * 100) / 100 : null;
+
+    // Stage classification based on current price position
+    var waveStatus, waveTarget, waveCommentary, waveTargetActive;
+
+    if (inv && currentPrice < inv * 0.99) {
+      waveStatus = 'WT Inactive';
+      waveTarget = t1;
+      waveTargetActive = false;
+      waveCommentary = 'Support broken. Wave target is inactive until support is recovered.';
+    } else if (szLo && currentPrice < szLo) {
+      waveStatus = 'Correction Risk'; // below support zone but above invalidation — caution, not confirmed breakdown
+      waveTarget = t1;
+      waveTargetActive = false;
+      waveCommentary = 'Price is below the support zone. Watch for recovery above support before acting on the wave target.';
+    } else if (t2 && currentPrice >= t2 * 0.95) {
+      waveStatus = 'Extended';
+      waveTarget = t3 || t2;
+      waveTargetActive = false;
+      waveCommentary = 'Price has moved well beyond the primary wave target. Structure may be stretched.';
+    } else if (t1 && currentPrice >= t1 * 0.95) {
+      waveStatus = 'Testing WT';
+      waveTarget = t1;
+      waveTargetActive = true;
+      waveCommentary = 'Price is near the wave target. Watch for a reaction or breakout.';
+    } else if (t1 && currentPrice >= t1 * 0.85) {
+      waveStatus = 'Continuation';
+      waveTarget = t1;
+      waveTargetActive = true;
+      waveCommentary = 'Price is advancing toward the wave target. Structure remains valid.';
+    } else if (szHi && currentPrice <= szHi) {
+      waveStatus = 'Pullback';
+      waveTarget = t1;
+      waveTargetActive = szLo ? currentPrice >= szLo * 0.99 : true;
+      waveCommentary = 'Price is pulling back into the support zone. Wave target active if support holds.';
+    } else if (szHi && currentPrice <= szHi * 1.05) {
+      waveStatus = 'Recovery';
+      waveTarget = t1;
+      waveTargetActive = true;
+      waveCommentary = 'Price is recovering from support. Watch for continuation above the support zone.';
+    } else {
+      waveStatus = 'Continuation';
+      waveTarget = t1;
+      waveTargetActive = true;
+      waveCommentary = 'Price is holding structure and moving toward the wave target.';
+    }
+
+    return {
+      waveStatus:       waveStatus,
+      waveTarget:       waveTarget ? Math.round(waveTarget * 100) / 100 : null,
+      waveTargetActive: waveTargetActive,
+      waveFallback1:    fallback1,
+      waveFallback2:    fallback2,
+      waveCommentary:   waveCommentary,
+    };
+  } catch(e) { return null; }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Action Bias helper (module-level, pure function) ────────────────────────
+// Derives position-management guidance from combined signal + position data.
+// Priority order: Avoid/Wait → Stop Loss Watch → Reduce Risk → Profit-taking → Accumulation → Hold
+// Returns: { label, reason, color }
+function buildActionBias(opts) {
+  var price        = opts.price        || 0;
+  var avgBuyPrice  = opts.avgBuyPrice  || null;
+  var qty          = opts.qty          || null;
+  var rbaV         = opts.rbaV         || '';
+  var trendV       = opts.trendV       || '';
+  var momV         = opts.momV         || '';
+  var revV         = opts.revV         || '';
+  var smfV         = opts.smfV         || '';
+  var klStatus     = opts.klStatus     || '';
+  var wgStatus     = opts.wgStatus     || '';
+  var nearestS     = opts.nearestS     || null;
+  var nearestR     = opts.nearestR     || null;
+  // Full keyLevels object — used to distinguish daily vs weekly support breaks
+  var klObj        = opts.klObj        || null;
+
+  var hasPosition  = (avgBuyPrice != null && avgBuyPrice > 0 && qty != null && qty > 0);
+  var positionPct  = hasPosition ? (price - avgBuyPrice) / avgBuyPrice * 100 : null;
+
+  function col(label) {
+    if (label==='Hold'||label==='Hold / Watch'||label==='Hold / Watch Support') return '#888';
+    if (label==='Add 10%'||label==='Add 25%'||label==='Accumulate Watch')       return '#6090d0';
+    if (label==='Trail Profit')                                                  return '#EF9F27';
+    if (label==='Sell 10%'||label==='Sell 20%'||label==='Take Profit')          return '#EF9F27';
+    if (label==='Sell 30%'||label==='Sell 40%'||label==='Exit')                 return '#e05050';
+    if (label==='Reduce Risk')                                                   return '#EF9F27';
+    if (label==='Stop Loss Watch')                                               return '#e05050';
+    if (label==='Avoid / Wait')                                                  return '#555';
+    return '#888';
+  }
+  function out(label, reason) { return { label:label, reason:reason, color:col(label) }; }
+
+  // Signal quality helpers
+  var rbaLow = (function(){
+    var r = (rbaV||'').toLowerCase();
+    return r.indexOf('bearish')!==-1 && r.indexOf('watch')===-1;
+  })();
+  var rbaWeak = (function(){
+    var r = (rbaV||'').toLowerCase();
+    return r.indexOf('bearish')!==-1 || r.indexOf('caution')!==-1 || r.indexOf('neutral')!==-1;
+  })();
+
+  // Technical weakness score (max 4)
+  var techWeakness = 0;
+  if ((trendV||'').toLowerCase().indexOf('down')!==-1)                                                    techWeakness++;
+  if ((momV||'').toLowerCase().indexOf('fad')!==-1||(momV||'').toLowerCase().indexOf('weak')!==-1)        techWeakness++;
+  if ((revV||'').toLowerCase().indexOf('bear')!==-1)                                                      techWeakness++;
+  if ((smfV||'').toLowerCase().indexOf('distribut')!==-1||(smfV||'').toLowerCase().indexOf('negative')!==-1) techWeakness++;
+
+  // Technical support score (max 4)
+  var techSupport = 0;
+  if ((trendV||'').toLowerCase().indexOf('up')!==-1)                                                      techSupport++;
+  if ((momV||'').toLowerCase().indexOf('build')!==-1||(momV||'').toLowerCase().indexOf('strong')!==-1)    techSupport++;
+  if ((revV||'').toLowerCase().indexOf('trigger')!==-1||(revV||'').toLowerCase().indexOf('confirm')!==-1) techSupport++;
+  if ((smfV||'').toLowerCase().indexOf('accum')!==-1)                                                     techSupport++;
+
+  var klBroken   = klStatus==='Broken';
+  var klNoClear  = !klStatus || klStatus==='No Clear Levels';
+  var klTestingS = klStatus==='Testing Support' || klStatus==='At Support';
+  var klTestingR = klStatus==='Testing Resistance';
+  var wgNoClear  = !wgStatus || wgStatus==='No Clear Wave';
+  var wgInactive = wgStatus==='WT Inactive' || wgStatus==='Correction' || wgStatus==='Correction Risk';
+  var wgTestingWT= wgStatus==='Testing WT';
+  var wgExtended = wgStatus==='Extended';
+  var wgPullback = wgStatus==='Pullback' || wgStatus==='Recovery';
+  var wgCont     = wgStatus==='Continuation';
+
+  // Distinguish weekly (major) support break from daily-only break.
+  var majorSupportBroken = false;
+  if (klBroken && klObj && klObj.supports) {
+    var majorSupports = klObj.supports.filter(function(s){ return s.strength === 'major'; });
+    if (majorSupports.length > 0) {
+      var highestMajorS = majorSupports[0].price;
+      majorSupportBroken = price < highestMajorS * 0.99;
+    } else {
+      majorSupportBroken = true;
+    }
+  } else if (klBroken) {
+    majorSupportBroken = true;
+  }
+  var dailyOnlyBreak = klBroken && !majorSupportBroken;
+
+  // Near resistance: within 3% of nearestR
+  var nearResistance = nearestR && price >= nearestR * 0.97;
+  // Near support: within 3% above nearestS
+  var nearSupport    = nearestS && price <= nearestS * 1.03;
+
+  // Confirmed weakness — requires actual technical deterioration, not just WT status
+  var confirmedWeakness = rbaWeak || techWeakness >= 2 || majorSupportBroken ||
+    (positionPct !== null && positionPct < -5 && !nearSupport && !klTestingS);
+
+  // ── Priority 1: Avoid / Wait ──────────────────────────────────────────────
+  if (!hasPosition) {
+    if (klNoClear || wgNoClear) return out('Avoid / Wait', 'No clear setup');
+    if (rbaLow && techWeakness >= 2) return out('Avoid / Wait', 'Weak structure');
+    if (majorSupportBroken) return out('Avoid / Wait', 'Structure broken');
+    if (dailyOnlyBreak && techWeakness >= 2) return out('Avoid / Wait', 'Weak structure');
+  }
+
+  // ── Priority 2: Stop Loss Watch ──────────────────────────────────────────
+  // Requires position + negative OR testing support + confirmed structural risk
+  if (hasPosition && positionPct !== null) {
+    // Hard stop: major support broken + negative position + weak technicals
+    if (positionPct < 0 && majorSupportBroken && rbaWeak && techWeakness >= 2) {
+      return out('Stop Loss Watch', 'Below support + weak technicals');
+    }
+    // Softer stop: testing support while negative, low weakness — support must hold
+    if (positionPct < 0 && (klTestingS || nearSupport) &&
+        !majorSupportBroken && techWeakness <= 1 && techSupport >= 2) {
+      return out('Stop Loss Watch', 'Support must hold');
+    }
+  }
+
+  // ── Priority 3: Reduce Risk ───────────────────────────────────────────────
+  // REQUIRES confirmed weakness — WT inactive alone is NOT enough
+  if (hasPosition && majorSupportBroken) return out('Reduce Risk', 'Major support broken');
+  if (hasPosition && confirmedWeakness && wgInactive) return out('Reduce Risk', 'Wave inactive + weakness');
+  if (hasPosition && techWeakness >= 3) return out('Reduce Risk', 'Multiple weak signals');
+  if (!hasPosition && majorSupportBroken) return out('Reduce Risk', 'Structure weakening');
+  if (hasPosition && dailyOnlyBreak && techWeakness >= 2) return out('Reduce Risk', 'ST support weak');
+
+  // ── WT Inactive — handled here when no confirmed weakness ─────────────────
+  // WT inactive alone = caution/watch, not reduce/stop-loss
+  if (wgInactive && hasPosition && !confirmedWeakness) {
+    if (klTestingS || nearSupport) return out('Hold / Watch Support', 'Support test');
+    return out('Hold', 'Recovery forming');
+  }
+  if (wgInactive && !hasPosition) {
+    return out('Hold / Watch', 'Wait for recovery');
+  }
+
+  // ── Priority 4: Trail / Take Profit ──────────────────────────────────────
+  if (hasPosition && positionPct !== null && positionPct > 0) {
+    var nearWT = wgTestingWT || wgExtended;
+    var nearR  = nearResistance || klTestingR;
+    // Trail profit: profitable, no resistance, low weakness
+    if (positionPct >= 15 && techWeakness <= 1 && !nearResistance && !majorSupportBroken) {
+      return out('Trail Profit', 'Profit protected');
+    }
+    // Take profit / sell ladder: near resistance or WT
+    if (nearWT || nearR || (wgExtended && positionPct >= 45)) {
+      if (positionPct >= 100) return out('Exit',       '100%+ gain');
+      if (positionPct >=  60) return out('Sell 40%',   wgExtended?'Extended':'High gain');
+      if (positionPct >=  45) return out('Sell 30%',   nearWT?'WT hit':'Extended');
+      if (positionPct >=  35) return out('Sell 20%',   nearWT?'WT hit':'Near resistance');
+      if (positionPct >=  25) return out('Sell 10%',   'Near resistance');
+      if (positionPct >=  15) return out('Take Profit', 'Near resistance');
+    }
+  }
+
+  // ── Priority 5: Accumulation ladder ──────────────────────────────────────
+  if (hasPosition && positionPct !== null && positionPct < 0 &&
+      !majorSupportBroken && !wgInactive &&
+      (klTestingS || nearSupport) &&
+      !rbaLow && techSupport >= 2) {
+    if (positionPct <= -25) return out('Add 25%', 'Support + recovery');
+    if (positionPct <= -15) return out('Add 10%', 'Support holding');
+  }
+
+  // ── Priority 6: Hold ─────────────────────────────────────────────────────
+  if (!hasPosition) {
+    if (klTestingS || wgPullback) return out('Hold / Watch', 'Watch setup');
+    if (wgCont || klStatus==='Holding Support') return out('Hold / Watch', 'Structure intact');
+    return out('Hold / Watch', 'Monitor signals');
+  }
+  // Has position — daily-only break with supportive technicals = recovery forming
+  if (dailyOnlyBreak && techSupport >= 2) return out('Hold', 'Recovery forming');
+  if (dailyOnlyBreak && wgPullback)       return out('Hold', 'Recovery forming');
+  if (positionPct !== null && positionPct < -5 && nearSupport) return out('Hold', 'Recovery forming');
+  if (positionPct !== null && positionPct >= 15 && wgCont && !nearResistance) return out('Hold', 'Trend intact');
+  if (klTestingS || wgPullback)           return out('Hold', 'Support holding');
+  if (positionPct !== null && positionPct < 0) return out('Hold', 'Support intact');
+  return out('Hold', 'Between levels');
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ─── Shared Force Strike helpers (module-level) ───────────────────────────────
 // These were previously private to ForceStrikePage.
 // Hoisted so WatchlistPage can call the exact same logic — both pages produce
@@ -11428,6 +11983,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
   var [editPosTicker,setEditPosTicker] = useState(null);   // ticker whose position editor is open (Phase B)
   var [editPosAvg,   setEditPosAvg]  = useState('');       // position editor: avg buy price input
   var [editPosQty,   setEditPosQty]  = useState('');       // position editor: qty input
+  var [sortField,    setSortField]   = useState('ticker'); // default alphabetical
+  var [sortDir,      setSortDir]     = useState(1);        // 1=asc, -1=desc
 
   var isAdmin = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === 'admin');
   var canAccess = isPaid || isAdmin;
@@ -11596,14 +12153,15 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
     // Force Strike: always fresh scan using Yahoo chart (same as #FORCESTRIKE screener)
     // Ensures Watchlist FS result is identical to #FORCESTRIKE for the same ticker and data window.
-    // The Yahoo range=3mo chart is also the source for:
-    //   - priceHistory (true ~3-month daily closes, oldest-to-newest) used by 3M Trend sparkline
+    // The Yahoo range=1y chart (changed from 3mo) is also the source for:
+    //   - Weekly Fib Price Map: needs 26-52 weekly candles; 3mo only gave ~12, 1y gives ~50
+    //   - priceHistory (~1yr daily closes, oldest-to-newest) used by 3M Trend sparkline
     //   - price fallback (meta.regularMarketPrice) if Massive returned 0
     //   - true 52-week high/low (meta.fiftyTwoWeekHigh/Low, range-independent)
     var fsResult = null;
-    var daily2 = []; // Yahoo 3-month daily bars — populated below, used for FS + 3M Trend
+    var daily2 = []; // Yahoo 1-year daily bars — populated below, used for FS + 3M Trend + Weekly Fib
     try {
-      var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=3mo';
+      var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=1y';
       var fsAbort = new AbortController();
       var fsTimer = setTimeout(function(){ fsAbort.abort(); }, 10000);
       var cRes2 = await fetch('/proxy?url=' + encodeURIComponent(chartUrl), { signal: fsAbort.signal });
@@ -11751,6 +12309,12 @@ function WatchlistPage({ clerkUser, isPaid }) {
       ? daily2.map(function(b){ return b.close; })
       : (mData.aggs||[]).slice().reverse().map(function(b){ return b.c||0; });
 
+    // Pre-compute map objects so keyLevels and waveGuide can cross-reference them
+    var snapFibMap     = buildFibMapFromDailyBars(daily2, price);
+    var snapStMap      = buildShortTermFibMap(daily2, price);
+    var snapKeyLevels  = buildKeyLevels(snapFibMap, snapStMap, price);
+    var snapWaveGuide  = buildWaveGuide(snapFibMap, snapStMap, price);
+
     var snapPayload = {
       closePrice:      price,
       priceChangePct:  chg,
@@ -11770,8 +12334,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
       moneyFlowStatus: snap.smartMoneyFlow.status,
       moneyFlowScore:  snap.smartMoneyFlow.score,
       moneyFlowRank:   wlSmfRank(snap.smartMoneyFlow.status),
-      // 3M Trend: true ~3-month daily closes from Yahoo range=3mo (oldest-to-newest).
-      // Replaces the previous Massive 30-day aggs source — matches the column label.
+      // 3M Trend: ~1yr daily closes from Yahoo range=1y (oldest-to-newest).
+      // Sparkline uses makeSparkline(priceHistory) which handles any array length.
       priceHistory:    priceHistory3m,
       fsStatus:        fsStatus,
       fsPattern:       fsPattern,
@@ -11784,6 +12348,16 @@ function WatchlistPage({ clerkUser, isPaid }) {
       // Full Force Strike detail object — same fields produced by #FORCESTRIKE screener,
       // stored here for the Details panel and signal comparison. null if no pattern.
       forceStrike:     fsFull,
+      // Weekly Fib Price Map — calculated from daily2 aggregated to weekly bars.
+      // null if insufficient data or unclear swing structure (safe fallback: "No Clear Map").
+      // Pre-computed map objects (computed above so keyLevels/waveGuide can reference both)
+      fibMap:          snapFibMap,
+      shortTermMap:    snapStMap,
+      // Key Levels: combined support/resistance ladder from daily + weekly Fib levels.
+      keyLevels:       snapKeyLevels,
+      // Wave Guide: practical stage model based on current price vs Fib structure.
+      // v1: computed fresh each refresh — stage reflects current price position only.
+      waveGuide:       snapWaveGuide,
     };
     await fetch('/watchlist?action=snapshot', {
       method: 'POST', headers: hdrs,
@@ -11873,8 +12447,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
   // ── Paid user UI ───────────────────────────────────────────────────────────
   // Ticker | Price | Position | Technical View | 52W Range | 3M Trend | Force Strike | Actions
-  var COL  = '70px 90px 140px 130px 140px 80px 100px 110px';
-  var HEAD = ['Ticker','Price','Position','Technical View','52W Range','3M Trend','Force Strike','Actions'];
+  // Ticker | Price | Position | Technical View | Key Levels | Wave Guide | Force Strike | Actions
+  var COL  = '70px 90px 140px 130px 210px 120px 100px 110px';
+  var HEAD = ['Ticker','Price','Position','Technical View','Key Levels','Wave Guide','Action Bias','Actions'];
 
   return (
     <div style={{minHeight:'100vh',background:'#0e0e0c',padding:'24px 20px',maxWidth:1400,margin:'0 auto'}}>
@@ -11920,12 +12495,52 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
       {!loading && items.length > 0 && (
         <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflow:'auto'}}>
-          {/* Table header */}
-          <div style={{display:'grid',gridTemplateColumns:COL,columnGap:12,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
-            {HEAD.map(function(h,i){ return <div key={i} style={{fontSize:9,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</div>; })}
-          </div>
+          {/* Table header — click to sort */}
+          {(function(){
+            // Map header label to the snap field used for sorting
+            var sortKeys = {
+              'Ticker':         function(item){ return item.ticker; },
+              'Price':          function(item){ var s=snapshots[item.ticker]; return s?s.close_price:0; },
+              'Technical View': function(item){ var s=snapshots[item.ticker]; return s?s.rba_rank:0; },
+              'Key Levels':     function(item){ return item.ticker; }, // not sortable — keep ticker order
+              'Wave Guide':     function(item){ return item.ticker; },
+              'Force Strike':   function(item){ return item.ticker; },
+              'Actions':        function(item){ return item.ticker; },
+              'Position':       function(item){ var l=locks[item.ticker]; return l&&l.avg_buy_price?l.avg_buy_price:0; },
+            };
+            function toggleSort(h) {
+              var hasSortKey = sortKeys[h] && h!=='Key Levels'&&h!=='Wave Guide'&&h!=='Force Strike'&&h!=='Actions';
+              if (!hasSortKey) return;
+              if (sortField===h) setSortDir(function(d){ return d*-1; });
+              else { setSortField(h); setSortDir(1); }
+            }
+            return <div style={{display:'grid',gridTemplateColumns:COL,columnGap:12,padding:'8px 14px',background:'#1a1a18',borderBottom:'1px solid #222'}}>
+              {HEAD.map(function(h,i){
+                var sortable = h!=='Key Levels'&&h!=='Wave Guide'&&h!=='Force Strike'&&h!=='Actions'&&h!=='Position';
+                var isActive = sortField===h;
+                var arrow    = isActive ? (sortDir===1?'\u2191':'\u2193') : '';
+                return <div key={i} onClick={function(){ toggleSort(h); }}
+                  style={{fontSize:9,fontWeight:700,color:isActive?'#888':'#555',textTransform:'uppercase',letterSpacing:'0.06em',cursor:sortable?'pointer':'default',userSelect:'none',whiteSpace:'nowrap'}}>
+                  {h}{arrow?<span style={{marginLeft:3,color:'#888'}}>{arrow}</span>:null}
+                </div>;
+              })}
+            </div>;
+          })()}
 
-          {items.map(function(item, idx) {
+          {(function(){
+            // Sort items before rendering
+            var sortKeys = {
+              'Ticker':         function(item){ return item.ticker; },
+              'Price':          function(item){ var s=snapshots[item.ticker]; return s?s.close_price:0; },
+              'Technical View': function(item){ var s=snapshots[item.ticker]; return s?s.rba_rank:0; },
+            };
+            var getFn = sortKeys[sortField] || function(item){ return item.ticker; };
+            var sortedItems = items.slice().sort(function(a,b){
+              var va=getFn(a), vb=getFn(b);
+              if (typeof va==='string') return va<vb?-sortDir:va>vb?sortDir:0;
+              return (va-vb)*sortDir;
+            });
+            return sortedItems.map(function(item, idx) {
             var snap = snapshots[item.ticker];
             var prevRows = (snapshots['__prev'] && snapshots['__prev'][item.ticker]) || [];
             // Price history for 3M Trend sparkline — sourced from signal_snapshot_json.priceHistory.
@@ -11953,6 +12568,11 @@ function WatchlistPage({ clerkUser, isPaid }) {
             var fsAge         = snapJson.fsAge         != null ? snapJson.fsAge : null;
             var fsTriggerType = snapJson.fsTriggerType || null;
             var fsTriggerDate = snapJson.fsTriggerDate || null;
+            // Weekly Fib Price Map — from snapshot JSON (null for older snapshots without fibMap)
+            var fibMap      = (snapJson.fibMap      && snapJson.fibMap.priceMapStatus)      ? snapJson.fibMap      : null;
+            var shortTermMap= (snapJson.shortTermMap && snapJson.shortTermMap.priceMapStatus) ? snapJson.shortTermMap : null;
+            var keyLevels   = snapJson.keyLevels   || null;
+            var waveGuide   = snapJson.waveGuide   || null;
             // Locked FS — from lock record
             var lock = locks[item.ticker] || null;
             var lockedSnapJson = {};
@@ -11980,7 +12600,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
               <div
                 style={{display:'grid',gridTemplateColumns:COL,columnGap:12,padding:'10px 14px',
                   borderBottom:'none',
-                  background:idx%2===0?'#111':'#131311',alignItems:'center'}}>
+                  background:idx%2===0?'#111':'#131311',alignItems:'flex-start'}}>
 
                 {/* Ticker */}
                 <div style={{cursor:'pointer'}} onClick={function(){ window.open(window.location.origin+'/#'+item.ticker,'_blank','noopener,noreferrer'); }}>
@@ -12061,41 +12681,175 @@ function WatchlistPage({ clerkUser, isPaid }) {
                   </div>}
                 </div>
 
-                {/* 52W Range */}
-                <div>{price&&hi52&&lo52 ? <Range52 price={price} lo52={lo52} hi52={hi52} /> : <span style={{color:'#555',fontSize:11}}>{String.fromCharCode(0x2014)}</span>}</div>
+                {/* Key Levels — support/resistance ladder; status heading only on fallback */}
+                {(function(){
+                  var kl = keyLevels;
+                  var klStatus = kl ? kl.status : null;
+                  // Backward compat: derive status from fibMap/shortTermMap if no keyLevels
+                  if (!klStatus && (fibMap || shortTermMap)) {
+                    var pm2 = fibMap || shortTermMap;
+                    klStatus = normalisePriceMapStatus(pm2.priceMapStatus);
+                    klStatus = klStatus==='At Support'?'Testing Support':klStatus==='Holding Support'?'Holding Support':klStatus==='Broken'?'Broken':'Holding Support';
+                  }
+                  // avgBuyPrice for resistance % base (Avg Buy Price if position exists, else current price)
+                  var avgBuy = lock ? lock.avg_buy_price : null;
+                  var pctBase = (avgBuy && avgBuy > 0) ? avgBuy : price;
+                  function lvlPct(lvlPrice) {
+                    if (!pctBase || !lvlPrice) return '';
+                    var p = (lvlPrice - pctBase) / pctBase * 100;
+                    return (p >= 0 ? '+' : '') + p.toFixed(1) + '%';
+                  }
 
-                {/* 3M Trend sparkline */}
-                <div title={priceHistory ? (priceHistory.length + ' days of data') : 'No data'}
-                  style={{fontSize:13,letterSpacing:1,color:priceHistory&&priceHistory.length>=2?'#6a6a68':'#333',overflow:'hidden',whiteSpace:'nowrap',fontFamily:'monospace'}}>{sparkline}</div>
+                  // Collect levels — max 3 supports + 3 resistances.
+                  // Priority: daily Fib (shortTermMap) first so daily levels always show even if weekly is broken.
+                  // kl.supports / kl.resistances are already sorted nearest-first and deduplicated.
+                  var supps = kl ? kl.supports.slice(0,3)
+                            : (function(){
+                                var fb = [];
+                                if (shortTermMap) { if(shortTermMap.fibSupportZoneHigh) fb.push({price:shortTermMap.fibSupportZoneHigh,strength:'normal'}); if(shortTermMap.fibSupportZoneLow) fb.push({price:shortTermMap.fibSupportZoneLow,strength:'normal'}); }
+                                if (fibMap)       { if(fibMap.fibSupportZoneHigh) fb.push({price:fibMap.fibSupportZoneHigh,strength:'major'}); if(fibMap.fibSupportZoneLow) fb.push({price:fibMap.fibSupportZoneLow,strength:'major'}); }
+                                return fb.filter(function(l){ return l.price < currentPrice; }).sort(function(a,b){ return b.price-a.price; }).slice(0,3);
+                              })();
+                  var ress  = kl ? kl.resistances.slice(0,3)
+                            : (function(){
+                                var fb = [];
+                                if (shortTermMap) { if(shortTermMap.fibTarget1) fb.push({price:shortTermMap.fibTarget1,strength:'normal'}); if(shortTermMap.fibTarget2) fb.push({price:shortTermMap.fibTarget2,strength:'normal'}); }
+                                if (fibMap)       { if(fibMap.fibTarget1) fb.push({price:fibMap.fibTarget1,strength:'major'}); if(fibMap.fibTarget2) fb.push({price:fibMap.fibTarget2,strength:'major'}); }
+                                return fb.filter(function(l){ return l.price > currentPrice; }).sort(function(a,b){ return a.price-b.price; }).slice(0,3);
+                              })();
 
+                  var hasLevels = supps.length > 0 || ress.length > 0;
 
-                {/* Force Strike */}
-                <div style={{overflow:'hidden'}} title={fsTip}>
-                  {displayFsStatus==='active' && <div>
-                    <div style={{fontSize:10,fontWeight:700,color:'#7abd00'}}>{'&#x1F7E2; Active FS'.replace('&#x1F7E2;','\uD83D\uDFE2')}</div>
-                    <div style={{fontSize:9,color:'#555'}}>{displayFsPattern||String.fromCharCode(0x2014)}</div>
-                    {displayFsScenario&&displayFsScenario!=='None'&&<div style={{fontSize:8,color:'#444'}}>{displayFsScenario}</div>}
-                  </div>}
-                  {displayFsStatus==='watch' && <div>
-                    <div style={{fontSize:10,fontWeight:700,color:'#EF9F27'}}>{'&#x1F7E1; FS Watch'.replace('&#x1F7E1;','\uD83D\uDFE1')}</div>
-                    <div style={{fontSize:9,color:'#555'}}>Waiting for trigger</div>
-                  </div>}
-                  {(displayFsStatus==='expired'||displayFsStatus==='none'||!displayFsStatus) && <span style={{fontSize:10,color:'#444'}}>{String.fromCharCode(0x2014)}</span>}
-                </div>
+                  // If usable levels exist, show the ladder — no status heading, no broken gate.
+                  // The ladder is shown even if the weekly structure is broken (daily Fib still useful).
+                  // Broken structure warning is communicated in the Wave Guide column, not here.
+                  if (hasLevels) {
+                    var s0 = supps[0] || null;
+                    var r0 = ress[0] || null;
+                    // Build horizontal bar: S $414 ━━━●━━ R $432 (+15%)
+                    var barStr1 = null;
+                    if (s0 && r0 && price) {
+                      var pct1 = Math.max(0, Math.min(1, (price - s0.price) / (r0.price - s0.price)));
+                      var segs = 5; var dot = Math.round(pct1 * segs); var b = '';
+                      for (var si = 0; si <= segs; si++) b += (si === dot) ? '\u25CF' : '\u2501';
+                      barStr1 = b;
+                    }
+                    // Fixed column widths so all 3 rows align vertically:
+                    // [S label 10px] [S price 38px] [bar ~50px] [R label 10px] [R price+pct rest]
+                    var colS  = {display:'inline-block', width:38, flexShrink:0};
+                    var colR  = {display:'inline-block', flexShrink:0};
+                    var colBar= {display:'inline-block', width:50, textAlign:'center', flexShrink:0, fontFamily:'monospace'};
+                    var rowStyle = {display:'flex', alignItems:'baseline', whiteSpace:'nowrap'};
+                    var lbl   = {color:'#555', fontSize:9, marginRight:2, flexShrink:0};
+                    return <div style={{overflow:'hidden',lineHeight:1.7}}>
+                      {/* Row 1 — white prices, monospace bar */}
+                      <div style={rowStyle}>
+                        <span style={lbl}>S</span>
+                        <span style={{...colS, fontSize:11, color:'#888', fontWeight:600}}>{s0 ? '$'+Math.round(s0.price) : ''}</span>
+                        <span style={{...colBar, fontSize:10, color:'#555'}}>{barStr1 || '\u25CF'}</span>
+                        <span style={lbl}>R</span>
+                        <span style={{...colR, fontSize:11, color:'#888', fontWeight:600}}>{r0 ? '$'+Math.round(r0.price)+' ('+lvlPct(r0.price)+')' : ''}</span>
+                      </div>
+                      {/* Row 2 — light grey, smaller */}
+                      {(supps[1]||ress[1]) && <div style={rowStyle}>
+                        <span style={{...lbl, visibility:'hidden'}}>S</span>
+                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[1]&&supps[1].strength==='major'?700:400}}>{supps[1]?'$'+Math.round(supps[1].price):''}</span>
+                        <span style={{...colBar}}></span>
+                        <span style={{...lbl, visibility:'hidden'}}>R</span>
+                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[1]&&ress[1].strength==='major'?700:400}}>{ress[1]?'$'+Math.round(ress[1].price)+' ('+lvlPct(ress[1].price)+')':''}</span>
+                      </div>}
+                      {/* Row 3 — light grey, smaller */}
+                      {(supps[2]||ress[2]) && <div style={rowStyle}>
+                        <span style={{...lbl, visibility:'hidden'}}>S</span>
+                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[2]&&supps[2].strength==='major'?700:400}}>{supps[2]?'$'+Math.round(supps[2].price):''}</span>
+                        <span style={{...colBar}}></span>
+                        <span style={{...lbl, visibility:'hidden'}}>R</span>
+                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[2]&&ress[2].strength==='major'?700:400}}>{ress[2]?'$'+Math.round(ress[2].price)+' ('+lvlPct(ress[2].price)+')':''}</span>
+                      </div>}
+                    </div>;
+                  }
 
-                {/* Actions */}
-                <div style={{display:'flex',flexDirection:'column',gap:3}}>
-                  <button onClick={function(){ window.open(window.location.origin+'/#'+item.ticker,'_blank','noopener,noreferrer'); }}
-                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#888',cursor:'pointer',textAlign:'left'}}>
-                    View {'\u2197'}
-                  </button>
+                  // Fallback: no usable ladder — show Broken/No Clear Levels text only
+                  if (klStatus === 'Broken') {
+                    var recoverLevel = kl ? kl.nearestSupport : (fibMap ? fibMap.fibSupportZoneHigh : null);
+                    return <div style={{overflow:'hidden',lineHeight:1.5}}>
+                      <div style={{fontSize:10,fontWeight:700,color:'#e05050'}}>Broken</div>
+                      {recoverLevel&&<div style={{fontSize:9,color:'#f0ede6',whiteSpace:'nowrap'}}>{'Recover > $'+Math.round(recoverLevel)}</div>}
+                    </div>;
+                  }
+                  return <div style={{overflow:'hidden'}}><div style={{fontSize:10,color:'#444'}}>No Clear Levels</div></div>;
+                })()}
+
+                {/* Wave Guide — practical stage model (current price position vs Fib structure) */}
+                {(function(){
+                  var wg = waveGuide;
+                  var wgStatus = wg ? wg.waveStatus : null;
+                  // Backward compat: if no waveGuide, derive rough stage from existing fibMap
+                  if (!wgStatus && fibMap) {
+                    var pm3 = fibMap;
+                    var s3 = normalisePriceMapStatus(pm3.priceMapStatus);
+                    wgStatus = s3==='Extended'?'Extended':s3==='Broken'?'WT Inactive':s3==='Testing Target'?'Testing WT':'Continuation';
+                  }
+                  if (!wgStatus) return <div style={{overflow:'hidden'}}><div style={{fontSize:10,color:'#444'}}>No Clear Wave</div></div>;
+                  var wgColor = wgStatus==='Continuation'   ?'#7abd00'
+                              : wgStatus==='Testing WT'     ?'#7abd00'
+                              : wgStatus==='Recovery'       ?'#6090d0'
+                              : wgStatus==='Pullback'       ?'#EF9F27'
+                              : wgStatus==='Correction Risk'?'#e05050'
+                              : wgStatus==='Extended'       ?'#EF9F27'
+                              : wgStatus==='WT Inactive'    ?'#e05050'
+                              : wgStatus==='Correction'     ?'#e05050'
+                              : '#888';
+                  var avgBuy2  = lock ? lock.avg_buy_price : null;
+                  var pctBase2 = (avgBuy2 && avgBuy2 > 0) ? avgBuy2 : price;
+                  var wt = wg ? wg.waveTarget : (fibMap ? fibMap.fibTarget1 : null);
+                  var wtPct = (wt && pctBase2) ? ((wt - pctBase2) / pctBase2 * 100) : null;
+                  var isInactive = wgStatus==='WT Inactive' || wgStatus==='Correction' || wgStatus==='Correction Risk';
+                  var isPullback = wgStatus === 'Pullback';
+                  return <div style={{overflow:'hidden',lineHeight:1.5}}>
+                    {wt&&!isInactive&&<div style={{fontSize:10,color:'#888',whiteSpace:'nowrap',fontWeight:600}}>
+                      {(function(){ var ps = wtPct!=null ? (' ('+(wtPct>=0?'+':'')+wtPct.toFixed(1)+'%)') : ''; return 'WT $'+Math.round(wt)+ps; })()}
+                    </div>}
+                    {isPullback&&<div style={{fontSize:9,color:'#555'}}>Hold support</div>}
+                    {isInactive&&<div style={{fontSize:9,color:'#555'}}>Target inactive</div>}
+                    {!wt&&!isInactive&&<div style={{fontSize:10,color:'#444'}}>{String.fromCharCode(0x2014)}</div>}
+                  </div>;
+                })()}
+
+                {/* Action Bias */}
+                {(function(){
+                  var ab = buildActionBias({
+                    price:       price,
+                    avgBuyPrice: lock ? lock.avg_buy_price : null,
+                    qty:         lock ? lock.quantity : null,
+                    rbaV:        rbaV,
+                    trendV:      trendV,
+                    momV:        momV,
+                    revV:        revV,
+                    smfV:        smfV,
+                    klStatus:    keyLevels ? keyLevels.status : null,
+                    wgStatus:    waveGuide ? waveGuide.waveStatus : null,
+                    nearestS:    keyLevels ? keyLevels.nearestSupport    : null,
+                    nearestR:    keyLevels ? keyLevels.nearestResistance : null,
+                    klObj:       keyLevels || null,
+                  });
+                  return <div style={{overflow:'hidden',lineHeight:1.5}}>
+                    <div style={{fontSize:10,fontWeight:700,color:ab.color}}>{ab.label}</div>
+                    <div style={{fontSize:9,color:'#555'}}>{ab.reason}</div>
+                  </div>;
+                })()}
+
+                {/* Actions — 2 square icon buttons */}
+                <div style={{display:'flex',flexDirection:'column',gap:4}}>
                   <button onClick={function(){ setViewLockTicker(viewLockTicker===item.ticker?null:item.ticker); }}
-                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
-                    {viewLockTicker===item.ticker?'Close':'Details'}
+                    title={viewLockTicker===item.ticker?'Close details':'Open details'}
+                    style={{width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',background:viewLockTicker===item.ticker?'#2a2a28':'none',border:'0.5px solid #333',borderRadius:4,color:'#666',cursor:'pointer',fontSize:13,flexShrink:0}}>
+                    {'\uD83D\uDC41'}
                   </button>
                   <button onClick={function(){ removeTicker(item.ticker); }}
-                    style={{fontSize:9,padding:'3px 7px',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',textAlign:'left'}}>
-                    Remove
+                    title="Remove from watchlist"
+                    style={{width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',background:'none',border:'0.5px solid #2a2a28',borderRadius:4,color:'#555',cursor:'pointer',fontSize:13,flexShrink:0}}>
+                    {'\uD83D\uDDD1'}
                   </button>
                 </div>
 
@@ -12137,65 +12891,185 @@ function WatchlistPage({ clerkUser, isPaid }) {
               </div>}
 
               {/* Details / Lock expanded panel — full-width below the row */}
+              {/* Details / Lock expanded panel */}
               {viewLockTicker===item.ticker && (function(){
-                // Signal direction arrows — same wlArrow logic as main row factor strip
-                function detArrow(rank, field) {
-                  return wlArrow(rank != null ? rank : 0, [rank != null ? rank : 0].concat(prevRows.map(function(r){ return r[field]!=null?r[field]:null; })));
-                }
-                var tArr  = snap ? detArrow(snap.trend_rank,      'trend_rank')      : String.fromCharCode(0x2014);
-                var mArr  = snap ? detArrow(snap.momentum_rank,   'momentum_rank')   : String.fromCharCode(0x2014);
-                var rArr  = snap ? detArrow(snap.reversal_rank,   'reversal_rank')   : String.fromCharCode(0x2014);
-                var sfArr = snap ? detArrow(snap.money_flow_rank, 'money_flow_rank') : String.fromCharCode(0x2014);
-                // Safe ticker for TradingView — alphanumeric, dots, dashes only
                 var tvTicker = item.ticker.replace(/[^A-Z0-9.\-]/g,'');
-                return <div style={{gridColumn:'1/-1',background:'#161614',border:'0.5px solid #2a2a28',borderRadius:8,padding:'14px 16px',marginTop:2,marginBottom:4}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-                    <div style={{fontSize:11,fontWeight:700,color:'#888'}}>{item.ticker}</div>
-                    <button onClick={function(){ setViewLockTicker(null); }}
-                      style={{fontSize:9,padding:'2px 8px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#555',cursor:'pointer'}}>Close</button>
-                  </div>
-
-                  {/* Signal Summary — 4 rows */}
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:16}}>
-                    {[
-                      { label:'Trend',       status:trendV, color:wlTrendColor(trendV), arr:tArr },
-                      { label:'Momentum',    status:momV,   color:wlMomColor(momV),     arr:mArr },
-                      { label:'Reversal',    status:revV,   color:wlRevColor(revV),     arr:rArr },
-                      { label:'Smart Money', status:smfV,   color:wlSmfColor(smfV),     arr:sfArr },
-                    ].map(function(f){
-                      var arrC = wlArrowColor(f.arr);
-                      return <div key={f.label} style={{padding:'8px 10px',background:'#1a1a18',borderRadius:6,border:'0.5px solid #252523'}}>
-                        <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:4}}>{f.label}</div>
-                        <div style={{fontSize:11,fontWeight:700,color:f.color||'#888',lineHeight:1.3}}>
-                          {f.status||String.fromCharCode(0x2014)}
-                          {f.arr!==String.fromCharCode(0x2014)&&<span style={{color:arrC,marginLeft:4,fontSize:10}}>{f.arr}</span>}
-                        </div>
-                      </div>;
-                    })}
-                  </div>
-
-                  {/* TradingView Daily Chart */}
-                  <div style={{borderRadius:6,overflow:'hidden',border:'0.5px solid #252523'}}>
-                    <div style={{fontSize:9,color:'#555',padding:'5px 10px',background:'#1a1a18',letterSpacing:'0.04em',textTransform:'uppercase'}}>
-                      {tvTicker} {'\u00B7'} Daily
+                var stm = shortTermMap || null;
+                var ltm = fibMap || null;
+                var wg  = waveGuide || null;
+                var fmt = function(v){ return v!=null?('$'+Number(v).toFixed(2)):String.fromCharCode(0x2014); };
+                var fmtR = function(v){ return v!=null?('$'+Math.round(v)):String.fromCharCode(0x2014); };
+                function doAudit() {
+                  // Recompute Action Bias inputs for audit — same logic as buildActionBias()
+                  var abAvgBuy   = lock ? lock.avg_buy_price : null;
+                  var abQty      = lock ? lock.quantity : null;
+                  var abHasPos   = (abAvgBuy != null && abAvgBuy > 0 && abQty != null && abQty > 0);
+                  var abPosPct   = abHasPos ? (price - abAvgBuy) / abAvgBuy * 100 : null;
+                  var abKlStatus = keyLevels ? keyLevels.status : null;
+                  var abWgStatus = waveGuide ? waveGuide.waveStatus : null;
+                  var abNearestS = keyLevels ? keyLevels.nearestSupport    : null;
+                  var abNearestR = keyLevels ? keyLevels.nearestResistance : null;
+                  // Technical weakness components (1 pt each)
+                  var abTrendWeak = (trendV||'').toLowerCase().indexOf('down')!==-1;
+                  var abMomWeak   = (momV||'').toLowerCase().indexOf('fad')!==-1||(momV||'').toLowerCase().indexOf('weak')!==-1;
+                  var abRevBear   = (revV||'').toLowerCase().indexOf('bear')!==-1;
+                  var abSmfDist   = (smfV||'').toLowerCase().indexOf('distribut')!==-1||(smfV||'').toLowerCase().indexOf('negative')!==-1;
+                  var abWeakScore = (abTrendWeak?1:0)+(abMomWeak?1:0)+(abRevBear?1:0)+(abSmfDist?1:0);
+                  // Technical support components (1 pt each)
+                  var abTrendUp   = (trendV||'').toLowerCase().indexOf('up')!==-1;
+                  var abMomBuild  = (momV||'').toLowerCase().indexOf('build')!==-1||(momV||'').toLowerCase().indexOf('strong')!==-1;
+                  var abRevConf   = (revV||'').toLowerCase().indexOf('trigger')!==-1||(revV||'').toLowerCase().indexOf('confirm')!==-1;
+                  var abSmfAccum  = (smfV||'').toLowerCase().indexOf('accum')!==-1;
+                  var abSuppScore = (abTrendUp?1:0)+(abMomBuild?1:0)+(abRevConf?1:0)+(abSmfAccum?1:0);
+                  // Proximity flags
+                  var abNearR     = abNearestR && price >= abNearestR * 0.97;
+                  var abNearS     = abNearestS && price <= abNearestS * 1.03;
+                  var abRbaWeak   = (function(){ var r=(rbaV||'').toLowerCase(); return r.indexOf('bearish')!==-1||r.indexOf('caution')!==-1||r.indexOf('neutral')!==-1; })();
+                  // Final bias result
+                  var abResult = buildActionBias({ price:price, avgBuyPrice:abAvgBuy, qty:abQty, rbaV:rbaV, trendV:trendV, momV:momV, revV:revV, smfV:smfV, klStatus:abKlStatus, wgStatus:abWgStatus, nearestS:abNearestS, nearestR:abNearestR, klObj:keyLevels||null });
+                  var auditData = {
+                    ticker:       item.ticker,
+                    exportedAt:   new Date().toISOString(),
+                    snapshotDate: snap ? snap.snapshot_date : null,
+                    currentPrice: price,
+                    signals: { technicalView:snap?snap.rba_verdict:null, trend:snap?snap.trend_status:null, momentum:snap?snap.momentum_status:null, reversal:snap?snap.reversal_status:null, moneyFlow:snap?snap.money_flow_status:null },
+                    position: lock ? { avgBuyPrice:lock.avg_buy_price, quantity:lock.quantity, lockedPrice:lock.locked_price } : null,
+                    // Action Bias audit — all inputs, scores, flags, and final result
+                    actionBiasAudit: {
+                      // Inputs
+                      currentPrice:       price,
+                      avgBuyPrice:        abAvgBuy,
+                      quantity:           abQty,
+                      hasPosition:        abHasPos,
+                      positionPct:        abPosPct != null ? Math.round(abPosPct * 10) / 10 : null,
+                      // Raw signal values used
+                      technicalView:      rbaV,
+                      trend:              trendV,
+                      momentum:           momV,
+                      reversal:           revV,
+                      smartMoneyFlow:     smfV,
+                      keyLevelsStatus:    abKlStatus,
+                      waveGuideStatus:    abWgStatus,
+                      nearestSupport:     abNearestS,
+                      nearestResistance:  abNearestR,
+                      // Derived flags
+                      nearResistance:     abNearR,
+                      nearSupport:        abNearS,
+                      rbaIsWeak:          abRbaWeak,
+                      // Support break classification — key for Reduce Risk gating
+                      klBroken:           abKlStatus === 'Broken',
+                      majorSupportBroken: (function(){
+                        if (abKlStatus !== 'Broken') return false;
+                        if (!keyLevels || !keyLevels.supports) return true;
+                        var majS = keyLevels.supports.filter(function(s){ return s.strength==='major'; });
+                        if (!majS.length) return true;
+                        return price < majS[0].price * 0.99;
+                      })(),
+                      dailyOnlyBreak: (function(){
+                        if (abKlStatus !== 'Broken') return false;
+                        if (!keyLevels || !keyLevels.supports) return false;
+                        var majS = keyLevels.supports.filter(function(s){ return s.strength==='major'; });
+                        if (!majS.length) return false;
+                        return price >= majS[0].price * 0.99;
+                      })(),
+                      // Weakness scoring (each component = 1pt, total max 4)
+                      techWeaknessScore:  abWeakScore,
+                      weaknessComponents: {
+                        trendDowntrend:   abTrendWeak,
+                        momentumFading:   abMomWeak,
+                        reversalBearish:  abRevBear,
+                        smfDistribution:  abSmfDist,
+                      },
+                      // Support scoring (each component = 1pt, total max 4)
+                      techSupportScore:   abSuppScore,
+                      supportComponents: {
+                        trendUptrend:     abTrendUp,
+                        momentumBuilding: abMomBuild,
+                        reversalConfirm:  abRevConf,
+                        smfAccumulation:  abSmfAccum,
+                      },
+                      // Result
+                      actionBiasLabel:    abResult.label,
+                      actionBiasReason:   abResult.reason,
+                    },
+                    shortTermMap: snapJson.shortTermMap || null,
+                    longTermMap:  snapJson.fibMap       || null,
+                    keyLevels:    snapJson.keyLevels    || null,
+                    waveGuide:    snapJson.waveGuide    || null,
+                    weeklyBars:   (snapJson.fibMap && snapJson.fibMap.weeklyBars) ? snapJson.fibMap.weeklyBars : [],
+                    priceHistory: snapJson.priceHistory || [],
+                    forceStrike:  snapJson.forceStrike  || null,
+                  };
+                  var blob = new Blob([JSON.stringify(auditData, null, 2)], {type:'application/json'});
+                  var url  = URL.createObjectURL(blob);
+                  var a    = document.createElement('a');
+                  a.href   = url;
+                  a.download = item.ticker+'_audit_'+new Date().toISOString().split('T')[0]+'.json';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }
+                return <div style={{gridColumn:'1/-1',background:'#161614',border:'0.5px solid #2a2a28',borderRadius:8,padding:'12px 14px',marginTop:2,marginBottom:4}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                    <div style={{fontSize:10,fontWeight:700,color:'#888'}}>{item.ticker}</div>
+                    <div style={{display:'flex',gap:6}}>
+                      <button onClick={doAudit} style={{fontSize:9,padding:'2px 8px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#555',cursor:'pointer'}}>Audit JSON {'\u2193'}</button>
+                      <button onClick={function(){ setViewLockTicker(null); }} style={{fontSize:9,padding:'2px 8px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#555',cursor:'pointer'}}>Close</button>
                     </div>
-                    <iframe
-                      key={tvTicker}
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+                    <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px'}}>
+                      <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Long-Term (Weekly Fib)</div>
+                      {!ltm ? <div style={{fontSize:10,color:'#555'}}>No data</div>
+                        : <div style={{fontSize:10,display:'flex',flexDirection:'column',gap:5}}>
+                            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>S Zone</span><span style={{color:'#6090d0',fontWeight:600}}>{fmt(ltm.fibSupportZoneHigh)+' \u2013 '+fmt(ltm.fibSupportZoneLow)}</span></div>
+                            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>Invalidation</span><span style={{color:'#e05050'}}>{fmt(ltm.fibInvalidation)}</span></div>
+                            <div style={{borderTop:'0.5px solid #222',paddingTop:5,marginTop:2}}>
+                              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R1</span><span style={{color:'#888'}}>{fmt(ltm.fibTarget1)}</span></div>
+                              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R2</span><span style={{color:'#888'}}>{fmt(ltm.fibTarget2)}</span></div>
+                              <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>R3</span><span style={{color:'#888'}}>{fmt(ltm.fibTarget3)}</span></div>
+                            </div>
+                          </div>}
+                    </div>
+                    <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px'}}>
+                      <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Short-Term (Daily Fib)</div>
+                      {!stm ? <div style={{fontSize:10,color:'#555'}}>No data</div>
+                        : <div style={{fontSize:10,display:'flex',flexDirection:'column',gap:5}}>
+                            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>S Zone</span><span style={{color:'#6090d0',fontWeight:600}}>{fmt(stm.fibSupportZoneHigh)+' \u2013 '+fmt(stm.fibSupportZoneLow)}</span></div>
+                            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>Invalidation</span><span style={{color:'#e05050'}}>{fmt(stm.fibInvalidation)}</span></div>
+                            <div style={{borderTop:'0.5px solid #222',paddingTop:5,marginTop:2}}>
+                              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R1</span><span style={{color:'#888'}}>{fmt(stm.fibTarget1)}</span></div>
+                              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R2</span><span style={{color:'#888'}}>{fmt(stm.fibTarget2)}</span></div>
+                              <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>R3</span><span style={{color:'#888'}}>{fmt(stm.fibTarget3)}</span></div>
+                            </div>
+                          </div>}
+                    </div>
+                  </div>
+                  {(ltm||stm)&&<div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px',marginBottom:12}}>
+                    <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Wave Targets & Pullback Range</div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'5px 10px',fontSize:10}}>
+                      <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>LT Wave Target</div><div style={{color:'#888',fontWeight:600}}>{fmtR(ltm&&ltm.fibTarget1)}</div></div>
+                      <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>ST Wave Target</div><div style={{color:'#888',fontWeight:600}}>{fmtR(stm&&stm.fibTarget1)}</div></div>
+                      <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>LT Pullback Zone</div><div style={{color:'#6090d0'}}>{ltm?(fmtR(ltm.fibSupportZoneHigh)+'\u2013'+fmtR(ltm.fibSupportZoneLow)):String.fromCharCode(0x2014)}</div></div>
+                      <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>ST Pullback Zone</div><div style={{color:'#6090d0'}}>{stm?(fmtR(stm.fibSupportZoneHigh)+'\u2013'+fmtR(stm.fibSupportZoneLow)):String.fromCharCode(0x2014)}</div></div>
+                      {wg&&<div><div style={{color:'#555',fontSize:8,marginBottom:2}}>Wave Stage</div><div style={{color:'#888'}}>{wg.waveStatus||String.fromCharCode(0x2014)}</div></div>}
+                    </div>
+                  </div>}
+                  <div style={{borderRadius:6,overflow:'hidden',border:'0.5px solid #252523'}}>
+                    <div style={{fontSize:9,color:'#555',padding:'5px 10px',background:'#111',letterSpacing:'0.04em',textTransform:'uppercase'}}>{tvTicker} {'\u00B7'} Daily</div>
+                    <iframe key={tvTicker}
                       src={'https://s.tradingview.com/widgetembed/?frameElementId=tv_wl_'+tvTicker+'&symbol='+tvTicker+'&interval=D&theme=dark&style=1&timezone=exchange&withdateranges=1&hide_side_toolbar=1&allow_symbol_change=0&save_image=0'}
-                      style={{width:'100%',height:300,border:'none',display:'block'}}
-                      title={tvTicker+' Daily Chart'}
-                      loading="lazy"
-                      sandbox="allow-scripts allow-same-origin allow-popups"
+                      style={{width:'100%',height:280,border:'none',display:'block'}}
+                      title={tvTicker+' Daily Chart'} loading="lazy" sandbox="allow-scripts allow-same-origin allow-popups"
                     />
                   </div>
-
                 </div>;
               })()}
 
-              <div style={{borderBottom:idx<items.length-1?'1px solid #1a1a16':'none'}}></div>
+              <div style={{borderBottom:idx<sortedItems.length-1?'1px solid #1a1a16':'none'}}></div>
               </React.Fragment>
             );
-          })}
+          });
+          })()}
         </div>
       )}
 
@@ -13659,7 +14533,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.172</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.198</span>
           </div>
         </div>
 
