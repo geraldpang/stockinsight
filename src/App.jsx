@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.197</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.198</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.197</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.198</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11752,14 +11752,14 @@ function buildActionBias(opts) {
   var positionPct  = hasPosition ? (price - avgBuyPrice) / avgBuyPrice * 100 : null;
 
   function col(label) {
-    if (label==='Hold'||label==='Hold / Watch')                 return '#888';
-    if (label==='Add 10%'||label==='Add 25%')                  return '#6090d0';
-    if (label==='Accumulate Watch')                             return '#6090d0';
-    if (label==='Sell 10%'||label==='Sell 20%')                return '#EF9F27';
-    if (label==='Sell 30%'||label==='Sell 40%'||label==='Exit') return '#e05050';
-    if (label==='Reduce Risk')                                  return '#EF9F27';
-    if (label==='Stop Loss Watch')                             return '#e05050';
-    if (label==='Avoid / Wait')                                return '#555';
+    if (label==='Hold'||label==='Hold / Watch'||label==='Hold / Watch Support') return '#888';
+    if (label==='Add 10%'||label==='Add 25%'||label==='Accumulate Watch')       return '#6090d0';
+    if (label==='Trail Profit')                                                  return '#EF9F27';
+    if (label==='Sell 10%'||label==='Sell 20%'||label==='Take Profit')          return '#EF9F27';
+    if (label==='Sell 30%'||label==='Sell 40%'||label==='Exit')                 return '#e05050';
+    if (label==='Reduce Risk')                                                   return '#EF9F27';
+    if (label==='Stop Loss Watch')                                               return '#e05050';
+    if (label==='Avoid / Wait')                                                  return '#555';
     return '#888';
   }
   function out(label, reason) { return { label:label, reason:reason, color:col(label) }; }
@@ -11800,27 +11800,18 @@ function buildActionBias(opts) {
   var wgCont     = wgStatus==='Continuation';
 
   // Distinguish weekly (major) support break from daily-only break.
-  // Only a weekly/major support break constitutes a structural break for risk purposes.
-  // A daily support break with weekly support intact and supportive technicals = recovery watch.
   var majorSupportBroken = false;
   if (klBroken && klObj && klObj.supports) {
-    // Check if any MAJOR (weekly) support level is below current price
-    // i.e. price has broken below a weekly-tagged support
     var majorSupports = klObj.supports.filter(function(s){ return s.strength === 'major'; });
     if (majorSupports.length > 0) {
-      // If price is below the highest major support, that major support is broken
-      var highestMajorS = majorSupports[0].price; // sorted nearest-first = highest first
+      var highestMajorS = majorSupports[0].price;
       majorSupportBroken = price < highestMajorS * 0.99;
     } else {
-      // No major levels — treat the break as structural
       majorSupportBroken = true;
     }
   } else if (klBroken) {
-    // No klObj to inspect — fall back to treating as structural
     majorSupportBroken = true;
   }
-
-  // Daily-only break: klBroken but major (weekly) support still intact
   var dailyOnlyBreak = klBroken && !majorSupportBroken;
 
   // Near resistance: within 3% of nearestR
@@ -11828,48 +11819,70 @@ function buildActionBias(opts) {
   // Near support: within 3% above nearestS
   var nearSupport    = nearestS && price <= nearestS * 1.03;
 
+  // Confirmed weakness — requires actual technical deterioration, not just WT status
+  var confirmedWeakness = rbaWeak || techWeakness >= 2 || majorSupportBroken ||
+    (positionPct !== null && positionPct < -5 && !nearSupport && !klTestingS);
+
   // ── Priority 1: Avoid / Wait ──────────────────────────────────────────────
   if (!hasPosition) {
     if (klNoClear || wgNoClear) return out('Avoid / Wait', 'No clear setup');
     if (rbaLow && techWeakness >= 2) return out('Avoid / Wait', 'Weak structure');
     if (majorSupportBroken) return out('Avoid / Wait', 'Structure broken');
-    // Daily-only break without position — watch but don't avoid
     if (dailyOnlyBreak && techWeakness >= 2) return out('Avoid / Wait', 'Weak structure');
   }
 
-  // ── Priority 2: Stop Loss Watch ───────────────────────────────────────────
-  // Requires: has position + negative + major support broken + rbaWeak + techWeakness >= 2
-  if (hasPosition && positionPct !== null && positionPct < 0 &&
-      majorSupportBroken && rbaWeak && techWeakness >= 2) {
-    return out('Stop Loss Watch', 'Below support + weak technicals');
+  // ── Priority 2: Stop Loss Watch ──────────────────────────────────────────
+  // Requires position + negative OR testing support + confirmed structural risk
+  if (hasPosition && positionPct !== null) {
+    // Hard stop: major support broken + negative position + weak technicals
+    if (positionPct < 0 && majorSupportBroken && rbaWeak && techWeakness >= 2) {
+      return out('Stop Loss Watch', 'Below support + weak technicals');
+    }
+    // Softer stop: testing support while negative, low weakness — support must hold
+    if (positionPct < 0 && (klTestingS || nearSupport) &&
+        !majorSupportBroken && techWeakness <= 1 && techSupport >= 2) {
+      return out('Stop Loss Watch', 'Support must hold');
+    }
   }
 
   // ── Priority 3: Reduce Risk ───────────────────────────────────────────────
-  // Only trigger on MAJOR support break, WT inactive, or confirmed technical weakness
-  // Daily-only break with supportive technicals does NOT trigger Reduce Risk
-  if (majorSupportBroken && hasPosition) return out('Reduce Risk', 'Support broken');
-  if (wgInactive && hasPosition)         return out('Reduce Risk', 'WT inactive');
-  if (majorSupportBroken && !hasPosition) return out('Reduce Risk', 'Structure weakening');
-  if (techWeakness >= 3)                 return out('Reduce Risk', 'Structure weakening');
-  // Daily-only break with weak technicals — softer warning
-  if (dailyOnlyBreak && techWeakness >= 2 && hasPosition) return out('Reduce Risk', 'ST support weak');
+  // REQUIRES confirmed weakness — WT inactive alone is NOT enough
+  if (hasPosition && majorSupportBroken) return out('Reduce Risk', 'Major support broken');
+  if (hasPosition && confirmedWeakness && wgInactive) return out('Reduce Risk', 'Wave inactive + weakness');
+  if (hasPosition && techWeakness >= 3) return out('Reduce Risk', 'Multiple weak signals');
+  if (!hasPosition && majorSupportBroken) return out('Reduce Risk', 'Structure weakening');
+  if (hasPosition && dailyOnlyBreak && techWeakness >= 2) return out('Reduce Risk', 'ST support weak');
 
-  // ── Priority 4: Profit-taking ladder ──────────────────────────────────────
-  if (hasPosition && positionPct !== null) {
+  // ── WT Inactive — handled here when no confirmed weakness ─────────────────
+  // WT inactive alone = caution/watch, not reduce/stop-loss
+  if (wgInactive && hasPosition && !confirmedWeakness) {
+    if (klTestingS || nearSupport) return out('Hold / Watch Support', 'Support test');
+    return out('Hold', 'Recovery forming');
+  }
+  if (wgInactive && !hasPosition) {
+    return out('Hold / Watch', 'Wait for recovery');
+  }
+
+  // ── Priority 4: Trail / Take Profit ──────────────────────────────────────
+  if (hasPosition && positionPct !== null && positionPct > 0) {
     var nearWT = wgTestingWT || wgExtended;
     var nearR  = nearResistance || klTestingR;
+    // Trail profit: profitable, no resistance, low weakness
+    if (positionPct >= 15 && techWeakness <= 1 && !nearResistance && !majorSupportBroken) {
+      return out('Trail Profit', 'Profit protected');
+    }
+    // Take profit / sell ladder: near resistance or WT
     if (nearWT || nearR || (wgExtended && positionPct >= 45)) {
-      if (positionPct >= 100) return out('Exit',      '100%+ gain');
-      if (positionPct >=  60) return out('Sell 40%',  wgExtended?'Extended':'High gain');
-      if (positionPct >=  45) return out('Sell 30%',  nearWT?'WT hit':'Extended');
-      if (positionPct >=  35) return out('Sell 20%',  nearWT?'WT hit':'Near resistance');
-      if (positionPct >=  25) return out('Sell 10%',  'Near resistance');
-      if (positionPct >=  15) return out('Hold / Watch', 'Approaching resistance');
+      if (positionPct >= 100) return out('Exit',       '100%+ gain');
+      if (positionPct >=  60) return out('Sell 40%',   wgExtended?'Extended':'High gain');
+      if (positionPct >=  45) return out('Sell 30%',   nearWT?'WT hit':'Extended');
+      if (positionPct >=  35) return out('Sell 20%',   nearWT?'WT hit':'Near resistance');
+      if (positionPct >=  25) return out('Sell 10%',   'Near resistance');
+      if (positionPct >=  15) return out('Take Profit', 'Near resistance');
     }
   }
 
   // ── Priority 5: Accumulation ladder ──────────────────────────────────────
-  // Never add when major support is broken or WT inactive
   if (hasPosition && positionPct !== null && positionPct < 0 &&
       !majorSupportBroken && !wgInactive &&
       (klTestingS || nearSupport) &&
@@ -14520,7 +14533,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.197</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.198</span>
           </div>
         </div>
 
