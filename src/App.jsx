@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.201</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.202</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.201</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.202</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12477,6 +12477,62 @@ function WatchlistPage({ clerkUser, isPaid }) {
             style={{fontSize:12,padding:'6px 14px',background:'none',border:'0.5px solid #444',borderRadius:6,color:'#aaa',cursor:'pointer',opacity:refreshing?0.6:1}}>
             {refreshing ? 'Refreshing…' : 'Refresh Signals'}
           </button>
+          <button disabled={!items.length} onClick={function(){
+            var allData = items.map(function(item){
+              var snap = snapshots[item.ticker] || null;
+              var lock = locks[item.ticker] || null;
+              var price = snap ? snap.close_price : null;
+              var snapJson2 = {};
+              try { if (snap && snap.signal_snapshot_json) snapJson2 = JSON.parse(snap.signal_snapshot_json); } catch(e){}
+              var kl2 = snapJson2.keyLevels || null;
+              var wg2 = snapJson2.waveGuide || null;
+              var avgBuy = lock ? lock.avg_buy_price : null;
+              var qty    = lock ? lock.quantity      : null;
+              var rbaV2  = snap ? snap.rba_verdict       : '';
+              var trendV2= snap ? snap.trend_status      : '';
+              var momV2  = snap ? snap.momentum_status   : '';
+              var revV2  = snap ? snap.reversal_status   : '';
+              var smfV2  = snap ? snap.money_flow_status : '';
+              var abHasPos = (avgBuy!=null&&avgBuy>0&&qty!=null&&qty>0);
+              var abPosPct = abHasPos && price ? (price-avgBuy)/avgBuy*100 : null;
+              var tweak=0;
+              if ((trendV2||'').toLowerCase().indexOf('down')!==-1) tweak++;
+              if ((momV2||'').toLowerCase().indexOf('fad')!==-1||(momV2||'').toLowerCase().indexOf('weak')!==-1) tweak++;
+              if ((revV2||'').toLowerCase().indexOf('bear')!==-1) tweak++;
+              if ((smfV2||'').toLowerCase().indexOf('distribut')!==-1||(smfV2||'').toLowerCase().indexOf('negative')!==-1) tweak++;
+              var tsupp=0;
+              if ((trendV2||'').toLowerCase().indexOf('up')!==-1) tsupp++;
+              if ((momV2||'').toLowerCase().indexOf('build')!==-1||(momV2||'').toLowerCase().indexOf('strong')!==-1) tsupp++;
+              if ((revV2||'').toLowerCase().indexOf('trigger')!==-1||(revV2||'').toLowerCase().indexOf('confirm')!==-1) tsupp++;
+              if ((smfV2||'').toLowerCase().indexOf('accum')!==-1) tsupp++;
+              var klBroken = kl2 && kl2.status==='Broken';
+              var majorBroken = (function(){ if (!klBroken) return false; if (!kl2||!kl2.supports) return true; var maj=kl2.supports.filter(function(s){return s.strength==='major';}); if (!maj.length) return true; return price < maj[0].price*0.99; })();
+              var abResult = buildActionBias({ price:price, avgBuyPrice:avgBuy, qty:qty, rbaV:rbaV2, trendV:trendV2, momV:momV2, revV:revV2, smfV:smfV2, klStatus:kl2?kl2.status:null, wgStatus:wg2?wg2.waveStatus:null, nearestS:kl2?kl2.nearestSupport:null, nearestR:kl2?kl2.nearestResistance:null, klObj:kl2||null });
+              return {
+                ticker:        item.ticker,
+                snapshotDate:  snap ? snap.snapshot_date : null,
+                currentPrice:  price,
+                priceChangePct:snap ? snap.price_change_pct : null,
+                signals: { technicalView:rbaV2, trend:trendV2, momentum:momV2, reversal:revV2, moneyFlow:smfV2 },
+                position: abHasPos ? { avgBuyPrice:avgBuy, quantity:qty, positionPct:abPosPct!=null?Math.round(abPosPct*10)/10:null, costBasis:Math.round(avgBuy*qty*100)/100, currentValue:price?Math.round(price*qty*100)/100:null, unrealisedPL:price?Math.round((price-avgBuy)*qty*100)/100:null } : null,
+                actionBias: { label:abResult.label, reason:abResult.reason, inputs:{ klStatus:kl2?kl2.status:null, wgStatus:wg2?wg2.waveStatus:null, nearestSupport:kl2?kl2.nearestSupport:null, nearestResistance:kl2?kl2.nearestResistance:null, majorSupportBroken:majorBroken, dailyOnlyBreak:klBroken&&!majorBroken, techWeaknessScore:tweak, techSupportScore:tsupp } },
+                keyLevels:   kl2  || null,
+                waveGuide:   wg2  || null,
+                shortTermMap:snapJson2.shortTermMap || null,
+                longTermMap: snapJson2.fibMap       || null,
+              };
+            });
+            var payload = { exportedAt:new Date().toISOString(), tickerCount:items.length, watchlist:allData };
+            var blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+            var url  = URL.createObjectURL(blob);
+            var a    = document.createElement('a');
+            a.href   = url;
+            a.download = 'watchlist_audit_'+new Date().toISOString().split('T')[0]+'.json';
+            a.click();
+            URL.revokeObjectURL(url);
+          }} style={{fontSize:12,padding:'6px 14px',background:'none',border:'0.5px solid #2a2a28',borderRadius:6,color:items.length?'#888':'#444',cursor:items.length?'pointer':'default'}}>
+            Download All {'\u2193'}
+          </button>
           <button onClick={function(){ window.location.hash=''; }}
             style={{fontSize:11,padding:'6px 12px',background:'none',border:'0.5px solid #2a2a28',borderRadius:6,color:'#555',cursor:'pointer'}}>
             ← Back
@@ -14615,7 +14671,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.201</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.202</span>
           </div>
         </div>
 
