@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.203</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.204</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.203</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.204</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12748,7 +12748,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                   var plPct  = (price && avgBuy)  ? (price - avgBuy) / avgBuy * 100 : null;
                   var plColor = plPct == null ? '#666' : plPct > 0 ? '#7abd00' : plPct < 0 ? '#e05050' : '#666';
                   return <div style={{fontSize:10,lineHeight:1.6}}>
-                    <div style={{color:'#888'}}>Avg <span style={{color:'#f0ede6',fontWeight:600}}>${avgBuy.toFixed(2)}</span>{qty!=null&&<span style={{color:'#888'}}> \u00d7 {qty % 1 === 0 ? qty : qty.toFixed(2)}</span>}</div>
+                    <div style={{color:'#888'}}>Avg <span style={{color:'#f0ede6',fontWeight:600}}>${avgBuy.toFixed(2)}</span>{qty!=null&&<span style={{color:'#888'}}>{' × '}{qty % 1 === 0 ? qty : qty.toFixed(2)}</span>}</div>
                     {plPct!=null&&<div style={{color:plColor,fontWeight:700,fontSize:11}}>
                       {(plPct>=0?'+':'')+plPct.toFixed(2)+'%'}
                       {plAmt!=null&&<span style={{fontSize:9,fontWeight:400,marginLeft:4,color:plColor}}>{(plAmt>=0?'+':'-')+'$'+Math.abs(plAmt).toFixed(0)}</span>}
@@ -14642,7 +14642,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.203</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.204</span>
           </div>
         </div>
 
