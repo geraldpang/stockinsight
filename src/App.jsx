@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.199</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.200</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.199</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.200</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11772,7 +11772,7 @@ function buildActionBias(opts) {
   })();
   var rbaWeak = (function(){
     var r = (rbaV||'').toLowerCase();
-    return r.indexOf('bearish')!==-1 || r.indexOf('caution')!==-1 || r.indexOf('neutral')!==-1;
+    return r.indexOf('bearish')!==-1 || r.indexOf('bear watch')!==-1 || r.indexOf('caution')!==-1 || r.indexOf('neutral')!==-1;
   })();
 
   // Technical weakness score (max 4)
@@ -11833,18 +11833,19 @@ function buildActionBias(opts) {
   }
 
   // ── Priority 2: Stop Loss Watch ──────────────────────────────────────────
-  // Requires position + negative OR testing support + confirmed structural risk
-  if (hasPosition && positionPct !== null) {
-    // Hard stop: major support broken + negative position + weak technicals
-    if (positionPct < 0 && majorSupportBroken && rbaWeak && techWeakness >= 2) {
-      return out('Stop Loss Watch', 'Below support + weak technicals');
-    }
-    // Softer stop: testing support while negative, low weakness — support must hold
-    if (positionPct < 0 && (klTestingS || nearSupport) &&
-        !majorSupportBroken && techWeakness <= 1 && techSupport >= 2) {
-      return out('Stop Loss Watch', 'Support must hold');
-    }
-  }
+   // Requires position + negative + some technical concern — rbaWeak required for soft path
+   if (hasPosition && positionPct !== null) {
+     // Hard stop: major support broken + negative position + weak technicals
+     if (positionPct < 0 && majorSupportBroken && rbaWeak && techWeakness >= 2) {
+       return out('Stop Loss Watch', 'Below support + weak technicals');
+     }
+     // Softer stop: testing support while negative, with rbaWeak guard.
+     // rbaWeak prevents firing on Bullish/Bull Watch tickers with small losses (e.g. MSFT -2%).
+     if (positionPct < 0 && rbaWeak && (klTestingS || nearSupport) &&
+         !majorSupportBroken && techWeakness <= 1 && techSupport >= 2) {
+       return out('Stop Loss Watch', 'Support must hold');
+     }
+   }
 
   // ── Priority 3: Reduce Risk ───────────────────────────────────────────────
   // REQUIRES confirmed weakness — WT inactive alone is NOT enough
@@ -14534,7 +14535,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.199</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.200</span>
           </div>
         </div>
 
