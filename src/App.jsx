@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.200</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.201</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.200</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.201</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12495,6 +12495,86 @@ function WatchlistPage({ clerkUser, isPaid }) {
         </div>
       )}
 
+      {/* Summary strip — portfolio value + action bias pill counts */}
+      {!loading && items.length > 0 && (function(){
+        // Compute summary across all items — only tickers with positions contribute to P/L
+        var totalCost = 0, totalValue = 0, positionCount = 0;
+        var biasCounts = {};
+        items.forEach(function(item){
+          var snap = snapshots[item.ticker];
+          var lock = locks[item.ticker] || null;
+          var price = snap ? snap.close_price : null;
+          // Portfolio totals
+          var avgBuy = lock ? lock.avg_buy_price : null;
+          var qty    = lock ? lock.quantity      : null;
+          if (avgBuy && qty && price && avgBuy > 0 && qty > 0) {
+            totalCost  += avgBuy * qty;
+            totalValue += price  * qty;
+            positionCount++;
+          }
+          // Action Bias counts — compute fresh for each row
+          var snapJson2 = {};
+          try { if (snap && snap.signal_snapshot_json) snapJson2 = JSON.parse(snap.signal_snapshot_json); } catch(e){}
+          var kl2 = snapJson2.keyLevels || null;
+          var wg2 = snapJson2.waveGuide || null;
+          var ab = buildActionBias({
+            price:       price,
+            avgBuyPrice: avgBuy,
+            qty:         qty,
+            rbaV:        snap ? snap.rba_verdict       : '',
+            trendV:      snap ? snap.trend_status      : '',
+            momV:        snap ? snap.momentum_status   : '',
+            revV:        snap ? snap.reversal_status   : '',
+            smfV:        snap ? snap.money_flow_status : '',
+            klStatus:    kl2  ? kl2.status             : null,
+            wgStatus:    wg2  ? wg2.waveStatus         : null,
+            nearestS:    kl2  ? kl2.nearestSupport     : null,
+            nearestR:    kl2  ? kl2.nearestResistance  : null,
+            klObj:       kl2  || null,
+          });
+          biasCounts[ab.label] = (biasCounts[ab.label] || 0) + 1;
+        });
+        var totalPL   = totalValue - totalCost;
+        var totalPLPct= totalCost > 0 ? (totalPL / totalCost * 100) : null;
+        var plColor   = totalPL > 0 ? '#4caf50' : totalPL < 0 ? '#e05050' : '#888';
+        var fmt$ = function(v){ return (v>=0?'+':'-')+'$'+(Math.abs(v)>=1e6?(Math.abs(v)/1e6).toFixed(1)+'M':Math.abs(v).toFixed(0)); };
+        // Pill order: risk labels first, then hold, then profit, then accumulate
+        var pillOrder = ['Stop Loss Watch','Reduce Risk','Avoid / Wait','Hold','Hold / Watch','Hold / Watch Support','Trail Profit','Take Profit','Take Profit 10%','Take Profit 20%','Take Profit 30%','Take Profit 40%','Exit','Accumulate 10%','Accumulate 25%','Accumulate Watch'];
+        var pillColor = function(label){
+          if (label==='Stop Loss Watch') return '#e05050';
+          if (label==='Reduce Risk'||label==='Avoid / Wait') return '#EF9F27';
+          if (label.indexOf('Hold')!==-1) return '#555';
+          if (label==='Trail Profit'||label.indexOf('Take Profit')!==-1||label==='Exit') return '#4caf50';
+          if (label.indexOf('Accumulate')!==-1) return '#6090d0';
+          return '#555';
+        };
+        return <div style={{marginBottom:12,padding:'10px 14px',background:'#161614',border:'0.5px solid #2a2a28',borderRadius:8,display:'flex',alignItems:'center',flexWrap:'wrap',gap:12}}>
+          {/* Portfolio summary */}
+          <div style={{display:'flex',gap:16,alignItems:'center',flexShrink:0}}>
+            <div style={{fontSize:10,color:'#555'}}>{items.length} tickers</div>
+            {positionCount > 0 && <>
+              <div style={{fontSize:10,color:'#555'}}>{positionCount} positions</div>
+              <div style={{fontSize:10,color:'#555'}}>Cost <span style={{color:'#888'}}>${Math.round(totalCost).toLocaleString()}</span></div>
+              <div style={{fontSize:10,color:'#555'}}>Value <span style={{color:'#888'}}>${Math.round(totalValue).toLocaleString()}</span></div>
+              <div style={{fontSize:11,fontWeight:700,color:plColor}}>
+                {fmt$(totalPL)}{totalPLPct!=null&&<span style={{fontSize:9,fontWeight:400,marginLeft:4}}>({(totalPLPct>=0?'+':'')+totalPLPct.toFixed(1)+'%'})</span>}
+              </div>
+            </>}
+          </div>
+          {/* Divider */}
+          {positionCount > 0 && <div style={{width:'0.5px',height:20,background:'#2a2a28',flexShrink:0}}></div>}
+          {/* Action Bias pill counts */}
+          <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+            {pillOrder.filter(function(l){ return biasCounts[l]; }).map(function(label){
+              var c = pillColor(label);
+              return <div key={label} style={{fontSize:9,padding:'2px 8px',border:'0.5px solid '+c,borderRadius:10,color:c,whiteSpace:'nowrap'}}>
+                {biasCounts[label]} {label}
+              </div>;
+            })}
+          </div>
+        </div>;
+      })()}
+
       {!loading && items.length > 0 && (
         <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflow:'auto'}}>
           {/* Table header — click to sort */}
@@ -14535,7 +14615,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.200</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.201</span>
           </div>
         </div>
 
