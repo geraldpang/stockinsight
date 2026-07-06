@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.205</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.206</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.205</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.206</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11753,6 +11753,8 @@ function buildActionBias(opts) {
 
   function col(label) {
     if (label==='Hold'||label==='Hold / Watch'||label==='Hold / Watch Support') return '#888';
+    if (label==='Watch Entry')                                                   return '#6090d0';
+    if (label==='Buy Signal')                                                    return '#7abd00';
     if (label==='Accumulate 10%'||label==='Accumulate 25%'||label==='Accumulate Watch') return '#6090d0';
     if (label==='Trail Profit')                                                  return '#4caf50';
     if (label==='Take Profit 10%'||label==='Take Profit 20%')                   return '#4caf50';
@@ -11914,6 +11916,23 @@ function buildActionBias(opts) {
 
   // ── Priority 6: Hold ─────────────────────────────────────────────────────
   if (!hasPosition) {
+    // Buy Signal: all conditions aligned — structure intact, active wave, bullish TV, improving signals
+    var rbaBullish = !rbaWeak && !rbaLow; // Bullish or Bullish Watch
+    var improvingSignal = bullishRevSignal ||
+      (momV||'').toLowerCase().indexOf('build')!==-1 ||
+      (momV||'').toLowerCase().indexOf('strong')!==-1 ||
+      (smfV||'').toLowerCase().indexOf('accum')!==-1;
+    if ((klTestingS || klStatus==='Holding Support') &&
+        !klBroken && !wgInactive && wgNoClear === false &&
+        rbaBullish && techSupport >= 2 && improvingSignal) {
+      return out('Buy Signal', 'Setup aligned');
+    }
+    // Watch Entry: structure intact, active wave, not bearish, some support
+    if (!klBroken && !klNoClear && !wgInactive &&
+        !rbaLow && techSupport >= 1) {
+      return out('Watch Entry', 'Structure building');
+    }
+    // Fallback
     if (klTestingS || wgPullback) return out('Hold / Watch', 'Watch setup');
     if (wgCont || klStatus==='Holding Support') return out('Hold / Watch', 'Structure intact');
     return out('Hold / Watch', 'Monitor signals');
@@ -14661,7 +14680,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.205</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.206</span>
           </div>
         </div>
 
