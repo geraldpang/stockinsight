@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.204</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.205</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.204</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.205</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11821,8 +11821,12 @@ function buildActionBias(opts) {
   var nearSupport    = nearestS && price <= nearestS * 1.03;
 
   // Confirmed weakness — requires actual technical deterioration, not just WT status
-  var confirmedWeakness = rbaWeak || techWeakness >= 2 || majorSupportBroken ||
-    (positionPct !== null && positionPct < -5 && !nearSupport && !klTestingS);
+  // Exemption: daily-only break with bullish reversal signal and techSupport >= 2 is recovery, not weakness
+  var bullishRevSignal = (revV||'').toLowerCase().indexOf('bullish')!==-1;
+  var dayBreakWithRecovery = dailyOnlyBreak && bullishRevSignal && techSupport >= 2;
+  var confirmedWeakness = !dayBreakWithRecovery && (
+    rbaWeak || techWeakness >= 2 || majorSupportBroken ||
+    (positionPct !== null && positionPct < -5 && !nearSupport && !klTestingS));
 
   // ── Priority 1: Avoid / Wait ──────────────────────────────────────────────
   if (!hasPosition) {
@@ -11850,7 +11854,10 @@ function buildActionBias(opts) {
   // ── Priority 3: Reduce Risk ───────────────────────────────────────────────
   // REQUIRES confirmed weakness — WT inactive alone is NOT enough
   if (hasPosition && majorSupportBroken) return out('Reduce Risk', 'Major support broken');
-  if (hasPosition && confirmedWeakness && wgInactive) return out('Reduce Risk', 'Wave inactive + weakness');
+  // Reduce Risk: wgInactive + confirmedWeakness, BUT not when support is intact and technicals are supportive
+  // Guard: kls=Holding Support + tsupp>=3 means structure is healthy — downgrade to Hold
+  var wgInactiveReduceBlocked = wgInactive && klStatus==='Holding Support' && techSupport >= 3;
+  if (hasPosition && confirmedWeakness && wgInactive && !wgInactiveReduceBlocked) return out('Reduce Risk', 'Wave inactive + weakness');
   if (hasPosition && techWeakness >= 3) return out('Reduce Risk', 'Multiple weak signals');
   if (!hasPosition && majorSupportBroken) return out('Reduce Risk', 'Structure weakening');
   if (hasPosition && dailyOnlyBreak && techWeakness >= 2) return out('Reduce Risk', 'ST support weak');
@@ -11858,6 +11865,10 @@ function buildActionBias(opts) {
   // ── WT Inactive — handled here when no confirmed weakness ─────────────────
   // WT inactive alone = caution/watch, not reduce/stop-loss
   if (wgInactive && hasPosition && !confirmedWeakness) {
+    // Fix: profitable position with wgInactive should still get Trail Profit if conditions met
+    if (positionPct !== null && positionPct >= 15 && techWeakness <= 1 && !nearResistance && !majorSupportBroken) {
+      return out('Trail Profit', 'Profit protected');
+    }
     if (klTestingS || nearSupport) return out('Hold / Watch Support', 'Support test');
     return out('Hold', 'Recovery forming');
   }
@@ -11885,10 +11896,18 @@ function buildActionBias(opts) {
   }
 
   // ── Priority 5: Accumulation ladder ──────────────────────────────────────
+  // Requires recovery signal — not just down near support
+  // Recovery signal: reversal confirm/spark, momentum building/strong, wgPullback/Recovery, or tsupp>=3
+  var recoverySignal = bullishRevSignal ||
+    (momV||'').toLowerCase().indexOf('build')!==-1 || (momV||'').toLowerCase().indexOf('strong')!==-1 ||
+    wgPullback || techSupport >= 3;
+  // Downtrend guard: if trend is down, require stronger evidence (tsupp>=3)
+  var inDowntrend = (trendV||'').toLowerCase().indexOf('down')!==-1;
+  var accumOk = recoverySignal && (!inDowntrend || techSupport >= 3);
   if (hasPosition && positionPct !== null && positionPct < 0 &&
       !majorSupportBroken && !wgInactive &&
       (klTestingS || nearSupport) &&
-      !rbaLow && techSupport >= 2) {
+      !rbaLow && techSupport >= 2 && accumOk) {
     if (positionPct <= -25) return out('Accumulate 25%', 'Support + recovery');
     if (positionPct <= -15) return out('Accumulate 10%', 'Support holding');
   }
@@ -14642,7 +14661,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.204</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.205</span>
           </div>
         </div>
 
