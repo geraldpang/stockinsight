@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.207</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.208</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.207</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.208</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12868,26 +12868,26 @@ function WatchlistPage({ clerkUser, isPaid }) {
                       {/* Row 1 — white prices, monospace bar */}
                       <div style={rowStyle}>
                         <span style={lbl}>S</span>
-                        <span style={{...colS, fontSize:11, color:'#888', fontWeight:600}}>{s0 ? (s0.strength==='major'?'\u25CF ':'')+('$'+Math.round(s0.price)) : ''}</span>
+                        <span style={{...colS, fontSize:11, color:'#888', fontWeight:600, textDecoration:s0&&s0.strength==='major'?'underline':'none'}}>{s0 ? '$'+Math.round(s0.price) : ''}</span>
                         <span style={{...colBar, fontSize:10, color:'#555'}}>{barStr1 || '\u25CF'}</span>
                         <span style={lbl}>R</span>
-                        <span style={{...colR, fontSize:11, color:'#888', fontWeight:600}}>{r0 ? '$'+Math.round(r0.price)+' ('+lvlPct(r0.price)+')' : ''}</span>
+                        <span style={{...colR, fontSize:11, color:'#888', fontWeight:600, textDecoration:r0&&r0.strength==='major'?'underline':'none'}}>{r0 ? '$'+Math.round(r0.price)+' ('+lvlPct(r0.price)+')' : ''}</span>
                       </div>
                       {/* Row 2 — light grey, smaller */}
                       {(supps[1]||ress[1]) && <div style={rowStyle}>
                         <span style={{...lbl, visibility:'hidden'}}>S</span>
-                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[1]&&supps[1].strength==='major'?700:400}}>{supps[1]?(supps[1].strength==='major'?'\u25CF ':'')+('$'+Math.round(supps[1].price)):''}</span>
+                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[1]&&supps[1].strength==='major'?700:400, textDecoration:supps[1]&&supps[1].strength==='major'?'underline':'none'}}>{supps[1]?'$'+Math.round(supps[1].price):''}</span>
                         <span style={{...colBar}}></span>
                         <span style={{...lbl, visibility:'hidden'}}>R</span>
-                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[1]&&ress[1].strength==='major'?700:400}}>{ress[1]?(ress[1].strength==='major'?'\u25CF ':'')+('$'+Math.round(ress[1].price))+' ('+lvlPct(ress[1].price)+')':''}</span>
+                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[1]&&ress[1].strength==='major'?700:400, textDecoration:ress[1]&&ress[1].strength==='major'?'underline':'none'}}>{ress[1]?'$'+Math.round(ress[1].price)+' ('+lvlPct(ress[1].price)+')':''}</span>
                       </div>}
                       {/* Row 3 — light grey, smaller */}
                       {(supps[2]||ress[2]) && <div style={rowStyle}>
                         <span style={{...lbl, visibility:'hidden'}}>S</span>
-                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[2]&&supps[2].strength==='major'?700:400}}>{supps[2]?(supps[2].strength==='major'?'\u25CF ':'')+('$'+Math.round(supps[2].price)):''}</span>
+                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[2]&&supps[2].strength==='major'?700:400, textDecoration:supps[2]&&supps[2].strength==='major'?'underline':'none'}}>{supps[2]?'$'+Math.round(supps[2].price):''}</span>
                         <span style={{...colBar}}></span>
                         <span style={{...lbl, visibility:'hidden'}}>R</span>
-                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[2]&&ress[2].strength==='major'?700:400}}>{ress[2]?(ress[2].strength==='major'?'\u25CF ':'')+('$'+Math.round(ress[2].price))+' ('+lvlPct(ress[2].price)+')':''}</span>
+                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[2]&&ress[2].strength==='major'?700:400, textDecoration:ress[2]&&ress[2].strength==='major'?'underline':'none'}}>{ress[2]?'$'+Math.round(ress[2].price)+' ('+lvlPct(ress[2].price)+')':''}</span>
                       </div>}
                     </div>;
                   }
@@ -14656,7 +14656,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.207</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.208</span>
           </div>
         </div>
 
