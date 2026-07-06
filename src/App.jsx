@@ -5079,7 +5079,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.206</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.207</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5133,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.206</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.207</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11742,7 +11742,7 @@ function buildActionBias(opts) {
   var revV         = opts.revV         || '';
   var smfV         = opts.smfV         || '';
   var klStatus     = opts.klStatus     || '';
-  var wgStatus     = opts.wgStatus     || '';
+  // wgStatus intentionally removed — Wave Guide not used in Action Bias decisions
   var nearestS     = opts.nearestS     || null;
   var nearestR     = opts.nearestR     || null;
   // Full keyLevels object — used to distinguish daily vs weekly support breaks
@@ -11795,12 +11795,6 @@ function buildActionBias(opts) {
   var klNoClear  = !klStatus || klStatus==='No Clear Levels';
   var klTestingS = klStatus==='Testing Support' || klStatus==='At Support';
   var klTestingR = klStatus==='Testing Resistance';
-  var wgNoClear  = !wgStatus || wgStatus==='No Clear Wave';
-  var wgInactive = wgStatus==='WT Inactive' || wgStatus==='Correction' || wgStatus==='Correction Risk';
-  var wgTestingWT= wgStatus==='Testing WT';
-  var wgExtended = wgStatus==='Extended';
-  var wgPullback = wgStatus==='Pullback' || wgStatus==='Recovery';
-  var wgCont     = wgStatus==='Continuation';
 
   // Distinguish weekly (major) support break from daily-only break.
   var majorSupportBroken = false;
@@ -11832,7 +11826,7 @@ function buildActionBias(opts) {
 
   // ── Priority 1: Avoid / Wait ──────────────────────────────────────────────
   if (!hasPosition) {
-    if (klNoClear || wgNoClear) return out('Avoid / Wait', 'No clear setup');
+    if (klNoClear) return out('Avoid / Wait', 'No clear setup');
     if (rbaLow && techWeakness >= 2) return out('Avoid / Wait', 'Weak structure');
     if (majorSupportBroken) return out('Avoid / Wait', 'Structure broken');
     if (dailyOnlyBreak && techWeakness >= 2) return out('Avoid / Wait', 'Weak structure');
@@ -11856,58 +11850,43 @@ function buildActionBias(opts) {
   // ── Priority 3: Reduce Risk ───────────────────────────────────────────────
   // REQUIRES confirmed weakness — WT inactive alone is NOT enough
   if (hasPosition && majorSupportBroken) return out('Reduce Risk', 'Major support broken');
-  // Reduce Risk: wgInactive + confirmedWeakness, BUT not when support is intact and technicals are supportive
-  // Guard: kls=Holding Support + tsupp>=3 means structure is healthy — downgrade to Hold
-  var wgInactiveReduceBlocked = wgInactive && klStatus==='Holding Support' && techSupport >= 3;
-  if (hasPosition && confirmedWeakness && wgInactive && !wgInactiveReduceBlocked) return out('Reduce Risk', 'Wave inactive + weakness');
+  // Reduce Risk: confirmed weakness is sufficient — Wave Guide status not used
+  if (hasPosition && confirmedWeakness && techWeakness >= 2) return out('Reduce Risk', 'Confirmed weakness');
   if (hasPosition && techWeakness >= 3) return out('Reduce Risk', 'Multiple weak signals');
   if (!hasPosition && majorSupportBroken) return out('Reduce Risk', 'Structure weakening');
   if (hasPosition && dailyOnlyBreak && techWeakness >= 2) return out('Reduce Risk', 'ST support weak');
 
-  // ── WT Inactive — handled here when no confirmed weakness ─────────────────
-  // WT inactive alone = caution/watch, not reduce/stop-loss
-  if (wgInactive && hasPosition && !confirmedWeakness) {
-    // Fix: profitable position with wgInactive should still get Trail Profit if conditions met
-    if (positionPct !== null && positionPct >= 15 && techWeakness <= 1 && !nearResistance && !majorSupportBroken) {
-      return out('Trail Profit', 'Profit protected');
-    }
-    if (klTestingS || nearSupport) return out('Hold / Watch Support', 'Support test');
-    return out('Hold', 'Recovery forming');
-  }
-  if (wgInactive && !hasPosition) {
-    return out('Hold / Watch', 'Wait for recovery');
-  }
 
   // ── Priority 4: Trail / Take Profit ──────────────────────────────────────
   if (hasPosition && positionPct !== null && positionPct > 0) {
-    var nearWT = wgTestingWT || wgExtended;
     var nearR  = nearResistance || klTestingR;
-    // Trail profit: profitable, no resistance, low weakness
+    // Trail profit: profitable, not near resistance, low weakness
     if (positionPct >= 15 && techWeakness <= 1 && !nearResistance && !majorSupportBroken) {
       return out('Trail Profit', 'Profit protected');
     }
-    // Take profit / sell ladder: near resistance or WT
-    if (nearWT || nearR || (wgExtended && positionPct >= 45)) {
+    // Take profit / sell ladder: near resistance
+    if (nearR) {
       if (positionPct >= 100) return out('Exit',            '100%+ gain');
-      if (positionPct >=  60) return out('Take Profit 40%', wgExtended?'Extended':'High gain');
-      if (positionPct >=  45) return out('Take Profit 30%', nearWT?'WT hit':'Extended');
-      if (positionPct >=  35) return out('Take Profit 20%', nearWT?'WT hit':'Near resistance');
+      if (positionPct >=  60) return out('Take Profit 40%', 'High gain + resistance');
+      if (positionPct >=  45) return out('Take Profit 30%', 'Near resistance');
+      if (positionPct >=  35) return out('Take Profit 20%', 'Near resistance');
       if (positionPct >=  25) return out('Take Profit 10%', 'Near resistance');
-      if (positionPct >=  15) return out('Take Profit',      'Near resistance');
+      if (positionPct >=  15) return out('Take Profit',     'Near resistance');
     }
   }
 
   // ── Priority 5: Accumulation ladder ──────────────────────────────────────
   // Requires recovery signal — not just down near support
-  // Recovery signal: reversal confirm/spark, momentum building/strong, wgPullback/Recovery, or tsupp>=3
+  // Recovery signal: reversal confirm/spark, momentum building/strong, or tsupp>=3
+  // Wave Guide status intentionally excluded
   var recoverySignal = bullishRevSignal ||
     (momV||'').toLowerCase().indexOf('build')!==-1 || (momV||'').toLowerCase().indexOf('strong')!==-1 ||
-    wgPullback || techSupport >= 3;
+    techSupport >= 3;
   // Downtrend guard: if trend is down, require stronger evidence (tsupp>=3)
   var inDowntrend = (trendV||'').toLowerCase().indexOf('down')!==-1;
   var accumOk = recoverySignal && (!inDowntrend || techSupport >= 3);
   if (hasPosition && positionPct !== null && positionPct < 0 &&
-      !majorSupportBroken && !wgInactive &&
+      !majorSupportBroken &&
       (klTestingS || nearSupport) &&
       !rbaLow && techSupport >= 2 && accumOk) {
     if (positionPct <= -25) return out('Accumulate 25%', 'Support + recovery');
@@ -11923,26 +11902,23 @@ function buildActionBias(opts) {
       (momV||'').toLowerCase().indexOf('strong')!==-1 ||
       (smfV||'').toLowerCase().indexOf('accum')!==-1;
     if ((klTestingS || klStatus==='Holding Support') &&
-        !klBroken && !wgInactive && wgNoClear === false &&
-        rbaBullish && techSupport >= 2 && improvingSignal) {
+        !klBroken && rbaBullish && techSupport >= 2 && improvingSignal) {
       return out('Buy Signal', 'Setup aligned');
     }
-    // Watch Entry: structure intact, active wave, not bearish, some support
-    if (!klBroken && !klNoClear && !wgInactive &&
-        !rbaLow && techSupport >= 1) {
+    // Watch Entry: structure intact, not bearish, some support
+    if (!klBroken && !klNoClear && !rbaLow && techSupport >= 1) {
       return out('Watch Entry', 'Structure building');
     }
     // Fallback
-    if (klTestingS || wgPullback) return out('Hold / Watch', 'Watch setup');
-    if (wgCont || klStatus==='Holding Support') return out('Hold / Watch', 'Structure intact');
+    if (klTestingS) return out('Hold / Watch', 'Watch setup');
+    if (klStatus==='Holding Support') return out('Hold / Watch', 'Structure intact');
     return out('Hold / Watch', 'Monitor signals');
   }
   // Has position — daily-only break with supportive technicals = recovery forming
   if (dailyOnlyBreak && techSupport >= 2) return out('Hold', 'Recovery forming');
-  if (dailyOnlyBreak && wgPullback)       return out('Hold', 'Recovery forming');
   if (positionPct !== null && positionPct < -5 && nearSupport) return out('Hold', 'Recovery forming');
-  if (positionPct !== null && positionPct >= 15 && wgCont && !nearResistance) return out('Hold', 'Trend intact');
-  if (klTestingS || wgPullback)           return out('Hold', 'Support holding');
+  if (positionPct !== null && positionPct >= 15 && !nearResistance && techWeakness === 0) return out('Hold', 'Trend intact');
+  if (klTestingS) return out('Hold', 'Support holding');
   if (positionPct !== null && positionPct < 0) return out('Hold', 'Support intact');
   return out('Hold', 'Between levels');
 }
@@ -12892,7 +12868,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                       {/* Row 1 — white prices, monospace bar */}
                       <div style={rowStyle}>
                         <span style={lbl}>S</span>
-                        <span style={{...colS, fontSize:11, color:'#888', fontWeight:600}}>{s0 ? '$'+Math.round(s0.price) : ''}</span>
+                        <span style={{...colS, fontSize:11, color:'#888', fontWeight:600}}>{s0 ? (s0.strength==='major'?'\u25CF ':'')+('$'+Math.round(s0.price)) : ''}</span>
                         <span style={{...colBar, fontSize:10, color:'#555'}}>{barStr1 || '\u25CF'}</span>
                         <span style={lbl}>R</span>
                         <span style={{...colR, fontSize:11, color:'#888', fontWeight:600}}>{r0 ? '$'+Math.round(r0.price)+' ('+lvlPct(r0.price)+')' : ''}</span>
@@ -12900,18 +12876,18 @@ function WatchlistPage({ clerkUser, isPaid }) {
                       {/* Row 2 — light grey, smaller */}
                       {(supps[1]||ress[1]) && <div style={rowStyle}>
                         <span style={{...lbl, visibility:'hidden'}}>S</span>
-                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[1]&&supps[1].strength==='major'?700:400}}>{supps[1]?'$'+Math.round(supps[1].price):''}</span>
+                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[1]&&supps[1].strength==='major'?700:400}}>{supps[1]?(supps[1].strength==='major'?'\u25CF ':'')+('$'+Math.round(supps[1].price)):''}</span>
                         <span style={{...colBar}}></span>
                         <span style={{...lbl, visibility:'hidden'}}>R</span>
-                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[1]&&ress[1].strength==='major'?700:400}}>{ress[1]?'$'+Math.round(ress[1].price)+' ('+lvlPct(ress[1].price)+')':''}</span>
+                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[1]&&ress[1].strength==='major'?700:400}}>{ress[1]?(ress[1].strength==='major'?'\u25CF ':'')+('$'+Math.round(ress[1].price))+' ('+lvlPct(ress[1].price)+')':''}</span>
                       </div>}
                       {/* Row 3 — light grey, smaller */}
                       {(supps[2]||ress[2]) && <div style={rowStyle}>
                         <span style={{...lbl, visibility:'hidden'}}>S</span>
-                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[2]&&supps[2].strength==='major'?700:400}}>{supps[2]?'$'+Math.round(supps[2].price):''}</span>
+                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[2]&&supps[2].strength==='major'?700:400}}>{supps[2]?(supps[2].strength==='major'?'\u25CF ':'')+('$'+Math.round(supps[2].price)):''}</span>
                         <span style={{...colBar}}></span>
                         <span style={{...lbl, visibility:'hidden'}}>R</span>
-                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[2]&&ress[2].strength==='major'?700:400}}>{ress[2]?'$'+Math.round(ress[2].price)+' ('+lvlPct(ress[2].price)+')':''}</span>
+                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[2]&&ress[2].strength==='major'?700:400}}>{ress[2]?(ress[2].strength==='major'?'\u25CF ':'')+('$'+Math.round(ress[2].price))+' ('+lvlPct(ress[2].price)+')':''}</span>
                       </div>}
                     </div>;
                   }
@@ -14680,7 +14656,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.206</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.207</span>
           </div>
         </div>
 
