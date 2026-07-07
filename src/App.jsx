@@ -5115,7 +5115,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.217</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.218</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5169,7 +5169,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.217</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.218</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7346,59 +7346,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 })}
                               </div>
 
-                               {/* Entry Signal — buildActionBias no-position path, same as #WATCHLIST */}
-                               {(function(){
-                                 var esPrice = q ? q.regularMarketPrice : null;
-                                 var esKl    = taKeyLevels || null;
-                                 if (!esPrice) return null;
-                                 // Wait for Fib Key Levels — without them klStatus=null triggers false Avoid/Wait
-                                 // taKeyLevels optional — Entry Signal renders from signal labels alone
-                                 // Use rba.factorLabels if real RBA file is present,
-                                 // otherwise fall back to window globals set during signal computation
-                                 var esTrend = (rba && rba.factorLabels && rba.factorLabels.trend)      || window.__trendLabel || '';
-                                 var esMom   = (rba && rba.factorLabels && rba.factorLabels.momentum)   || window.__momLabel   || '';
-                                 var esRev   = (rba && rba.factorLabels && rba.factorLabels.reversal)   || '';
-                                 var esSmf   = (rba && rba.factorLabels && rba.factorLabels.smartMoney) || '';
-                                 var esVerdict = (rba && rba.verdict) || '';
-                                 // Only render if we have at least trend signal
-                                 if (!esTrend) return null;
-                                 var es = buildActionBias({
-                                   price:       esPrice,
-                                   avgBuyPrice: null,
-                                   qty:         null,
-                                   rbaV:        esVerdict,
-                                   trendV:      esTrend,
-                                   momV:        esMom,
-                                   revV:        esRev,
-                                   smfV:        esSmf,
-                                   // If Fib levels not loaded yet, use neutral status so signal rules apply
-                                   klStatus:    esKl ? esKl.status : 'Holding Support',
-                                   nearestS:    esKl ? esKl.nearestSupport     : null,
-                                   nearestR:    esKl ? esKl.nearestResistance  : null,
-                                   klObj:       esKl || null,
-                                 });
-                                 // Entry-specific reason text
-                                 var esReason = es.reason;
-                                 var esKlStatus = esKl ? esKl.status : null;
-                                 if (es.label === 'Buy Signal')                                              esReason = 'Entry conditions met';
-                                 else if (es.label === 'Watch Entry' && esKlStatus === 'Testing Support')    esReason = 'Pullback to support \u2014 watch for bounce';
-                                 else if (es.label === 'Watch Entry')                                        esReason = 'Setup building \u2014 watch for trigger';
-                                 else if (es.label === 'Hold / Watch' && esKlStatus === 'Testing Resistance') esReason = 'Near resistance \u2014 wait for pullback';
-                                 else if (es.label === 'Hold / Watch')                                       esReason = 'Mixed signals \u2014 wait';
-                                 else if (es.label === 'Avoid / Wait' && esKlStatus === 'Broken')            esReason = 'Structure broken \u2014 wait for recovery';
-                                 else if (es.label === 'Avoid / Wait')                                       esReason = 'No clear setup \u2014 avoid entry';
-                                 return <div style={{display:'flex',alignItems:'center',gap:12,margin:'12px 0',padding:'8px 10px',background:'rgba(0,0,0,0.25)',borderRadius:6,borderLeft:'2px solid '+es.color}}>
-                                   <div style={{flexShrink:0}}>
-                                     <div style={{fontSize:8,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:2}}>Entry Signal</div>
-                                     <div style={{fontSize:13,fontWeight:700,color:es.color}}>{es.label}</div>
-                                   </div>
-                                   <div style={{flexShrink:0,width:'0.5px',height:28,background:'rgba(255,255,255,0.08)'}}></div>
-                                   <div>
-                                     <div style={{fontSize:11,color:'#888'}}>{esReason}</div>
-                                     <div style={{fontSize:9,color:'#444',marginTop:2,fontStyle:'italic'}}>Entry only \u00b7 add to watchlist for full Action Bias</div>
-                                   </div>
-                                 </div>;
-                               })()}
 
 
                               {/* Analysis — bold prices in text via helper */}
@@ -14760,7 +14707,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.217</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.218</span>
           </div>
         </div>
 
