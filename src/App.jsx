@@ -5151,7 +5151,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.221</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.222</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5205,7 +5205,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.221</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.222</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -13278,34 +13278,39 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     })}
                   </div>
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
-                    {/* Long-Term (Weekly Fib) + Short-Term (Daily Fib) — grouped in one column */}
-                    <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                      <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px'}}>
-                        <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Long-Term (Weekly Fib)</div>
-                        {!ltm ? <div style={{fontSize:10,color:'#555'}}>No data</div>
-                          : <div style={{fontSize:10,display:'flex',flexDirection:'column',gap:5}}>
-                              <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>S Zone</span><span style={{color:'#6090d0',fontWeight:600}}>{fmt(ltm.fibSupportZoneHigh)+' \u2013 '+fmt(ltm.fibSupportZoneLow)}</span></div>
-                              <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>Invalidation</span><span style={{color:'#e05050'}}>{fmt(ltm.fibInvalidation)}</span></div>
-                              <div style={{borderTop:'0.5px solid #222',paddingTop:5,marginTop:2}}>
-                                <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R1</span><span style={{color:'#888'}}>{fmt(ltm.fibTarget1)}</span></div>
-                                <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R2</span><span style={{color:'#888'}}>{fmt(ltm.fibTarget2)}</span></div>
-                                <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>R3</span><span style={{color:'#888'}}>{fmt(ltm.fibTarget3)}</span></div>
-                              </div>
-                            </div>}
-                      </div>
-                      <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px'}}>
-                        <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Short-Term (Daily Fib)</div>
-                        {!stm ? <div style={{fontSize:10,color:'#555'}}>No data</div>
-                          : <div style={{fontSize:10,display:'flex',flexDirection:'column',gap:5}}>
-                              <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>S Zone</span><span style={{color:'#6090d0',fontWeight:600}}>{fmt(stm.fibSupportZoneHigh)+' \u2013 '+fmt(stm.fibSupportZoneLow)}</span></div>
-                              <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>Invalidation</span><span style={{color:'#e05050'}}>{fmt(stm.fibInvalidation)}</span></div>
-                              <div style={{borderTop:'0.5px solid #222',paddingTop:5,marginTop:2}}>
-                                <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R1</span><span style={{color:'#888'}}>{fmt(stm.fibTarget1)}</span></div>
-                                <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R2</span><span style={{color:'#888'}}>{fmt(stm.fibTarget2)}</span></div>
-                                <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>R3</span><span style={{color:'#888'}}>{fmt(stm.fibTarget3)}</span></div>
-                              </div>
-                            </div>}
-                      </div>
+                    {/* Fib Levels — Long-Term (Weekly) & Short-Term (Daily), merged into one
+                        card with LT/ST as columns instead of two separate full cards, since
+                        R1/R2/R3 and the S Zone/Invalidation rows are the same shape for both. */}
+                    <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px',alignSelf:'flex-start'}}>
+                      <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Fib Levels</div>
+                      {!ltm && !stm ? <div style={{fontSize:10,color:'#555'}}>No data</div> : <>
+                        <div style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr',gap:'4px 10px',fontSize:8,marginBottom:4}}>
+                          <span></span>
+                          <span style={{color:'#555',textTransform:'uppercase',letterSpacing:'0.05em'}}>LT (Wkly)</span>
+                          <span style={{color:'#555',textTransform:'uppercase',letterSpacing:'0.05em'}}>ST (Daily)</span>
+                        </div>
+                        <div style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr',gap:'5px 10px',fontSize:10,alignItems:'baseline'}}>
+                          <span style={{color:'#555'}}>S Zone</span>
+                          <span style={{color:'#6090d0',fontWeight:600}}>{ltm?fmt(ltm.fibSupportZoneHigh)+' \u2013 '+fmt(ltm.fibSupportZoneLow):String.fromCharCode(0x2014)}</span>
+                          <span style={{color:'#6090d0',fontWeight:600}}>{stm?fmt(stm.fibSupportZoneHigh)+' \u2013 '+fmt(stm.fibSupportZoneLow):String.fromCharCode(0x2014)}</span>
+                          <span style={{color:'#555'}}>Invalidation</span>
+                          <span style={{color:'#e05050'}}>{ltm?fmt(ltm.fibInvalidation):String.fromCharCode(0x2014)}</span>
+                          <span style={{color:'#e05050'}}>{stm?fmt(stm.fibInvalidation):String.fromCharCode(0x2014)}</span>
+                        </div>
+                        <div style={{borderTop:'0.5px solid #222',marginTop:6,paddingTop:6}}>
+                          <div style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr',gap:'4px 10px',fontSize:10,alignItems:'baseline'}}>
+                            <span style={{color:'#555'}}>R1</span>
+                            <span style={{color:'#888'}}>{ltm?fmt(ltm.fibTarget1):String.fromCharCode(0x2014)}</span>
+                            <span style={{color:'#888'}}>{stm?fmt(stm.fibTarget1):String.fromCharCode(0x2014)}</span>
+                            <span style={{color:'#555'}}>R2</span>
+                            <span style={{color:'#888'}}>{ltm?fmt(ltm.fibTarget2):String.fromCharCode(0x2014)}</span>
+                            <span style={{color:'#888'}}>{stm?fmt(stm.fibTarget2):String.fromCharCode(0x2014)}</span>
+                            <span style={{color:'#555'}}>R3</span>
+                            <span style={{color:'#888'}}>{ltm?fmt(ltm.fibTarget3):String.fromCharCode(0x2014)}</span>
+                            <span style={{color:'#888'}}>{stm?fmt(stm.fibTarget3):String.fromCharCode(0x2014)}</span>
+                          </div>
+                        </div>
+                      </>}
                     </div>
                     {/* Wave Targets & Pullback Range — now sits alongside the Fib column instead of below it */}
                     {(ltm||stm)
@@ -14804,7 +14809,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.221</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.222</span>
           </div>
         </div>
 
