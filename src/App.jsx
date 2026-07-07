@@ -5111,7 +5111,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.210</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.211</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5165,7 +5165,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.210</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.211</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11372,7 +11372,11 @@ function wlArrowColor(arrow){ return arrow==="\u2191"?"#7abd00":arrow==="\u2193"
 
 // Per-factor colour helpers for the Technical View compact strip.
 // Each maps a signal status string to the NervousGeek dark-theme colour bucket.
+// ── Watchlist signal colour helpers ─────────────────────────────────────────
+// Momentum, Reversal, SMF delegate to module-level functions (same as main screen).
+// DO NOT add separate colour logic here — use the module-level functions above.
 function wlTrendColor(s) {
+  // No module-level trend colour function — keep label-based mapping.
   if (!s) return '#555';
   var l = s.toLowerCase();
   if (l.indexOf('strong up')!==-1||l==='uptrend') return '#7abd00';
@@ -11380,36 +11384,9 @@ function wlTrendColor(s) {
   if (l.indexOf('down')!==-1) return '#e05050';
   return '#555';
 }
-function wlMomColor(s) {
-  if (!s) return '#555';
-  var l = s.toLowerCase();
-  if (l==='strong') return '#7abd00';
-  if (l.indexOf('build')!==-1||l.indexOf('continuation')!==-1||l.indexOf('early recovery')!==-1||l.indexOf('waiting')!==-1) return '#6090d0';
-  if (l==='neutral'||l.indexOf('pullback')!==-1||l.indexOf('no clear')!==-1) return '#EF9F27';
-  if (l.indexOf('fad')!==-1||l.indexOf('weak')!==-1||l.indexOf('bearish mom')!==-1) return '#e05050';
-  return '#555';
-}
-function wlRevColor(s) {
-  if (!s) return '#555';
-  var l = s.toLowerCase();
-  if (l.indexOf('triggered')!==-1||l.indexOf('confirming')!==-1||l.indexOf('confirmed')!==-1) return '#7abd00';
-  if (l.indexOf('spark')!==-1||l.indexOf('watch')!==-1||l.indexOf('forming')!==-1||l.indexOf('setup')!==-1) {
-    if (l.indexOf('bear')===-1) return '#6090d0';
-  }
-  if (l.indexOf('mixed')!==-1) return '#EF9F27';
-  if (l.indexOf('bear')!==-1) return '#e05050';
-  if (l.indexOf('no clear')!==-1||l.indexOf('not enough')!==-1) return '#555';
-  return '#555';
-}
-function wlSmfColor(s) {
-  if (!s) return '#555';
-  var l = s.toLowerCase();
-  if (l.indexOf('strong accum')!==-1||l.indexOf('steady accum')!==-1||l.indexOf('daily spike')!==-1||l.indexOf('daily support')!==-1) return '#7abd00';
-  if (l.indexOf('long-term accum')!==-1||l.indexOf('lt accum')!==-1||l.indexOf('early accum')!==-1||l.indexOf('quiet')!==-1||l.indexOf('constructive')!==-1) return '#6090d0';
-  if (l.indexOf('mixed')!==-1||l.indexOf('cooling')!==-1||l.indexOf('short-term')!==-1||l.indexOf('no sustained')!==-1) return '#EF9F27';
-  if (l.indexOf('distribut')!==-1||l.indexOf('negative')!==-1||l.indexOf('deteriorat')!==-1) return '#e05050';
-  return '#555';
-}
+function wlMomColor(s)  { return momentumStateColor(s); }         // same as main screen
+function wlRevColor(s)  { return revStatusColor(s, 'main'); }     // same as main screen
+function wlSmfColor(s)  { return smfStatusColor(s, 'main'); }     // same as main screen
 function makeSparkline(values) {
   var blocks = ["\u2581","\u2582","\u2583","\u2584","\u2585","\u2586","\u2587","\u2588"];
   if (!values || values.length < 2) return String.fromCharCode(0x2014);
@@ -14721,7 +14698,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.210</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.211</span>
           </div>
         </div>
 
