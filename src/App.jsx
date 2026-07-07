@@ -4179,22 +4179,23 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         var allC = result&&result.indicators&&result.indicators.quote&&result.indicators.quote[0]&&result.indicators.quote[0].close||[];
         var closes = allC.filter(function(c){ return c!=null; });
         var n = closes.length;
-        if (n < 201) { setCrossData({ sym:sym, type:"unknown", ageDays:null, gapDir:"unknown" }); return; }
 
         // ── SINGLE SOURCE OF TRUTH — build daily2 for Fib calculation ─────────
         // Same OHLCV extraction as refreshSingleTicker in #WATCHLIST
         // DO NOT compute S/R separately — use buildFibMapFromDailyBars + buildKeyLevels below
         try {
-          var q2   = result.indicators.quote[0];
-          var ts2  = result.timestamp || [];
+          var q2   = result&&result.indicators&&result.indicators.quote&&result.indicators.quote[0];
+          var ts2  = result&&result.timestamp || [];
           var taD2 = [];
-          for (var di=0; di<ts2.length; di++) {
-            var o2=q2.open&&q2.open[di], h2=q2.high&&q2.high[di],
-                l2=q2.low&&q2.low[di],   cv2=q2.close&&q2.close[di];
-            if (o2&&h2&&l2&&cv2&&o2>0) taD2.push({ date:ts2[di]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di])||0 });
+          if (q2) {
+            for (var di=0; di<ts2.length; di++) {
+              var o2=q2.open&&q2.open[di], h2=q2.high&&q2.high[di],
+                  l2=q2.low&&q2.low[di],   cv2=q2.close&&q2.close[di];
+              if (o2&&h2&&l2&&cv2&&o2>0) taD2.push({ date:ts2[di]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di])||0 });
+            }
           }
           if (taD2.length >= 60) {
-            var curPrice = closes[n-1];
+            var curPrice = closes[n-1] || (taD2.length > 0 ? taD2[taD2.length-1].close : 0);
             var fm  = buildFibMapFromDailyBars(taD2, curPrice);
             var stm = buildShortTermFibMap(taD2, curPrice);
             var kl  = buildKeyLevels(fm, stm, curPrice);
@@ -4204,6 +4205,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
           }
         } catch(fibErr) { /* non-fatal — Fib calculation failed */ }
         // ─────────────────────────────────────────────────────────────────────
+
+        // SMA cross detection requires 201+ bars — guard here only
+        if (n < 201) { setCrossData({ sym:sym, type:"unknown", ageDays:null, gapDir:"unknown" }); return; }
         var s50n  = closes.slice(n-50).reduce(function(s,v){return s+v;},0)/50;
         var s200n = closes.slice(n-200).reduce(function(s,v){return s+v;},0)/200;
         var gapNow = (s50n-s200n)/s200n*100;
@@ -5111,7 +5115,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.215</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.216</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5165,7 +5169,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.215</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.216</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -14755,7 +14759,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.215</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.216</span>
           </div>
         </div>
 
