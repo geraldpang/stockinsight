@@ -5111,7 +5111,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.209</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.210</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5165,7 +5165,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.209</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.210</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7368,15 +7368,15 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             <div style={{ marginBottom:14, borderBottom:"1px solid #f0ede6", paddingBottom:14 }}>
                               <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>{"Key Levels"}</div>
 
-                              {/* Close / Breakout / Invalidation */}
+                              {/* Close / Breakout / Invalidation — Fib consistent with #WATCHLIST */}
                               <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
                                 {[
-                                  ["Close",        rba.closingPrice,                                            "#f0ede6"],
-                                  ["Breakout",     rba.breakoutLevel     ? "$"+rba.breakoutLevel.toFixed(2)     : null, "#7abd00"],
-                                  ["Invalidation", rba.invalidationLevel ? "$"+rba.invalidationLevel.toFixed(2) : null, "#e05050"],
+                                  ["Close",        q ? "$"+(q.regularMarketPrice||0).toFixed(2) : null,                                  "#f0ede6"],
+                                  ["Breakout",     taFibMap && taFibMap.fibTarget1      ? "$"+taFibMap.fibTarget1.toFixed(2)      : null, "#7abd00"],
+                                  ["Invalidation", taFibMap && taFibMap.fibInvalidation ? "$"+taFibMap.fibInvalidation.toFixed(2) : (taStMap && taStMap.fibInvalidation ? "$"+taStMap.fibInvalidation.toFixed(2) : null), "#e05050"],
                                 ].filter(function(r){ return r[1]; }).map(function(r,i){
                                   return <div key={i} style={{ background:"#f5f2ed", borderRadius:6, padding:"6px 12px" }}>
-                                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>{r[0]}</div>
+                                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:3 }}>{r[0]}</div>
                                     <div style={{ fontSize:13, fontWeight:700, color:r[2] }}>{r[1]}</div>
                                   </div>;
                                 })}
@@ -14721,7 +14721,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.209</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.210</span>
           </div>
         </div>
 
