@@ -5115,7 +5115,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.216</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.217</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5169,7 +5169,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.216</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.217</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7352,7 +7352,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                  var esKl    = taKeyLevels || null;
                                  if (!esPrice) return null;
                                  // Wait for Fib Key Levels — without them klStatus=null triggers false Avoid/Wait
-                                 if (!esKl) return <div style={{fontSize:9,color:'#444',margin:'8px 0',fontStyle:'italic'}}>Entry Signal loading...</div>;
+                                 // taKeyLevels optional — Entry Signal renders from signal labels alone
                                  // Use rba.factorLabels if real RBA file is present,
                                  // otherwise fall back to window globals set during signal computation
                                  var esTrend = (rba && rba.factorLabels && rba.factorLabels.trend)      || window.__trendLabel || '';
@@ -7371,7 +7371,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                    momV:        esMom,
                                    revV:        esRev,
                                    smfV:        esSmf,
-                                   klStatus:    esKl ? esKl.status             : null,
+                                   // If Fib levels not loaded yet, use neutral status so signal rules apply
+                                   klStatus:    esKl ? esKl.status : 'Holding Support',
                                    nearestS:    esKl ? esKl.nearestSupport     : null,
                                    nearestR:    esKl ? esKl.nearestResistance  : null,
                                    klObj:       esKl || null,
@@ -14759,7 +14760,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.216</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.217</span>
           </div>
         </div>
 
