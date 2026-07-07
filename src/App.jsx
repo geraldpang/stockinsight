@@ -5111,7 +5111,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.211</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.213</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5165,7 +5165,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.211</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.213</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5543,7 +5543,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         return(<div style={{borderRadius:8,border:"0.5px solid "+tc.bd,background:tc.bg,padding:"10px 12px",marginTop:6}}>
                           <div style={{fontSize:9,fontWeight:700,color:tc.text,textTransform:"uppercase",letterSpacing:".07em",marginBottom:4}}>Technical Analysis</div>
                           <div style={{fontSize:13,fontWeight:800,color:tc.text,marginBottom:6}}>{rba.verdict}</div>
-                          {rba.analysis&&<div style={{fontSize:11,color:"#c0bdb4",lineHeight:1.6,marginBottom:8}}>{rba.analysis}</div>}
+                          {rba.analysis&&<div style={{fontSize:11,color:"#c0bdb4",lineHeight:1.6,marginBottom:6}}>{rba.analysis}</div>}
+                          {rba.keyLevels&&<div style={{fontSize:11,color:"#c0bdb4",lineHeight:1.6,marginBottom:6}}>{rba.keyLevels}</div>}
+                          {rba.smartMoneyLine&&<div style={{fontSize:11,color:"#c0bdb4",lineHeight:1.6,marginBottom:6}}>{rba.smartMoneyLine}</div>}
+                          {rba.technicalIndicatorsLine&&<div style={{fontSize:11,color:"#c0bdb4",lineHeight:1.6,marginBottom:8}}>{rba.technicalIndicatorsLine}</div>}
                           <div style={{borderTop:"0.5px solid #2a2a2a",paddingTop:8}}>
                             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
                               <span style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase"}}>Historical Confidence</span>
@@ -7338,6 +7341,49 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                   );
                                 })}
                               </div>
+
+                               {/* Entry Signal — buildActionBias no-position path, same as #WATCHLIST */}
+                               {(function(){
+                                 var esPrice = q ? q.regularMarketPrice : null;
+                                 var esKl    = taKeyLevels || null;
+                                 if (!esPrice || !rba || !rba.factorLabels) return null;
+                                 var es = buildActionBias({
+                                   price:    esPrice,
+                                   avgBuyPrice: null,   // no position — entry signal only
+                                   qty:      null,
+                                   rbaV:     rba.verdict             || '',
+                                   trendV:   rba.factorLabels.trend  || '',
+                                   momV:     rba.factorLabels.momentum || '',
+                                   revV:     rba.factorLabels.reversal || '',
+                                   smfV:     rba.factorLabels.smartMoney || '',
+                                   klStatus: esKl ? esKl.status             : null,
+                                   nearestS: esKl ? esKl.nearestSupport     : null,
+                                   nearestR: esKl ? esKl.nearestResistance  : null,
+                                   klObj:    esKl || null,
+                                 });
+                                 // Enrich reason text for entry context
+                                 var esReason = es.reason;
+                                 var esKlStatus = esKl ? esKl.status : null;
+                                 if (es.label === 'Buy Signal')    esReason = 'Entry conditions met';
+                                 else if (es.label === 'Watch Entry' && esKlStatus === 'Testing Support') esReason = 'Pullback to support \u2014 watch for bounce';
+                                 else if (es.label === 'Watch Entry') esReason = 'Setup building \u2014 watch for trigger';
+                                 else if (es.label === 'Hold / Watch' && esKlStatus === 'Testing Resistance') esReason = 'Near resistance \u2014 wait for pullback';
+                                 else if (es.label === 'Hold / Watch') esReason = 'Mixed signals \u2014 wait';
+                                 else if (es.label === 'Avoid / Wait' && esKlStatus === 'Broken') esReason = 'Structure broken \u2014 wait for recovery';
+                                 else if (es.label === 'Avoid / Wait') esReason = 'No clear setup \u2014 avoid entry';
+                                 return <div style={{display:'flex',alignItems:'center',gap:12,margin:'12px 0',padding:'8px 10px',background:'rgba(0,0,0,0.25)',borderRadius:6,borderLeft:'2px solid '+es.color}}>
+                                   <div style={{flexShrink:0}}>
+                                     <div style={{fontSize:8,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:2}}>Entry Signal</div>
+                                     <div style={{fontSize:13,fontWeight:700,color:es.color}}>{es.label}</div>
+                                   </div>
+                                   <div style={{flexShrink:0,width:'0.5px',height:28,background:'rgba(255,255,255,0.08)'}}></div>
+                                   <div>
+                                     <div style={{fontSize:11,color:'#888'}}>{esReason}</div>
+                                     <div style={{fontSize:9,color:'#444',marginTop:2,fontStyle:'italic'}}>No position \u00b7 open watchlist position for full Action Bias</div>
+                                   </div>
+                                 </div>;
+                               })()}
+
 
                               {/* Analysis — bold prices in text via helper */}
                               {(function(){
@@ -14698,7 +14744,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.211</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.213</span>
           </div>
         </div>
 
