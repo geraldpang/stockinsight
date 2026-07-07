@@ -1844,9 +1844,18 @@ function buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData) {
 }
 
 // ── Data adapter: converts Yahoo Finance closing price array to snapshot format ──
-// Used by AI Favourites. Partial indicators (SMA50/200 + RSI only).
-// No technical outcomes calculated here — calls calculateTechnicalSignalSnapshot.
-function buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200) {
+// Used by AI Favourites, #FORCESTRIKE, and Watchlist Force Strike techContext.
+// Partial indicators (SMA50/200 + RSI only). No technical outcomes calculated
+// here — calls calculateTechnicalSignalSnapshot (single source of truth).
+//
+// hi52/lo52 are OPTIONAL params. Pass the real 52-week high/low whenever the
+// caller has it (Yahoo chart meta.fiftyTwoWeekHigh/Low, or a computed range) —
+// calcReversalWatch() in technicalSignals.js only evaluates its "near 52-week
+// low + improving RSI" bullish setup indicator when hi52 > 0, so leaving these
+// at 0 silently drops that signal and can make Reversal Watch disagree with
+// the Technical Analysis tab for the same ticker. Only omit them (leaving the
+// 0 default below) when a real 52-week range is genuinely not available.
+function buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200, hi52, lo52) {
   if (!vc || vc.length < 15) return null;
   var bars = vc.map(function(c, i) {
     return { date: '', open: c, high: c, low: c, close: c, volume: (vv && vv[i]) || 0 };
@@ -1861,7 +1870,7 @@ function buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200) {
     date:       new Date().toISOString().split('T')[0],
     ohlcv:      bars,
     indicators: ind,
-    meta:       { price: price||0, hi52: 0, lo52: 0 },
+    meta:       { price: price||0, hi52: hi52||0, lo52: lo52||0 },
   });
 }
 
@@ -3230,6 +3239,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [aiTechResult,  setAiTechResult]  = useState(null); // { verdict, stVerdict, confidence, keyLevel, summary, dataSnapshot }
   const [aiTechLoading, setAiTechLoading] = useState(false);
   const [ruleAnalytics, setRuleAnalytics] = useState(null); // Rule Based Analytics output
+  // ── SINGLE SOURCE OF TRUTH — Fib Key Levels for TA tab ─────────────────────
+  // Uses buildFibMapFromDailyBars, buildShortTermFibMap, buildKeyLevels — same functions as #WATCHLIST
+  // DO NOT compute S/R separately here — always use these module-level functions for consistency
+  const [taKeyLevels,   setTaKeyLevels]   = useState(null); // Key Levels from Fib (same as #WATCHLIST)
+  const [taFibMap,      setTaFibMap]      = useState(null); // Long-term weekly Fib map
+  const [taStMap,       setTaStMap]       = useState(null); // Short-term daily Fib map
+  // ─────────────────────────────────────────────────────────────────────────────
   const [rbaConfResult,  setRbaConfResult]  = useState(null);
   const [rbaConfLoading, setRbaConfLoading] = useState(false);
   const [rbaConfError,   setRbaConfError]   = useState(null);
@@ -3687,7 +3703,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); setRuleAnalytics(null); setRbaConfResult(null); setRbaConfLoading(false); setRbaConfError(null); setRbaConfSym(null); window.__aiFundRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; if(window.__trendSignalWritten)delete window.__trendSignalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; if(window.__rbaFullSnap)delete window.__rbaFullSnap[sym]; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); setRuleAnalytics(null); setTaKeyLevels(null); setTaFibMap(null); setTaStMap(null); setRbaConfResult(null); setRbaConfLoading(false); setRbaConfError(null); setRbaConfSym(null); window.__aiFundRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; if(window.__trendSignalWritten)delete window.__trendSignalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; if(window.__rbaFullSnap)delete window.__rbaFullSnap[sym]; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -4168,9 +4184,38 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
     fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=2y"))
       .then(function(r){ return r.json(); })
       .then(function(data){
-        var allC = data&&data.chart&&data.chart.result&&data.chart.result[0]&&data.chart.result[0].indicators&&data.chart.result[0].indicators.quote&&data.chart.result[0].indicators.quote[0]&&data.chart.result[0].indicators.quote[0].close||[];
+        var result = data&&data.chart&&data.chart.result&&data.chart.result[0];
+        var allC = result&&result.indicators&&result.indicators.quote&&result.indicators.quote[0]&&result.indicators.quote[0].close||[];
         var closes = allC.filter(function(c){ return c!=null; });
         var n = closes.length;
+
+        // ── SINGLE SOURCE OF TRUTH — build daily2 for Fib calculation ─────────
+        // Same OHLCV extraction as refreshSingleTicker in #WATCHLIST
+        // DO NOT compute S/R separately — use buildFibMapFromDailyBars + buildKeyLevels below
+        try {
+          var q2   = result&&result.indicators&&result.indicators.quote&&result.indicators.quote[0];
+          var ts2  = result&&result.timestamp || [];
+          var taD2 = [];
+          if (q2) {
+            for (var di=0; di<ts2.length; di++) {
+              var o2=q2.open&&q2.open[di], h2=q2.high&&q2.high[di],
+                  l2=q2.low&&q2.low[di],   cv2=q2.close&&q2.close[di];
+              if (o2&&h2&&l2&&cv2&&o2>0) taD2.push({ date:ts2[di]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di])||0 });
+            }
+          }
+          if (taD2.length >= 60) {
+            var curPrice = closes[n-1] || (taD2.length > 0 ? taD2[taD2.length-1].close : 0);
+            var fm  = buildFibMapFromDailyBars(taD2, curPrice);
+            var stm = buildShortTermFibMap(taD2, curPrice);
+            var kl  = buildKeyLevels(fm, stm, curPrice);
+            setTaFibMap(fm);
+            setTaStMap(stm);
+            setTaKeyLevels(kl);
+          }
+        } catch(fibErr) { /* non-fatal — Fib calculation failed */ }
+        // ─────────────────────────────────────────────────────────────────────
+
+        // SMA cross detection requires 201+ bars — guard here only
         if (n < 201) { setCrossData({ sym:sym, type:"unknown", ageDays:null, gapDir:"unknown" }); return; }
         var s50n  = closes.slice(n-50).reduce(function(s,v){return s+v;},0)/50;
         var s200n = closes.slice(n-200).reduce(function(s,v){return s+v;},0)/200;
@@ -5079,7 +5124,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.205</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.219</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5178,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.205</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.219</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5511,7 +5556,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         return(<div style={{borderRadius:8,border:"0.5px solid "+tc.bd,background:tc.bg,padding:"10px 12px",marginTop:6}}>
                           <div style={{fontSize:9,fontWeight:700,color:tc.text,textTransform:"uppercase",letterSpacing:".07em",marginBottom:4}}>Technical Analysis</div>
                           <div style={{fontSize:13,fontWeight:800,color:tc.text,marginBottom:6}}>{rba.verdict}</div>
-                          {rba.analysis&&<div style={{fontSize:11,color:"#c0bdb4",lineHeight:1.6,marginBottom:8}}>{rba.analysis}</div>}
+                          {rba.analysis&&<div style={{fontSize:11,color:"#c0bdb4",lineHeight:1.6,marginBottom:6}}>{rba.analysis}</div>}
+                          {rba.keyLevels&&<div style={{fontSize:11,color:"#c0bdb4",lineHeight:1.6,marginBottom:6}}>{rba.keyLevels}</div>}
+                          {rba.smartMoneyLine&&<div style={{fontSize:11,color:"#c0bdb4",lineHeight:1.6,marginBottom:6}}>{rba.smartMoneyLine}</div>}
+                          {rba.technicalIndicatorsLine&&<div style={{fontSize:11,color:"#c0bdb4",lineHeight:1.6,marginBottom:8}}>{rba.technicalIndicatorsLine}</div>}
                           <div style={{borderTop:"0.5px solid #2a2a2a",paddingTop:8}}>
                             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
                               <span style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase"}}>Historical Confidence</span>
@@ -7307,6 +7355,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 })}
                               </div>
 
+
+
                               {/* Analysis — bold prices in text via helper */}
                               {(function(){
                                 // Splits text on $X.XX price patterns and ticker, returns array of elements
@@ -7336,48 +7386,81 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             <div style={{ marginBottom:14, borderBottom:"1px solid #f0ede6", paddingBottom:14 }}>
                               <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>{"Key Levels"}</div>
 
-                              {/* Close / Breakout / Invalidation */}
+                              {/* Close / Breakout / Invalidation — Fib consistent with #WATCHLIST */}
                               <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
                                 {[
-                                  ["Close",        rba.closingPrice,                                            "#f0ede6"],
-                                  ["Breakout",     rba.breakoutLevel     ? "$"+rba.breakoutLevel.toFixed(2)     : null, "#7abd00"],
-                                  ["Invalidation", rba.invalidationLevel ? "$"+rba.invalidationLevel.toFixed(2) : null, "#e05050"],
+                                  ["Close",        q ? "$"+(q.regularMarketPrice||0).toFixed(2) : null,                                  "#f0ede6"],
+                                  ["Breakout",     taFibMap && taFibMap.fibTarget1      ? "$"+taFibMap.fibTarget1.toFixed(2)      : null, "#7abd00"],
+                                  ["Invalidation", taFibMap && taFibMap.fibInvalidation ? "$"+taFibMap.fibInvalidation.toFixed(2) : (taStMap && taStMap.fibInvalidation ? "$"+taStMap.fibInvalidation.toFixed(2) : null), "#e05050"],
                                 ].filter(function(r){ return r[1]; }).map(function(r,i){
                                   return <div key={i} style={{ background:"#f5f2ed", borderRadius:6, padding:"6px 12px" }}>
-                                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>{r[0]}</div>
+                                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:3 }}>{r[0]}</div>
                                     <div style={{ fontSize:13, fontWeight:700, color:r[2] }}>{r[1]}</div>
                                   </div>;
                                 })}
                               </div>
 
-                              {/* Support chips */}
-                              {rba.supportLevels && rba.supportLevels.length > 0 && (
-                                <div style={{ marginBottom:10 }}>
-                                  <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>{"Support"}</div>
-                                  <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-                                    {rba.supportLevels.map(function(v,i){ return <span key={i} style={{ background:"#fff0f0", border:"0.5px solid #e05050", borderRadius:4, padding:"3px 9px", fontSize:12, fontWeight:600, color:"#c03030" }}>{"$"+v.toFixed(2)}</span>; })}
-                                  </div>
-                                </div>
-                              )}
+                              {/* Support/Resistance — Fib Key Levels (same source as #WATCHLIST) */}
+                              {(function(){
+                                var kl = taKeyLevels;
+                                if (!kl && !taFibMap && !taStMap) return null;
+                                var supps = kl ? kl.supports.slice(0,5) : (taFibMap ? [{price:taFibMap.fibSupportZoneHigh,strength:'major'},{price:taFibMap.fibSupportZoneLow,strength:'major'}].filter(function(l){return l.price;}) : []);
+                                var ress  = kl ? kl.resistances.slice(0,5) : (taFibMap ? [{price:taFibMap.fibTarget1,strength:'major'},{price:taFibMap.fibTarget2,strength:'major'}].filter(function(l){return l.price;}) : []);
+                                return <div>
+                                  {supps.length>0&&<div style={{marginBottom:10}}>
+                                    <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Support</div>
+                                    <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+                                      {supps.map(function(s,i){ return <span key={i} style={{background:'#fff0f0',border:'0.5px solid #e05050',borderRadius:4,padding:'3px 9px',fontSize:12,fontWeight:600,color:'#c03030',textDecoration:s.strength==='major'?'underline':'none'}}>{'$'+s.price.toFixed(2)}</span>; })}
+                                    </div>
+                                    <div style={{fontSize:9,color:'#888',marginTop:4}}>Underlined = weekly (major) level</div>
+                                  </div>}
+                                  {ress.length>0&&<div>
+                                    <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Resistance</div>
+                                    <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+                                      {ress.map(function(r,i){ return <span key={i} style={{background:'#e6f4e6',border:'0.5px solid #7abd00',borderRadius:4,padding:'3px 9px',fontSize:12,fontWeight:600,color:'#1a6a1a',textDecoration:r.strength==='major'?'underline':'none'}}>{'$'+r.price.toFixed(2)}</span>; })}
+                                    </div>
+                                  </div>}
+                                </div>;
+                              })()}
 
-                              {/* Resistance chips */}
-                              {rba.resistanceLevels && rba.resistanceLevels.length > 0 && (
-                                <div>
-                                  <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>{"Resistance"}</div>
-                                  <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-                                    {rba.resistanceLevels.map(function(v,i){ return <span key={i} style={{ background:"#e6f4e6", border:"0.5px solid #7abd00", borderRadius:4, padding:"3px 9px", fontSize:12, fontWeight:600, color:"#1a6a1a" }}>{"$"+v.toFixed(2)}</span>; })}
-                                  </div>
-                                </div>
-                              )}
                             </div>
 
-                            {/* ── Watch Zone card ──────────────────────────── */}
-                            <div style={{ marginBottom:14, borderBottom:"1px solid #f0ede6", paddingBottom:14 }}>
-                              <div style={{ fontSize:10, fontWeight:700, color:"#6090d0", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>{"Watch Zone"}</div>
-                              {rba.potentialEntryZone && (
-                                <div style={{ fontSize:14, fontWeight:800, color:"#6090d0", marginBottom:8 }}>{rba.potentialEntryZone}</div>
-                              )}
-                              <div style={{ fontSize:12, color:"#555", lineHeight:1.7 }}>{rba.entryZoneText}</div>
+                            {/* Watch Zone — Fib support zone (same basis as #WATCHLIST Key Levels) */}
+                            <div style={{marginBottom:14,borderBottom:'1px solid #f0ede6',paddingBottom:14}}>
+                              <div style={{fontSize:10,fontWeight:700,color:'#6090d0',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Watch Zone</div>
+                              {(function(){
+                                var fm=taFibMap, stm=taStMap, kl=taKeyLevels;
+                                var curPrice = q ? q.regularMarketPrice : null;
+                                if (!fm && !stm) return <div style={{fontSize:12,color:'#555'}}>Fibonacci levels loading...</div>;
+                                var ltZoneHi=fm?fm.fibSupportZoneHigh:null, ltZoneLo=fm?fm.fibSupportZoneLow:null;
+                                var stZoneHi=stm?stm.fibSupportZoneHigh:null, stZoneLo=stm?stm.fibSupportZoneLow:null;
+                                var ltTarget=fm?fm.fibTarget1:null, stTarget=stm?stm.fibTarget1:null;
+                                var klStatus=kl?kl.status:null;
+                                var inLtZone=ltZoneHi&&curPrice&&curPrice<=ltZoneHi&&curPrice>=(ltZoneLo||0);
+                                var inStZone=stZoneHi&&curPrice&&curPrice<=stZoneHi&&curPrice>=(stZoneLo||0);
+                                var aboveLt=ltZoneHi&&curPrice&&curPrice>ltZoneHi;
+                                var statusText=klStatus==='Broken'?'Structure broken \u2014 watch for recovery above support zone'
+                                  :(inLtZone||inStZone)?'Price is inside the watch zone \u2014 watch for confirmation / bounce'
+                                  :aboveLt?'Price is above the watch zone \u2014 watch for pullback to zone'
+                                  :'Price is approaching the watch zone';
+                                var fmt2=function(v){return v?'$'+Number(v).toFixed(2):'\u2014';};
+                                return <div>
+                                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 16px',marginBottom:10}}>
+                                    <div>
+                                      <div style={{fontSize:9,color:'#999',marginBottom:3}}>LT Support Zone (Weekly Fib)</div>
+                                      <div style={{fontSize:14,fontWeight:700,color:'#6090d0'}}>{fmt2(ltZoneLo)+'\u2013'+fmt2(ltZoneHi)}</div>
+                                      {ltTarget&&<div style={{fontSize:10,color:'#888',marginTop:2}}>{'WT: '+fmt2(ltTarget)}</div>}
+                                    </div>
+                                    <div>
+                                      <div style={{fontSize:9,color:'#999',marginBottom:3}}>ST Support Zone (Daily Fib)</div>
+                                      <div style={{fontSize:14,fontWeight:700,color:'#6090d0'}}>{fmt2(stZoneLo)+'\u2013'+fmt2(stZoneHi)}</div>
+                                      {stTarget&&<div style={{fontSize:10,color:'#888',marginTop:2}}>{'WT: '+fmt2(stTarget)}</div>}
+                                    </div>
+                                  </div>
+                                  <div style={{fontSize:12,color:'#555',lineHeight:1.7}}>{statusText}</div>
+                                  <div style={{fontSize:9,color:'#888',marginTop:6,fontStyle:'italic'}}>Fibonacci levels are projection zones, not guaranteed price predictions.</div>
+                                </div>;
+                              })()}
                             </div>
 
                             {/* ── Summary card ─────────────────────────────── */}
@@ -11307,7 +11390,11 @@ function wlArrowColor(arrow){ return arrow==="\u2191"?"#7abd00":arrow==="\u2193"
 
 // Per-factor colour helpers for the Technical View compact strip.
 // Each maps a signal status string to the NervousGeek dark-theme colour bucket.
+// ── Watchlist signal colour helpers ─────────────────────────────────────────
+// Momentum, Reversal, SMF delegate to module-level functions (same as main screen).
+// DO NOT add separate colour logic here — use the module-level functions above.
 function wlTrendColor(s) {
+  // No module-level trend colour function — keep label-based mapping.
   if (!s) return '#555';
   var l = s.toLowerCase();
   if (l.indexOf('strong up')!==-1||l==='uptrend') return '#7abd00';
@@ -11315,36 +11402,9 @@ function wlTrendColor(s) {
   if (l.indexOf('down')!==-1) return '#e05050';
   return '#555';
 }
-function wlMomColor(s) {
-  if (!s) return '#555';
-  var l = s.toLowerCase();
-  if (l==='strong') return '#7abd00';
-  if (l.indexOf('build')!==-1||l.indexOf('continuation')!==-1||l.indexOf('early recovery')!==-1||l.indexOf('waiting')!==-1) return '#6090d0';
-  if (l==='neutral'||l.indexOf('pullback')!==-1||l.indexOf('no clear')!==-1) return '#EF9F27';
-  if (l.indexOf('fad')!==-1||l.indexOf('weak')!==-1||l.indexOf('bearish mom')!==-1) return '#e05050';
-  return '#555';
-}
-function wlRevColor(s) {
-  if (!s) return '#555';
-  var l = s.toLowerCase();
-  if (l.indexOf('triggered')!==-1||l.indexOf('confirming')!==-1||l.indexOf('confirmed')!==-1) return '#7abd00';
-  if (l.indexOf('spark')!==-1||l.indexOf('watch')!==-1||l.indexOf('forming')!==-1||l.indexOf('setup')!==-1) {
-    if (l.indexOf('bear')===-1) return '#6090d0';
-  }
-  if (l.indexOf('mixed')!==-1) return '#EF9F27';
-  if (l.indexOf('bear')!==-1) return '#e05050';
-  if (l.indexOf('no clear')!==-1||l.indexOf('not enough')!==-1) return '#555';
-  return '#555';
-}
-function wlSmfColor(s) {
-  if (!s) return '#555';
-  var l = s.toLowerCase();
-  if (l.indexOf('strong accum')!==-1||l.indexOf('steady accum')!==-1||l.indexOf('daily spike')!==-1||l.indexOf('daily support')!==-1) return '#7abd00';
-  if (l.indexOf('long-term accum')!==-1||l.indexOf('lt accum')!==-1||l.indexOf('early accum')!==-1||l.indexOf('quiet')!==-1||l.indexOf('constructive')!==-1) return '#6090d0';
-  if (l.indexOf('mixed')!==-1||l.indexOf('cooling')!==-1||l.indexOf('short-term')!==-1||l.indexOf('no sustained')!==-1) return '#EF9F27';
-  if (l.indexOf('distribut')!==-1||l.indexOf('negative')!==-1||l.indexOf('deteriorat')!==-1) return '#e05050';
-  return '#555';
-}
+function wlMomColor(s)  { return momentumStateColor(s); }         // same as main screen
+function wlRevColor(s)  { return revStatusColor(s, 'main'); }     // same as main screen
+function wlSmfColor(s)  { return smfStatusColor(s, 'main'); }     // same as main screen
 function makeSparkline(values) {
   var blocks = ["\u2581","\u2582","\u2583","\u2584","\u2585","\u2586","\u2587","\u2588"];
   if (!values || values.length < 2) return String.fromCharCode(0x2014);
@@ -11742,7 +11802,7 @@ function buildActionBias(opts) {
   var revV         = opts.revV         || '';
   var smfV         = opts.smfV         || '';
   var klStatus     = opts.klStatus     || '';
-  var wgStatus     = opts.wgStatus     || '';
+  // wgStatus intentionally removed — Wave Guide not used in Action Bias decisions
   var nearestS     = opts.nearestS     || null;
   var nearestR     = opts.nearestR     || null;
   // Full keyLevels object — used to distinguish daily vs weekly support breaks
@@ -11753,6 +11813,8 @@ function buildActionBias(opts) {
 
   function col(label) {
     if (label==='Hold'||label==='Hold / Watch'||label==='Hold / Watch Support') return '#888';
+    if (label==='Watch Entry')                                                   return '#6090d0';
+    if (label==='Buy Signal')                                                    return '#7abd00';
     if (label==='Accumulate 10%'||label==='Accumulate 25%'||label==='Accumulate Watch') return '#6090d0';
     if (label==='Trail Profit')                                                  return '#4caf50';
     if (label==='Take Profit 10%'||label==='Take Profit 20%')                   return '#4caf50';
@@ -11793,12 +11855,6 @@ function buildActionBias(opts) {
   var klNoClear  = !klStatus || klStatus==='No Clear Levels';
   var klTestingS = klStatus==='Testing Support' || klStatus==='At Support';
   var klTestingR = klStatus==='Testing Resistance';
-  var wgNoClear  = !wgStatus || wgStatus==='No Clear Wave';
-  var wgInactive = wgStatus==='WT Inactive' || wgStatus==='Correction' || wgStatus==='Correction Risk';
-  var wgTestingWT= wgStatus==='Testing WT';
-  var wgExtended = wgStatus==='Extended';
-  var wgPullback = wgStatus==='Pullback' || wgStatus==='Recovery';
-  var wgCont     = wgStatus==='Continuation';
 
   // Distinguish weekly (major) support break from daily-only break.
   var majorSupportBroken = false;
@@ -11830,7 +11886,7 @@ function buildActionBias(opts) {
 
   // ── Priority 1: Avoid / Wait ──────────────────────────────────────────────
   if (!hasPosition) {
-    if (klNoClear || wgNoClear) return out('Avoid / Wait', 'No clear setup');
+    if (klNoClear) return out('Avoid / Wait', 'No clear setup');
     if (rbaLow && techWeakness >= 2) return out('Avoid / Wait', 'Weak structure');
     if (majorSupportBroken) return out('Avoid / Wait', 'Structure broken');
     if (dailyOnlyBreak && techWeakness >= 2) return out('Avoid / Wait', 'Weak structure');
@@ -11854,58 +11910,43 @@ function buildActionBias(opts) {
   // ── Priority 3: Reduce Risk ───────────────────────────────────────────────
   // REQUIRES confirmed weakness — WT inactive alone is NOT enough
   if (hasPosition && majorSupportBroken) return out('Reduce Risk', 'Major support broken');
-  // Reduce Risk: wgInactive + confirmedWeakness, BUT not when support is intact and technicals are supportive
-  // Guard: kls=Holding Support + tsupp>=3 means structure is healthy — downgrade to Hold
-  var wgInactiveReduceBlocked = wgInactive && klStatus==='Holding Support' && techSupport >= 3;
-  if (hasPosition && confirmedWeakness && wgInactive && !wgInactiveReduceBlocked) return out('Reduce Risk', 'Wave inactive + weakness');
+  // Reduce Risk: confirmed weakness is sufficient — Wave Guide status not used
+  if (hasPosition && confirmedWeakness && techWeakness >= 2) return out('Reduce Risk', 'Confirmed weakness');
   if (hasPosition && techWeakness >= 3) return out('Reduce Risk', 'Multiple weak signals');
   if (!hasPosition && majorSupportBroken) return out('Reduce Risk', 'Structure weakening');
   if (hasPosition && dailyOnlyBreak && techWeakness >= 2) return out('Reduce Risk', 'ST support weak');
 
-  // ── WT Inactive — handled here when no confirmed weakness ─────────────────
-  // WT inactive alone = caution/watch, not reduce/stop-loss
-  if (wgInactive && hasPosition && !confirmedWeakness) {
-    // Fix: profitable position with wgInactive should still get Trail Profit if conditions met
-    if (positionPct !== null && positionPct >= 15 && techWeakness <= 1 && !nearResistance && !majorSupportBroken) {
-      return out('Trail Profit', 'Profit protected');
-    }
-    if (klTestingS || nearSupport) return out('Hold / Watch Support', 'Support test');
-    return out('Hold', 'Recovery forming');
-  }
-  if (wgInactive && !hasPosition) {
-    return out('Hold / Watch', 'Wait for recovery');
-  }
 
   // ── Priority 4: Trail / Take Profit ──────────────────────────────────────
   if (hasPosition && positionPct !== null && positionPct > 0) {
-    var nearWT = wgTestingWT || wgExtended;
     var nearR  = nearResistance || klTestingR;
-    // Trail profit: profitable, no resistance, low weakness
+    // Trail profit: profitable, not near resistance, low weakness
     if (positionPct >= 15 && techWeakness <= 1 && !nearResistance && !majorSupportBroken) {
       return out('Trail Profit', 'Profit protected');
     }
-    // Take profit / sell ladder: near resistance or WT
-    if (nearWT || nearR || (wgExtended && positionPct >= 45)) {
+    // Take profit / sell ladder: near resistance
+    if (nearR) {
       if (positionPct >= 100) return out('Exit',            '100%+ gain');
-      if (positionPct >=  60) return out('Take Profit 40%', wgExtended?'Extended':'High gain');
-      if (positionPct >=  45) return out('Take Profit 30%', nearWT?'WT hit':'Extended');
-      if (positionPct >=  35) return out('Take Profit 20%', nearWT?'WT hit':'Near resistance');
+      if (positionPct >=  60) return out('Take Profit 40%', 'High gain + resistance');
+      if (positionPct >=  45) return out('Take Profit 30%', 'Near resistance');
+      if (positionPct >=  35) return out('Take Profit 20%', 'Near resistance');
       if (positionPct >=  25) return out('Take Profit 10%', 'Near resistance');
-      if (positionPct >=  15) return out('Take Profit',      'Near resistance');
+      if (positionPct >=  15) return out('Take Profit',     'Near resistance');
     }
   }
 
   // ── Priority 5: Accumulation ladder ──────────────────────────────────────
   // Requires recovery signal — not just down near support
-  // Recovery signal: reversal confirm/spark, momentum building/strong, wgPullback/Recovery, or tsupp>=3
+  // Recovery signal: reversal confirm/spark, momentum building/strong, or tsupp>=3
+  // Wave Guide status intentionally excluded
   var recoverySignal = bullishRevSignal ||
     (momV||'').toLowerCase().indexOf('build')!==-1 || (momV||'').toLowerCase().indexOf('strong')!==-1 ||
-    wgPullback || techSupport >= 3;
+    techSupport >= 3;
   // Downtrend guard: if trend is down, require stronger evidence (tsupp>=3)
   var inDowntrend = (trendV||'').toLowerCase().indexOf('down')!==-1;
   var accumOk = recoverySignal && (!inDowntrend || techSupport >= 3);
   if (hasPosition && positionPct !== null && positionPct < 0 &&
-      !majorSupportBroken && !wgInactive &&
+      !majorSupportBroken &&
       (klTestingS || nearSupport) &&
       !rbaLow && techSupport >= 2 && accumOk) {
     if (positionPct <= -25) return out('Accumulate 25%', 'Support + recovery');
@@ -11914,16 +11955,30 @@ function buildActionBias(opts) {
 
   // ── Priority 6: Hold ─────────────────────────────────────────────────────
   if (!hasPosition) {
-    if (klTestingS || wgPullback) return out('Hold / Watch', 'Watch setup');
-    if (wgCont || klStatus==='Holding Support') return out('Hold / Watch', 'Structure intact');
+    // Buy Signal: all conditions aligned — structure intact, active wave, bullish TV, improving signals
+    var rbaBullish = !rbaWeak && !rbaLow; // Bullish or Bullish Watch
+    var improvingSignal = bullishRevSignal ||
+      (momV||'').toLowerCase().indexOf('build')!==-1 ||
+      (momV||'').toLowerCase().indexOf('strong')!==-1 ||
+      (smfV||'').toLowerCase().indexOf('accum')!==-1;
+    if ((klTestingS || klStatus==='Holding Support') &&
+        !klBroken && rbaBullish && techSupport >= 2 && improvingSignal) {
+      return out('Buy Signal', 'Setup aligned');
+    }
+    // Watch Entry: structure intact, not bearish, some support
+    if (!klBroken && !klNoClear && !rbaLow && techSupport >= 1) {
+      return out('Watch Entry', 'Structure building');
+    }
+    // Fallback
+    if (klTestingS) return out('Hold / Watch', 'Watch setup');
+    if (klStatus==='Holding Support') return out('Hold / Watch', 'Structure intact');
     return out('Hold / Watch', 'Monitor signals');
   }
   // Has position — daily-only break with supportive technicals = recovery forming
   if (dailyOnlyBreak && techSupport >= 2) return out('Hold', 'Recovery forming');
-  if (dailyOnlyBreak && wgPullback)       return out('Hold', 'Recovery forming');
   if (positionPct !== null && positionPct < -5 && nearSupport) return out('Hold', 'Recovery forming');
-  if (positionPct !== null && positionPct >= 15 && wgCont && !nearResistance) return out('Hold', 'Trend intact');
-  if (klTestingS || wgPullback)           return out('Hold', 'Support holding');
+  if (positionPct !== null && positionPct >= 15 && !nearResistance && techWeakness === 0) return out('Hold', 'Trend intact');
+  if (klTestingS) return out('Hold', 'Support holding');
   if (positionPct !== null && positionPct < 0) return out('Hold', 'Support intact');
   return out('Hold', 'Between levels');
 }
@@ -12136,13 +12191,22 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
   // Fetch + calculate + save a snapshot for a single ticker.
   // Shared by refreshSnapshotsFor() (auto-load + manual refresh) and addTicker() (auto-refresh on add).
+  //
+  // Ordering note (fix — see audit "Watchlist Reversal/Technical View computed with
+  // a zeroed 52-week range"): the real 52-week high/low must be resolved BEFORE the
+  // technical snapshot / RBA verdict are built, not after. calcReversalWatch() in
+  // technicalSignals.js only evaluates its "near 52-week low + improving RSI" bullish
+  // setup indicator when hi52 > 0, so building the snapshot on hi52:0/lo52:0 silently
+  // drops that signal and can make the Watchlist row disagree with the Technical
+  // Analysis tab for the same ticker. The Yahoo chart fetch (which already existed,
+  // previously running only for Force Strike/3M Trend/price) now runs first so its
+  // real hi52/lo52 can feed the same buildScreenerSnapshot() call the Detail tab's
+  // equivalent adapter uses.
   async function refreshSingleTicker(ticker, hdrs) {
     var mRes = await fetch('/massive?sym=' + ticker, { headers: hdrs });
     if (!mRes.ok) return false;
     var mData = await mRes.json();
     if (!mData || !mData.aggs || mData.aggs.length < 10) return false;
-    var snap = buildScreenerSnapshot(ticker, mData, { hi52: 0, lo52: 0, price: 0 });
-    if (!snap) return false;
     var ms  = mData.snapshot || {};
     var aggs = mData.aggs || [];
     // Provisional price from Massive — overwritten below by Yahoo's regularMarketPrice
@@ -12156,21 +12220,13 @@ function WatchlistPage({ clerkUser, isPaid }) {
       var c0 = aggs[0].c, c1 = aggs[1].c;
       if (c0 && c1) chg = (c0 - c1) / c1 * 100;
     }
+    // Fallback 52-week range from Massive's own aggs window, used only if the
+    // Yahoo fetch below fails entirely. This is a real (if narrower) range —
+    // never silently 0 — and is replaced by Yahoo's true 52-week range when available.
     var hi52raw = 0, lo52raw = Infinity;
     aggs.forEach(function(b){ if(b.h>hi52raw) hi52raw=b.h; if(b.l>0&&b.l<lo52raw) lo52raw=b.l; });
     if (lo52raw===Infinity) lo52raw = 0;
-    var rbaSnap = buildRuleSnapshotFromRow({
-      trend: snap.trend.status, trendScore: snap.trend.score,
-      momentum: snap.momentum.status, momentumScore: snap.momentum.score,
-      reversal: snap.reversalWatch.status, reversalScore: snap.reversalWatch.score,
-      reversalDecision: snap.reversalWatch.reversalDecision,
-      bullishScore: snap.reversalWatch.bullishScore, bearishScore: snap.reversalWatch.bearishScore,
-      moneyFlow: snap.smartMoneyFlow.status, moneyFlowScore: snap.smartMoneyFlow.score,
-      smartMoneyDecision: snap.smartMoneyFlow.smartMoneyDecision,
-    });
-    var rba = generateRuleBasedAnalytics(rbaSnap);
-    var rbaVerdict = rba ? (rba.verdict || '') : '';
-    var rbaShort   = shortRuleVerdict(rbaVerdict);
+    var hi52Source = 'massive_aggs_fallback';
 
     // Force Strike: always fresh scan using Yahoo chart (same as #FORCESTRIKE screener)
     // Ensures Watchlist FS result is identical to #FORCESTRIKE for the same ticker and data window.
@@ -12178,7 +12234,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
     //   - Weekly Fib Price Map: needs 26-52 weekly candles; 3mo only gave ~12, 1y gives ~50
     //   - priceHistory (~1yr daily closes, oldest-to-newest) used by 3M Trend sparkline
     //   - price fallback (meta.regularMarketPrice) if Massive returned 0
-    //   - true 52-week high/low (meta.fiftyTwoWeekHigh/Low, range-independent)
+    //   - true 52-week high/low (meta.fiftyTwoWeekHigh/Low, range-independent) —
+    //     now also feeds the technical snapshot below, not just the displayed range.
     var fsResult = null;
     var daily2 = []; // Yahoo 1-year daily bars — populated below, used for FS + 3M Trend + Weekly Fib
     try {
@@ -12209,6 +12266,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
           if (meta2.fiftyTwoWeekHigh > 0 && meta2.fiftyTwoWeekLow > 0 && meta2.fiftyTwoWeekHigh > meta2.fiftyTwoWeekLow) {
             hi52raw = meta2.fiftyTwoWeekHigh;
             lo52raw = meta2.fiftyTwoWeekLow;
+            hi52Source = 'yahoo_meta_true_52w';
           }
           // Build daily bars array oldest-to-newest — used for both FS scan and 3M Trend sparkline
           var ts2    = cr2.timestamp||[];
@@ -12238,11 +12296,13 @@ function WatchlistPage({ clerkUser, isPaid }) {
             // Build techContext (technical support context) for active FS patterns,
             // using the same buildTechSnapshotFromYahoo + generateRuleBasedAnalytics
             // pattern as #FORCESTRIKE screener — gives identical FS Score / Tech Support.
+            // Pass the real 52-week range resolved above (hi52raw/lo52raw) so this
+            // Reversal Watch calc doesn't diverge from the row's own Technical View.
             if (fsResult && fsResult.triggered) {
               try {
                 var vc2 = daily2.map(function(b){ return b.close; });
                 var vv2 = daily2.map(function(b){ return b.volume||0; });
-                var techSnap2 = buildTechSnapshotFromYahoo(ticker, vc2, vv2, pr2, sma50b, sma200b);
+                var techSnap2 = buildTechSnapshotFromYahoo(ticker, vc2, vv2, pr2, sma50b, sma200b, hi52raw, lo52raw);
                 if (techSnap2) {
                   var rbaRow2 = buildRuleSnapshotFromRow({
                     trend:        techSnap2.trend.status,        trendScore:      techSnap2.trend.score,
@@ -12271,6 +12331,26 @@ function WatchlistPage({ clerkUser, isPaid }) {
         }
       }
     } catch(fsErr) { fsResult = null; }
+
+    // ── Build the technical snapshot + RBA verdict now that hi52raw/lo52raw reflect
+    // the real 52-week range (Yahoo, or the Massive-aggs fallback above if Yahoo
+    // failed) — never the hardcoded 0 this used to run on. Same adapter function
+    // (buildScreenerSnapshot -> calculateTechnicalSignalSnapshot) the Detail tab's
+    // equivalent path uses, just with corrected meta.
+    var snap = buildScreenerSnapshot(ticker, mData, { hi52: hi52raw, lo52: lo52raw, price: price });
+    if (!snap) return false;
+    var rbaSnap = buildRuleSnapshotFromRow({
+      trend: snap.trend.status, trendScore: snap.trend.score,
+      momentum: snap.momentum.status, momentumScore: snap.momentum.score,
+      reversal: snap.reversalWatch.status, reversalScore: snap.reversalWatch.score,
+      reversalDecision: snap.reversalWatch.reversalDecision,
+      bullishScore: snap.reversalWatch.bullishScore, bearishScore: snap.reversalWatch.bearishScore,
+      moneyFlow: snap.smartMoneyFlow.status, moneyFlowScore: snap.smartMoneyFlow.score,
+      smartMoneyDecision: snap.smartMoneyFlow.smartMoneyDecision,
+    });
+    var rba = generateRuleBasedAnalytics(rbaSnap);
+    var rbaVerdict = rba ? (rba.verdict || '') : '';
+    var rbaShort   = shortRuleVerdict(rbaVerdict);
 
     // Determine FS display status + compute FS Score / Tech Support (shared with #FORCESTRIKE)
     var fsStatus = 'none', fsPattern = null, fsScenario = null, fsAge = null,
@@ -12341,6 +12421,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
       priceChangePct:  chg,
       hi52:            hi52raw,
       lo52:            lo52raw,
+      // Debug/audit field only — "yahoo_meta_true_52w" or "massive_aggs_fallback".
+      // Lets Audit JSON confirm which 52-week range fed the Reversal Watch calc above.
+      hi52Source:      hi52Source,
       rbaVerdict:      rbaShort,
       rbaRank:         wlRbaRank(rbaShort),
       trendStatus:     snap.trend.status,
@@ -12873,26 +12956,26 @@ function WatchlistPage({ clerkUser, isPaid }) {
                       {/* Row 1 — white prices, monospace bar */}
                       <div style={rowStyle}>
                         <span style={lbl}>S</span>
-                        <span style={{...colS, fontSize:11, color:'#888', fontWeight:600}}>{s0 ? '$'+Math.round(s0.price) : ''}</span>
+                        <span style={{...colS, fontSize:11, color:'#888', fontWeight:600, textDecoration:s0&&s0.strength==='major'?'underline':'none'}}>{s0 ? '$'+Math.round(s0.price) : ''}</span>
                         <span style={{...colBar, fontSize:10, color:'#555'}}>{barStr1 || '\u25CF'}</span>
                         <span style={lbl}>R</span>
-                        <span style={{...colR, fontSize:11, color:'#888', fontWeight:600}}>{r0 ? '$'+Math.round(r0.price)+' ('+lvlPct(r0.price)+')' : ''}</span>
+                        <span style={{...colR, fontSize:11, color:'#888', fontWeight:600, textDecoration:r0&&r0.strength==='major'?'underline':'none'}}>{r0 ? '$'+Math.round(r0.price)+' ('+lvlPct(r0.price)+')' : ''}</span>
                       </div>
                       {/* Row 2 — light grey, smaller */}
                       {(supps[1]||ress[1]) && <div style={rowStyle}>
                         <span style={{...lbl, visibility:'hidden'}}>S</span>
-                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[1]&&supps[1].strength==='major'?700:400}}>{supps[1]?'$'+Math.round(supps[1].price):''}</span>
+                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[1]&&supps[1].strength==='major'?700:400, textDecoration:supps[1]&&supps[1].strength==='major'?'underline':'none'}}>{supps[1]?'$'+Math.round(supps[1].price):''}</span>
                         <span style={{...colBar}}></span>
                         <span style={{...lbl, visibility:'hidden'}}>R</span>
-                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[1]&&ress[1].strength==='major'?700:400}}>{ress[1]?'$'+Math.round(ress[1].price)+' ('+lvlPct(ress[1].price)+')':''}</span>
+                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[1]&&ress[1].strength==='major'?700:400, textDecoration:ress[1]&&ress[1].strength==='major'?'underline':'none'}}>{ress[1]?'$'+Math.round(ress[1].price)+' ('+lvlPct(ress[1].price)+')':''}</span>
                       </div>}
                       {/* Row 3 — light grey, smaller */}
                       {(supps[2]||ress[2]) && <div style={rowStyle}>
                         <span style={{...lbl, visibility:'hidden'}}>S</span>
-                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[2]&&supps[2].strength==='major'?700:400}}>{supps[2]?'$'+Math.round(supps[2].price):''}</span>
+                        <span style={{...colS, fontSize:10, color:'#666', fontWeight:supps[2]&&supps[2].strength==='major'?700:400, textDecoration:supps[2]&&supps[2].strength==='major'?'underline':'none'}}>{supps[2]?'$'+Math.round(supps[2].price):''}</span>
                         <span style={{...colBar}}></span>
                         <span style={{...lbl, visibility:'hidden'}}>R</span>
-                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[2]&&ress[2].strength==='major'?700:400}}>{ress[2]?'$'+Math.round(ress[2].price)+' ('+lvlPct(ress[2].price)+')':''}</span>
+                        <span style={{...colR, fontSize:10, color:'#666', fontWeight:ress[2]&&ress[2].strength==='major'?700:400, textDecoration:ress[2]&&ress[2].strength==='major'?'underline':'none'}}>{ress[2]?'$'+Math.round(ress[2].price)+' ('+lvlPct(ress[2].price)+')':''}</span>
                       </div>}
                     </div>;
                   }
@@ -13452,7 +13535,9 @@ function ForceStrikePage({ isPaid, clerkUser }) {
             try {
               var vc2 = daily.map(function(b){ return b.close; });
               var vv2 = daily.map(function(b){ return b.volume||0; });
-              var techSnap = buildTechSnapshotFromYahoo(c.sym, vc2, vv2, pr2, sma50, sma200);
+              // Pass the real 52-week range (computed above from this same daily
+              // window) so Reversal Watch here matches the Technical Analysis tab.
+              var techSnap = buildTechSnapshotFromYahoo(c.sym, vc2, vv2, pr2, sma50, sma200, fsResult.hi52, fsResult.lo52);
               if (techSnap) {
                 var rbaRow = buildRuleSnapshotFromRow({
                   trend: techSnap.trend.status, trendScore: techSnap.trend.score,
@@ -14661,7 +14746,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.205</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.219</span>
           </div>
         </div>
 
