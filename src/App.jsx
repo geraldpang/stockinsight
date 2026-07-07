@@ -3230,6 +3230,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [aiTechResult,  setAiTechResult]  = useState(null); // { verdict, stVerdict, confidence, keyLevel, summary, dataSnapshot }
   const [aiTechLoading, setAiTechLoading] = useState(false);
   const [ruleAnalytics, setRuleAnalytics] = useState(null); // Rule Based Analytics output
+  // ── SINGLE SOURCE OF TRUTH — Fib Key Levels for TA tab ─────────────────────
+  // Uses buildFibMapFromDailyBars, buildShortTermFibMap, buildKeyLevels — same functions as #WATCHLIST
+  // DO NOT compute S/R separately here — always use these module-level functions for consistency
+  const [taKeyLevels,   setTaKeyLevels]   = useState(null); // Key Levels from Fib (same as #WATCHLIST)
+  const [taFibMap,      setTaFibMap]      = useState(null); // Long-term weekly Fib map
+  const [taStMap,       setTaStMap]       = useState(null); // Short-term daily Fib map
+  // ─────────────────────────────────────────────────────────────────────────────
   const [rbaConfResult,  setRbaConfResult]  = useState(null);
   const [rbaConfLoading, setRbaConfLoading] = useState(false);
   const [rbaConfError,   setRbaConfError]   = useState(null);
@@ -3687,7 +3694,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); setRuleAnalytics(null); setRbaConfResult(null); setRbaConfLoading(false); setRbaConfError(null); setRbaConfSym(null); window.__aiFundRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; if(window.__trendSignalWritten)delete window.__trendSignalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; if(window.__rbaFullSnap)delete window.__rbaFullSnap[sym]; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setWhaleData(null); setWhaleLoading(false); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); setRuleAnalytics(null); setTaKeyLevels(null); setTaFibMap(null); setTaStMap(null); setRbaConfResult(null); setRbaConfLoading(false); setRbaConfError(null); setRbaConfSym(null); window.__aiFundRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; if(window.__trendSignalWritten)delete window.__trendSignalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; if(window.__rbaFullSnap)delete window.__rbaFullSnap[sym]; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -4168,10 +4175,35 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
     fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=2y"))
       .then(function(r){ return r.json(); })
       .then(function(data){
-        var allC = data&&data.chart&&data.chart.result&&data.chart.result[0]&&data.chart.result[0].indicators&&data.chart.result[0].indicators.quote&&data.chart.result[0].indicators.quote[0]&&data.chart.result[0].indicators.quote[0].close||[];
+        var result = data&&data.chart&&data.chart.result&&data.chart.result[0];
+        var allC = result&&result.indicators&&result.indicators.quote&&result.indicators.quote[0]&&result.indicators.quote[0].close||[];
         var closes = allC.filter(function(c){ return c!=null; });
         var n = closes.length;
         if (n < 201) { setCrossData({ sym:sym, type:"unknown", ageDays:null, gapDir:"unknown" }); return; }
+
+        // ── SINGLE SOURCE OF TRUTH — build daily2 for Fib calculation ─────────
+        // Same OHLCV extraction as refreshSingleTicker in #WATCHLIST
+        // DO NOT compute S/R separately — use buildFibMapFromDailyBars + buildKeyLevels below
+        try {
+          var q2   = result.indicators.quote[0];
+          var ts2  = result.timestamp || [];
+          var taD2 = [];
+          for (var di=0; di<ts2.length; di++) {
+            var o2=q2.open&&q2.open[di], h2=q2.high&&q2.high[di],
+                l2=q2.low&&q2.low[di],   cv2=q2.close&&q2.close[di];
+            if (o2&&h2&&l2&&cv2&&o2>0) taD2.push({ date:ts2[di]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di])||0 });
+          }
+          if (taD2.length >= 60) {
+            var curPrice = closes[n-1];
+            var fm  = buildFibMapFromDailyBars(taD2, curPrice);
+            var stm = buildShortTermFibMap(taD2, curPrice);
+            var kl  = buildKeyLevels(fm, stm, curPrice);
+            setTaFibMap(fm);
+            setTaStMap(stm);
+            setTaKeyLevels(kl);
+          }
+        } catch(fibErr) { /* non-fatal — Fib calculation failed */ }
+        // ─────────────────────────────────────────────────────────────────────
         var s50n  = closes.slice(n-50).reduce(function(s,v){return s+v;},0)/50;
         var s200n = closes.slice(n-200).reduce(function(s,v){return s+v;},0)/200;
         var gapNow = (s50n-s200n)/s200n*100;
@@ -5079,7 +5111,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.208</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.209</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5133,7 +5165,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.208</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.209</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7350,34 +7382,67 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 })}
                               </div>
 
-                              {/* Support chips */}
-                              {rba.supportLevels && rba.supportLevels.length > 0 && (
-                                <div style={{ marginBottom:10 }}>
-                                  <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>{"Support"}</div>
-                                  <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-                                    {rba.supportLevels.map(function(v,i){ return <span key={i} style={{ background:"#fff0f0", border:"0.5px solid #e05050", borderRadius:4, padding:"3px 9px", fontSize:12, fontWeight:600, color:"#c03030" }}>{"$"+v.toFixed(2)}</span>; })}
-                                  </div>
-                                </div>
-                              )}
+                              {/* Support/Resistance — Fib Key Levels (same source as #WATCHLIST) */}
+                              {(function(){
+                                var kl = taKeyLevels;
+                                if (!kl && !taFibMap && !taStMap) return null;
+                                var supps = kl ? kl.supports.slice(0,5) : (taFibMap ? [{price:taFibMap.fibSupportZoneHigh,strength:'major'},{price:taFibMap.fibSupportZoneLow,strength:'major'}].filter(function(l){return l.price;}) : []);
+                                var ress  = kl ? kl.resistances.slice(0,5) : (taFibMap ? [{price:taFibMap.fibTarget1,strength:'major'},{price:taFibMap.fibTarget2,strength:'major'}].filter(function(l){return l.price;}) : []);
+                                return <div>
+                                  {supps.length>0&&<div style={{marginBottom:10}}>
+                                    <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Support</div>
+                                    <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+                                      {supps.map(function(s,i){ return <span key={i} style={{background:'#fff0f0',border:'0.5px solid #e05050',borderRadius:4,padding:'3px 9px',fontSize:12,fontWeight:600,color:'#c03030',textDecoration:s.strength==='major'?'underline':'none'}}>{'$'+s.price.toFixed(2)}</span>; })}
+                                    </div>
+                                    <div style={{fontSize:9,color:'#888',marginTop:4}}>Underlined = weekly (major) level</div>
+                                  </div>}
+                                  {ress.length>0&&<div>
+                                    <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Resistance</div>
+                                    <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+                                      {ress.map(function(r,i){ return <span key={i} style={{background:'#e6f4e6',border:'0.5px solid #7abd00',borderRadius:4,padding:'3px 9px',fontSize:12,fontWeight:600,color:'#1a6a1a',textDecoration:r.strength==='major'?'underline':'none'}}>{'$'+r.price.toFixed(2)}</span>; })}
+                                    </div>
+                                  </div>}
+                                </div>;
+                              })()}
 
-                              {/* Resistance chips */}
-                              {rba.resistanceLevels && rba.resistanceLevels.length > 0 && (
-                                <div>
-                                  <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>{"Resistance"}</div>
-                                  <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-                                    {rba.resistanceLevels.map(function(v,i){ return <span key={i} style={{ background:"#e6f4e6", border:"0.5px solid #7abd00", borderRadius:4, padding:"3px 9px", fontSize:12, fontWeight:600, color:"#1a6a1a" }}>{"$"+v.toFixed(2)}</span>; })}
-                                  </div>
-                                </div>
-                              )}
                             </div>
 
-                            {/* ── Watch Zone card ──────────────────────────── */}
-                            <div style={{ marginBottom:14, borderBottom:"1px solid #f0ede6", paddingBottom:14 }}>
-                              <div style={{ fontSize:10, fontWeight:700, color:"#6090d0", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>{"Watch Zone"}</div>
-                              {rba.potentialEntryZone && (
-                                <div style={{ fontSize:14, fontWeight:800, color:"#6090d0", marginBottom:8 }}>{rba.potentialEntryZone}</div>
-                              )}
-                              <div style={{ fontSize:12, color:"#555", lineHeight:1.7 }}>{rba.entryZoneText}</div>
+                            {/* Watch Zone — Fib support zone (same basis as #WATCHLIST Key Levels) */}
+                            <div style={{marginBottom:14,borderBottom:'1px solid #f0ede6',paddingBottom:14}}>
+                              <div style={{fontSize:10,fontWeight:700,color:'#6090d0',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Watch Zone</div>
+                              {(function(){
+                                var fm=taFibMap, stm=taStMap, kl=taKeyLevels;
+                                var curPrice = q ? q.regularMarketPrice : null;
+                                if (!fm && !stm) return <div style={{fontSize:12,color:'#555'}}>Fibonacci levels loading...</div>;
+                                var ltZoneHi=fm?fm.fibSupportZoneHigh:null, ltZoneLo=fm?fm.fibSupportZoneLow:null;
+                                var stZoneHi=stm?stm.fibSupportZoneHigh:null, stZoneLo=stm?stm.fibSupportZoneLow:null;
+                                var ltTarget=fm?fm.fibTarget1:null, stTarget=stm?stm.fibTarget1:null;
+                                var klStatus=kl?kl.status:null;
+                                var inLtZone=ltZoneHi&&curPrice&&curPrice<=ltZoneHi&&curPrice>=(ltZoneLo||0);
+                                var inStZone=stZoneHi&&curPrice&&curPrice<=stZoneHi&&curPrice>=(stZoneLo||0);
+                                var aboveLt=ltZoneHi&&curPrice&&curPrice>ltZoneHi;
+                                var statusText=klStatus==='Broken'?'Structure broken \u2014 watch for recovery above support zone'
+                                  :(inLtZone||inStZone)?'Price is inside the watch zone \u2014 watch for confirmation / bounce'
+                                  :aboveLt?'Price is above the watch zone \u2014 watch for pullback to zone'
+                                  :'Price is approaching the watch zone';
+                                var fmt2=function(v){return v?'$'+Number(v).toFixed(2):'\u2014';};
+                                return <div>
+                                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 16px',marginBottom:10}}>
+                                    <div>
+                                      <div style={{fontSize:9,color:'#999',marginBottom:3}}>LT Support Zone (Weekly Fib)</div>
+                                      <div style={{fontSize:14,fontWeight:700,color:'#6090d0'}}>{fmt2(ltZoneLo)+'\u2013'+fmt2(ltZoneHi)}</div>
+                                      {ltTarget&&<div style={{fontSize:10,color:'#888',marginTop:2}}>{'WT: '+fmt2(ltTarget)}</div>}
+                                    </div>
+                                    <div>
+                                      <div style={{fontSize:9,color:'#999',marginBottom:3}}>ST Support Zone (Daily Fib)</div>
+                                      <div style={{fontSize:14,fontWeight:700,color:'#6090d0'}}>{fmt2(stZoneLo)+'\u2013'+fmt2(stZoneHi)}</div>
+                                      {stTarget&&<div style={{fontSize:10,color:'#888',marginTop:2}}>{'WT: '+fmt2(stTarget)}</div>}
+                                    </div>
+                                  </div>
+                                  <div style={{fontSize:12,color:'#555',lineHeight:1.7}}>{statusText}</div>
+                                  <div style={{fontSize:9,color:'#888',marginTop:6,fontStyle:'italic'}}>Fibonacci levels are projection zones, not guaranteed price predictions.</div>
+                                </div>;
+                              })()}
                             </div>
 
                             {/* ── Summary card ─────────────────────────────── */}
@@ -14656,7 +14721,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.208</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.209</span>
           </div>
         </div>
 
