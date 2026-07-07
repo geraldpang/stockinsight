@@ -1811,6 +1811,55 @@ function exportRowsToCsv(filename, rows, columns) {
   setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
 }
 
+// ── Shared cross-detection helper (Golden/Death cross + SMA200 gap direction) ──
+// Pure function — pulled out of the Detail tab's Yahoo-2y useEffect so both the
+// Technical Analysis tab AND #WATCHLIST feed calcTrendScore() the same *kind*
+// of crossData input instead of Watchlist silently passing null (which knocks
+// out the 20%-weighted "cross" component and part of the "sma200" component of
+// Trend, and can flip the displayed status/colour, e.g. Uptrend/green vs
+// Sideways/amber, for the same ticker on the same refresh).
+//
+// closes: oldest-first array of daily closing prices. Needs >=201 to detect a
+// real cross; below that, returns the same "unknown" shape calcTrendScore()
+// already treats identically to no crossData at all — so callers with a
+// shorter window (e.g. Watchlist's existing 1y fetch) degrade gracefully
+// rather than needing a second, separate 2y fetch just for this.
+function detectCrossData(closes) {
+  var n = closes ? closes.length : 0;
+  if (n < 201) return { type: 'unknown', ageDays: null, gapDir: 'unknown' };
+  var s50n   = closes.slice(n-50).reduce(function(s,v){return s+v;},0)/50;
+  var s200n  = closes.slice(n-200).reduce(function(s,v){return s+v;},0)/200;
+  var gapNow = (s50n-s200n)/s200n*100;
+  var s50_10  = closes.slice(n-60,n-10).reduce(function(s,v){return s+v;},0)/50;
+  var s200_10 = closes.slice(n-210,n-10).reduce(function(s,v){return s+v;},0)/200;
+  var gap10   = (s50_10-s200_10)/s200_10*100;
+  var gapDir  = gapNow>gap10+0.5?"improving":gapNow<gap10-0.5?"worsening":"stable";
+  var crossType=null, crossAge=null;
+  for (var i=n-1; i>=50; i--) {
+    var s50t  = closes.slice(i-50, i).reduce(function(s,v){return s+v;},0)/50;
+    var s200t = i>=200 ? closes.slice(i-200,i).reduce(function(s,v){return s+v;},0)/200 : null;
+    var s50p  = closes.slice(i-51, i-1).reduce(function(s,v){return s+v;},0)/50;
+    var s200p = (i-201>=0) ? closes.slice(i-201,i-1).reduce(function(s,v){return s+v;},0)/200 : null;
+    if (s200t===null||s200p===null) continue; // not enough data for 200-SMA comparison
+    if (s50p>s200p&&s50t<=s200t){ crossType="death";  crossAge=n-i; break; }
+    if (s50p<s200p&&s50t>=s200t){ crossType="golden"; crossAge=n-i; break; }
+  }
+  // If no cross found in window, infer from current state
+  if (!crossType) {
+    crossType = gapNow < -0.5 ? "death" : gapNow > 0.5 ? "golden" : "none";
+    crossAge  = null; // happened before this window
+  }
+  // Gap direction for price vs SMA200 (today vs 10 days ago)
+  var priceNow   = closes[n-1];
+  var price10    = closes[n-11] || closes[n-1];
+  var sma200_t0  = closes.slice(n-200).reduce(function(s,v){return s+v;},0)/200;
+  var sma200_t10 = n>=210 ? closes.slice(n-210,n-10).reduce(function(s,v){return s+v;},0)/200 : sma200_t0;
+  var s200gNow   = (priceNow - sma200_t0) / sma200_t0 * 100;
+  var s200g10    = (price10  - sma200_t10) / sma200_t10 * 100;
+  var sma200GapDir = s200gNow > s200g10 + 0.5 ? "improving" : s200gNow < s200g10 - 0.5 ? "worsening" : "stable";
+  return { type:crossType||"none", ageDays:crossAge, gapDir:gapDir, gapNow:gapNow, sma200GapDir:sma200GapDir };
+}
+
 function buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData) {
   if (!massiveInfo || !q) return null;
   var rawAggs = massiveInfo.aggs || [];
@@ -1855,7 +1904,7 @@ function buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData) {
 // at 0 silently drops that signal and can make Reversal Watch disagree with
 // the Technical Analysis tab for the same ticker. Only omit them (leaving the
 // 0 default below) when a real 52-week range is genuinely not available.
-function buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200, hi52, lo52) {
+function buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200, hi52, lo52, crossData) {
   if (!vc || vc.length < 15) return null;
   var bars = vc.map(function(c, i) {
     return { date: '', open: c, high: c, low: c, close: c, volume: (vv && vv[i]) || 0 };
@@ -1870,12 +1919,18 @@ function buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200, hi52, lo5
     date:       new Date().toISOString().split('T')[0],
     ohlcv:      bars,
     indicators: ind,
+    crossData:  crossData || null,
     meta:       { price: price||0, hi52: hi52||0, lo52: lo52||0 },
   });
 }
 
 // ── Screener: data adapter — converts Massive data to snapshot (no tech calc) ──
-function buildScreenerSnapshot(sym, massiveInfo, metaOverride) {
+// crossData is OPTIONAL (4th param). Pass it whenever the caller has resolved
+// real golden/death-cross state (see detectCrossData()) — omitting it defaults
+// to null inside calculateTechnicalSignalSnapshot(), which calcTrendScore()
+// treats the same as "unknown", so this stays backward-compatible for any
+// caller that genuinely has no cross data available.
+function buildScreenerSnapshot(sym, massiveInfo, metaOverride, crossData) {
   if (!massiveInfo || !massiveInfo.aggs || massiveInfo.aggs.length < 10) return null;
   var rawAggs = massiveInfo.aggs;
   var ind     = massiveInfo.indicators || {};
@@ -1894,7 +1949,7 @@ function buildScreenerSnapshot(sym, massiveInfo, metaOverride) {
     .map(function(b){ return { date:'',open:b.o||0,high:b.h||0,low:b.l||0,close:b.c||0,volume:b.v||0 }; });
   try {
     return calculateTechnicalSignalSnapshot({ ticker:sym, date:new Date().toISOString().split('T')[0],
-      ohlcv:ohlcv, indicators:ind, meta:{ price:price, hi52:hi52, lo52:lo52 } });
+      ohlcv:ohlcv, indicators:ind, crossData: crossData || null, meta:{ price:price, hi52:hi52, lo52:lo52 } });
   } catch(e) { return null; }
 }
 
@@ -4215,41 +4270,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         } catch(fibErr) { /* non-fatal — Fib calculation failed */ }
         // ─────────────────────────────────────────────────────────────────────
 
-        // SMA cross detection requires 201+ bars — guard here only
+        // SMA cross detection requires 201+ bars — same shared helper #WATCHLIST
+        // uses (detectCrossData), so both surfaces classify cross state identically.
         if (n < 201) { setCrossData({ sym:sym, type:"unknown", ageDays:null, gapDir:"unknown" }); return; }
-        var s50n  = closes.slice(n-50).reduce(function(s,v){return s+v;},0)/50;
-        var s200n = closes.slice(n-200).reduce(function(s,v){return s+v;},0)/200;
-        var gapNow = (s50n-s200n)/s200n*100;
-        var s50_10  = closes.slice(n-60,n-10).reduce(function(s,v){return s+v;},0)/50;
-        var s200_10 = closes.slice(n-210,n-10).reduce(function(s,v){return s+v;},0)/200;
-        var gap10   = (s50_10-s200_10)/s200_10*100;
-        var gapDir  = gapNow>gap10+0.5?"improving":gapNow<gap10-0.5?"worsening":"stable";
-        var crossType=null, crossAge=null;
-        for (var i=n-1; i>=50; i--) {
-          var s50t  = closes.slice(i-50, i).reduce(function(s,v){return s+v;},0)/50;
-          var s200t = i>=200 ? closes.slice(i-200,i).reduce(function(s,v){return s+v;},0)/200 : null;
-          var s50p  = closes.slice(i-51, i-1).reduce(function(s,v){return s+v;},0)/50;
-          var s200p = (i-201>=0) ? closes.slice(i-201,i-1).reduce(function(s,v){return s+v;},0)/200 : null;
-          if (s200t===null||s200p===null) continue; // not enough data for 200-SMA comparison
-          if (s50p>s200p&&s50t<=s200t){ crossType="death";  crossAge=n-i; break; }
-          if (s50p<s200p&&s50t>=s200t){ crossType="golden"; crossAge=n-i; break; }
-        }
-        // If no cross found in window, infer from current state
-        if (!crossType) {
-          crossType = gapNow < -0.5 ? "death" : gapNow > 0.5 ? "golden" : "none";
-          crossAge  = null; // happened before our 1-year data window
-        }
-        // Gap direction for price vs SMA200 (today vs 10 days ago)
-        var priceNow   = closes[n-1];
-        var price10    = closes[n-11] || closes[n-1];
-        var sma200_t0  = closes.slice(n-200).reduce(function(s,v){return s+v;},0)/200;
-        var sma200_t10 = n>=210 ? closes.slice(n-210,n-10).reduce(function(s,v){return s+v;},0)/200 : sma200_t0;
-        var s200gNow   = (priceNow - sma200_t0) / sma200_t0 * 100;
-        var s200g10    = (price10  - sma200_t10) / sma200_t10 * 100;
-        var sma200GapDir = s200gNow > s200g10 + 0.5 ? "improving" : s200gNow < s200g10 - 0.5 ? "worsening" : "stable";
-
-        setCrossData({ sym:sym, type:crossType||"none", ageDays:crossAge, gapDir:gapDir, gapNow:gapNow, sma200GapDir:sma200GapDir });
-        window.__crossDataDebug = { sym:sym, type:crossType||"none", ageDays:crossAge, gapDir:gapDir, gapNow:gapNow, sma200GapDir:sma200GapDir };
+        var cd = detectCrossData(closes);
+        var crossDataResult = Object.assign({ sym: sym }, cd);
+        setCrossData(crossDataResult);
+        window.__crossDataDebug = crossDataResult;
       })
       .catch(function(){ setCrossData({ sym:sym, type:"unknown", ageDays:null, gapDir:"unknown" }); });
   }, [massiveInfo, sym]);
@@ -5124,7 +5151,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.219</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.220</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5178,7 +5205,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.219</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.220</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12238,6 +12265,10 @@ function WatchlistPage({ clerkUser, isPaid }) {
     //     now also feeds the technical snapshot below, not just the displayed range.
     var fsResult = null;
     var daily2 = []; // Yahoo 1-year daily bars — populated below, used for FS + 3M Trend + Weekly Fib
+    // Cross data (golden/death cross + SMA200 gap direction) — resolved below from
+    // the same daily2 bars, via the shared detectCrossData() helper the Technical
+    // Analysis tab uses, so Trend's cross-aware scoring isn't silently null here.
+    var wlCrossData = null;
     try {
       var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=1y';
       var fsAbort = new AbortController();
@@ -12276,6 +12307,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 l2=q2.low&&q2.low[di2],   cv2=q2.close&&q2.close[di2];
             if (o2&&h2&&l2&&cv2&&o2>0) daily2.push({ date:ts2[di2]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di2])||0 });
           }
+          // Cross data from these same 1y bars (see detectCrossData doc comment —
+          // degrades to "unknown" below 201 closes, same as Detail's own fallback).
+          wlCrossData = Object.assign({ sym: ticker }, detectCrossData(daily2.map(function(b){ return b.close; })));
           if (daily2.length >= 14) {
             var closes2    = daily2.slice(-50).map(function(b){ return b.close; });
             var closes200b = daily2.map(function(b){ return b.close; });
@@ -12302,7 +12336,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
               try {
                 var vc2 = daily2.map(function(b){ return b.close; });
                 var vv2 = daily2.map(function(b){ return b.volume||0; });
-                var techSnap2 = buildTechSnapshotFromYahoo(ticker, vc2, vv2, pr2, sma50b, sma200b, hi52raw, lo52raw);
+                var techSnap2 = buildTechSnapshotFromYahoo(ticker, vc2, vv2, pr2, sma50b, sma200b, hi52raw, lo52raw, wlCrossData);
                 if (techSnap2) {
                   var rbaRow2 = buildRuleSnapshotFromRow({
                     trend:        techSnap2.trend.status,        trendScore:      techSnap2.trend.score,
@@ -12337,7 +12371,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
     // failed) — never the hardcoded 0 this used to run on. Same adapter function
     // (buildScreenerSnapshot -> calculateTechnicalSignalSnapshot) the Detail tab's
     // equivalent path uses, just with corrected meta.
-    var snap = buildScreenerSnapshot(ticker, mData, { hi52: hi52raw, lo52: lo52raw, price: price });
+    var snap = buildScreenerSnapshot(ticker, mData, { hi52: hi52raw, lo52: lo52raw, price: price }, wlCrossData);
     if (!snap) return false;
     var rbaSnap = buildRuleSnapshotFromRow({
       trend: snap.trend.status, trendScore: snap.trend.score,
@@ -13535,9 +13569,11 @@ function ForceStrikePage({ isPaid, clerkUser }) {
             try {
               var vc2 = daily.map(function(b){ return b.close; });
               var vv2 = daily.map(function(b){ return b.volume||0; });
-              // Pass the real 52-week range (computed above from this same daily
-              // window) so Reversal Watch here matches the Technical Analysis tab.
-              var techSnap = buildTechSnapshotFromYahoo(c.sym, vc2, vv2, pr2, sma50, sma200, fsResult.hi52, fsResult.lo52);
+              // Pass the real 52-week range and cross data (both computed from this
+              // same daily window) so Reversal Watch and Trend here match the
+              // Technical Analysis tab / Watchlist for the same ticker.
+              var fsCrossData = Object.assign({ sym: c.sym }, detectCrossData(vc2));
+              var techSnap = buildTechSnapshotFromYahoo(c.sym, vc2, vv2, pr2, sma50, sma200, fsResult.hi52, fsResult.lo52, fsCrossData);
               if (techSnap) {
                 var rbaRow = buildRuleSnapshotFromRow({
                   trend: techSnap.trend.status, trendScore: techSnap.trend.score,
@@ -14746,7 +14782,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.219</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.220</span>
           </div>
         </div>
 
