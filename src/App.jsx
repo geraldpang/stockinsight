@@ -5178,7 +5178,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.232</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.233</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5232,7 +5232,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.232</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.233</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7436,93 +7436,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               <div style={{ borderTop:"0.5px solid #2a2a2a", marginTop:12, paddingTop:12 }}>
                                 <FibLevelsChart weeklyMap={taFibMap} dailyMap={taStMap} cardBg="rgba(0,0,0,0.25)" />
                               </div>
-                            </div>
-
-                            {/* ── Key Levels card — factual prices only ────── */}
-                            <div style={{ marginBottom:14, borderBottom:"1px solid #f0ede6", paddingBottom:14 }}>
-                              <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>{"Key Levels"}</div>
-
-                              {/* Close / Breakout / Invalidation — Fib consistent with #WATCHLIST */}
-                              <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
-                                {[
-                                  ["Close",        q ? "$"+(q.regularMarketPrice||0).toFixed(2) : null,                                  "#f0ede6"],
-                                  ["Breakout",     taFibMap && taFibMap.fibTarget1      ? "$"+taFibMap.fibTarget1.toFixed(2)      : null, "#7abd00"],
-                                  ["Invalidation", taFibMap && taFibMap.fibInvalidation ? "$"+taFibMap.fibInvalidation.toFixed(2) : (taStMap && taStMap.fibInvalidation ? "$"+taStMap.fibInvalidation.toFixed(2) : null), "#e05050"],
-                                ].filter(function(r){ return r[1]; }).map(function(r,i){
-                                  return <div key={i} style={{ background:"#f5f2ed", borderRadius:6, padding:"6px 12px" }}>
-                                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:3 }}>{r[0]}</div>
-                                    <div style={{ fontSize:13, fontWeight:700, color:r[2] }}>{r[1]}</div>
-                                  </div>;
-                                })}
-                              </div>
-
-                              {/* Support/Resistance — Fib Key Levels (same source as #WATCHLIST) */}
-                              {(function(){
-                                var kl = taKeyLevels;
-                                if (!kl && !taFibMap && !taStMap) return null;
-                                var supps = kl ? kl.supports.slice(0,5) : (taFibMap ? [{price:taFibMap.fibSupportZoneHigh,strength:'major'},{price:taFibMap.fibSupportZoneLow,strength:'major'}].filter(function(l){return l.price;}) : []);
-                                var ress  = kl ? kl.resistances.slice(0,5) : (taFibMap ? [{price:taFibMap.fibTarget1,strength:'major'},{price:taFibMap.fibTarget2,strength:'major'}].filter(function(l){return l.price;}) : []);
-                                return <div>
-                                  {supps.length>0&&<div style={{marginBottom:10}}>
-                                    <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Support</div>
-                                    <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
-                                      {supps.map(function(s,i){ return <span key={i} style={{background:'#fff0f0',border:'0.5px solid #e05050',borderRadius:4,padding:'3px 9px',fontSize:12,fontWeight:600,color:'#c03030',textDecoration:s.strength==='major'?'underline':'none'}}>{'$'+s.price.toFixed(2)}</span>; })}
-                                    </div>
-                                    <div style={{fontSize:9,color:'#888',marginTop:4}}>Underlined = weekly (major) level</div>
-                                  </div>}
-                                  {ress.length>0&&<div>
-                                    <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Resistance</div>
-                                    <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
-                                      {ress.map(function(r,i){ return <span key={i} style={{background:'#e6f4e6',border:'0.5px solid #7abd00',borderRadius:4,padding:'3px 9px',fontSize:12,fontWeight:600,color:'#1a6a1a',textDecoration:r.strength==='major'?'underline':'none'}}>{'$'+r.price.toFixed(2)}</span>; })}
-                                    </div>
-                                  </div>}
-                                </div>;
-                              })()}
-
-                            </div>
-
-                            {/* Watch Zone — Fib support zone (same basis as #WATCHLIST Key Levels) */}
-                            <div style={{marginBottom:14,borderBottom:'1px solid #f0ede6',paddingBottom:14}}>
-                              <div style={{fontSize:10,fontWeight:700,color:'#6090d0',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Watch Zone</div>
-                              {(function(){
-                                var fm=taFibMap, stm=taStMap, kl=taKeyLevels;
-                                var curPrice = q ? q.regularMarketPrice : null;
-                                if (!fm && !stm) return <div style={{fontSize:12,color:'#555'}}>Fibonacci levels loading...</div>;
-                                var ltZoneHi=fm?fm.fibSupportZoneHigh:null, ltZoneLo=fm?fm.fibSupportZoneLow:null;
-                                var stZoneHi=stm?stm.fibSupportZoneHigh:null, stZoneLo=stm?stm.fibSupportZoneLow:null;
-                                var ltTarget=fm?fm.fibTarget1:null, stTarget=stm?stm.fibTarget1:null;
-                                var klStatus=kl?kl.status:null;
-                                var inLtZone=ltZoneHi&&curPrice&&curPrice<=ltZoneHi&&curPrice>=(ltZoneLo||0);
-                                var inStZone=stZoneHi&&curPrice&&curPrice<=stZoneHi&&curPrice>=(stZoneLo||0);
-                                var aboveLt=ltZoneHi&&curPrice&&curPrice>ltZoneHi;
-                                var statusText=klStatus==='Broken'?'Structure broken \u2014 watch for recovery above support zone'
-                                  :(inLtZone||inStZone)?'Price is inside the watch zone \u2014 watch for confirmation / bounce'
-                                  :aboveLt?'Price is above the watch zone \u2014 watch for pullback to zone'
-                                  :'Price is approaching the watch zone';
-                                var fmt2=function(v){return v?'$'+Number(v).toFixed(2):'\u2014';};
-                                return <div>
-                                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 16px',marginBottom:10}}>
-                                    <div>
-                                      <div style={{fontSize:9,color:'#999',marginBottom:3}}>LT Support Zone (Weekly Fib)</div>
-                                      <div style={{fontSize:14,fontWeight:700,color:'#6090d0'}}>{fmt2(ltZoneLo)+'\u2013'+fmt2(ltZoneHi)}</div>
-                                      {ltTarget&&<div style={{fontSize:10,color:'#888',marginTop:2}}>{'WT: '+fmt2(ltTarget)}</div>}
-                                    </div>
-                                    <div>
-                                      <div style={{fontSize:9,color:'#999',marginBottom:3}}>ST Support Zone (Daily Fib)</div>
-                                      <div style={{fontSize:14,fontWeight:700,color:'#6090d0'}}>{fmt2(stZoneLo)+'\u2013'+fmt2(stZoneHi)}</div>
-                                      {stTarget&&<div style={{fontSize:10,color:'#888',marginTop:2}}>{'WT: '+fmt2(stTarget)}</div>}
-                                    </div>
-                                  </div>
-                                  <div style={{fontSize:12,color:'#555',lineHeight:1.7}}>{statusText}</div>
-                                  <div style={{fontSize:9,color:'#888',marginTop:6,fontStyle:'italic'}}>Fibonacci levels are projection zones, not guaranteed price predictions.</div>
-                                </div>;
-                              })()}
-                            </div>
-
-                            {/* ── Summary card ─────────────────────────────── */}
-                            <div style={{ marginBottom:14 }}>
-                              <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>{"Summary"}</div>
-                              <div style={{ fontSize:13, color:"#444", lineHeight:1.8 }}>{rba.summary}</div>
                             </div>
 
                             {/* ── Historical Confidence ─────────────────────── */}
@@ -15260,7 +15173,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.232</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.233</span>
           </div>
         </div>
 
