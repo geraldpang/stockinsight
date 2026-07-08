@@ -5178,7 +5178,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.233</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.234</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5232,7 +5232,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.233</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.234</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11832,7 +11832,7 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg }) {
             ? 'Weekly zone broken ' + String.fromCharCode(0x2014) + ' ' + fmtPrice(ltm.nextSupportLevel) + ' is the next support'
             : 'Weekly zone broken ' + String.fromCharCode(0x2014) + ' no established support near current price'}
         </div>}
-      <svg viewBox="0 0 680 400" width="100%" style={{display:'block'}}>
+      <svg viewBox="0 0 680 320" width="100%" style={{display:'block'}}>
         {/* Daily zone drawn first (light fill), weekly drawn on top (darker
             fill) — where they overlap, the two semi-transparent fills blend
             naturally into the darkest shade via alpha compositing, no extra
@@ -11868,6 +11868,8 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg }) {
             stroke="#888" strokeWidth="1" strokeDasharray="1,3"/>}
         {geo.hasBreak && geo.breakPathD &&
           <path d={geo.breakPathD} stroke="#555" strokeWidth="1" fill="none"/>}
+        {geo.hasBreakBottom && geo.breakPathDBottom &&
+          <path d={geo.breakPathDBottom} stroke="#555" strokeWidth="1" fill="none"/>}
         {geo.farLevels.map(function(f, fi){
           var isWk = f.key==='weekly';
           return <g key={'far'+fi}>
@@ -11878,6 +11880,14 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg }) {
             </text>
           </g>;
         })}
+        {geo.farBelow &&
+          <g>
+            <line x1={geo.left} y1={geo.farBelow.y} x2={geo.right} y2={geo.farBelow.y}
+              stroke={invColor} strokeWidth={invStrokeW} strokeDasharray={invDash}/>
+            <text x={geo.right+6} y={geo.farBelow.y+4} fontSize="9" fill={invColor}>
+              {invLabel+'$'+geo.farBelow.price.toFixed(2)+' (-'+geo.farBelow.pctAway.toFixed(0)+'%)'}
+            </text>
+          </g>}
         {geo.candles.map(function(c, ci){
           return <g key={ci}>
             <line x1={c.x} y1={c.wickTop} x2={c.x} y2={c.wickBot} stroke={c.color} strokeWidth="1"/>
@@ -11919,23 +11929,29 @@ function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, sup
   // candle high is itself bigger than a large fraction of the candle range —
   // this is what actually drives how much of the chart LOOKS empty, not the
   // level's raw % distance above an absolute price (a $60 gap is enormous
-  // against a $165 candle range but looks tiny expressed as "% of $495").
+  // against a $165 candle range but looks tiny expressed as "% of $495"). Same
+  // logic applies symmetrically to invalidation being far BELOW the candle low —
+  // a swing-low invalidation from a much larger historical move can otherwise
+  // leave a huge empty gap between the support zone and the invalidation line.
   var FAR_GAP_RATIO = 0.30;
   function isFarAbove(level) { return level != null && (level - candleMax) / candleSpan > FAR_GAP_RATIO; }
+  function isFarBelow(level) { return level != null && (candleMinForGap - level) / candleSpan > FAR_GAP_RATIO; }
 
-  var farLevels = [];  // resistance levels compressed into the break strip
+  var farLevels = [];  // resistance levels compressed into the top break strip
   var nearLevels = []; // everything folded into the normal linear scale
   if (weeklyRes != null) { if (isFarAbove(weeklyRes)) farLevels.push({ key:'weekly', price:weeklyRes }); else nearLevels.push(weeklyRes); }
   if (dailyRes  != null) { if (isFarAbove(dailyRes))  farLevels.push({ key:'daily',  price:dailyRes });  else nearLevels.push(dailyRes); }
   farLevels.sort(function(a,b){ return a.price - b.price; });
 
-  // Support zones + invalidation always stay on the normal scale — in practice
-  // these track much closer to recent price than a swing-high projection does.
+  // Support zones stay on the normal scale — in practice these track much
+  // closer to recent price than an invalidation swing-low can. Invalidation
+  // itself gets the same far-check the resistance levels get above.
   if (supportHigh      != null) nearLevels.push(supportHigh);
   if (supportLow       != null) nearLevels.push(supportLow);
   if (dailySupportHigh != null) nearLevels.push(dailySupportHigh);
   if (dailySupportLow  != null) nearLevels.push(dailySupportLow);
-  if (invalidation     != null) nearLevels.push(invalidation);
+  var invalidationIsFar = isFarBelow(invalidation);
+  if (invalidation != null && !invalidationIsFar) nearLevels.push(invalidation);
 
   var allNear = candlePrices.concat(nearLevels);
   var maxP = Math.max.apply(null, allNear), minP = Math.min.apply(null, allNear);
@@ -11946,7 +11962,9 @@ function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, sup
 
   var hasBreak = farLevels.length > 0;
   var breakZoneH = hasBreak ? 46 : 0; // fixed height regardless of $ distance
-  var top = 40 + breakZoneH, bottom = 380, plotH = bottom - top;
+  var hasBreakBottom = invalidation != null && invalidationIsFar;
+  var breakZoneHBottom = hasBreakBottom ? 46 : 0;
+  var top = 40 + breakZoneH, bottom = 300 - breakZoneHBottom, plotH = bottom - top;
   var left = 70, right = 540, plotW = right - left;
   function y(price) { return top + (maxP - price) / range * plotH; }
 
@@ -11981,18 +11999,34 @@ function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, sup
     breakPathD = pathParts.join(' ');
   }
 
+  // Bottom break strip for a far-below invalidation — mirrors the top one exactly.
+  var breakPathDBottom = null, farBelow = null;
+  if (hasBreakBottom) {
+    var byB = bottom + breakZoneHBottom - 40;
+    var segLenB = 16, ampB = 5, xCurB = left, upB = true;
+    var pathPartsB = ['M', left, byB];
+    while (xCurB < right) {
+      var xNextB = Math.min(xCurB + segLenB, right);
+      pathPartsB.push('L', xNextB, byB + (upB ? -ampB : ampB));
+      xCurB = xNextB; upB = !upB;
+    }
+    breakPathDBottom = pathPartsB.join(' ');
+    farBelow = { price: invalidation, y: bottom + breakZoneHBottom - 12, pctAway: ((candleMinForGap - invalidation) / candleMinForGap) * 100 };
+  }
+
   function nearY(price) { return price != null ? y(price) : null; }
 
   return {
     candles: candles, left: left, right: right, top: top, bottom: bottom,
     hasBreak: hasBreak, breakPathD: breakPathD, farLevels: farRendered,
+    hasBreakBottom: hasBreakBottom, breakPathDBottom: breakPathDBottom, farBelow: farBelow,
     weeklyResY:    (weeklyRes != null && !isFarAbove(weeklyRes)) ? nearY(weeklyRes) : null,
     dailyResY:     (dailyRes  != null && !isFarAbove(dailyRes))  ? nearY(dailyRes)  : null,
     supportHighY:      nearY(supportHigh),
     supportLowY:       nearY(supportLow),
     dailySupportHighY: nearY(dailySupportHigh),
     dailySupportLowY:  nearY(dailySupportLow),
-    invalidationY: nearY(invalidation),
+    invalidationY: invalidationIsFar ? null : nearY(invalidation),
   };
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -15173,7 +15207,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.233</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.234</span>
           </div>
         </div>
 
