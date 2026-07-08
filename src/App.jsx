@@ -5178,7 +5178,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.226</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.227</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5232,7 +5232,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.226</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.227</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11794,7 +11794,9 @@ function buildShortTermFibMap(daily2Arr, currentPrice) {
 // Computes pixel coordinates for a 680x400 candlestick illustration: last N
 // weekly candles (from fibMap.weeklyBars, already computed above — no new
 // fetch/aggregation needed) plus overlay lines for weekly resistance (bold),
-// daily resistance (dotted), a shaded support zone, and an invalidation line.
+// daily resistance (dotted), a weekly support zone (solid border) and a daily
+// support zone (dotted border, both shown together — if the weekly zone is
+// unavailable, the daily one still renders on its own), and an invalidation line.
 // Returns plain numbers only — the render body maps this into SVG elements.
 //
 // A resistance level (weekly or daily) can sit far above the visible candle
@@ -11804,7 +11806,7 @@ function buildShortTermFibMap(daily2Arr, currentPrice) {
 // high gets pulled out of the linear scale and compressed into a fixed-height
 // "break" strip at the top instead, with a zigzag marker and a "+X% away"
 // label so the number is still meaningful even though it's off-scale.
-function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, supportLow, invalidation, weeksToShow) {
+function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, supportLow, invalidation, dailySupportHigh, dailySupportLow, weeksToShow) {
   if (!weeklyBars || weeklyBars.length < 2) return null;
   var bars = weeklyBars.slice(-(weeksToShow || 26));
   var n = bars.length;
@@ -11830,11 +11832,13 @@ function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, sup
   if (dailyRes  != null) { if (isFarAbove(dailyRes))  farLevels.push({ key:'daily',  price:dailyRes });  else nearLevels.push(dailyRes); }
   farLevels.sort(function(a,b){ return a.price - b.price; });
 
-  // Support zone + invalidation always stay on the normal scale — in practice
+  // Support zones + invalidation always stay on the normal scale — in practice
   // these track much closer to recent price than a swing-high projection does.
-  if (supportHigh  != null) nearLevels.push(supportHigh);
-  if (supportLow   != null) nearLevels.push(supportLow);
-  if (invalidation != null) nearLevels.push(invalidation);
+  if (supportHigh      != null) nearLevels.push(supportHigh);
+  if (supportLow       != null) nearLevels.push(supportLow);
+  if (dailySupportHigh != null) nearLevels.push(dailySupportHigh);
+  if (dailySupportLow  != null) nearLevels.push(dailySupportLow);
+  if (invalidation     != null) nearLevels.push(invalidation);
 
   var allNear = candlePrices.concat(nearLevels);
   var maxP = Math.max.apply(null, allNear), minP = Math.min.apply(null, allNear);
@@ -11887,8 +11891,10 @@ function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, sup
     hasBreak: hasBreak, breakPathD: breakPathD, farLevels: farRendered,
     weeklyResY:    (weeklyRes != null && !isFarAbove(weeklyRes)) ? nearY(weeklyRes) : null,
     dailyResY:     (dailyRes  != null && !isFarAbove(dailyRes))  ? nearY(dailyRes)  : null,
-    supportHighY:  nearY(supportHigh),
-    supportLowY:   nearY(supportLow),
+    supportHighY:      nearY(supportHigh),
+    supportLowY:       nearY(supportLow),
+    dailySupportHighY: nearY(dailySupportHigh),
+    dailySupportLowY:  nearY(dailySupportLow),
     invalidationY: nearY(invalidation),
   };
 }
@@ -13588,6 +13594,11 @@ function WatchlistPage({ clerkUser, isPaid }) {
                         // in that case the support zone/invalidation are stale, so we
                         // suppress them rather than draw them as if still live.
                         var ltmZoneOk = ltm && ltm.structureValid !== false;
+                        // Same check for the daily (ST) support zone — shown alongside the
+                        // weekly one (dotted, vs weekly's solid+shaded), and critically still
+                        // shown on its own if the weekly zone is unavailable, so there's still
+                        // a support reference on the chart instead of nothing at all.
+                        var stmZoneOk = stm && stm.structureValid !== false;
                         var geo = wBars ? buildFibChartGeometry(
                           wBars,
                           ltm ? ltm.fibTarget1 : null,
@@ -13595,6 +13606,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
                           ltmZoneOk ? ltm.fibSupportZoneHigh : null,
                           ltmZoneOk ? ltm.fibSupportZoneLow : null,
                           ltmZoneOk ? ltm.fibInvalidation : null,
+                          stmZoneOk ? stm.fibSupportZoneHigh : null,
+                          stmZoneOk ? stm.fibSupportZoneLow : null,
                           26
                         ) : null;
                         if (!geo) {
@@ -13605,7 +13618,11 @@ function WatchlistPage({ clerkUser, isPaid }) {
                         var chartSvg = (
                           <svg viewBox="0 0 680 400" width="100%" style={{display:'block'}}>
                             {!ltmZoneOk &&
-                              <text x={geo.left} y={26} fontSize="9" fill="#EF9F27">{'Weekly support zone unavailable ' + String.fromCharCode(0x2014) + ' price broke below prior structure'}</text>}
+                              <text x={geo.left} y={26} fontSize="9" fill="#EF9F27">
+                                {stmZoneOk
+                                  ? 'Weekly support zone unavailable ' + String.fromCharCode(0x2014) + ' showing daily zone instead'
+                                  : 'Weekly support zone unavailable ' + String.fromCharCode(0x2014) + ' price broke below prior structure'}
+                              </text>}
                             {geo.supportHighY!=null && geo.supportLowY!=null &&
                               <rect x={geo.left} y={geo.supportHighY} width={chartW}
                                 height={Math.max(1, geo.supportLowY - geo.supportHighY)}
@@ -13616,6 +13633,12 @@ function WatchlistPage({ clerkUser, isPaid }) {
                             {geo.supportLowY!=null &&
                               <line x1={geo.left} y1={geo.supportLowY} x2={geo.right} y2={geo.supportLowY}
                                 stroke="#378ADD" strokeWidth="0.5" strokeDasharray="2,2"/>}
+                            {geo.dailySupportHighY!=null &&
+                              <line x1={geo.left} y1={geo.dailySupportHighY} x2={geo.right} y2={geo.dailySupportHighY}
+                                stroke="#6090d0" strokeWidth="0.5" strokeDasharray="1,3"/>}
+                            {geo.dailySupportLowY!=null &&
+                              <line x1={geo.left} y1={geo.dailySupportLowY} x2={geo.right} y2={geo.dailySupportLowY}
+                                stroke="#6090d0" strokeWidth="0.5" strokeDasharray="1,3"/>}
                             {geo.invalidationY!=null &&
                               <line x1={geo.left} y1={geo.invalidationY} x2={geo.right} y2={geo.invalidationY}
                                 stroke="#e05050" strokeWidth="0.5" strokeDasharray="6,3"/>}
@@ -13651,6 +13674,10 @@ function WatchlistPage({ clerkUser, isPaid }) {
                               <text x={geo.right+6} y={geo.supportHighY+4} fontSize="9" fill="#378ADD">{'S zone '+fmt(ltm.fibSupportZoneHigh)}</text>}
                             {geo.supportLowY!=null &&
                               <text x={geo.right+6} y={geo.supportLowY+11} fontSize="9" fill="#378ADD">{fmt(ltm.fibSupportZoneLow)}</text>}
+                            {geo.dailySupportHighY!=null &&
+                              <text x={geo.right+6} y={geo.dailySupportHighY+4} fontSize="9" fill="#6090d0">{'Daily S zone '+fmt(stm.fibSupportZoneHigh)}</text>}
+                            {geo.dailySupportLowY!=null &&
+                              <text x={geo.right+6} y={geo.dailySupportLowY+11} fontSize="9" fill="#6090d0">{fmt(stm.fibSupportZoneLow)}</text>}
                             {geo.invalidationY!=null &&
                               <text x={geo.right+6} y={geo.invalidationY+4} fontSize="9" fill="#e05050">{'Invalid. '+fmt(ltm.fibInvalidation)}</text>}
                           </svg>
@@ -15154,7 +15181,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.226</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.227</span>
           </div>
         </div>
 
