@@ -5178,7 +5178,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.227</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.228</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5232,7 +5232,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.227</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.228</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -13623,10 +13623,18 @@ function WatchlistPage({ clerkUser, isPaid }) {
                                   ? 'Weekly support zone unavailable ' + String.fromCharCode(0x2014) + ' showing daily zone instead'
                                   : 'Weekly support zone unavailable ' + String.fromCharCode(0x2014) + ' price broke below prior structure'}
                               </text>}
+                            {/* Daily zone drawn first (light fill), weekly drawn on top (darker
+                                fill) — where they overlap, the two semi-transparent fills blend
+                                naturally into the darkest shade via alpha compositing, no extra
+                                intersection geometry needed. */}
+                            {geo.dailySupportHighY!=null && geo.dailySupportLowY!=null &&
+                              <rect x={geo.left} y={geo.dailySupportHighY} width={chartW}
+                                height={Math.max(1, geo.dailySupportLowY - geo.dailySupportHighY)}
+                                fill="#6090d0" opacity="0.10"/>}
                             {geo.supportHighY!=null && geo.supportLowY!=null &&
                               <rect x={geo.left} y={geo.supportHighY} width={chartW}
                                 height={Math.max(1, geo.supportLowY - geo.supportHighY)}
-                                fill="#378ADD" opacity="0.12"/>}
+                                fill="#378ADD" opacity="0.20"/>}
                             {geo.supportHighY!=null &&
                               <line x1={geo.left} y1={geo.supportHighY} x2={geo.right} y2={geo.supportHighY}
                                 stroke="#378ADD" strokeWidth="0.5" strokeDasharray="2,2"/>}
@@ -15181,7 +15189,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.227</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.228</span>
           </div>
         </div>
 
