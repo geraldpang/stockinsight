@@ -77,6 +77,33 @@ function momentumStateColor(status) {
   if (status === 'Weak')     return '#e05050';
   return '#555';
 }
+// ── Shared Momentum Profile helpers ──────────────────────────────────────────
+// Momentum Profile (classifyMomentumProfile in technicalSignals.js) is a
+// cross-timeframe classification ("Momentum Continuation", "Early Recovery
+// Attempt", etc.) — a DIFFERENT concept from the raw daily momentum status
+// ("Strong"/"Weak"/etc.) that momentumStateColor() above maps. Extracted from
+// the Technical Analysis tab's inline sidebar logic so #WATCHLIST can show the
+// identical headline label + colour instead of the raw daily-only status.
+function shortMomentumProfileLabel(profile) {
+  if (profile==='Momentum Continuation')       return 'Continuation';
+  if (profile==='Early Recovery Attempt')      return 'Recovery';
+  if (profile==='Weak Weekly Bounce')          return 'Weak Bounce';
+  if (profile==='Waiting for Daily Trigger')   return 'Waiting';
+  if (profile==='Pullback in Larger Momentum') return 'Pullback';
+  if (profile==='Bearish Momentum')            return 'Bearish';
+  if (profile==='No Clear Momentum Profile')   return 'Unclear';
+  if (profile==='Not Enough Data')             return 'No Data';
+  return 'No Data';
+}
+function momentumProfileColor(shortLabel) {
+  if (shortLabel==='Continuation') return '#7abd00';
+  if (shortLabel==='Recovery')     return '#6090d0';
+  if (shortLabel==='Pullback')     return '#EF9F27';
+  if (shortLabel==='Waiting')      return '#EF9F27';
+  if (shortLabel==='Weak Bounce')  return '#EF9F27';
+  if (shortLabel==='Bearish')      return '#e05050';
+  return '#aaa';
+}
 function smfLabelColor(lbl, variant) {
   var v = variant||"main";
   if (!lbl||lbl==="N/A"||lbl==="Not enough data") return _CLR.grey[v];
@@ -5151,7 +5178,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.222</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.223</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5205,7 +5232,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.222</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.223</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5912,10 +5939,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       })()}
                       {(function(){
                         var _lp = momLiveSym===sym ? momLiveProfile : null;
-                        function _sp(p){if(p==='Momentum Continuation') return 'Continuation';if(p==='Early Recovery Attempt') return 'Recovery';if(p==='Weak Weekly Bounce') return 'Weak Bounce';if(p==='Waiting for Daily Trigger') return 'Waiting';if(p==='Pullback in Larger Momentum') return 'Pullback';if(p==='Bearish Momentum') return 'Bearish';if(p==='No Clear Momentum Profile') return 'Unclear';if(p==='Not Enough Data') return 'No Data';return 'No Data';}
-                        function _sc(s){return s==='Strong'||s==='Supportive'?'#7abd00':s==='Building'?'#6090d0':s==='Neutral'?'#EF9F27':s==='Fading'?'#EF9F27':s==='Weak'?'#e05050':'#555';}
-                        var _sp2 = _lp ? _sp(_lp.profile) : (momLiveLoading ? '...' : 'No Data');
-                        var _spc = _sp2==='Continuation'?'#7abd00':_sp2==='Recovery'?'#6090d0':_sp2==='Pullback'?'#EF9F27':_sp2==='Waiting'?'#EF9F27':_sp2==='Weak Bounce'?'#EF9F27':_sp2==='Bearish'?'#e05050':'#aaa';
+                        var _sp2 = _lp ? shortMomentumProfileLabel(_lp.profile) : (momLiveLoading ? '...' : 'No Data');
+                        var _spc = momentumProfileColor(_sp2);
                         var _d = _hasTech && _momLabel && _momLabel!=='--' ? _momLabel : '--';
                         var _w = _lp ? (_lp.weekly==='Not Enough Data'?'No data':_lp.weekly||'--') : 'No data';
                         var _m = _lp ? (_lp.monthlyRegime==='Not Enough Data'?'No data':_lp.monthlyRegime||'--') : 'No data';
@@ -12386,6 +12411,42 @@ function WatchlistPage({ clerkUser, isPaid }) {
     var rbaVerdict = rba ? (rba.verdict || '') : '';
     var rbaShort   = shortRuleVerdict(rbaVerdict);
 
+    // ── Momentum Profile (Option B fix) ─────────────────────────────────────
+    // The Technical Analysis tab's "Momentum" headline shows a cross-timeframe
+    // classification (classifyMomentumProfile: Continuation/Recovery/Pullback/
+    // etc.), NOT the raw daily momentum status ("Strong"/"Weak") that snap.momentum
+    // holds — those two were being compared as if they were the same signal,
+    // which they aren't. This block computes the same Profile here, using the
+    // same functions and the same 2-year-lookback approach the Detail tab uses
+    // (fetchYahooHistoricalBars + buildWeeklyBars/buildMonthlyBars + calcWeeklyMomentum/
+    // calcMonthlyMomentum), so the Watchlist headline can show the identical value.
+    //
+    // IMPORTANT: this is DISPLAY-ONLY. snap.momentum.status/score (raw daily status)
+    // are left completely untouched everywhere else in this function — rbaSnap,
+    // momentumRank, and buildActionBias() all still use the raw status, since
+    // buildActionBias() string-matches on 'strong'/'weak'/'build'/'fad', which the
+    // Momentum Profile's labels (Continuation/Recovery/etc.) don't contain.
+    var momentumProfileData = null;
+    try {
+      var mpEndMs = Date.now();
+      var mpStartMs = mpEndMs - 2 * 365 * 24 * 3600 * 1000;
+      var mpFmt = function(d){ var dd=new Date(d); return dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2); };
+      var mpBars = await fetchYahooHistoricalBars(ticker, mpFmt(mpStartMs), mpFmt(mpEndMs), 20);
+      if (mpBars && mpBars.length >= 70) {
+        var wMomWL = calcWeeklyMomentum(buildWeeklyBars(mpBars));
+        var mMomWL = calcMonthlyMomentum(buildMonthlyBars(mpBars));
+        var profileFullWL = classifyMomentumProfile(snap.momentum.status, wMomWL.status);
+        var monthlyRegimeWL = classifyMonthlyRegime(mMomWL.status);
+        momentumProfileData = {
+          full: profileFullWL,
+          short: shortMomentumProfileLabel(profileFullWL),
+          daily: snap.momentum.status,
+          weekly: wMomWL.status,
+          monthlyRegime: monthlyRegimeWL,
+        };
+      }
+    } catch(mpErr) { momentumProfileData = null; } // explicit: null = "unavailable", UI falls back to raw daily status
+
     // Determine FS display status + compute FS Score / Tech Support (shared with #FORCESTRIKE)
     var fsStatus = 'none', fsPattern = null, fsScenario = null, fsAge = null,
         fsTriggerType = null, fsTriggerDate = null, fsMotherDate = null, fsBabyDate = null;
@@ -12466,6 +12527,12 @@ function WatchlistPage({ clerkUser, isPaid }) {
       momentumStatus:  snap.momentum.status,
       momentumScore:   snap.momentum.score,
       momentumRank:    wlMomRank(snap.momentum.status),
+      // Momentum Profile (Option B) — cross-timeframe classification matching the
+      // Technical Analysis tab's headline. Display-only; momentumStatus/Score/Rank
+      // above are untouched (still raw daily status, still feed Action Bias/sort).
+      // Nested object, same pattern as fibMap/keyLevels/waveGuide below. null if
+      // the 2-year fetch failed or returned insufficient history.
+      momentumProfile: momentumProfileData,
       reversalStatus:  snap.reversalWatch.status,
       reversalScore:   snap.reversalWatch.score,
       reversalRank:    wlRevRank(snap.reversalWatch.status),
@@ -12818,6 +12885,12 @@ function WatchlistPage({ clerkUser, isPaid }) {
             var shortTermMap= (snapJson.shortTermMap && snapJson.shortTermMap.priceMapStatus) ? snapJson.shortTermMap : null;
             var keyLevels   = snapJson.keyLevels   || null;
             var waveGuide   = snapJson.waveGuide   || null;
+            // Momentum Profile (Option B) — display-only override for the Momentum
+            // headline, matching the Technical Analysis tab's cross-timeframe label.
+            // momV (raw daily status, below) stays untouched for Action Bias/sorting.
+            var momentumProfile = snapJson.momentumProfile || null;
+            var momDisplayStatus = momentumProfile && momentumProfile.short ? momentumProfile.short : null;
+            var momDisplayColor  = momentumProfile && momentumProfile.short ? momentumProfileColor(momentumProfile.short) : null;
             // Locked FS — from lock record
             var lock = locks[item.ticker] || null;
             var lockedSnapJson = {};
@@ -12908,7 +12981,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     {(function(){
                       var factors = [
                         { key:'T',  status:trendV, rank:snap.trend_rank,      field:'trend_rank',      color:wlTrendColor(trendV) },
-                        { key:'M',  status:momV,   rank:snap.momentum_rank,   field:'momentum_rank',   color:wlMomColor(momV) },
+                        { key:'M',  status:(momDisplayStatus||momV), rank:snap.momentum_rank,   field:'momentum_rank',   color:(momDisplayColor||wlMomColor(momV)) },
                         { key:'R',  status:revV,   rank:snap.reversal_rank,   field:'reversal_rank',   color:wlRevColor(revV) },
                         { key:'MF', status:smfV,   rank:snap.money_flow_rank, field:'money_flow_rank', color:wlSmfColor(smfV) },
                       ];
@@ -13266,14 +13339,20 @@ function WatchlistPage({ clerkUser, isPaid }) {
                   <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
                     {[
                       { label:'Trend',      status:trendV, score:snap?snap.trend_score:null,      color:wlTrendColor(trendV) },
-                      { label:'Momentum',   status:momV,   score:snap?snap.momentum_score:null,   color:wlMomColor(momV) },
+                      { label:'Momentum',   status:(momDisplayStatus||momV), score:snap?snap.momentum_score:null, color:(momDisplayColor||wlMomColor(momV)),
+                        // Momentum Profile subtitle mirrors the Technical Analysis tab's
+                        // "D Strong · W Building · M Neutral" format instead of Score X/100 —
+                        // falls back to Score X/100 (via sub:null below) if the profile fetch
+                        // hasn't populated this snapshot yet (older snapshot / fetch failed).
+                        sub: momentumProfile ? ('D '+(momentumProfile.daily||'--')+' \u00b7 W '+(momentumProfile.weekly||'--')+' \u00b7 M '+(momentumProfile.monthlyRegime||'--')) : null },
                       { label:'Reversal',   status:revV,   score:snap?snap.reversal_score:null,   color:wlRevColor(revV) },
                       { label:'Money Flow', status:smfV,   score:snap?snap.money_flow_score:null, color:wlSmfColor(smfV) },
                     ].map(function(f){
                       return <div key={f.label} style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px'}}>
                         <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>{f.label}</div>
                         <div style={{fontSize:12,fontWeight:700,color:f.color}}>{f.status || String.fromCharCode(0x2014)}</div>
-                        {f.score!=null && <div style={{fontSize:9,color:'#555',marginTop:2}}>Score {Math.round(f.score)}/100</div>}
+                        {f.sub ? <div style={{fontSize:9,color:'#555',marginTop:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{f.sub}</div>
+                          : (f.score!=null && <div style={{fontSize:9,color:'#555',marginTop:2}}>Score {Math.round(f.score)}/100</div>)}
                       </div>;
                     })}
                   </div>
@@ -14809,7 +14888,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.222</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.223</span>
           </div>
         </div>
 
