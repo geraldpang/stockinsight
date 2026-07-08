@@ -5178,7 +5178,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.225</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.226</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5232,7 +5232,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.225</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.226</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11504,26 +11504,44 @@ function aggregateWeekly(dailyBars) {
 // Returns {swingLow, swingHigh, swingLowDate, swingHighDate} or null if structure unclear.
 // Core weekly swing-finder — shared by findFibSwings (normal 26+ week case,
 // 52-week lookback) and the re-anchoring path in buildFibMapFromDailyBars
-// (shorter post-breakdown window). Behavior-preserving refactor: findFibSwings
-// below calls this with the exact same params (26, 52, 0.10) it always used.
-function findSwingInWeeklyBars(rawBars, minRawBars, maxWindow, minRangePct) {
+// (shorter post-breakdown window).
+//
+// lowProximityWeeks (Option 1 fix): the swing LOW is no longer searched across
+// the entire window independently of the HIGH — it's found first (global max),
+// then the low is searched only within +/- lowProximityWeeks of the high's own
+// position. Without this, an old, disconnected low from months earlier/later
+// (e.g. a crash bottom the stock has long since recovered from) could pair
+// with a recent, relevant high, producing a technically-correct-but-disproportionate
+// invalidation level far below the actual support zone. Pass null/omit for the
+// old unconstrained behavior (used by the already-short re-anchor window, where
+// this isn't needed since that window is small to begin with).
+// Still supports both swing orderings (low-then-high or high-then-low) since
+// the search radius looks both before AND after the high.
+function findSwingInWeeklyBars(rawBars, minRawBars, maxWindow, minRangePct, lowProximityWeeks) {
   if (!rawBars || rawBars.length < minRawBars) return null;
   var bars = rawBars.slice(-maxWindow);
-  var swingLowBar = bars[0], swingHighBar = bars[0];
+  var swingHighBar = bars[0], swingHighIdx = 0;
   for (var wi = 1; wi < bars.length; wi++) {
-    var b = bars[wi];
-    if (b.low  < swingLowBar.low)   swingLowBar  = b;
-    if (b.high > swingHighBar.high) swingHighBar = b;
+    if (bars[wi].high > swingHighBar.high) { swingHighBar = bars[wi]; swingHighIdx = wi; }
+  }
+  var loStart = 0, loEnd = bars.length - 1;
+  if (lowProximityWeeks != null) {
+    loStart = Math.max(0, swingHighIdx - lowProximityWeeks);
+    loEnd   = Math.min(bars.length - 1, swingHighIdx + lowProximityWeeks);
+  }
+  var swingLowBar = bars[loStart];
+  for (var li = loStart + 1; li <= loEnd; li++) {
+    if (bars[li].low < swingLowBar.low) swingLowBar = bars[li];
   }
   var range = swingHighBar.high - swingLowBar.low;
   if (range / swingLowBar.low < minRangePct) return null;
   return { swingLow:swingLowBar.low, swingHigh:swingHighBar.high, swingLowDate:swingLowBar.date, swingHighDate:swingHighBar.date };
 }
 function findFibSwings(weeklyBars) {
-  // Note: we do NOT require swingLow to precede swingHigh in time.
-  // Many valid tickers hit their yearly high first then consolidated — we still
-  // want to show the Fib map. priceMapStatus logic handles direction context.
-  return findSwingInWeeklyBars(weeklyBars, 26, 52, 0.10);
+  // Swing low must fall within 13 weeks (~1 quarter) of the swing high, either
+  // side — keeps the two ends of the "swing" temporally connected instead of
+  // pairing a recent high with an unrelated old low from a different regime.
+  return findSwingInWeeklyBars(weeklyBars, 26, 52, 0.10, 13);
 }
 
 // Calculate Fib retracement and extension levels from swing points.
@@ -11669,36 +11687,46 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
 }
 
 // Short-Term Map: find swing low/high from the last 90 daily bars of daily2.
-// Same global min/max approach as findFibSwings, but daily resolution.
 // daily2 uses ms timestamps — normalised to ISO string for consistent date comparison.
 // Core daily swing-finder — shared by findDailyFibSwings (normal 60+ day case,
 // 90-day lookback) and the re-anchoring path in buildShortTermFibMap (shorter
-// post-breakdown window). Behavior-preserving refactor: findDailyFibSwings
-// below calls this with the exact same params (60, 90, 0.05) it always used.
-function findSwingInDailyBars(rawBars, minRawBars, maxWindow, minRangePct) {
+// post-breakdown window).
+//
+// lowProximityDays (Option 1 fix, same as the weekly version above): the swing
+// LOW is found only within +/- lowProximityDays of the swing HIGH's position,
+// instead of searched independently across the whole window — prevents pairing
+// a recent high with an old, disconnected low from a different price regime.
+function findSwingInDailyBars(rawBars, minRawBars, maxWindow, minRangePct, lowProximityDays) {
   if (!rawBars || rawBars.length < minRawBars) return null;
   var bars = rawBars.slice(-maxWindow);
-  var swingLowBar = bars[0], swingHighBar = bars[0];
-  for (var di = 1; di < bars.length; di++) {
-    var b = bars[di];
+  function normBar(b) {
     var bLow  = b.low  || b.close;
     var bHigh = b.high || b.close;
     var bDate = typeof b.date === 'number' ? new Date(b.date).toISOString().split('T')[0] : String(b.date).split('T')[0];
-    var curLow  = swingLowBar.low  || swingLowBar.close;
-    var curHigh = swingHighBar.high || swingHighBar.close;
-    if (bLow  < curLow)  swingLowBar  = { date:bDate, low:bLow,  high:bHigh, close:b.close };
-    if (bHigh > curHigh) swingHighBar = { date:bDate, low:bLow,  high:bHigh, close:b.close };
+    return { date:bDate, low:bLow, high:bHigh, close:b.close };
   }
-  var swingLow  = swingLowBar.low  || swingLowBar.close;
-  var swingHigh = swingHighBar.high || swingHighBar.close;
-  var range = swingHigh - swingLow;
-  if (range / swingLow < minRangePct) return null;
-  var lowDate  = typeof swingLowBar.date  === 'number' ? new Date(swingLowBar.date).toISOString().split('T')[0]  : String(swingLowBar.date).split('T')[0];
-  var highDate = typeof swingHighBar.date === 'number' ? new Date(swingHighBar.date).toISOString().split('T')[0] : String(swingHighBar.date).split('T')[0];
-  return { swingLow:swingLow, swingHigh:swingHigh, swingLowDate:lowDate, swingHighDate:highDate };
+  var normed = bars.map(normBar);
+  var swingHighBar = normed[0], swingHighIdx = 0;
+  for (var di = 1; di < normed.length; di++) {
+    if (normed[di].high > swingHighBar.high) { swingHighBar = normed[di]; swingHighIdx = di; }
+  }
+  var loStart = 0, loEnd = normed.length - 1;
+  if (lowProximityDays != null) {
+    loStart = Math.max(0, swingHighIdx - lowProximityDays);
+    loEnd   = Math.min(normed.length - 1, swingHighIdx + lowProximityDays);
+  }
+  var swingLowBar = normed[loStart];
+  for (var li = loStart + 1; li <= loEnd; li++) {
+    if (normed[li].low < swingLowBar.low) swingLowBar = normed[li];
+  }
+  var range = swingHighBar.high - swingLowBar.low;
+  if (range / swingLowBar.low < minRangePct) return null;
+  return { swingLow:swingLowBar.low, swingHigh:swingHighBar.high, swingLowDate:swingLowBar.date, swingHighDate:swingHighBar.date };
 }
 function findDailyFibSwings(dailyBars) {
-  return findSwingInDailyBars(dailyBars, 60, 90, 0.05);
+  // ~20 trading days (~1 month) proximity — scaled proportionally from the
+  // weekly version's 13-week/52-week ratio down to the daily map's 90-day window.
+  return findSwingInDailyBars(dailyBars, 60, 90, 0.05, 20);
 }
 
 // Build Short-Term Fib map from daily bars (reuses existing calcFibLevels, getPriceMapStatus).
@@ -15126,7 +15154,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.225</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.226</span>
           </div>
         </div>
 
