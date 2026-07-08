@@ -5178,7 +5178,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.223</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.224</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5232,7 +5232,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.223</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.224</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11677,7 +11677,55 @@ function buildShortTermFibMap(daily2Arr, currentPrice) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── Key Levels + Wave Guide helpers (module-level, pure functions) ──────────
+// ─── Fib Levels illustration — pure geometry helper (module-level) ───────────
+// Computes pixel coordinates for a 680x420 candlestick illustration: last N
+// weekly candles (from fibMap.weeklyBars, already computed above — no new
+// fetch/aggregation needed) plus overlay lines for weekly resistance (bold),
+// daily resistance (dotted), a shaded support zone, and an invalidation line.
+// Returns plain numbers only — the render body maps this into SVG elements.
+function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, supportLow, invalidation, weeksToShow) {
+  if (!weeklyBars || weeklyBars.length < 2) return null;
+  var bars = weeklyBars.slice(-(weeksToShow || 26));
+  var n = bars.length;
+  if (n < 2) return null;
+  var prices = [];
+  bars.forEach(function(b){ if (b && b.high>0 && b.low>0) { prices.push(b.high); prices.push(b.low); } });
+  if (weeklyRes    != null) prices.push(weeklyRes);
+  if (dailyRes     != null) prices.push(dailyRes);
+  if (supportHigh  != null) prices.push(supportHigh);
+  if (supportLow   != null) prices.push(supportLow);
+  if (invalidation != null) prices.push(invalidation);
+  if (!prices.length) return null;
+  var maxP = Math.max.apply(null, prices), minP = Math.min.apply(null, prices);
+  var pad = (maxP - minP) * 0.08 || maxP * 0.05;
+  maxP += pad; minP -= pad;
+  var range = maxP - minP;
+  if (!(range > 0)) return null;
+  var top = 40, bottom = 380, plotH = bottom - top;
+  var left = 70, right = 540, plotW = right - left;
+  function y(price) { return top + (maxP - price) / range * plotH; }
+  var slotW = plotW / n;
+  var bodyW = Math.max(2, Math.min(12, slotW * 0.55));
+  var candles = bars.map(function(b, i) {
+    var cx = left + slotW * (i + 0.5);
+    var bull = b.close >= b.open;
+    var bodyTop = y(Math.max(b.open, b.close));
+    var bodyBot = y(Math.min(b.open, b.close));
+    if (bodyBot - bodyTop < 1.5) bodyBot = bodyTop + 1.5; // min visible height for doji bars
+    return { x: cx, wickTop: y(b.high), wickBot: y(b.low), bodyTop: bodyTop, bodyBot: bodyBot,
+             bodyW: bodyW, color: bull ? '#639922' : '#e24b4a' };
+  });
+  return {
+    candles: candles, left: left, right: right, top: top, bottom: bottom,
+    weeklyResY:    weeklyRes    != null ? y(weeklyRes)    : null,
+    dailyResY:     dailyRes     != null ? y(dailyRes)     : null,
+    supportHighY:  supportHigh  != null ? y(supportHigh)  : null,
+    supportLowY:   supportLow   != null ? y(supportLow)   : null,
+    invalidationY: invalidation != null ? y(invalidation) : null,
+  };
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // These derive from existing fibMap / shortTermMap data — no new API calls.
 // buildKeyLevels: combine daily + weekly Fib levels into a sorted support/resistance ladder.
 // buildWaveGuide: classify current price position into a practical stage label.
@@ -13356,46 +13404,76 @@ function WatchlistPage({ clerkUser, isPaid }) {
                       </div>;
                     })}
                   </div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
-                    {/* Fib Levels — Long-Term (Weekly) & Short-Term (Daily), merged into one
-                        card with LT/ST as columns instead of two separate full cards, since
-                        R1/R2/R3 and the S Zone/Invalidation rows are the same shape for both. */}
-                    <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px',alignSelf:'flex-start'}}>
+                  <div style={{marginBottom:12}}>
+                    {/* Fib Levels illustration — last 26 weekly candles from fibMap.weeklyBars
+                        (already computed above by buildFibMapFromDailyBars, no new fetch/
+                        aggregation needed here). Overlays: weekly resistance (bold solid),
+                        daily resistance (dotted), weekly support zone (shaded blue band),
+                        weekly invalidation (dashed red). Replaces the old LT/ST text table. */}
+                    <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px'}}>
                       <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Fib Levels</div>
-                      {!ltm && !stm ? <div style={{fontSize:10,color:'#555'}}>No data</div> : <>
-                        <div style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr',gap:'4px 10px',fontSize:8,marginBottom:4}}>
-                          <span></span>
-                          <span style={{color:'#555',textTransform:'uppercase',letterSpacing:'0.05em'}}>LT (Wkly)</span>
-                          <span style={{color:'#555',textTransform:'uppercase',letterSpacing:'0.05em'}}>ST (Daily)</span>
-                        </div>
-                        <div style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr',gap:'5px 10px',fontSize:10,alignItems:'baseline'}}>
-                          <span style={{color:'#555'}}>S Zone</span>
-                          <span style={{color:'#6090d0',fontWeight:600}}>{ltm?fmt(ltm.fibSupportZoneHigh)+' \u2013 '+fmt(ltm.fibSupportZoneLow):String.fromCharCode(0x2014)}</span>
-                          <span style={{color:'#6090d0',fontWeight:600}}>{stm?fmt(stm.fibSupportZoneHigh)+' \u2013 '+fmt(stm.fibSupportZoneLow):String.fromCharCode(0x2014)}</span>
-                          <span style={{color:'#555'}}>Invalidation</span>
-                          <span style={{color:'#e05050'}}>{ltm?fmt(ltm.fibInvalidation):String.fromCharCode(0x2014)}</span>
-                          <span style={{color:'#e05050'}}>{stm?fmt(stm.fibInvalidation):String.fromCharCode(0x2014)}</span>
-                        </div>
-                        <div style={{borderTop:'0.5px solid #222',marginTop:6,paddingTop:6}}>
-                          <div style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr',gap:'4px 10px',fontSize:10,alignItems:'baseline'}}>
-                            <span style={{color:'#555'}}>R1</span>
-                            <span style={{color:'#888'}}>{ltm?fmt(ltm.fibTarget1):String.fromCharCode(0x2014)}</span>
-                            <span style={{color:'#888'}}>{stm?fmt(stm.fibTarget1):String.fromCharCode(0x2014)}</span>
-                            <span style={{color:'#555'}}>R2</span>
-                            <span style={{color:'#888'}}>{ltm?fmt(ltm.fibTarget2):String.fromCharCode(0x2014)}</span>
-                            <span style={{color:'#888'}}>{stm?fmt(stm.fibTarget2):String.fromCharCode(0x2014)}</span>
-                            <span style={{color:'#555'}}>R3</span>
-                            <span style={{color:'#888'}}>{ltm?fmt(ltm.fibTarget3):String.fromCharCode(0x2014)}</span>
-                            <span style={{color:'#888'}}>{stm?fmt(stm.fibTarget3):String.fromCharCode(0x2014)}</span>
-                          </div>
-                        </div>
-                      </>}
+                      {(function(){
+                        var wBars = (ltm && ltm.weeklyBars) ? ltm.weeklyBars : null;
+                        var geo = wBars ? buildFibChartGeometry(
+                          wBars,
+                          ltm ? ltm.fibTarget1 : null,
+                          stm ? stm.fibTarget1 : null,
+                          ltm ? ltm.fibSupportZoneHigh : null,
+                          ltm ? ltm.fibSupportZoneLow : null,
+                          ltm ? ltm.fibInvalidation : null,
+                          26
+                        ) : null;
+                        if (!geo) {
+                          var noData = <div style={{fontSize:10,color:'#555'}}>No weekly chart data</div>;
+                          return noData;
+                        }
+                        var chartW = geo.right - geo.left;
+                        var chartSvg = (
+                          <svg viewBox="0 0 680 400" width="100%" style={{display:'block'}}>
+                            {geo.supportHighY!=null && geo.supportLowY!=null &&
+                              <rect x={geo.left} y={geo.supportHighY} width={chartW}
+                                height={Math.max(1, geo.supportLowY - geo.supportHighY)}
+                                fill="#378ADD" opacity="0.12"/>}
+                            {geo.supportHighY!=null &&
+                              <line x1={geo.left} y1={geo.supportHighY} x2={geo.right} y2={geo.supportHighY}
+                                stroke="#378ADD" strokeWidth="0.5" strokeDasharray="2,2"/>}
+                            {geo.supportLowY!=null &&
+                              <line x1={geo.left} y1={geo.supportLowY} x2={geo.right} y2={geo.supportLowY}
+                                stroke="#378ADD" strokeWidth="0.5" strokeDasharray="2,2"/>}
+                            {geo.invalidationY!=null &&
+                              <line x1={geo.left} y1={geo.invalidationY} x2={geo.right} y2={geo.invalidationY}
+                                stroke="#e05050" strokeWidth="0.5" strokeDasharray="6,3"/>}
+                            {geo.weeklyResY!=null &&
+                              <line x1={geo.left} y1={geo.weeklyResY} x2={geo.right} y2={geo.weeklyResY}
+                                stroke="#888" strokeWidth="1.5"/>}
+                            {geo.dailyResY!=null &&
+                              <line x1={geo.left} y1={geo.dailyResY} x2={geo.right} y2={geo.dailyResY}
+                                stroke="#888" strokeWidth="1" strokeDasharray="1,3"/>}
+                            {geo.candles.map(function(c, ci){
+                              return <g key={ci}>
+                                <line x1={c.x} y1={c.wickTop} x2={c.x} y2={c.wickBot} stroke={c.color} strokeWidth="1"/>
+                                <rect x={c.x-c.bodyW/2} y={c.bodyTop} width={c.bodyW} height={c.bodyBot-c.bodyTop} fill={c.color}/>
+                              </g>;
+                            })}
+                            {geo.weeklyResY!=null &&
+                              <text x={geo.right+6} y={geo.weeklyResY-4} fontSize="9" fill="#888">{'Weekly res '+fmt(ltm.fibTarget1)}</text>}
+                            {geo.dailyResY!=null &&
+                              <text x={geo.right+6} y={geo.dailyResY+10} fontSize="9" fill="#888">{'Daily res '+fmt(stm.fibTarget1)}</text>}
+                            {geo.supportHighY!=null &&
+                              <text x={geo.right+6} y={geo.supportHighY+4} fontSize="9" fill="#378ADD">{'S zone '+fmt(ltm.fibSupportZoneHigh)}</text>}
+                            {geo.supportLowY!=null &&
+                              <text x={geo.right+6} y={geo.supportLowY+11} fontSize="9" fill="#378ADD">{fmt(ltm.fibSupportZoneLow)}</text>}
+                            {geo.invalidationY!=null &&
+                              <text x={geo.right+6} y={geo.invalidationY+4} fontSize="9" fill="#e05050">{'Invalid. '+fmt(ltm.fibInvalidation)}</text>}
+                          </svg>
+                        );
+                        return chartSvg;
+                      })()}
                     </div>
-                    {/* Wave Targets & Pullback Range — now sits alongside the Fib column instead of below it */}
                     {(ltm||stm)
-                      ? <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px',alignSelf:'flex-start'}}>
+                      ? <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px',marginTop:12}}>
                           <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Wave Targets & Pullback Range</div>
-                          <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'8px 10px',fontSize:10}}>
+                          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px 10px',fontSize:10}}>
                             <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>LT Wave Target</div><div style={{color:'#888',fontWeight:600}}>{fmtR(ltm&&ltm.fibTarget1)}</div></div>
                             <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>ST Wave Target</div><div style={{color:'#888',fontWeight:600}}>{fmtR(stm&&stm.fibTarget1)}</div></div>
                             <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>LT Pullback Zone</div><div style={{color:'#6090d0'}}>{ltm?(fmtR(ltm.fibSupportZoneHigh)+'\u2013'+fmtR(ltm.fibSupportZoneLow)):String.fromCharCode(0x2014)}</div></div>
@@ -13403,7 +13481,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                             {wg&&<div style={{gridColumn:'1/-1'}}><div style={{color:'#555',fontSize:8,marginBottom:2}}>Wave Stage</div><div style={{color:'#888'}}>{wg.waveStatus||String.fromCharCode(0x2014)}</div></div>}
                           </div>
                         </div>
-                      : <div />}
+                      : null}
                   </div>
                   <div style={{borderRadius:6,overflow:'hidden',border:'0.5px solid #252523'}}>
                     <div style={{fontSize:9,color:'#555',padding:'5px 10px',background:'#111',letterSpacing:'0.04em',textTransform:'uppercase'}}>{tvTicker} {'\u00B7'} Daily</div>
@@ -14888,7 +14966,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.223</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.224</span>
           </div>
         </div>
 
