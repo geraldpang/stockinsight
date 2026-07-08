@@ -5178,7 +5178,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.224</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.225</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5232,7 +5232,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.224</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.225</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11502,22 +11502,28 @@ function aggregateWeekly(dailyBars) {
 
 // Find major swing low and swing high from weekly bars.
 // Returns {swingLow, swingHigh, swingLowDate, swingHighDate} or null if structure unclear.
-function findFibSwings(weeklyBars) {
-  if (!weeklyBars || weeklyBars.length < 26) return null;
-  var bars = weeklyBars.slice(-52); // use up to last 52 weeks
+// Core weekly swing-finder — shared by findFibSwings (normal 26+ week case,
+// 52-week lookback) and the re-anchoring path in buildFibMapFromDailyBars
+// (shorter post-breakdown window). Behavior-preserving refactor: findFibSwings
+// below calls this with the exact same params (26, 52, 0.10) it always used.
+function findSwingInWeeklyBars(rawBars, minRawBars, maxWindow, minRangePct) {
+  if (!rawBars || rawBars.length < minRawBars) return null;
+  var bars = rawBars.slice(-maxWindow);
   var swingLowBar = bars[0], swingHighBar = bars[0];
   for (var wi = 1; wi < bars.length; wi++) {
     var b = bars[wi];
     if (b.low  < swingLowBar.low)   swingLowBar  = b;
     if (b.high > swingHighBar.high) swingHighBar = b;
   }
-  // Range must be at least 10% of swing low to avoid flat/choppy structures
   var range = swingHighBar.high - swingLowBar.low;
-  if (range / swingLowBar.low < 0.10) return null;
+  if (range / swingLowBar.low < minRangePct) return null;
+  return { swingLow:swingLowBar.low, swingHigh:swingHighBar.high, swingLowDate:swingLowBar.date, swingHighDate:swingHighBar.date };
+}
+function findFibSwings(weeklyBars) {
   // Note: we do NOT require swingLow to precede swingHigh in time.
   // Many valid tickers hit their yearly high first then consolidated — we still
   // want to show the Fib map. priceMapStatus logic handles direction context.
-  return { swingLow:swingLowBar.low, swingHigh:swingHighBar.high, swingLowDate:swingLowBar.date, swingHighDate:swingHighBar.date };
+  return findSwingInWeeklyBars(weeklyBars, 26, 52, 0.10);
 }
 
 // Calculate Fib retracement and extension levels from swing points.
@@ -11586,6 +11592,49 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
                weeklyBarCount:weekly.length, weeklyBars:weekly };
     }
     var levels   = calcFibLevels(swings.swingLow, swings.swingHigh);
+
+    // ── Re-anchoring (Option B) ──────────────────────────────────────────────
+    // NOTE ON THE CORRECT TRIGGER: swingLow is the minimum low over the very
+    // same window that includes the current bar, so swingLow <= current bar's
+    // low <= current bar's close ALWAYS — "price below swingLow" can never
+    // actually happen. What DOES happen, and is what "support sits above
+    // current price" really means: the support ZONE (a 50-61.8% retracement
+    // of the full up-to-52-week high/low) can sit well above current price
+    // even while price is still above swingLow itself — this is the existing
+    // 'Broken' status (price < fibSupportZoneLow). The 52-week global high/low
+    // pairing can be a high and low from months apart with no real structural
+    // relationship, so its retracement zone can be stale/irrelevant even
+    // though the raw invalidation level is technically still "intact".
+    //
+    // Fix: when price is below the support zone (Broken), re-derive the swing
+    // from a short, recent window (13 weeks — about a quarter) instead of the
+    // full 52-week window, so the retracement reflects the ticker's current
+    // structure rather than an old high paired with an unrelated old low.
+    // Accept the re-anchored zone only if it actually resolves the problem
+    // (price is no longer below the new zone) — if the ticker is in a
+    // persistent decline making fresh lows, NO retracement-based zone will
+    // ever sit at/below price (that's not a bug, there's just no established
+    // support yet), so we explicitly mark it unavailable rather than
+    // fabricate one.
+    var reanchored = false, structureValid = true;
+    var lastWeeklyClose = weekly.length ? weekly[weekly.length - 1].close : null;
+    if (lastWeeklyClose != null && lastWeeklyClose < levels.fibSupportZoneLow * 0.99) {
+      var RECENT_WEEKS = 13;
+      var recentBars = weekly.slice(-RECENT_WEEKS);
+      var newSwings = findSwingInWeeklyBars(recentBars, 4, recentBars.length, 0.10);
+      var newLevels = newSwings ? calcFibLevels(newSwings.swingLow, newSwings.swingHigh) : null;
+      if (newLevels && lastWeeklyClose >= newLevels.fibSupportZoneLow * 0.99) {
+        swings = newSwings;
+        levels = newLevels;
+        reanchored = true;
+      } else {
+        // Couldn't find a recent structure that resolves it — price is likely
+        // still making fresh lows. Keep the stale zone data but flag it so the
+        // chart/UI can suppress it instead of drawing it as live support.
+        structureValid = false;
+      }
+    }
+
     var status   = getPriceMapStatus(currentPrice, levels, true);
     var fibSupport = levels.fibSupportZoneHigh;
     var fibTarget  = getNextFibTarget(currentPrice, levels);
@@ -11606,6 +11655,12 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
       swingLowDate:      swings.swingLowDate,
       swingHighDate:     swings.swingHighDate,
       weeklyBarCount:    weekly.length,
+      // Re-anchoring debug/audit fields — reanchored:true means the structure
+      // was re-derived after a break; structureValid:false means price is below
+      // invalidation AND re-anchoring wasn't possible (support zone is stale —
+      // chart/UI should not draw it as live support).
+      reanchored:        reanchored,
+      structureValid:    structureValid,
       // Full weekly OHLCV bars used for swing detection — included for audit/verification.
       // Each bar: { date, open, high, low, close, volume }
       weeklyBars:        weekly,
@@ -11616,9 +11671,13 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
 // Short-Term Map: find swing low/high from the last 90 daily bars of daily2.
 // Same global min/max approach as findFibSwings, but daily resolution.
 // daily2 uses ms timestamps — normalised to ISO string for consistent date comparison.
-function findDailyFibSwings(dailyBars) {
-  if (!dailyBars || dailyBars.length < 60) return null;
-  var bars = dailyBars.slice(-90); // last ~4 months of trading days
+// Core daily swing-finder — shared by findDailyFibSwings (normal 60+ day case,
+// 90-day lookback) and the re-anchoring path in buildShortTermFibMap (shorter
+// post-breakdown window). Behavior-preserving refactor: findDailyFibSwings
+// below calls this with the exact same params (60, 90, 0.05) it always used.
+function findSwingInDailyBars(rawBars, minRawBars, maxWindow, minRangePct) {
+  if (!rawBars || rawBars.length < minRawBars) return null;
+  var bars = rawBars.slice(-maxWindow);
   var swingLowBar = bars[0], swingHighBar = bars[0];
   for (var di = 1; di < bars.length; di++) {
     var b = bars[di];
@@ -11633,10 +11692,13 @@ function findDailyFibSwings(dailyBars) {
   var swingLow  = swingLowBar.low  || swingLowBar.close;
   var swingHigh = swingHighBar.high || swingHighBar.close;
   var range = swingHigh - swingLow;
-  if (range / swingLow < 0.05) return null; // 5% minimum for daily — tighter than weekly's 10%
+  if (range / swingLow < minRangePct) return null;
   var lowDate  = typeof swingLowBar.date  === 'number' ? new Date(swingLowBar.date).toISOString().split('T')[0]  : String(swingLowBar.date).split('T')[0];
   var highDate = typeof swingHighBar.date === 'number' ? new Date(swingHighBar.date).toISOString().split('T')[0] : String(swingHighBar.date).split('T')[0];
   return { swingLow:swingLow, swingHigh:swingHigh, swingLowDate:lowDate, swingHighDate:highDate };
+}
+function findDailyFibSwings(dailyBars) {
+  return findSwingInDailyBars(dailyBars, 60, 90, 0.05);
 }
 
 // Build Short-Term Fib map from daily bars (reuses existing calcFibLevels, getPriceMapStatus).
@@ -11652,6 +11714,27 @@ function buildShortTermFibMap(daily2Arr, currentPrice) {
                priceMapCommentary:'No clear short-term swing structure detected.', swingLowDate:null, swingHighDate:null, dailyBarCount:daily2Arr.length };
     }
     var levels  = calcFibLevels(swings.swingLow, swings.swingHigh);
+
+    // ── Re-anchoring (Option B) — same fix as buildFibMapFromDailyBars, using
+    // last DAILY close and a recent (20-day, ~1 month) window instead of the
+    // full 90-day one. See the weekly version's comment for why the trigger
+    // is "below fibSupportZoneLow" (Broken), not "below swingLow" (unreachable).
+    var reanchored = false, structureValid = true;
+    var lastDailyClose = daily2Arr.length ? daily2Arr[daily2Arr.length - 1].close : null;
+    if (lastDailyClose != null && lastDailyClose < levels.fibSupportZoneLow * 0.99) {
+      var RECENT_DAYS = 20;
+      var recentDBars = daily2Arr.slice(-RECENT_DAYS);
+      var newDSwings = findSwingInDailyBars(recentDBars, 10, recentDBars.length, 0.05);
+      var newDLevels = newDSwings ? calcFibLevels(newDSwings.swingLow, newDSwings.swingHigh) : null;
+      if (newDLevels && lastDailyClose >= newDLevels.fibSupportZoneLow * 0.99) {
+        swings = newDSwings;
+        levels = newDLevels;
+        reanchored = true;
+      } else {
+        structureValid = false;
+      }
+    }
+
     var status  = getPriceMapStatus(currentPrice, levels, true);
     var fibSupport = levels.fibSupportZoneHigh;
     var fibTarget  = getNextFibTarget(currentPrice, levels);
@@ -11672,38 +11755,72 @@ function buildShortTermFibMap(daily2Arr, currentPrice) {
       swingLowDate:      swings.swingLowDate,
       swingHighDate:     swings.swingHighDate,
       dailyBarCount:     daily2Arr.length,
+      reanchored:        reanchored,
+      structureValid:    structureValid,
     };
   } catch(e) { return null; }
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Fib Levels illustration — pure geometry helper (module-level) ───────────
-// Computes pixel coordinates for a 680x420 candlestick illustration: last N
+// Computes pixel coordinates for a 680x400 candlestick illustration: last N
 // weekly candles (from fibMap.weeklyBars, already computed above — no new
 // fetch/aggregation needed) plus overlay lines for weekly resistance (bold),
 // daily resistance (dotted), a shaded support zone, and an invalidation line.
 // Returns plain numbers only — the render body maps this into SVG elements.
+//
+// A resistance level (weekly or daily) can sit far above the visible candle
+// range (e.g. a weekly swing-high projection much higher than recent price) —
+// stretching the whole linear scale to reach it wastes most of the chart on
+// empty space. Any resistance level more than FAR_THRESHOLD above the candle
+// high gets pulled out of the linear scale and compressed into a fixed-height
+// "break" strip at the top instead, with a zigzag marker and a "+X% away"
+// label so the number is still meaningful even though it's off-scale.
 function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, supportLow, invalidation, weeksToShow) {
   if (!weeklyBars || weeklyBars.length < 2) return null;
   var bars = weeklyBars.slice(-(weeksToShow || 26));
   var n = bars.length;
   if (n < 2) return null;
-  var prices = [];
-  bars.forEach(function(b){ if (b && b.high>0 && b.low>0) { prices.push(b.high); prices.push(b.low); } });
-  if (weeklyRes    != null) prices.push(weeklyRes);
-  if (dailyRes     != null) prices.push(dailyRes);
-  if (supportHigh  != null) prices.push(supportHigh);
-  if (supportLow   != null) prices.push(supportLow);
-  if (invalidation != null) prices.push(invalidation);
-  if (!prices.length) return null;
-  var maxP = Math.max.apply(null, prices), minP = Math.min.apply(null, prices);
+
+  var candlePrices = [];
+  bars.forEach(function(b){ if (b && b.high>0 && b.low>0) { candlePrices.push(b.high); candlePrices.push(b.low); } });
+  if (!candlePrices.length) return null;
+  var candleMax = Math.max.apply(null, candlePrices), candleMinForGap = Math.min.apply(null, candlePrices);
+  var candleSpan = Math.max(candleMax - candleMinForGap, candleMax * 0.02); // avoid div-by-~0 for flat weeks
+
+  // A resistance level counts as "far" if the empty gap it would create above the
+  // candle high is itself bigger than a large fraction of the candle range —
+  // this is what actually drives how much of the chart LOOKS empty, not the
+  // level's raw % distance above an absolute price (a $60 gap is enormous
+  // against a $165 candle range but looks tiny expressed as "% of $495").
+  var FAR_GAP_RATIO = 0.30;
+  function isFarAbove(level) { return level != null && (level - candleMax) / candleSpan > FAR_GAP_RATIO; }
+
+  var farLevels = [];  // resistance levels compressed into the break strip
+  var nearLevels = []; // everything folded into the normal linear scale
+  if (weeklyRes != null) { if (isFarAbove(weeklyRes)) farLevels.push({ key:'weekly', price:weeklyRes }); else nearLevels.push(weeklyRes); }
+  if (dailyRes  != null) { if (isFarAbove(dailyRes))  farLevels.push({ key:'daily',  price:dailyRes });  else nearLevels.push(dailyRes); }
+  farLevels.sort(function(a,b){ return a.price - b.price; });
+
+  // Support zone + invalidation always stay on the normal scale — in practice
+  // these track much closer to recent price than a swing-high projection does.
+  if (supportHigh  != null) nearLevels.push(supportHigh);
+  if (supportLow   != null) nearLevels.push(supportLow);
+  if (invalidation != null) nearLevels.push(invalidation);
+
+  var allNear = candlePrices.concat(nearLevels);
+  var maxP = Math.max.apply(null, allNear), minP = Math.min.apply(null, allNear);
   var pad = (maxP - minP) * 0.08 || maxP * 0.05;
   maxP += pad; minP -= pad;
   var range = maxP - minP;
   if (!(range > 0)) return null;
-  var top = 40, bottom = 380, plotH = bottom - top;
+
+  var hasBreak = farLevels.length > 0;
+  var breakZoneH = hasBreak ? 46 : 0; // fixed height regardless of $ distance
+  var top = 40 + breakZoneH, bottom = 380, plotH = bottom - top;
   var left = 70, right = 540, plotW = right - left;
   function y(price) { return top + (maxP - price) / range * plotH; }
+
   var slotW = plotW / n;
   var bodyW = Math.max(2, Math.min(12, slotW * 0.55));
   var candles = bars.map(function(b, i) {
@@ -11715,13 +11832,36 @@ function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, sup
     return { x: cx, wickTop: y(b.high), wickBot: y(b.low), bodyTop: bodyTop, bodyBot: bodyBot,
              bodyW: bodyW, color: bull ? '#639922' : '#e24b4a' };
   });
+
+  // Far levels get fixed y positions inside the break strip, stacked if there's
+  // more than one, each labelled with % distance above the visible candle high.
+  var farRendered = farLevels.map(function(f, i) {
+    return { key: f.key, price: f.price, y: 40 + 14 + i * 16, pctAway: ((f.price - candleMax) / candleMax) * 100 };
+  });
+
+  var breakPathD = null;
+  if (hasBreak) {
+    var by = 40 + breakZoneH - 6;
+    var segLen = 16, amp = 5, xCur = left, up = true;
+    var pathParts = ['M', left, by];
+    while (xCur < right) {
+      var xNext = Math.min(xCur + segLen, right);
+      pathParts.push('L', xNext, by + (up ? -amp : amp));
+      xCur = xNext; up = !up;
+    }
+    breakPathD = pathParts.join(' ');
+  }
+
+  function nearY(price) { return price != null ? y(price) : null; }
+
   return {
     candles: candles, left: left, right: right, top: top, bottom: bottom,
-    weeklyResY:    weeklyRes    != null ? y(weeklyRes)    : null,
-    dailyResY:     dailyRes     != null ? y(dailyRes)     : null,
-    supportHighY:  supportHigh  != null ? y(supportHigh)  : null,
-    supportLowY:   supportLow   != null ? y(supportLow)   : null,
-    invalidationY: invalidation != null ? y(invalidation) : null,
+    hasBreak: hasBreak, breakPathD: breakPathD, farLevels: farRendered,
+    weeklyResY:    (weeklyRes != null && !isFarAbove(weeklyRes)) ? nearY(weeklyRes) : null,
+    dailyResY:     (dailyRes  != null && !isFarAbove(dailyRes))  ? nearY(dailyRes)  : null,
+    supportHighY:  nearY(supportHigh),
+    supportLowY:   nearY(supportLow),
+    invalidationY: nearY(invalidation),
   };
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13414,13 +13554,19 @@ function WatchlistPage({ clerkUser, isPaid }) {
                       <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Fib Levels</div>
                       {(function(){
                         var wBars = (ltm && ltm.weeklyBars) ? ltm.weeklyBars : null;
+                        // structureValid is only false in the rare case where price broke
+                        // below the old weekly invalidation AND there wasn't enough
+                        // post-break history to re-anchor (see buildFibMapFromDailyBars) —
+                        // in that case the support zone/invalidation are stale, so we
+                        // suppress them rather than draw them as if still live.
+                        var ltmZoneOk = ltm && ltm.structureValid !== false;
                         var geo = wBars ? buildFibChartGeometry(
                           wBars,
                           ltm ? ltm.fibTarget1 : null,
                           stm ? stm.fibTarget1 : null,
-                          ltm ? ltm.fibSupportZoneHigh : null,
-                          ltm ? ltm.fibSupportZoneLow : null,
-                          ltm ? ltm.fibInvalidation : null,
+                          ltmZoneOk ? ltm.fibSupportZoneHigh : null,
+                          ltmZoneOk ? ltm.fibSupportZoneLow : null,
+                          ltmZoneOk ? ltm.fibInvalidation : null,
                           26
                         ) : null;
                         if (!geo) {
@@ -13430,6 +13576,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
                         var chartW = geo.right - geo.left;
                         var chartSvg = (
                           <svg viewBox="0 0 680 400" width="100%" style={{display:'block'}}>
+                            {!ltmZoneOk &&
+                              <text x={geo.left} y={26} fontSize="9" fill="#EF9F27">{'Weekly support zone unavailable ' + String.fromCharCode(0x2014) + ' price broke below prior structure'}</text>}
                             {geo.supportHighY!=null && geo.supportLowY!=null &&
                               <rect x={geo.left} y={geo.supportHighY} width={chartW}
                                 height={Math.max(1, geo.supportLowY - geo.supportHighY)}
@@ -13449,6 +13597,18 @@ function WatchlistPage({ clerkUser, isPaid }) {
                             {geo.dailyResY!=null &&
                               <line x1={geo.left} y1={geo.dailyResY} x2={geo.right} y2={geo.dailyResY}
                                 stroke="#888" strokeWidth="1" strokeDasharray="1,3"/>}
+                            {geo.hasBreak && geo.breakPathD &&
+                              <path d={geo.breakPathD} stroke="#555" strokeWidth="1" fill="none"/>}
+                            {geo.farLevels.map(function(f, fi){
+                              var isWk = f.key==='weekly';
+                              return <g key={'far'+fi}>
+                                <line x1={geo.left} y1={f.y} x2={geo.right} y2={f.y} stroke="#888"
+                                  strokeWidth={isWk?"1.5":"1"} strokeDasharray={isWk?"":"1,3"}/>
+                                <text x={geo.right+6} y={f.y+4} fontSize="9" fill="#888">
+                                  {(isWk?'Weekly res $':'Daily res $')+f.price.toFixed(2)+' (+'+f.pctAway.toFixed(0)+'%)'}
+                                </text>
+                              </g>;
+                            })}
                             {geo.candles.map(function(c, ci){
                               return <g key={ci}>
                                 <line x1={c.x} y1={c.wickTop} x2={c.x} y2={c.wickBot} stroke={c.color} strokeWidth="1"/>
@@ -14966,7 +15126,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.224</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.225</span>
           </div>
         </div>
 
