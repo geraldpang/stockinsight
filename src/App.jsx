@@ -5178,7 +5178,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.230</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.232</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5232,7 +5232,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.230</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.232</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -7433,112 +7433,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 );
                               })()}
 
-                              {/* ── Fib Levels illustration — same chart as #WATCHLIST, reusing
-                                  taFibMap/taStMap (identical buildFibMapFromDailyBars/buildShortTermFibMap
-                                  output as ltm/stm there), so it's the same single source of truth and
-                                  the same chart code, no re-theming needed since this card is already dark. */}
-                              {(function(){
-                                var fmtPrice = function(v){ return v!=null?('$'+Number(v).toFixed(2)):String.fromCharCode(0x2014); };
-                                var wBarsTa = (taFibMap && taFibMap.weeklyBars) ? taFibMap.weeklyBars : null;
-                                if (!wBarsTa) return null;
-                                var ltmZoneOkTa = taFibMap && taFibMap.structureValid !== false;
-                                var stmZoneOkTa = taStMap && taStMap.structureValid !== false;
-                                var geoTa = buildFibChartGeometry(
-                                  wBarsTa,
-                                  taFibMap ? taFibMap.fibTarget1 : null,
-                                  taStMap ? taStMap.fibTarget1 : null,
-                                  ltmZoneOkTa ? taFibMap.fibSupportZoneHigh : null,
-                                  ltmZoneOkTa ? taFibMap.fibSupportZoneLow : null,
-                                  taFibMap ? taFibMap.fibInvalidation : null,
-                                  stmZoneOkTa ? taStMap.fibSupportZoneHigh : null,
-                                  stmZoneOkTa ? taStMap.fibSupportZoneLow : null,
-                                  26
-                                );
-                                if (!geoTa) return null;
-                                var chartWTa = geoTa.right - geoTa.left;
-                                var zoneStrokeTa = ltmZoneOkTa ? '#378ADD' : '#666';
-                                var zoneFillOpacityTa = ltmZoneOkTa ? '0.20' : '0.08';
-                                var zoneDashTa = ltmZoneOkTa ? '2,2' : '3,3';
-                                var zoneLabelTa = ltmZoneOkTa ? 'S zone ' : 'Prior zone (broken) ';
-                                var invColorTa = ltmZoneOkTa ? '#e05050' : '#378ADD';
-                                var invStrokeWTa = ltmZoneOkTa ? '0.5' : '1.5';
-                                var invDashTa = ltmZoneOkTa ? '6,3' : '';
-                                var invLabelTa = ltmZoneOkTa ? 'Invalid. ' : 'Support ';
-                                return (
-                                  <div style={{ borderTop:"0.5px solid #2a2a2a", marginTop:12, paddingTop:12 }}>
-                                    <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>{"Fib Levels"}</div>
-                                    <div style={{background:'rgba(0,0,0,0.25)',borderRadius:6,padding:'8px 10px'}}>
-                                      {!ltmZoneOkTa && taFibMap &&
-                                        <div style={{fontSize:9,color:'#EF9F27',marginBottom:6}}>
-                                          {'Weekly zone broken ' + String.fromCharCode(0x2014) + ' ' + fmtPrice(taFibMap.fibInvalidation) + ' is the next support'}
-                                        </div>}
-                                      <svg viewBox="0 0 680 400" width="100%" style={{display:'block'}}>
-                                        {geoTa.dailySupportHighY!=null && geoTa.dailySupportLowY!=null &&
-                                          <rect x={geoTa.left} y={geoTa.dailySupportHighY} width={chartWTa}
-                                            height={Math.max(1, geoTa.dailySupportLowY - geoTa.dailySupportHighY)}
-                                            fill="#6090d0" opacity="0.10"/>}
-                                        {geoTa.supportHighY!=null && geoTa.supportLowY!=null &&
-                                          <rect x={geoTa.left} y={geoTa.supportHighY} width={chartWTa}
-                                            height={Math.max(1, geoTa.supportLowY - geoTa.supportHighY)}
-                                            fill={zoneStrokeTa} opacity={zoneFillOpacityTa}/>}
-                                        {geoTa.supportHighY!=null &&
-                                          <line x1={geoTa.left} y1={geoTa.supportHighY} x2={geoTa.right} y2={geoTa.supportHighY}
-                                            stroke={zoneStrokeTa} strokeWidth="0.5" strokeDasharray={zoneDashTa}/>}
-                                        {geoTa.supportLowY!=null &&
-                                          <line x1={geoTa.left} y1={geoTa.supportLowY} x2={geoTa.right} y2={geoTa.supportLowY}
-                                            stroke={zoneStrokeTa} strokeWidth="0.5" strokeDasharray={zoneDashTa}/>}
-                                        {geoTa.dailySupportHighY!=null &&
-                                          <line x1={geoTa.left} y1={geoTa.dailySupportHighY} x2={geoTa.right} y2={geoTa.dailySupportHighY}
-                                            stroke="#6090d0" strokeWidth="0.5" strokeDasharray="1,3"/>}
-                                        {geoTa.dailySupportLowY!=null &&
-                                          <line x1={geoTa.left} y1={geoTa.dailySupportLowY} x2={geoTa.right} y2={geoTa.dailySupportLowY}
-                                            stroke="#6090d0" strokeWidth="0.5" strokeDasharray="1,3"/>}
-                                        {geoTa.invalidationY!=null &&
-                                          <line x1={geoTa.left} y1={geoTa.invalidationY} x2={geoTa.right} y2={geoTa.invalidationY}
-                                            stroke={invColorTa} strokeWidth={invStrokeWTa} strokeDasharray={invDashTa}/>}
-                                        {geoTa.weeklyResY!=null &&
-                                          <line x1={geoTa.left} y1={geoTa.weeklyResY} x2={geoTa.right} y2={geoTa.weeklyResY}
-                                            stroke="#888" strokeWidth="1.5"/>}
-                                        {geoTa.dailyResY!=null &&
-                                          <line x1={geoTa.left} y1={geoTa.dailyResY} x2={geoTa.right} y2={geoTa.dailyResY}
-                                            stroke="#888" strokeWidth="1" strokeDasharray="1,3"/>}
-                                        {geoTa.hasBreak && geoTa.breakPathD &&
-                                          <path d={geoTa.breakPathD} stroke="#555" strokeWidth="1" fill="none"/>}
-                                        {geoTa.farLevels.map(function(f, fi){
-                                          var isWk = f.key==='weekly';
-                                          return <g key={'far'+fi}>
-                                            <line x1={geoTa.left} y1={f.y} x2={geoTa.right} y2={f.y} stroke="#888"
-                                              strokeWidth={isWk?"1.5":"1"} strokeDasharray={isWk?"":"1,3"}/>
-                                            <text x={geoTa.right+6} y={f.y+4} fontSize="9" fill="#888">
-                                              {(isWk?'Weekly res $':'Daily res $')+f.price.toFixed(2)+' (+'+f.pctAway.toFixed(0)+'%)'}
-                                            </text>
-                                          </g>;
-                                        })}
-                                        {geoTa.candles.map(function(c, ci){
-                                          return <g key={ci}>
-                                            <line x1={c.x} y1={c.wickTop} x2={c.x} y2={c.wickBot} stroke={c.color} strokeWidth="1"/>
-                                            <rect x={c.x-c.bodyW/2} y={c.bodyTop} width={c.bodyW} height={c.bodyBot-c.bodyTop} fill={c.color}/>
-                                          </g>;
-                                        })}
-                                        {geoTa.weeklyResY!=null &&
-                                          <text x={geoTa.right+6} y={geoTa.weeklyResY-4} fontSize="9" fill="#888">{'Weekly res '+fmtPrice(taFibMap.fibTarget1)}</text>}
-                                        {geoTa.dailyResY!=null &&
-                                          <text x={geoTa.right+6} y={geoTa.dailyResY+10} fontSize="9" fill="#888">{'Daily res '+fmtPrice(taStMap.fibTarget1)}</text>}
-                                        {geoTa.supportHighY!=null &&
-                                          <text x={geoTa.right+6} y={geoTa.supportHighY+4} fontSize="9" fill={zoneStrokeTa}>{zoneLabelTa+fmtPrice(taFibMap.fibSupportZoneHigh)}</text>}
-                                        {geoTa.supportLowY!=null &&
-                                          <text x={geoTa.right+6} y={geoTa.supportLowY+11} fontSize="9" fill={zoneStrokeTa}>{fmtPrice(taFibMap.fibSupportZoneLow)}</text>}
-                                        {geoTa.dailySupportHighY!=null &&
-                                          <text x={geoTa.right+6} y={geoTa.dailySupportHighY+4} fontSize="9" fill="#6090d0">{'Daily S zone '+fmtPrice(taStMap.fibSupportZoneHigh)}</text>}
-                                        {geoTa.dailySupportLowY!=null &&
-                                          <text x={geoTa.right+6} y={geoTa.dailySupportLowY+11} fontSize="9" fill="#6090d0">{fmtPrice(taStMap.fibSupportZoneLow)}</text>}
-                                        {geoTa.invalidationY!=null &&
-                                          <text x={geoTa.right+6} y={geoTa.invalidationY+4} fontSize="9" fill={invColorTa}>{invLabelTa+fmtPrice(taFibMap.fibInvalidation)}</text>}
-                                      </svg>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
+                              <div style={{ borderTop:"0.5px solid #2a2a2a", marginTop:12, paddingTop:12 }}>
+                                <FibLevelsChart weeklyMap={taFibMap} dailyMap={taStMap} cardBg="rgba(0,0,0,0.25)" />
+                              </div>
                             </div>
 
                             {/* ── Key Levels card — factual prices only ────── */}
@@ -11743,6 +11640,11 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
     // fabricate one.
     var reanchored = false, structureValid = true;
     var lastWeeklyClose = weekly.length ? weekly[weekly.length - 1].close : null;
+    // nextSupportLevel is what the chart shows as "next support" when the zone is
+    // broken — kept SEPARATE from fibInvalidation (below), which stays the raw
+    // swing's own invalidation level for its original purpose. Defaults to the
+    // normal zone low when nothing is broken.
+    var nextSupportLevel = levels.fibSupportZoneLow;
     if (lastWeeklyClose != null && lastWeeklyClose < levels.fibSupportZoneLow * 0.99) {
       var RECENT_WEEKS = 13;
       var recentBars = weekly.slice(-RECENT_WEEKS);
@@ -11752,11 +11654,27 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
         swings = newSwings;
         levels = newLevels;
         reanchored = true;
+        nextSupportLevel = newLevels.fibSupportZoneLow;
       } else {
         // Couldn't find a recent structure that resolves it — price is likely
         // still making fresh lows. Keep the stale zone data but flag it so the
         // chart/UI can suppress it instead of drawing it as live support.
         structureValid = false;
+        // BUG FIX: the PRIMARY swingLow above (used to build the stale `levels`)
+        // is now proximity-constrained (see findSwingInWeeklyBars's
+        // lowProximityWeeks) to sit near swingHigh — which can itself be old and
+        // irrelevant in a sustained decline. That means the primary swingLow is
+        // NO LONGER guaranteed to be below current price (it was, before the
+        // proximity fix), so it must never be promoted as "next support" without
+        // checking first — promoting it blindly was the actual bug (e.g. BMNR:
+        // a swingLow found near a stale old high ended up ABOVE current price).
+        // newSwings above, by contrast, is an UNCONSTRAINED search over a recent
+        // window that includes the current bar, so its swingLow IS guaranteed
+        // <= current price — use that if it exists. If it doesn't (not enough
+        // recent history/range either), there's genuinely no established support
+        // near current price, so say so explicitly (null) rather than show a
+        // number that's technically real but practically meaningless.
+        nextSupportLevel = (newSwings && newSwings.swingLow <= lastWeeklyClose) ? newSwings.swingLow : null;
       }
     }
 
@@ -11768,6 +11686,10 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
       fibSupport:        Math.round(fibSupport   * 100) / 100,
       fibTarget:         Math.round(fibTarget    * 100) / 100,
       fibInvalidation:   Math.round(swings.swingLow    * 100) / 100,
+      // nextSupportLevel: what the chart should promote as "Support" when the
+      // zone is broken — null means genuinely no established support nearby,
+      // never fibInvalidation directly (see bug-fix comment above).
+      nextSupportLevel:  nextSupportLevel != null ? Math.round(nextSupportLevel * 100) / 100 : null,
       fibTimeframe:      'Weekly',
       fibSwingLow:       Math.round(swings.swingLow  * 100) / 100,
       fibSwingHigh:      Math.round(swings.swingHigh * 100) / 100,
@@ -11856,6 +11778,7 @@ function buildShortTermFibMap(daily2Arr, currentPrice) {
     // is "below fibSupportZoneLow" (Broken), not "below swingLow" (unreachable).
     var reanchored = false, structureValid = true;
     var lastDailyClose = daily2Arr.length ? daily2Arr[daily2Arr.length - 1].close : null;
+    var nextSupportLevel = levels.fibSupportZoneLow;
     if (lastDailyClose != null && lastDailyClose < levels.fibSupportZoneLow * 0.99) {
       var RECENT_DAYS = 20;
       var recentDBars = daily2Arr.slice(-RECENT_DAYS);
@@ -11865,8 +11788,15 @@ function buildShortTermFibMap(daily2Arr, currentPrice) {
         swings = newDSwings;
         levels = newDLevels;
         reanchored = true;
+        nextSupportLevel = newDLevels.fibSupportZoneLow;
       } else {
         structureValid = false;
+        // Same bug fix as the weekly map: the primary swingLow (used to build
+        // the stale `levels` above) is proximity-constrained near swingHigh and
+        // is no longer guaranteed <= current price in a sustained decline — only
+        // promote newDSwings.swingLow (unconstrained recent search, guaranteed
+        // valid), or null if even that couldn't find anything.
+        nextSupportLevel = (newDSwings && newDSwings.swingLow <= lastDailyClose) ? newDSwings.swingLow : null;
       }
     }
 
@@ -11878,6 +11808,7 @@ function buildShortTermFibMap(daily2Arr, currentPrice) {
       fibSupport:        Math.round(fibSupport         * 100) / 100,
       fibTarget:         Math.round(fibTarget           * 100) / 100,
       fibInvalidation:   Math.round(swings.swingLow    * 100) / 100,
+      nextSupportLevel:  nextSupportLevel != null ? Math.round(nextSupportLevel * 100) / 100 : null,
       fibTimeframe:      'Daily',
       fibSwingLow:       Math.round(swings.swingLow    * 100) / 100,
       fibSwingHigh:      Math.round(swings.swingHigh   * 100) / 100,
@@ -11913,6 +11844,152 @@ function buildShortTermFibMap(daily2Arr, currentPrice) {
 // high gets pulled out of the linear scale and compressed into a fixed-height
 // "break" strip at the top instead, with a zigzag marker and a "+X% away"
 // label so the number is still meaningful even though it's off-scale.
+// ─── Fib Levels chart — SINGLE SOURCE OF TRUTH for the illustration ─────────
+// Used by BOTH #WATCHLIST (weeklyMap=ltm, dailyMap=stm) and the Technical
+// Analysis tab's Rule Based Analytics card (weeklyMap=taFibMap, dailyMap=
+// taStMap). Both callers' maps are the exact same buildFibMapFromDailyBars()/
+// buildShortTermFibMap() output, so this one component is the only place the
+// chart's colors, layout, or behavior are defined — a future change here
+// (new overlay, bug fix, restyle) automatically applies everywhere this
+// component is used, instead of needing the same edit made twice and risking
+// the two places drifting apart (exactly what happened when this was first
+// duplicated into the Technical Analysis tab — see conversation history).
+// cardBg lets callers match their own surrounding card color (Watchlist's
+// dark '#1a1a18' card vs the Technical Analysis RBA card's 'rgba(0,0,0,0.25)'
+// inner tile) — purely cosmetic, doesn't touch any of the chart logic itself.
+function FibLevelsChart({ weeklyMap, dailyMap, cardBg }) {
+  var ltm = weeklyMap, stm = dailyMap;
+  var fmtPrice = function(v){ return v!=null?('$'+Number(v).toFixed(2)):String.fromCharCode(0x2014); };
+  var cardStyle = { background: cardBg || '#1a1a18', borderRadius:6, padding:'8px 10px' };
+  var headerStyle = { fontSize:8, fontWeight:700, color:'#444', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 };
+  var wBars = (ltm && ltm.weeklyBars) ? ltm.weeklyBars : null;
+
+  var ltmZoneOk = ltm && ltm.structureValid !== false;
+  var stmZoneOk = stm && stm.structureValid !== false;
+  // When the zone is broken, promote nextSupportLevel (validated <= current
+  // price, or null if genuinely nothing nearby) instead of the raw
+  // fibInvalidation — see buildFibMapFromDailyBars's bug-fix comment: the raw
+  // swingLow is proximity-constrained near swingHigh and is NOT guaranteed to
+  // still be below current price in a sustained decline (that was the bug).
+  var invalidationValue = ltm ? (ltmZoneOk ? ltm.fibInvalidation : ltm.nextSupportLevel) : null;
+  var geo = wBars ? buildFibChartGeometry(
+    wBars,
+    ltm ? ltm.fibTarget1 : null,
+    stm ? stm.fibTarget1 : null,
+    ltm ? ltm.fibSupportZoneHigh : null,
+    ltm ? ltm.fibSupportZoneLow : null,
+    invalidationValue,
+    stmZoneOk ? stm.fibSupportZoneHigh : null,
+    stmZoneOk ? stm.fibSupportZoneLow : null,
+    26
+  ) : null;
+
+  if (!geo) {
+    return (
+      <div style={cardStyle}>
+        <div style={headerStyle}>Fib Levels</div>
+        <div style={{fontSize:10,color:'#555'}}>No weekly chart data</div>
+      </div>
+    );
+  }
+
+  var chartW = geo.right - geo.left;
+  // When the weekly zone is broken (structureValid:false), don't hide it —
+  // buildKeyLevels() already treats fibInvalidation as the row's "nearest
+  // support" the moment the zone itself is above current price (it's the
+  // closest support-type level still below price), so the chart tells the
+  // same story instead of a different one: the old zone renders grey/dashed
+  // as broken prior structure, and nextSupportLevel gets promoted to the
+  // active support line/label (when it exists — see comment above).
+  var zoneStroke      = ltmZoneOk ? '#378ADD' : '#666';
+  var zoneFillOpacity = ltmZoneOk ? '0.20' : '0.08';
+  var zoneDash        = ltmZoneOk ? '2,2' : '3,3';
+  var zoneLabel       = ltmZoneOk ? 'S zone ' : 'Prior zone (broken) ';
+  var invColor        = ltmZoneOk ? '#e05050' : '#378ADD';
+  var invStrokeW      = ltmZoneOk ? '0.5' : '1.5';
+  var invDash         = ltmZoneOk ? '6,3' : '';
+  var invLabel        = ltmZoneOk ? 'Invalid. ' : 'Support ';
+
+  return (
+    <div style={cardStyle}>
+      <div style={headerStyle}>Fib Levels</div>
+      {!ltmZoneOk && ltm &&
+        <div style={{fontSize:9,color:'#EF9F27',marginBottom:6}}>
+          {ltm.nextSupportLevel != null
+            ? 'Weekly zone broken ' + String.fromCharCode(0x2014) + ' ' + fmtPrice(ltm.nextSupportLevel) + ' is the next support'
+            : 'Weekly zone broken ' + String.fromCharCode(0x2014) + ' no established support near current price'}
+        </div>}
+      <svg viewBox="0 0 680 400" width="100%" style={{display:'block'}}>
+        {/* Daily zone drawn first (light fill), weekly drawn on top (darker
+            fill) — where they overlap, the two semi-transparent fills blend
+            naturally into the darkest shade via alpha compositing, no extra
+            intersection geometry needed. */}
+        {geo.dailySupportHighY!=null && geo.dailySupportLowY!=null &&
+          <rect x={geo.left} y={geo.dailySupportHighY} width={chartW}
+            height={Math.max(1, geo.dailySupportLowY - geo.dailySupportHighY)}
+            fill="#6090d0" opacity="0.10"/>}
+        {geo.supportHighY!=null && geo.supportLowY!=null &&
+          <rect x={geo.left} y={geo.supportHighY} width={chartW}
+            height={Math.max(1, geo.supportLowY - geo.supportHighY)}
+            fill={zoneStroke} opacity={zoneFillOpacity}/>}
+        {geo.supportHighY!=null &&
+          <line x1={geo.left} y1={geo.supportHighY} x2={geo.right} y2={geo.supportHighY}
+            stroke={zoneStroke} strokeWidth="0.5" strokeDasharray={zoneDash}/>}
+        {geo.supportLowY!=null &&
+          <line x1={geo.left} y1={geo.supportLowY} x2={geo.right} y2={geo.supportLowY}
+            stroke={zoneStroke} strokeWidth="0.5" strokeDasharray={zoneDash}/>}
+        {geo.dailySupportHighY!=null &&
+          <line x1={geo.left} y1={geo.dailySupportHighY} x2={geo.right} y2={geo.dailySupportHighY}
+            stroke="#6090d0" strokeWidth="0.5" strokeDasharray="1,3"/>}
+        {geo.dailySupportLowY!=null &&
+          <line x1={geo.left} y1={geo.dailySupportLowY} x2={geo.right} y2={geo.dailySupportLowY}
+            stroke="#6090d0" strokeWidth="0.5" strokeDasharray="1,3"/>}
+        {geo.invalidationY!=null &&
+          <line x1={geo.left} y1={geo.invalidationY} x2={geo.right} y2={geo.invalidationY}
+            stroke={invColor} strokeWidth={invStrokeW} strokeDasharray={invDash}/>}
+        {geo.weeklyResY!=null &&
+          <line x1={geo.left} y1={geo.weeklyResY} x2={geo.right} y2={geo.weeklyResY}
+            stroke="#888" strokeWidth="1.5"/>}
+        {geo.dailyResY!=null &&
+          <line x1={geo.left} y1={geo.dailyResY} x2={geo.right} y2={geo.dailyResY}
+            stroke="#888" strokeWidth="1" strokeDasharray="1,3"/>}
+        {geo.hasBreak && geo.breakPathD &&
+          <path d={geo.breakPathD} stroke="#555" strokeWidth="1" fill="none"/>}
+        {geo.farLevels.map(function(f, fi){
+          var isWk = f.key==='weekly';
+          return <g key={'far'+fi}>
+            <line x1={geo.left} y1={f.y} x2={geo.right} y2={f.y} stroke="#888"
+              strokeWidth={isWk?"1.5":"1"} strokeDasharray={isWk?"":"1,3"}/>
+            <text x={geo.right+6} y={f.y+4} fontSize="9" fill="#888">
+              {(isWk?'Weekly res $':'Daily res $')+f.price.toFixed(2)+' (+'+f.pctAway.toFixed(0)+'%)'}
+            </text>
+          </g>;
+        })}
+        {geo.candles.map(function(c, ci){
+          return <g key={ci}>
+            <line x1={c.x} y1={c.wickTop} x2={c.x} y2={c.wickBot} stroke={c.color} strokeWidth="1"/>
+            <rect x={c.x-c.bodyW/2} y={c.bodyTop} width={c.bodyW} height={c.bodyBot-c.bodyTop} fill={c.color}/>
+          </g>;
+        })}
+        {geo.weeklyResY!=null &&
+          <text x={geo.right+6} y={geo.weeklyResY-4} fontSize="9" fill="#888">{'Weekly res '+fmtPrice(ltm.fibTarget1)}</text>}
+        {geo.dailyResY!=null &&
+          <text x={geo.right+6} y={geo.dailyResY+10} fontSize="9" fill="#888">{'Daily res '+fmtPrice(stm.fibTarget1)}</text>}
+        {geo.supportHighY!=null &&
+          <text x={geo.right+6} y={geo.supportHighY+4} fontSize="9" fill={zoneStroke}>{zoneLabel+fmtPrice(ltm.fibSupportZoneHigh)}</text>}
+        {geo.supportLowY!=null &&
+          <text x={geo.right+6} y={geo.supportLowY+11} fontSize="9" fill={zoneStroke}>{fmtPrice(ltm.fibSupportZoneLow)}</text>}
+        {geo.dailySupportHighY!=null &&
+          <text x={geo.right+6} y={geo.dailySupportHighY+4} fontSize="9" fill="#6090d0">{'Daily S zone '+fmtPrice(stm.fibSupportZoneHigh)}</text>}
+        {geo.dailySupportLowY!=null &&
+          <text x={geo.right+6} y={geo.dailySupportLowY+11} fontSize="9" fill="#6090d0">{fmtPrice(stm.fibSupportZoneLow)}</text>}
+        {geo.invalidationY!=null &&
+          <text x={geo.right+6} y={geo.invalidationY+4} fontSize="9" fill={invColor}>{invLabel+fmtPrice(invalidationValue)}</text>}
+      </svg>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, supportLow, invalidation, dailySupportHigh, dailySupportLow, weeksToShow) {
   if (!weeklyBars || weeklyBars.length < 2) return null;
   var bars = weeklyBars.slice(-(weeksToShow || 26));
@@ -13686,133 +13763,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     })}
                   </div>
                   <div style={{marginBottom:12}}>
-                    {/* Fib Levels illustration — last 26 weekly candles from fibMap.weeklyBars
-                        (already computed above by buildFibMapFromDailyBars, no new fetch/
-                        aggregation needed here). Overlays: weekly resistance (bold solid),
-                        daily resistance (dotted), weekly support zone (shaded blue band),
-                        weekly invalidation (dashed red). Replaces the old LT/ST text table. */}
-                    <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px'}}>
-                      <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Fib Levels</div>
-                      {(function(){
-                        var wBars = (ltm && ltm.weeklyBars) ? ltm.weeklyBars : null;
-                        // structureValid is only false in the rare case where price broke
-                        // below the old weekly invalidation AND there wasn't enough
-                        // post-break history to re-anchor (see buildFibMapFromDailyBars) —
-                        // in that case the support zone/invalidation are stale, so we
-                        // suppress them rather than draw them as if still live.
-                        var ltmZoneOk = ltm && ltm.structureValid !== false;
-                        // Same check for the daily (ST) support zone — shown alongside the
-                        // weekly one (dotted, vs weekly's solid+shaded), and critically still
-                        // shown on its own if the weekly zone is unavailable, so there's still
-                        // a support reference on the chart instead of nothing at all.
-                        var stmZoneOk = stm && stm.structureValid !== false;
-                        var geo = wBars ? buildFibChartGeometry(
-                          wBars,
-                          ltm ? ltm.fibTarget1 : null,
-                          stm ? stm.fibTarget1 : null,
-                          ltm ? ltm.fibSupportZoneHigh : null,
-                          ltm ? ltm.fibSupportZoneLow : null,
-                          ltm ? ltm.fibInvalidation : null,
-                          stmZoneOk ? stm.fibSupportZoneHigh : null,
-                          stmZoneOk ? stm.fibSupportZoneLow : null,
-                          26
-                        ) : null;
-                        if (!geo) {
-                          var noData = <div style={{fontSize:10,color:'#555'}}>No weekly chart data</div>;
-                          return noData;
-                        }
-                        var chartW = geo.right - geo.left;
-                        // When the weekly zone is broken (structureValid:false), don't hide it —
-                        // buildKeyLevels() already treats fibInvalidation as the row's "nearest
-                        // support" the moment the zone itself is above current price (it's the
-                        // closest support-type level still below price), so the chart should
-                        // tell the same story instead of a different one: the old zone renders
-                        // grey/dashed as broken prior structure, and the invalidation level gets
-                        // promoted to the active support line/label.
-                        var zoneStroke      = ltmZoneOk ? '#378ADD' : '#666';
-                        var zoneFillOpacity = ltmZoneOk ? '0.20' : '0.08';
-                        var zoneDash        = ltmZoneOk ? '2,2' : '3,3';
-                        var zoneLabel       = ltmZoneOk ? 'S zone ' : 'Prior zone (broken) ';
-                        var invColor        = ltmZoneOk ? '#e05050' : '#378ADD';
-                        var invStrokeW      = ltmZoneOk ? '0.5' : '1.5';
-                        var invDash         = ltmZoneOk ? '6,3' : '';
-                        var invLabel        = ltmZoneOk ? 'Invalid. ' : 'Support ';
-                        var chartSvg = (
-                          <svg viewBox="0 0 680 400" width="100%" style={{display:'block'}}>
-                            {!ltmZoneOk && ltm &&
-                              <text x={geo.left} y={26} fontSize="9" fill="#EF9F27">
-                                {'Weekly zone broken ' + String.fromCharCode(0x2014) + ' ' + fmt(ltm.fibInvalidation) + ' is the next support'}
-                              </text>}
-                            {/* Daily zone drawn first (light fill), weekly drawn on top (darker
-                                fill) — where they overlap, the two semi-transparent fills blend
-                                naturally into the darkest shade via alpha compositing, no extra
-                                intersection geometry needed. */}
-                            {geo.dailySupportHighY!=null && geo.dailySupportLowY!=null &&
-                              <rect x={geo.left} y={geo.dailySupportHighY} width={chartW}
-                                height={Math.max(1, geo.dailySupportLowY - geo.dailySupportHighY)}
-                                fill="#6090d0" opacity="0.10"/>}
-                            {geo.supportHighY!=null && geo.supportLowY!=null &&
-                              <rect x={geo.left} y={geo.supportHighY} width={chartW}
-                                height={Math.max(1, geo.supportLowY - geo.supportHighY)}
-                                fill={zoneStroke} opacity={zoneFillOpacity}/>}
-                            {geo.supportHighY!=null &&
-                              <line x1={geo.left} y1={geo.supportHighY} x2={geo.right} y2={geo.supportHighY}
-                                stroke={zoneStroke} strokeWidth="0.5" strokeDasharray={zoneDash}/>}
-                            {geo.supportLowY!=null &&
-                              <line x1={geo.left} y1={geo.supportLowY} x2={geo.right} y2={geo.supportLowY}
-                                stroke={zoneStroke} strokeWidth="0.5" strokeDasharray={zoneDash}/>}
-                            {geo.dailySupportHighY!=null &&
-                              <line x1={geo.left} y1={geo.dailySupportHighY} x2={geo.right} y2={geo.dailySupportHighY}
-                                stroke="#6090d0" strokeWidth="0.5" strokeDasharray="1,3"/>}
-                            {geo.dailySupportLowY!=null &&
-                              <line x1={geo.left} y1={geo.dailySupportLowY} x2={geo.right} y2={geo.dailySupportLowY}
-                                stroke="#6090d0" strokeWidth="0.5" strokeDasharray="1,3"/>}
-                            {geo.invalidationY!=null &&
-                              <line x1={geo.left} y1={geo.invalidationY} x2={geo.right} y2={geo.invalidationY}
-                                stroke={invColor} strokeWidth={invStrokeW} strokeDasharray={invDash}/>}
-                            {geo.weeklyResY!=null &&
-                              <line x1={geo.left} y1={geo.weeklyResY} x2={geo.right} y2={geo.weeklyResY}
-                                stroke="#888" strokeWidth="1.5"/>}
-                            {geo.dailyResY!=null &&
-                              <line x1={geo.left} y1={geo.dailyResY} x2={geo.right} y2={geo.dailyResY}
-                                stroke="#888" strokeWidth="1" strokeDasharray="1,3"/>}
-                            {geo.hasBreak && geo.breakPathD &&
-                              <path d={geo.breakPathD} stroke="#555" strokeWidth="1" fill="none"/>}
-                            {geo.farLevels.map(function(f, fi){
-                              var isWk = f.key==='weekly';
-                              return <g key={'far'+fi}>
-                                <line x1={geo.left} y1={f.y} x2={geo.right} y2={f.y} stroke="#888"
-                                  strokeWidth={isWk?"1.5":"1"} strokeDasharray={isWk?"":"1,3"}/>
-                                <text x={geo.right+6} y={f.y+4} fontSize="9" fill="#888">
-                                  {(isWk?'Weekly res $':'Daily res $')+f.price.toFixed(2)+' (+'+f.pctAway.toFixed(0)+'%)'}
-                                </text>
-                              </g>;
-                            })}
-                            {geo.candles.map(function(c, ci){
-                              return <g key={ci}>
-                                <line x1={c.x} y1={c.wickTop} x2={c.x} y2={c.wickBot} stroke={c.color} strokeWidth="1"/>
-                                <rect x={c.x-c.bodyW/2} y={c.bodyTop} width={c.bodyW} height={c.bodyBot-c.bodyTop} fill={c.color}/>
-                              </g>;
-                            })}
-                            {geo.weeklyResY!=null &&
-                              <text x={geo.right+6} y={geo.weeklyResY-4} fontSize="9" fill="#888">{'Weekly res '+fmt(ltm.fibTarget1)}</text>}
-                            {geo.dailyResY!=null &&
-                              <text x={geo.right+6} y={geo.dailyResY+10} fontSize="9" fill="#888">{'Daily res '+fmt(stm.fibTarget1)}</text>}
-                            {geo.supportHighY!=null &&
-                              <text x={geo.right+6} y={geo.supportHighY+4} fontSize="9" fill={zoneStroke}>{zoneLabel+fmt(ltm.fibSupportZoneHigh)}</text>}
-                            {geo.supportLowY!=null &&
-                              <text x={geo.right+6} y={geo.supportLowY+11} fontSize="9" fill={zoneStroke}>{fmt(ltm.fibSupportZoneLow)}</text>}
-                            {geo.dailySupportHighY!=null &&
-                              <text x={geo.right+6} y={geo.dailySupportHighY+4} fontSize="9" fill="#6090d0">{'Daily S zone '+fmt(stm.fibSupportZoneHigh)}</text>}
-                            {geo.dailySupportLowY!=null &&
-                              <text x={geo.right+6} y={geo.dailySupportLowY+11} fontSize="9" fill="#6090d0">{fmt(stm.fibSupportZoneLow)}</text>}
-                            {geo.invalidationY!=null &&
-                              <text x={geo.right+6} y={geo.invalidationY+4} fontSize="9" fill={invColor}>{invLabel+fmt(ltm.fibInvalidation)}</text>}
-                          </svg>
-                        );
-                        return chartSvg;
-                      })()}
-                    </div>
+                    <FibLevelsChart weeklyMap={ltm} dailyMap={stm} />
                     {(ltm||stm)
                       ? <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px',marginTop:12}}>
                           <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Wave Targets & Pullback Range</div>
@@ -15309,7 +15260,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.230</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.232</span>
           </div>
         </div>
 
