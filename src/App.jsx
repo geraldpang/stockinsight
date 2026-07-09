@@ -5178,7 +5178,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.238</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.239</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5232,7 +5232,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.238</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.239</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6328,7 +6328,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         (already computed for this same ticker/component). cardBg
                         matches the other cards in this left panel (#1e1e1e). */}
                     <div style={{ marginBottom:8 }}>
-                      <FibLevelsChart weeklyMap={taFibMap} dailyMap={taStMap} cardBg="#1e1e1e" />
+                      <FibLevelsChart weeklyMap={taFibMap} dailyMap={taStMap} cardBg="#1e1e1e" compact />
                     </div>
                   </div>
 
@@ -11778,12 +11778,18 @@ function buildShortTermFibMap(daily2Arr, currentPrice) {
 // cardBg lets callers match their own surrounding card color (Watchlist's
 // dark '#1a1a18' card vs the Technical Analysis RBA card's 'rgba(0,0,0,0.25)'
 // inner tile) — purely cosmetic, doesn't touch any of the chart logic itself.
-function FibLevelsChart({ weeklyMap, dailyMap, cardBg }) {
+function FibLevelsChart({ weeklyMap, dailyMap, cardBg, compact }) {
   var ltm = weeklyMap, stm = dailyMap;
+  var isCompact = !!compact;
   var fmtPrice = function(v){ return v!=null?('$'+Number(v).toFixed(2)):String.fromCharCode(0x2014); };
-  var cardStyle = { background: cardBg || '#1a1a18', borderRadius:6, padding:'8px 10px' };
+  var cardStyle = { background: cardBg || '#1a1a18', borderRadius:6, padding:'8px 10px', cursor: isCompact?'pointer':'default' };
   var headerStyle = { fontSize:8, fontWeight:700, color:'#444', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 };
   var wBars = (ltm && ltm.weeklyBars) ? ltm.weeklyBars : null;
+  // compact=true means this is a preview embed (e.g. the narrow mobile-style
+  // panel) — clicking it takes the person to the full-size chart on the
+  // Technical Analysis tab, same navigation the "Full Analysis" button next to
+  // it already uses.
+  var goToFull = function(){ if (isCompact && window.__goToTab) window.__goToTab('technical'); };
 
   var ltmZoneOk = ltm && ltm.structureValid !== false;
   var stmZoneOk = stm && stm.structureValid !== false;
@@ -11802,18 +11808,20 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg }) {
     invalidationValue,
     stmZoneOk ? stm.fibSupportZoneHigh : null,
     stmZoneOk ? stm.fibSupportZoneLow : null,
-    26
+    26,
+    isCompact
   ) : null;
 
   if (!geo) {
     return (
-      <div style={cardStyle}>
+      <div style={cardStyle} onClick={goToFull}>
         <div style={headerStyle}>Fib Levels on Weekly Chart</div>
         <div style={{fontSize:9,color:'#555'}}>No weekly chart data</div>
       </div>
     );
   }
 
+  var fontSz = isCompact ? "10" : "9";
   var chartW = geo.right - geo.left;
   // When the weekly zone is broken (structureValid:false), don't hide it —
   // buildKeyLevels() already treats fibInvalidation as the row's "nearest
@@ -11825,11 +11833,19 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg }) {
   var zoneStroke      = ltmZoneOk ? '#378ADD' : '#666';
   var zoneFillOpacity = ltmZoneOk ? '0.20' : '0.08';
   var zoneDash        = ltmZoneOk ? '2,2' : '3,3';
-  var zoneLabel       = ltmZoneOk ? 'Weekly S Zone ' : 'Prior zone (broken) ';
   var invColor        = ltmZoneOk ? '#e05050' : '#378ADD';
   var invStrokeW      = ltmZoneOk ? '0.5' : '1.5';
   var invDash         = ltmZoneOk ? '6,3' : '';
-  var invLabel        = ltmZoneOk ? 'Invalid. ' : 'Support ';
+  // Compact mode drops most descriptive prefixes — there's much less width for
+  // text in a narrow panel, and colour already distinguishes weekly (darker
+  // blue / bold line) from daily (lighter blue / dotted line) zones and the
+  // support-vs-invalidation red/blue. Resistance lines share one grey colour
+  // though, so those keep a 1-letter W/D prefix to stay disambiguated.
+  var zoneLabel      = isCompact ? '' : (ltmZoneOk ? 'Weekly S Zone ' : 'Prior zone (broken) ');
+  var dailyZoneLabel = isCompact ? '' : 'Daily S Zone ';
+  var invLabel       = isCompact ? '' : (ltmZoneOk ? 'Invalid. ' : 'Support ');
+  var weeklyResLabel = isCompact ? 'W ' : 'Weekly res ';
+  var dailyResLabel  = isCompact ? 'D ' : 'Daily res ';
 
   // Collision avoidance for the two merged zone labels: when the weekly and
   // daily zones sit close in price (common — they're often nearly the same
@@ -11840,7 +11856,7 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg }) {
   var weeklyLabelY = (geo.supportHighY!=null && geo.supportLowY!=null) ? (geo.supportHighY+geo.supportLowY)/2+3 : null;
   var dailyLabelY  = (geo.dailySupportHighY!=null && geo.dailySupportLowY!=null) ? (geo.dailySupportHighY+geo.dailySupportLowY)/2+3 : null;
   if (weeklyLabelY!=null && dailyLabelY!=null) {
-    var MIN_LABEL_GAP = 13;
+    var MIN_LABEL_GAP = isCompact ? 12 : 13;
     var labelDiff = dailyLabelY - weeklyLabelY;
     if (Math.abs(labelDiff) < MIN_LABEL_GAP) {
       var labelMid = (weeklyLabelY + dailyLabelY) / 2;
@@ -11850,7 +11866,7 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg }) {
   }
 
   return (
-    <div style={cardStyle}>
+    <div style={cardStyle} onClick={goToFull}>
       <div style={headerStyle}>Fib Levels on Weekly Chart</div>
       {!ltmZoneOk && ltm &&
         <div style={{fontSize:9,color:'#EF9F27',marginBottom:6}}>
@@ -11858,7 +11874,7 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg }) {
             ? 'Weekly zone broken ' + String.fromCharCode(0x2014) + ' ' + fmtPrice(ltm.nextSupportLevel) + ' is the next support'
             : 'Weekly zone broken ' + String.fromCharCode(0x2014) + ' no established support near current price'}
         </div>}
-      <svg viewBox="0 0 1400 320" width="100%" style={{display:'block'}}>
+      <svg viewBox={'0 0 '+geo.vbW+' '+geo.vbH} width="100%" style={{display:'block'}}>
         {/* Daily zone drawn first (light fill), weekly drawn on top (darker
             fill) — where they overlap, the two semi-transparent fills blend
             naturally into the darkest shade via alpha compositing, no extra
@@ -11901,8 +11917,10 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg }) {
           return <g key={'far'+fi}>
             <line x1={geo.left} y1={f.y} x2={geo.right} y2={f.y} stroke="#888"
               strokeWidth={isWk?"1.5":"1"} strokeDasharray={isWk?"":"1,3"}/>
-            <text x={geo.right+6} y={f.y+4} fontSize="9" fill="#888">
-              {(isWk?'Weekly res $':'Daily res $')+f.price.toFixed(2)+' (+'+f.pctAway.toFixed(0)+'%)'}
+            <text x={geo.right+6} y={f.y+4} fontSize={fontSz} fill="#888">
+              {isCompact
+                ? (isWk?'W $':'D $')+f.price.toFixed(2)+' +'+f.pctAway.toFixed(0)+'%'
+                : (isWk?'Weekly res $':'Daily res $')+f.price.toFixed(2)+' (+'+f.pctAway.toFixed(0)+'%)'}
             </text>
           </g>;
         })}
@@ -11910,8 +11928,10 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg }) {
           <g>
             <line x1={geo.left} y1={geo.farBelow.y} x2={geo.right} y2={geo.farBelow.y}
               stroke={invColor} strokeWidth={invStrokeW} strokeDasharray={invDash}/>
-            <text x={geo.right+6} y={geo.farBelow.y+4} fontSize="9" fill={invColor}>
-              {invLabel+'$'+geo.farBelow.price.toFixed(2)+' (-'+geo.farBelow.pctAway.toFixed(0)+'%)'}
+            <text x={geo.right+6} y={geo.farBelow.y+4} fontSize={fontSz} fill={invColor}>
+              {isCompact
+                ? '$'+geo.farBelow.price.toFixed(2)+' -'+geo.farBelow.pctAway.toFixed(0)+'%'
+                : invLabel+'$'+geo.farBelow.price.toFixed(2)+' (-'+geo.farBelow.pctAway.toFixed(0)+'%)'}
             </text>
           </g>}
         {geo.candles.map(function(c, ci){
@@ -11921,29 +11941,29 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg }) {
           </g>;
         })}
         {geo.weeklyResY!=null &&
-          <text x={geo.right+6} y={geo.weeklyResY-4} fontSize="9" fill="#888">{'Weekly res '+fmtPrice(ltm.fibTarget1)}</text>}
+          <text x={geo.right+6} y={geo.weeklyResY-4} fontSize={fontSz} fill="#888">{weeklyResLabel+fmtPrice(ltm.fibTarget1)}</text>}
         {geo.dailyResY!=null &&
-          <text x={geo.right+6} y={geo.dailyResY+10} fontSize="9" fill="#888">{'Daily res '+fmtPrice(stm.fibTarget1)}</text>}
+          <text x={geo.right+6} y={geo.dailyResY+10} fontSize={fontSz} fill="#888">{dailyResLabel+fmtPrice(stm.fibTarget1)}</text>}
         {/* Merged range labels — one line per zone ("Weekly S Zone $X\u2013$Y")
             instead of 4 separate high/low numbers stacked with no clear
             pairing between them, which was the actual point of confusion:
             an unlabeled number gives no indication which zone/boundary it is. */}
         {weeklyLabelY!=null &&
-          <text x={geo.right+6} y={weeklyLabelY} fontSize="9" fill={zoneStroke}>
+          <text x={geo.right+6} y={weeklyLabelY} fontSize={fontSz} fill={zoneStroke}>
             {zoneLabel+fmtPrice(ltm.fibSupportZoneLow)+String.fromCharCode(0x2013)+fmtPrice(ltm.fibSupportZoneHigh)}
           </text>}
         {dailyLabelY!=null &&
-          <text x={geo.right+6} y={dailyLabelY} fontSize="9" fill="#6090d0">
-            {'Daily S Zone '+fmtPrice(stm.fibSupportZoneLow)+String.fromCharCode(0x2013)+fmtPrice(stm.fibSupportZoneHigh)}
+          <text x={geo.right+6} y={dailyLabelY} fontSize={fontSz} fill="#6090d0">
+            {dailyZoneLabel+fmtPrice(stm.fibSupportZoneLow)+String.fromCharCode(0x2013)+fmtPrice(stm.fibSupportZoneHigh)}
           </text>}
         {geo.invalidationY!=null &&
-          <text x={geo.right+6} y={geo.invalidationY+4} fontSize="9" fill={invColor}>{invLabel+fmtPrice(invalidationValue)}</text>}
+          <text x={geo.right+6} y={geo.invalidationY+4} fontSize={fontSz} fill={invColor}>{invLabel+fmtPrice(invalidationValue)}</text>}
       </svg>
     </div>
   );
 }
 // ─────────────────────────────────────────────────────────────────────────────
-function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, supportLow, invalidation, dailySupportHigh, dailySupportLow, weeksToShow) {
+function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, supportLow, invalidation, dailySupportHigh, dailySupportLow, weeksToShow, compact) {
   if (!weeklyBars || weeklyBars.length < 2) return null;
   var bars = weeklyBars.slice(-(weeksToShow || 26));
   var n = bars.length;
@@ -11994,8 +12014,15 @@ function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, sup
   var breakZoneH = hasBreak ? 46 : 0; // fixed height regardless of $ distance
   var hasBreakBottom = invalidation != null && invalidationIsFar;
   var breakZoneHBottom = hasBreakBottom ? 46 : 0;
-  var top = 40 + breakZoneH, bottom = 300 - breakZoneHBottom, plotH = bottom - top;
-  var left = 70, right = 1150, plotW = right - left;
+  // Compact mode (narrow panels, e.g. the mobile-style preview left panel) uses
+  // a much taller-relative viewBox (400x340 vs the wide 1400x320) — a narrow
+  // container has far less width to spread candles/labels across, so it needs
+  // proportionally more height to stay legible rather than being squished flat.
+  var vbW = compact ? 400 : 1400;
+  var vbH = compact ? 340 : 320;
+  var marginTop = 40, bottomBase = compact ? (vbH - 20) : 300;
+  var top = marginTop + breakZoneH, bottom = bottomBase - breakZoneHBottom, plotH = bottom - top;
+  var left = compact ? 40 : 70, right = compact ? 260 : 1150, plotW = right - left;
   function y(price) { return top + (maxP - price) / range * plotH; }
 
   var slotW = plotW / n;
@@ -12047,7 +12074,7 @@ function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, sup
   function nearY(price) { return price != null ? y(price) : null; }
 
   return {
-    candles: candles, left: left, right: right, top: top, bottom: bottom,
+    candles: candles, left: left, right: right, top: top, bottom: bottom, vbW: vbW, vbH: vbH,
     hasBreak: hasBreak, breakPathD: breakPathD, farLevels: farRendered,
     hasBreakBottom: hasBreakBottom, breakPathDBottom: breakPathDBottom, farBelow: farBelow,
     weeklyResY:    (weeklyRes != null && !isFarAbove(weeklyRes)) ? nearY(weeklyRes) : null,
@@ -15237,7 +15264,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.238</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.239</span>
           </div>
         </div>
 
