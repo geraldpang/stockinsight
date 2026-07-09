@@ -77,6 +77,33 @@ function momentumStateColor(status) {
   if (status === 'Weak')     return '#e05050';
   return '#555';
 }
+// ── Shared Momentum Profile helpers ──────────────────────────────────────────
+// Momentum Profile (classifyMomentumProfile in technicalSignals.js) is a
+// cross-timeframe classification ("Momentum Continuation", "Early Recovery
+// Attempt", etc.) — a DIFFERENT concept from the raw daily momentum status
+// ("Strong"/"Weak"/etc.) that momentumStateColor() above maps. Extracted from
+// the Technical Analysis tab's inline sidebar logic so #WATCHLIST can show the
+// identical headline label + colour instead of the raw daily-only status.
+function shortMomentumProfileLabel(profile) {
+  if (profile==='Momentum Continuation')       return 'Continuation';
+  if (profile==='Early Recovery Attempt')      return 'Recovery';
+  if (profile==='Weak Weekly Bounce')          return 'Weak Bounce';
+  if (profile==='Waiting for Daily Trigger')   return 'Waiting';
+  if (profile==='Pullback in Larger Momentum') return 'Pullback';
+  if (profile==='Bearish Momentum')            return 'Bearish';
+  if (profile==='No Clear Momentum Profile')   return 'Unclear';
+  if (profile==='Not Enough Data')             return 'No Data';
+  return 'No Data';
+}
+function momentumProfileColor(shortLabel) {
+  if (shortLabel==='Continuation') return '#7abd00';
+  if (shortLabel==='Recovery')     return '#6090d0';
+  if (shortLabel==='Pullback')     return '#EF9F27';
+  if (shortLabel==='Waiting')      return '#EF9F27';
+  if (shortLabel==='Weak Bounce')  return '#EF9F27';
+  if (shortLabel==='Bearish')      return '#e05050';
+  return '#aaa';
+}
 function smfLabelColor(lbl, variant) {
   var v = variant||"main";
   if (!lbl||lbl==="N/A"||lbl==="Not enough data") return _CLR.grey[v];
@@ -1811,6 +1838,55 @@ function exportRowsToCsv(filename, rows, columns) {
   setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
 }
 
+// ── Shared cross-detection helper (Golden/Death cross + SMA200 gap direction) ──
+// Pure function — pulled out of the Detail tab's Yahoo-2y useEffect so both the
+// Technical Analysis tab AND #WATCHLIST feed calcTrendScore() the same *kind*
+// of crossData input instead of Watchlist silently passing null (which knocks
+// out the 20%-weighted "cross" component and part of the "sma200" component of
+// Trend, and can flip the displayed status/colour, e.g. Uptrend/green vs
+// Sideways/amber, for the same ticker on the same refresh).
+//
+// closes: oldest-first array of daily closing prices. Needs >=201 to detect a
+// real cross; below that, returns the same "unknown" shape calcTrendScore()
+// already treats identically to no crossData at all — so callers with a
+// shorter window (e.g. Watchlist's existing 1y fetch) degrade gracefully
+// rather than needing a second, separate 2y fetch just for this.
+function detectCrossData(closes) {
+  var n = closes ? closes.length : 0;
+  if (n < 201) return { type: 'unknown', ageDays: null, gapDir: 'unknown' };
+  var s50n   = closes.slice(n-50).reduce(function(s,v){return s+v;},0)/50;
+  var s200n  = closes.slice(n-200).reduce(function(s,v){return s+v;},0)/200;
+  var gapNow = (s50n-s200n)/s200n*100;
+  var s50_10  = closes.slice(n-60,n-10).reduce(function(s,v){return s+v;},0)/50;
+  var s200_10 = closes.slice(n-210,n-10).reduce(function(s,v){return s+v;},0)/200;
+  var gap10   = (s50_10-s200_10)/s200_10*100;
+  var gapDir  = gapNow>gap10+0.5?"improving":gapNow<gap10-0.5?"worsening":"stable";
+  var crossType=null, crossAge=null;
+  for (var i=n-1; i>=50; i--) {
+    var s50t  = closes.slice(i-50, i).reduce(function(s,v){return s+v;},0)/50;
+    var s200t = i>=200 ? closes.slice(i-200,i).reduce(function(s,v){return s+v;},0)/200 : null;
+    var s50p  = closes.slice(i-51, i-1).reduce(function(s,v){return s+v;},0)/50;
+    var s200p = (i-201>=0) ? closes.slice(i-201,i-1).reduce(function(s,v){return s+v;},0)/200 : null;
+    if (s200t===null||s200p===null) continue; // not enough data for 200-SMA comparison
+    if (s50p>s200p&&s50t<=s200t){ crossType="death";  crossAge=n-i; break; }
+    if (s50p<s200p&&s50t>=s200t){ crossType="golden"; crossAge=n-i; break; }
+  }
+  // If no cross found in window, infer from current state
+  if (!crossType) {
+    crossType = gapNow < -0.5 ? "death" : gapNow > 0.5 ? "golden" : "none";
+    crossAge  = null; // happened before this window
+  }
+  // Gap direction for price vs SMA200 (today vs 10 days ago)
+  var priceNow   = closes[n-1];
+  var price10    = closes[n-11] || closes[n-1];
+  var sma200_t0  = closes.slice(n-200).reduce(function(s,v){return s+v;},0)/200;
+  var sma200_t10 = n>=210 ? closes.slice(n-210,n-10).reduce(function(s,v){return s+v;},0)/200 : sma200_t0;
+  var s200gNow   = (priceNow - sma200_t0) / sma200_t0 * 100;
+  var s200g10    = (price10  - sma200_t10) / sma200_t10 * 100;
+  var sma200GapDir = s200gNow > s200g10 + 0.5 ? "improving" : s200gNow < s200g10 - 0.5 ? "worsening" : "stable";
+  return { type:crossType||"none", ageDays:crossAge, gapDir:gapDir, gapNow:gapNow, sma200GapDir:sma200GapDir };
+}
+
 function buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData) {
   if (!massiveInfo || !q) return null;
   var rawAggs = massiveInfo.aggs || [];
@@ -1844,9 +1920,18 @@ function buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData) {
 }
 
 // ── Data adapter: converts Yahoo Finance closing price array to snapshot format ──
-// Used by AI Favourites. Partial indicators (SMA50/200 + RSI only).
-// No technical outcomes calculated here — calls calculateTechnicalSignalSnapshot.
-function buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200) {
+// Used by AI Favourites, #FORCESTRIKE, and Watchlist Force Strike techContext.
+// Partial indicators (SMA50/200 + RSI only). No technical outcomes calculated
+// here — calls calculateTechnicalSignalSnapshot (single source of truth).
+//
+// hi52/lo52 are OPTIONAL params. Pass the real 52-week high/low whenever the
+// caller has it (Yahoo chart meta.fiftyTwoWeekHigh/Low, or a computed range) —
+// calcReversalWatch() in technicalSignals.js only evaluates its "near 52-week
+// low + improving RSI" bullish setup indicator when hi52 > 0, so leaving these
+// at 0 silently drops that signal and can make Reversal Watch disagree with
+// the Technical Analysis tab for the same ticker. Only omit them (leaving the
+// 0 default below) when a real 52-week range is genuinely not available.
+function buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200, hi52, lo52, crossData) {
   if (!vc || vc.length < 15) return null;
   var bars = vc.map(function(c, i) {
     return { date: '', open: c, high: c, low: c, close: c, volume: (vv && vv[i]) || 0 };
@@ -1861,12 +1946,18 @@ function buildTechSnapshotFromYahoo(sym, vc, vv, price, sma50, sma200) {
     date:       new Date().toISOString().split('T')[0],
     ohlcv:      bars,
     indicators: ind,
-    meta:       { price: price||0, hi52: 0, lo52: 0 },
+    crossData:  crossData || null,
+    meta:       { price: price||0, hi52: hi52||0, lo52: lo52||0 },
   });
 }
 
 // ── Screener: data adapter — converts Massive data to snapshot (no tech calc) ──
-function buildScreenerSnapshot(sym, massiveInfo, metaOverride) {
+// crossData is OPTIONAL (4th param). Pass it whenever the caller has resolved
+// real golden/death-cross state (see detectCrossData()) — omitting it defaults
+// to null inside calculateTechnicalSignalSnapshot(), which calcTrendScore()
+// treats the same as "unknown", so this stays backward-compatible for any
+// caller that genuinely has no cross data available.
+function buildScreenerSnapshot(sym, massiveInfo, metaOverride, crossData) {
   if (!massiveInfo || !massiveInfo.aggs || massiveInfo.aggs.length < 10) return null;
   var rawAggs = massiveInfo.aggs;
   var ind     = massiveInfo.indicators || {};
@@ -1885,7 +1976,7 @@ function buildScreenerSnapshot(sym, massiveInfo, metaOverride) {
     .map(function(b){ return { date:'',open:b.o||0,high:b.h||0,low:b.l||0,close:b.c||0,volume:b.v||0 }; });
   try {
     return calculateTechnicalSignalSnapshot({ ticker:sym, date:new Date().toISOString().split('T')[0],
-      ohlcv:ohlcv, indicators:ind, meta:{ price:price, hi52:hi52, lo52:lo52 } });
+      ohlcv:ohlcv, indicators:ind, crossData: crossData || null, meta:{ price:price, hi52:hi52, lo52:lo52 } });
   } catch(e) { return null; }
 }
 
@@ -4206,41 +4297,13 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         } catch(fibErr) { /* non-fatal — Fib calculation failed */ }
         // ─────────────────────────────────────────────────────────────────────
 
-        // SMA cross detection requires 201+ bars — guard here only
+        // SMA cross detection requires 201+ bars — same shared helper #WATCHLIST
+        // uses (detectCrossData), so both surfaces classify cross state identically.
         if (n < 201) { setCrossData({ sym:sym, type:"unknown", ageDays:null, gapDir:"unknown" }); return; }
-        var s50n  = closes.slice(n-50).reduce(function(s,v){return s+v;},0)/50;
-        var s200n = closes.slice(n-200).reduce(function(s,v){return s+v;},0)/200;
-        var gapNow = (s50n-s200n)/s200n*100;
-        var s50_10  = closes.slice(n-60,n-10).reduce(function(s,v){return s+v;},0)/50;
-        var s200_10 = closes.slice(n-210,n-10).reduce(function(s,v){return s+v;},0)/200;
-        var gap10   = (s50_10-s200_10)/s200_10*100;
-        var gapDir  = gapNow>gap10+0.5?"improving":gapNow<gap10-0.5?"worsening":"stable";
-        var crossType=null, crossAge=null;
-        for (var i=n-1; i>=50; i--) {
-          var s50t  = closes.slice(i-50, i).reduce(function(s,v){return s+v;},0)/50;
-          var s200t = i>=200 ? closes.slice(i-200,i).reduce(function(s,v){return s+v;},0)/200 : null;
-          var s50p  = closes.slice(i-51, i-1).reduce(function(s,v){return s+v;},0)/50;
-          var s200p = (i-201>=0) ? closes.slice(i-201,i-1).reduce(function(s,v){return s+v;},0)/200 : null;
-          if (s200t===null||s200p===null) continue; // not enough data for 200-SMA comparison
-          if (s50p>s200p&&s50t<=s200t){ crossType="death";  crossAge=n-i; break; }
-          if (s50p<s200p&&s50t>=s200t){ crossType="golden"; crossAge=n-i; break; }
-        }
-        // If no cross found in window, infer from current state
-        if (!crossType) {
-          crossType = gapNow < -0.5 ? "death" : gapNow > 0.5 ? "golden" : "none";
-          crossAge  = null; // happened before our 1-year data window
-        }
-        // Gap direction for price vs SMA200 (today vs 10 days ago)
-        var priceNow   = closes[n-1];
-        var price10    = closes[n-11] || closes[n-1];
-        var sma200_t0  = closes.slice(n-200).reduce(function(s,v){return s+v;},0)/200;
-        var sma200_t10 = n>=210 ? closes.slice(n-210,n-10).reduce(function(s,v){return s+v;},0)/200 : sma200_t0;
-        var s200gNow   = (priceNow - sma200_t0) / sma200_t0 * 100;
-        var s200g10    = (price10  - sma200_t10) / sma200_t10 * 100;
-        var sma200GapDir = s200gNow > s200g10 + 0.5 ? "improving" : s200gNow < s200g10 - 0.5 ? "worsening" : "stable";
-
-        setCrossData({ sym:sym, type:crossType||"none", ageDays:crossAge, gapDir:gapDir, gapNow:gapNow, sma200GapDir:sma200GapDir });
-        window.__crossDataDebug = { sym:sym, type:crossType||"none", ageDays:crossAge, gapDir:gapDir, gapNow:gapNow, sma200GapDir:sma200GapDir };
+        var cd = detectCrossData(closes);
+        var crossDataResult = Object.assign({ sym: sym }, cd);
+        setCrossData(crossDataResult);
+        window.__crossDataDebug = crossDataResult;
       })
       .catch(function(){ setCrossData({ sym:sym, type:"unknown", ageDays:null, gapDir:"unknown" }); });
   }, [massiveInfo, sym]);
@@ -5115,7 +5178,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.218</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.239</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5169,7 +5232,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.218</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.239</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -5876,10 +5939,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       })()}
                       {(function(){
                         var _lp = momLiveSym===sym ? momLiveProfile : null;
-                        function _sp(p){if(p==='Momentum Continuation') return 'Continuation';if(p==='Early Recovery Attempt') return 'Recovery';if(p==='Weak Weekly Bounce') return 'Weak Bounce';if(p==='Waiting for Daily Trigger') return 'Waiting';if(p==='Pullback in Larger Momentum') return 'Pullback';if(p==='Bearish Momentum') return 'Bearish';if(p==='No Clear Momentum Profile') return 'Unclear';if(p==='Not Enough Data') return 'No Data';return 'No Data';}
-                        function _sc(s){return s==='Strong'||s==='Supportive'?'#7abd00':s==='Building'?'#6090d0':s==='Neutral'?'#EF9F27':s==='Fading'?'#EF9F27':s==='Weak'?'#e05050':'#555';}
-                        var _sp2 = _lp ? _sp(_lp.profile) : (momLiveLoading ? '...' : 'No Data');
-                        var _spc = _sp2==='Continuation'?'#7abd00':_sp2==='Recovery'?'#6090d0':_sp2==='Pullback'?'#EF9F27':_sp2==='Waiting'?'#EF9F27':_sp2==='Weak Bounce'?'#EF9F27':_sp2==='Bearish'?'#e05050':'#aaa';
+                        var _sp2 = _lp ? shortMomentumProfileLabel(_lp.profile) : (momLiveLoading ? '...' : 'No Data');
+                        var _spc = momentumProfileColor(_sp2);
                         var _d = _hasTech && _momLabel && _momLabel!=='--' ? _momLabel : '--';
                         var _w = _lp ? (_lp.weekly==='Not Enough Data'?'No data':_lp.weekly||'--') : 'No data';
                         var _m = _lp ? (_lp.monthlyRegime==='Not Enough Data'?'No data':_lp.monthlyRegime||'--') : 'No data';
@@ -6261,6 +6322,14 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         return "#e05050";
                       };
                     })()}
+
+                    {/* Fib Levels chart — same shared component as #WATCHLIST and the
+                        Technical Analysis tab's RBA card, reusing taFibMap/taStMap
+                        (already computed for this same ticker/component). cardBg
+                        matches the other cards in this left panel (#1e1e1e). */}
+                    <div style={{ marginBottom:8 }}>
+                      <FibLevelsChart weeklyMap={taFibMap} dailyMap={taStMap} cardBg="#1e1e1e" compact />
+                    </div>
                   </div>
 
         {/* RIGHT PANEL */}
@@ -7371,93 +7440,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                   </div>
                                 );
                               })()}
-                            </div>
 
-                            {/* ── Key Levels card — factual prices only ────── */}
-                            <div style={{ marginBottom:14, borderBottom:"1px solid #f0ede6", paddingBottom:14 }}>
-                              <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>{"Key Levels"}</div>
-
-                              {/* Close / Breakout / Invalidation — Fib consistent with #WATCHLIST */}
-                              <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
-                                {[
-                                  ["Close",        q ? "$"+(q.regularMarketPrice||0).toFixed(2) : null,                                  "#f0ede6"],
-                                  ["Breakout",     taFibMap && taFibMap.fibTarget1      ? "$"+taFibMap.fibTarget1.toFixed(2)      : null, "#7abd00"],
-                                  ["Invalidation", taFibMap && taFibMap.fibInvalidation ? "$"+taFibMap.fibInvalidation.toFixed(2) : (taStMap && taStMap.fibInvalidation ? "$"+taStMap.fibInvalidation.toFixed(2) : null), "#e05050"],
-                                ].filter(function(r){ return r[1]; }).map(function(r,i){
-                                  return <div key={i} style={{ background:"#f5f2ed", borderRadius:6, padding:"6px 12px" }}>
-                                    <div style={{ fontSize:9, color:"#555", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:3 }}>{r[0]}</div>
-                                    <div style={{ fontSize:13, fontWeight:700, color:r[2] }}>{r[1]}</div>
-                                  </div>;
-                                })}
+                              <div style={{ borderTop:"0.5px solid #2a2a2a", marginTop:12, paddingTop:12 }}>
+                                <FibLevelsChart weeklyMap={taFibMap} dailyMap={taStMap} cardBg="rgba(0,0,0,0.25)" />
                               </div>
-
-                              {/* Support/Resistance — Fib Key Levels (same source as #WATCHLIST) */}
-                              {(function(){
-                                var kl = taKeyLevels;
-                                if (!kl && !taFibMap && !taStMap) return null;
-                                var supps = kl ? kl.supports.slice(0,5) : (taFibMap ? [{price:taFibMap.fibSupportZoneHigh,strength:'major'},{price:taFibMap.fibSupportZoneLow,strength:'major'}].filter(function(l){return l.price;}) : []);
-                                var ress  = kl ? kl.resistances.slice(0,5) : (taFibMap ? [{price:taFibMap.fibTarget1,strength:'major'},{price:taFibMap.fibTarget2,strength:'major'}].filter(function(l){return l.price;}) : []);
-                                return <div>
-                                  {supps.length>0&&<div style={{marginBottom:10}}>
-                                    <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Support</div>
-                                    <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
-                                      {supps.map(function(s,i){ return <span key={i} style={{background:'#fff0f0',border:'0.5px solid #e05050',borderRadius:4,padding:'3px 9px',fontSize:12,fontWeight:600,color:'#c03030',textDecoration:s.strength==='major'?'underline':'none'}}>{'$'+s.price.toFixed(2)}</span>; })}
-                                    </div>
-                                    <div style={{fontSize:9,color:'#888',marginTop:4}}>Underlined = weekly (major) level</div>
-                                  </div>}
-                                  {ress.length>0&&<div>
-                                    <div style={{fontSize:9,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Resistance</div>
-                                    <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
-                                      {ress.map(function(r,i){ return <span key={i} style={{background:'#e6f4e6',border:'0.5px solid #7abd00',borderRadius:4,padding:'3px 9px',fontSize:12,fontWeight:600,color:'#1a6a1a',textDecoration:r.strength==='major'?'underline':'none'}}>{'$'+r.price.toFixed(2)}</span>; })}
-                                    </div>
-                                  </div>}
-                                </div>;
-                              })()}
-
-                            </div>
-
-                            {/* Watch Zone — Fib support zone (same basis as #WATCHLIST Key Levels) */}
-                            <div style={{marginBottom:14,borderBottom:'1px solid #f0ede6',paddingBottom:14}}>
-                              <div style={{fontSize:10,fontWeight:700,color:'#6090d0',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Watch Zone</div>
-                              {(function(){
-                                var fm=taFibMap, stm=taStMap, kl=taKeyLevels;
-                                var curPrice = q ? q.regularMarketPrice : null;
-                                if (!fm && !stm) return <div style={{fontSize:12,color:'#555'}}>Fibonacci levels loading...</div>;
-                                var ltZoneHi=fm?fm.fibSupportZoneHigh:null, ltZoneLo=fm?fm.fibSupportZoneLow:null;
-                                var stZoneHi=stm?stm.fibSupportZoneHigh:null, stZoneLo=stm?stm.fibSupportZoneLow:null;
-                                var ltTarget=fm?fm.fibTarget1:null, stTarget=stm?stm.fibTarget1:null;
-                                var klStatus=kl?kl.status:null;
-                                var inLtZone=ltZoneHi&&curPrice&&curPrice<=ltZoneHi&&curPrice>=(ltZoneLo||0);
-                                var inStZone=stZoneHi&&curPrice&&curPrice<=stZoneHi&&curPrice>=(stZoneLo||0);
-                                var aboveLt=ltZoneHi&&curPrice&&curPrice>ltZoneHi;
-                                var statusText=klStatus==='Broken'?'Structure broken \u2014 watch for recovery above support zone'
-                                  :(inLtZone||inStZone)?'Price is inside the watch zone \u2014 watch for confirmation / bounce'
-                                  :aboveLt?'Price is above the watch zone \u2014 watch for pullback to zone'
-                                  :'Price is approaching the watch zone';
-                                var fmt2=function(v){return v?'$'+Number(v).toFixed(2):'\u2014';};
-                                return <div>
-                                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 16px',marginBottom:10}}>
-                                    <div>
-                                      <div style={{fontSize:9,color:'#999',marginBottom:3}}>LT Support Zone (Weekly Fib)</div>
-                                      <div style={{fontSize:14,fontWeight:700,color:'#6090d0'}}>{fmt2(ltZoneLo)+'\u2013'+fmt2(ltZoneHi)}</div>
-                                      {ltTarget&&<div style={{fontSize:10,color:'#888',marginTop:2}}>{'WT: '+fmt2(ltTarget)}</div>}
-                                    </div>
-                                    <div>
-                                      <div style={{fontSize:9,color:'#999',marginBottom:3}}>ST Support Zone (Daily Fib)</div>
-                                      <div style={{fontSize:14,fontWeight:700,color:'#6090d0'}}>{fmt2(stZoneLo)+'\u2013'+fmt2(stZoneHi)}</div>
-                                      {stTarget&&<div style={{fontSize:10,color:'#888',marginTop:2}}>{'WT: '+fmt2(stTarget)}</div>}
-                                    </div>
-                                  </div>
-                                  <div style={{fontSize:12,color:'#555',lineHeight:1.7}}>{statusText}</div>
-                                  <div style={{fontSize:9,color:'#888',marginTop:6,fontStyle:'italic'}}>Fibonacci levels are projection zones, not guaranteed price predictions.</div>
-                                </div>;
-                              })()}
-                            </div>
-
-                            {/* ── Summary card ─────────────────────────────── */}
-                            <div style={{ marginBottom:14 }}>
-                              <div style={{ fontSize:10, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>{"Summary"}</div>
-                              <div style={{ fontSize:13, color:"#444", lineHeight:1.8 }}>{rba.summary}</div>
                             </div>
 
                             {/* ── Historical Confidence ─────────────────────── */}
@@ -11441,22 +11427,46 @@ function aggregateWeekly(dailyBars) {
 
 // Find major swing low and swing high from weekly bars.
 // Returns {swingLow, swingHigh, swingLowDate, swingHighDate} or null if structure unclear.
-function findFibSwings(weeklyBars) {
-  if (!weeklyBars || weeklyBars.length < 26) return null;
-  var bars = weeklyBars.slice(-52); // use up to last 52 weeks
-  var swingLowBar = bars[0], swingHighBar = bars[0];
+// Core weekly swing-finder — shared by findFibSwings (normal 26+ week case,
+// 52-week lookback) and the re-anchoring path in buildFibMapFromDailyBars
+// (shorter post-breakdown window).
+//
+// lowProximityWeeks (Option 1 fix): the swing LOW is no longer searched across
+// the entire window independently of the HIGH — it's found first (global max),
+// then the low is searched only within +/- lowProximityWeeks of the high's own
+// position. Without this, an old, disconnected low from months earlier/later
+// (e.g. a crash bottom the stock has long since recovered from) could pair
+// with a recent, relevant high, producing a technically-correct-but-disproportionate
+// invalidation level far below the actual support zone. Pass null/omit for the
+// old unconstrained behavior (used by the already-short re-anchor window, where
+// this isn't needed since that window is small to begin with).
+// Still supports both swing orderings (low-then-high or high-then-low) since
+// the search radius looks both before AND after the high.
+function findSwingInWeeklyBars(rawBars, minRawBars, maxWindow, minRangePct, lowProximityWeeks) {
+  if (!rawBars || rawBars.length < minRawBars) return null;
+  var bars = rawBars.slice(-maxWindow);
+  var swingHighBar = bars[0], swingHighIdx = 0;
   for (var wi = 1; wi < bars.length; wi++) {
-    var b = bars[wi];
-    if (b.low  < swingLowBar.low)   swingLowBar  = b;
-    if (b.high > swingHighBar.high) swingHighBar = b;
+    if (bars[wi].high > swingHighBar.high) { swingHighBar = bars[wi]; swingHighIdx = wi; }
   }
-  // Range must be at least 10% of swing low to avoid flat/choppy structures
+  var loStart = 0, loEnd = bars.length - 1;
+  if (lowProximityWeeks != null) {
+    loStart = Math.max(0, swingHighIdx - lowProximityWeeks);
+    loEnd   = Math.min(bars.length - 1, swingHighIdx + lowProximityWeeks);
+  }
+  var swingLowBar = bars[loStart];
+  for (var li = loStart + 1; li <= loEnd; li++) {
+    if (bars[li].low < swingLowBar.low) swingLowBar = bars[li];
+  }
   var range = swingHighBar.high - swingLowBar.low;
-  if (range / swingLowBar.low < 0.10) return null;
-  // Note: we do NOT require swingLow to precede swingHigh in time.
-  // Many valid tickers hit their yearly high first then consolidated — we still
-  // want to show the Fib map. priceMapStatus logic handles direction context.
+  if (range / swingLowBar.low < minRangePct) return null;
   return { swingLow:swingLowBar.low, swingHigh:swingHighBar.high, swingLowDate:swingLowBar.date, swingHighDate:swingHighBar.date };
+}
+function findFibSwings(weeklyBars) {
+  // Swing low must fall within 13 weeks (~1 quarter) of the swing high, either
+  // side — keeps the two ends of the "swing" temporally connected instead of
+  // pairing a recent high with an unrelated old low from a different regime.
+  return findSwingInWeeklyBars(weeklyBars, 26, 52, 0.10, 13);
 }
 
 // Calculate Fib retracement and extension levels from swing points.
@@ -11525,6 +11535,70 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
                weeklyBarCount:weekly.length, weeklyBars:weekly };
     }
     var levels   = calcFibLevels(swings.swingLow, swings.swingHigh);
+
+    // ── Re-anchoring (Option B) ──────────────────────────────────────────────
+    // NOTE ON THE CORRECT TRIGGER: swingLow is the minimum low over the very
+    // same window that includes the current bar, so swingLow <= current bar's
+    // low <= current bar's close ALWAYS — "price below swingLow" can never
+    // actually happen. What DOES happen, and is what "support sits above
+    // current price" really means: the support ZONE (a 50-61.8% retracement
+    // of the full up-to-52-week high/low) can sit well above current price
+    // even while price is still above swingLow itself — this is the existing
+    // 'Broken' status (price < fibSupportZoneLow). The 52-week global high/low
+    // pairing can be a high and low from months apart with no real structural
+    // relationship, so its retracement zone can be stale/irrelevant even
+    // though the raw invalidation level is technically still "intact".
+    //
+    // Fix: when price is below the support zone (Broken), re-derive the swing
+    // from a short, recent window (13 weeks — about a quarter) instead of the
+    // full 52-week window, so the retracement reflects the ticker's current
+    // structure rather than an old high paired with an unrelated old low.
+    // Accept the re-anchored zone only if it actually resolves the problem
+    // (price is no longer below the new zone) — if the ticker is in a
+    // persistent decline making fresh lows, NO retracement-based zone will
+    // ever sit at/below price (that's not a bug, there's just no established
+    // support yet), so we explicitly mark it unavailable rather than
+    // fabricate one.
+    var reanchored = false, structureValid = true;
+    var lastWeeklyClose = weekly.length ? weekly[weekly.length - 1].close : null;
+    // nextSupportLevel is what the chart shows as "next support" when the zone is
+    // broken — kept SEPARATE from fibInvalidation (below), which stays the raw
+    // swing's own invalidation level for its original purpose. Defaults to the
+    // normal zone low when nothing is broken.
+    var nextSupportLevel = levels.fibSupportZoneLow;
+    if (lastWeeklyClose != null && lastWeeklyClose < levels.fibSupportZoneLow * 0.99) {
+      var RECENT_WEEKS = 13;
+      var recentBars = weekly.slice(-RECENT_WEEKS);
+      var newSwings = findSwingInWeeklyBars(recentBars, 4, recentBars.length, 0.10);
+      var newLevels = newSwings ? calcFibLevels(newSwings.swingLow, newSwings.swingHigh) : null;
+      if (newLevels && lastWeeklyClose >= newLevels.fibSupportZoneLow * 0.99) {
+        swings = newSwings;
+        levels = newLevels;
+        reanchored = true;
+        nextSupportLevel = newLevels.fibSupportZoneLow;
+      } else {
+        // Couldn't find a recent structure that resolves it — price is likely
+        // still making fresh lows. Keep the stale zone data but flag it so the
+        // chart/UI can suppress it instead of drawing it as live support.
+        structureValid = false;
+        // BUG FIX: the PRIMARY swingLow above (used to build the stale `levels`)
+        // is now proximity-constrained (see findSwingInWeeklyBars's
+        // lowProximityWeeks) to sit near swingHigh — which can itself be old and
+        // irrelevant in a sustained decline. That means the primary swingLow is
+        // NO LONGER guaranteed to be below current price (it was, before the
+        // proximity fix), so it must never be promoted as "next support" without
+        // checking first — promoting it blindly was the actual bug (e.g. BMNR:
+        // a swingLow found near a stale old high ended up ABOVE current price).
+        // newSwings above, by contrast, is an UNCONSTRAINED search over a recent
+        // window that includes the current bar, so its swingLow IS guaranteed
+        // <= current price — use that if it exists. If it doesn't (not enough
+        // recent history/range either), there's genuinely no established support
+        // near current price, so say so explicitly (null) rather than show a
+        // number that's technically real but practically meaningless.
+        nextSupportLevel = (newSwings && newSwings.swingLow <= lastWeeklyClose) ? newSwings.swingLow : null;
+      }
+    }
+
     var status   = getPriceMapStatus(currentPrice, levels, true);
     var fibSupport = levels.fibSupportZoneHigh;
     var fibTarget  = getNextFibTarget(currentPrice, levels);
@@ -11533,6 +11607,10 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
       fibSupport:        Math.round(fibSupport   * 100) / 100,
       fibTarget:         Math.round(fibTarget    * 100) / 100,
       fibInvalidation:   Math.round(swings.swingLow    * 100) / 100,
+      // nextSupportLevel: what the chart should promote as "Support" when the
+      // zone is broken — null means genuinely no established support nearby,
+      // never fibInvalidation directly (see bug-fix comment above).
+      nextSupportLevel:  nextSupportLevel != null ? Math.round(nextSupportLevel * 100) / 100 : null,
       fibTimeframe:      'Weekly',
       fibSwingLow:       Math.round(swings.swingLow  * 100) / 100,
       fibSwingHigh:      Math.round(swings.swingHigh * 100) / 100,
@@ -11545,6 +11623,12 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
       swingLowDate:      swings.swingLowDate,
       swingHighDate:     swings.swingHighDate,
       weeklyBarCount:    weekly.length,
+      // Re-anchoring debug/audit fields — reanchored:true means the structure
+      // was re-derived after a break; structureValid:false means price is below
+      // invalidation AND re-anchoring wasn't possible (support zone is stale —
+      // chart/UI should not draw it as live support).
+      reanchored:        reanchored,
+      structureValid:    structureValid,
       // Full weekly OHLCV bars used for swing detection — included for audit/verification.
       // Each bar: { date, open, high, low, close, volume }
       weeklyBars:        weekly,
@@ -11553,29 +11637,46 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
 }
 
 // Short-Term Map: find swing low/high from the last 90 daily bars of daily2.
-// Same global min/max approach as findFibSwings, but daily resolution.
 // daily2 uses ms timestamps — normalised to ISO string for consistent date comparison.
-function findDailyFibSwings(dailyBars) {
-  if (!dailyBars || dailyBars.length < 60) return null;
-  var bars = dailyBars.slice(-90); // last ~4 months of trading days
-  var swingLowBar = bars[0], swingHighBar = bars[0];
-  for (var di = 1; di < bars.length; di++) {
-    var b = bars[di];
+// Core daily swing-finder — shared by findDailyFibSwings (normal 60+ day case,
+// 90-day lookback) and the re-anchoring path in buildShortTermFibMap (shorter
+// post-breakdown window).
+//
+// lowProximityDays (Option 1 fix, same as the weekly version above): the swing
+// LOW is found only within +/- lowProximityDays of the swing HIGH's position,
+// instead of searched independently across the whole window — prevents pairing
+// a recent high with an old, disconnected low from a different price regime.
+function findSwingInDailyBars(rawBars, minRawBars, maxWindow, minRangePct, lowProximityDays) {
+  if (!rawBars || rawBars.length < minRawBars) return null;
+  var bars = rawBars.slice(-maxWindow);
+  function normBar(b) {
     var bLow  = b.low  || b.close;
     var bHigh = b.high || b.close;
     var bDate = typeof b.date === 'number' ? new Date(b.date).toISOString().split('T')[0] : String(b.date).split('T')[0];
-    var curLow  = swingLowBar.low  || swingLowBar.close;
-    var curHigh = swingHighBar.high || swingHighBar.close;
-    if (bLow  < curLow)  swingLowBar  = { date:bDate, low:bLow,  high:bHigh, close:b.close };
-    if (bHigh > curHigh) swingHighBar = { date:bDate, low:bLow,  high:bHigh, close:b.close };
+    return { date:bDate, low:bLow, high:bHigh, close:b.close };
   }
-  var swingLow  = swingLowBar.low  || swingLowBar.close;
-  var swingHigh = swingHighBar.high || swingHighBar.close;
-  var range = swingHigh - swingLow;
-  if (range / swingLow < 0.05) return null; // 5% minimum for daily — tighter than weekly's 10%
-  var lowDate  = typeof swingLowBar.date  === 'number' ? new Date(swingLowBar.date).toISOString().split('T')[0]  : String(swingLowBar.date).split('T')[0];
-  var highDate = typeof swingHighBar.date === 'number' ? new Date(swingHighBar.date).toISOString().split('T')[0] : String(swingHighBar.date).split('T')[0];
-  return { swingLow:swingLow, swingHigh:swingHigh, swingLowDate:lowDate, swingHighDate:highDate };
+  var normed = bars.map(normBar);
+  var swingHighBar = normed[0], swingHighIdx = 0;
+  for (var di = 1; di < normed.length; di++) {
+    if (normed[di].high > swingHighBar.high) { swingHighBar = normed[di]; swingHighIdx = di; }
+  }
+  var loStart = 0, loEnd = normed.length - 1;
+  if (lowProximityDays != null) {
+    loStart = Math.max(0, swingHighIdx - lowProximityDays);
+    loEnd   = Math.min(normed.length - 1, swingHighIdx + lowProximityDays);
+  }
+  var swingLowBar = normed[loStart];
+  for (var li = loStart + 1; li <= loEnd; li++) {
+    if (normed[li].low < swingLowBar.low) swingLowBar = normed[li];
+  }
+  var range = swingHighBar.high - swingLowBar.low;
+  if (range / swingLowBar.low < minRangePct) return null;
+  return { swingLow:swingLowBar.low, swingHigh:swingHighBar.high, swingLowDate:swingLowBar.date, swingHighDate:swingHighBar.date };
+}
+function findDailyFibSwings(dailyBars) {
+  // ~20 trading days (~1 month) proximity — scaled proportionally from the
+  // weekly version's 13-week/52-week ratio down to the daily map's 90-day window.
+  return findSwingInDailyBars(dailyBars, 60, 90, 0.05, 20);
 }
 
 // Build Short-Term Fib map from daily bars (reuses existing calcFibLevels, getPriceMapStatus).
@@ -11591,6 +11692,35 @@ function buildShortTermFibMap(daily2Arr, currentPrice) {
                priceMapCommentary:'No clear short-term swing structure detected.', swingLowDate:null, swingHighDate:null, dailyBarCount:daily2Arr.length };
     }
     var levels  = calcFibLevels(swings.swingLow, swings.swingHigh);
+
+    // ── Re-anchoring (Option B) — same fix as buildFibMapFromDailyBars, using
+    // last DAILY close and a recent (20-day, ~1 month) window instead of the
+    // full 90-day one. See the weekly version's comment for why the trigger
+    // is "below fibSupportZoneLow" (Broken), not "below swingLow" (unreachable).
+    var reanchored = false, structureValid = true;
+    var lastDailyClose = daily2Arr.length ? daily2Arr[daily2Arr.length - 1].close : null;
+    var nextSupportLevel = levels.fibSupportZoneLow;
+    if (lastDailyClose != null && lastDailyClose < levels.fibSupportZoneLow * 0.99) {
+      var RECENT_DAYS = 20;
+      var recentDBars = daily2Arr.slice(-RECENT_DAYS);
+      var newDSwings = findSwingInDailyBars(recentDBars, 10, recentDBars.length, 0.05);
+      var newDLevels = newDSwings ? calcFibLevels(newDSwings.swingLow, newDSwings.swingHigh) : null;
+      if (newDLevels && lastDailyClose >= newDLevels.fibSupportZoneLow * 0.99) {
+        swings = newDSwings;
+        levels = newDLevels;
+        reanchored = true;
+        nextSupportLevel = newDLevels.fibSupportZoneLow;
+      } else {
+        structureValid = false;
+        // Same bug fix as the weekly map: the primary swingLow (used to build
+        // the stale `levels` above) is proximity-constrained near swingHigh and
+        // is no longer guaranteed <= current price in a sustained decline — only
+        // promote newDSwings.swingLow (unconstrained recent search, guaranteed
+        // valid), or null if even that couldn't find anything.
+        nextSupportLevel = (newDSwings && newDSwings.swingLow <= lastDailyClose) ? newDSwings.swingLow : null;
+      }
+    }
+
     var status  = getPriceMapStatus(currentPrice, levels, true);
     var fibSupport = levels.fibSupportZoneHigh;
     var fibTarget  = getNextFibTarget(currentPrice, levels);
@@ -11599,6 +11729,7 @@ function buildShortTermFibMap(daily2Arr, currentPrice) {
       fibSupport:        Math.round(fibSupport         * 100) / 100,
       fibTarget:         Math.round(fibTarget           * 100) / 100,
       fibInvalidation:   Math.round(swings.swingLow    * 100) / 100,
+      nextSupportLevel:  nextSupportLevel != null ? Math.round(nextSupportLevel * 100) / 100 : null,
       fibTimeframe:      'Daily',
       fibSwingLow:       Math.round(swings.swingLow    * 100) / 100,
       fibSwingHigh:      Math.round(swings.swingHigh   * 100) / 100,
@@ -11611,12 +11742,352 @@ function buildShortTermFibMap(daily2Arr, currentPrice) {
       swingLowDate:      swings.swingLowDate,
       swingHighDate:     swings.swingHighDate,
       dailyBarCount:     daily2Arr.length,
+      reanchored:        reanchored,
+      structureValid:    structureValid,
     };
   } catch(e) { return null; }
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── Key Levels + Wave Guide helpers (module-level, pure functions) ──────────
+// ─── Fib Levels illustration — pure geometry helper (module-level) ───────────
+// Computes pixel coordinates for a 680x400 candlestick illustration: last N
+// weekly candles (from fibMap.weeklyBars, already computed above — no new
+// fetch/aggregation needed) plus overlay lines for weekly resistance (bold),
+// daily resistance (dotted), a weekly support zone (solid border) and a daily
+// support zone (dotted border, both shown together — if the weekly zone is
+// unavailable, the daily one still renders on its own), and an invalidation line.
+// Returns plain numbers only — the render body maps this into SVG elements.
+//
+// A resistance level (weekly or daily) can sit far above the visible candle
+// range (e.g. a weekly swing-high projection much higher than recent price) —
+// stretching the whole linear scale to reach it wastes most of the chart on
+// empty space. Any resistance level more than FAR_THRESHOLD above the candle
+// high gets pulled out of the linear scale and compressed into a fixed-height
+// "break" strip at the top instead, with a zigzag marker and a "+X% away"
+// label so the number is still meaningful even though it's off-scale.
+// ─── Fib Levels chart — SINGLE SOURCE OF TRUTH for the illustration ─────────
+// Used by BOTH #WATCHLIST (weeklyMap=ltm, dailyMap=stm) and the Technical
+// Analysis tab's Rule Based Analytics card (weeklyMap=taFibMap, dailyMap=
+// taStMap). Both callers' maps are the exact same buildFibMapFromDailyBars()/
+// buildShortTermFibMap() output, so this one component is the only place the
+// chart's colors, layout, or behavior are defined — a future change here
+// (new overlay, bug fix, restyle) automatically applies everywhere this
+// component is used, instead of needing the same edit made twice and risking
+// the two places drifting apart (exactly what happened when this was first
+// duplicated into the Technical Analysis tab — see conversation history).
+// cardBg lets callers match their own surrounding card color (Watchlist's
+// dark '#1a1a18' card vs the Technical Analysis RBA card's 'rgba(0,0,0,0.25)'
+// inner tile) — purely cosmetic, doesn't touch any of the chart logic itself.
+function FibLevelsChart({ weeklyMap, dailyMap, cardBg, compact }) {
+  var ltm = weeklyMap, stm = dailyMap;
+  var isCompact = !!compact;
+  var fmtPrice = function(v){ return v!=null?('$'+Number(v).toFixed(2)):String.fromCharCode(0x2014); };
+  var cardStyle = { background: cardBg || '#1a1a18', borderRadius:6, padding:'8px 10px', cursor: isCompact?'pointer':'default' };
+  var headerStyle = { fontSize:8, fontWeight:700, color:'#444', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 };
+  var wBars = (ltm && ltm.weeklyBars) ? ltm.weeklyBars : null;
+  // compact=true means this is a preview embed (e.g. the narrow mobile-style
+  // panel) — clicking it takes the person to the full-size chart on the
+  // Technical Analysis tab, same navigation the "Full Analysis" button next to
+  // it already uses.
+  var goToFull = function(){ if (isCompact && window.__goToTab) window.__goToTab('technical'); };
+
+  var ltmZoneOk = ltm && ltm.structureValid !== false;
+  var stmZoneOk = stm && stm.structureValid !== false;
+  // When the zone is broken, promote nextSupportLevel (validated <= current
+  // price, or null if genuinely nothing nearby) instead of the raw
+  // fibInvalidation — see buildFibMapFromDailyBars's bug-fix comment: the raw
+  // swingLow is proximity-constrained near swingHigh and is NOT guaranteed to
+  // still be below current price in a sustained decline (that was the bug).
+  var invalidationValue = ltm ? (ltmZoneOk ? ltm.fibInvalidation : ltm.nextSupportLevel) : null;
+  var geo = wBars ? buildFibChartGeometry(
+    wBars,
+    ltm ? ltm.fibTarget1 : null,
+    stm ? stm.fibTarget1 : null,
+    ltm ? ltm.fibSupportZoneHigh : null,
+    ltm ? ltm.fibSupportZoneLow : null,
+    invalidationValue,
+    stmZoneOk ? stm.fibSupportZoneHigh : null,
+    stmZoneOk ? stm.fibSupportZoneLow : null,
+    26,
+    isCompact
+  ) : null;
+
+  if (!geo) {
+    return (
+      <div style={cardStyle} onClick={goToFull}>
+        <div style={headerStyle}>Fib Levels on Weekly Chart</div>
+        <div style={{fontSize:9,color:'#555'}}>No weekly chart data</div>
+      </div>
+    );
+  }
+
+  var fontSz = isCompact ? "10" : "9";
+  var chartW = geo.right - geo.left;
+  // When the weekly zone is broken (structureValid:false), don't hide it —
+  // buildKeyLevels() already treats fibInvalidation as the row's "nearest
+  // support" the moment the zone itself is above current price (it's the
+  // closest support-type level still below price), so the chart tells the
+  // same story instead of a different one: the old zone renders grey/dashed
+  // as broken prior structure, and nextSupportLevel gets promoted to the
+  // active support line/label (when it exists — see comment above).
+  var zoneStroke      = ltmZoneOk ? '#378ADD' : '#666';
+  var zoneFillOpacity = ltmZoneOk ? '0.20' : '0.08';
+  var zoneDash        = ltmZoneOk ? '2,2' : '3,3';
+  var invColor        = ltmZoneOk ? '#e05050' : '#378ADD';
+  var invStrokeW      = ltmZoneOk ? '0.5' : '1.5';
+  var invDash         = ltmZoneOk ? '6,3' : '';
+  // Compact mode drops most descriptive prefixes — there's much less width for
+  // text in a narrow panel, and colour already distinguishes weekly (darker
+  // blue / bold line) from daily (lighter blue / dotted line) zones and the
+  // support-vs-invalidation red/blue. Resistance lines share one grey colour
+  // though, so those keep a 1-letter W/D prefix to stay disambiguated.
+  var zoneLabel      = isCompact ? '' : (ltmZoneOk ? 'Weekly S Zone ' : 'Prior zone (broken) ');
+  var dailyZoneLabel = isCompact ? '' : 'Daily S Zone ';
+  var invLabel       = isCompact ? '' : (ltmZoneOk ? 'Invalid. ' : 'Support ');
+  var weeklyResLabel = isCompact ? 'W ' : 'Weekly res ';
+  var dailyResLabel  = isCompact ? 'D ' : 'Daily res ';
+
+  // Collision avoidance for the two merged zone labels: when the weekly and
+  // daily zones sit close in price (common — they're often nearly the same
+  // range), their midpoint label positions can land close enough to overlap
+  // each other (confirmed in practice on AVGO). If they're closer than
+  // MIN_LABEL_GAP, push them apart symmetrically while preserving whichever
+  // one was originally higher/lower.
+  var weeklyLabelY = (geo.supportHighY!=null && geo.supportLowY!=null) ? (geo.supportHighY+geo.supportLowY)/2+3 : null;
+  var dailyLabelY  = (geo.dailySupportHighY!=null && geo.dailySupportLowY!=null) ? (geo.dailySupportHighY+geo.dailySupportLowY)/2+3 : null;
+  if (weeklyLabelY!=null && dailyLabelY!=null) {
+    var MIN_LABEL_GAP = isCompact ? 12 : 13;
+    var labelDiff = dailyLabelY - weeklyLabelY;
+    if (Math.abs(labelDiff) < MIN_LABEL_GAP) {
+      var labelMid = (weeklyLabelY + dailyLabelY) / 2;
+      if (labelDiff >= 0) { weeklyLabelY = labelMid - MIN_LABEL_GAP/2; dailyLabelY = labelMid + MIN_LABEL_GAP/2; }
+      else                { weeklyLabelY = labelMid + MIN_LABEL_GAP/2; dailyLabelY = labelMid - MIN_LABEL_GAP/2; }
+    }
+  }
+
+  return (
+    <div style={cardStyle} onClick={goToFull}>
+      <div style={headerStyle}>Fib Levels on Weekly Chart</div>
+      {!ltmZoneOk && ltm &&
+        <div style={{fontSize:9,color:'#EF9F27',marginBottom:6}}>
+          {ltm.nextSupportLevel != null
+            ? 'Weekly zone broken ' + String.fromCharCode(0x2014) + ' ' + fmtPrice(ltm.nextSupportLevel) + ' is the next support'
+            : 'Weekly zone broken ' + String.fromCharCode(0x2014) + ' no established support near current price'}
+        </div>}
+      <svg viewBox={'0 0 '+geo.vbW+' '+geo.vbH} width="100%" style={{display:'block'}}>
+        {/* Daily zone drawn first (light fill), weekly drawn on top (darker
+            fill) — where they overlap, the two semi-transparent fills blend
+            naturally into the darkest shade via alpha compositing, no extra
+            intersection geometry needed. */}
+        {geo.dailySupportHighY!=null && geo.dailySupportLowY!=null &&
+          <rect x={geo.left} y={geo.dailySupportHighY} width={chartW}
+            height={Math.max(1, geo.dailySupportLowY - geo.dailySupportHighY)}
+            fill="#6090d0" opacity="0.10"/>}
+        {geo.supportHighY!=null && geo.supportLowY!=null &&
+          <rect x={geo.left} y={geo.supportHighY} width={chartW}
+            height={Math.max(1, geo.supportLowY - geo.supportHighY)}
+            fill={zoneStroke} opacity={zoneFillOpacity}/>}
+        {geo.supportHighY!=null &&
+          <line x1={geo.left} y1={geo.supportHighY} x2={geo.right} y2={geo.supportHighY}
+            stroke={zoneStroke} strokeWidth="0.5" strokeDasharray={zoneDash}/>}
+        {geo.supportLowY!=null &&
+          <line x1={geo.left} y1={geo.supportLowY} x2={geo.right} y2={geo.supportLowY}
+            stroke={zoneStroke} strokeWidth="0.5" strokeDasharray={zoneDash}/>}
+        {geo.dailySupportHighY!=null &&
+          <line x1={geo.left} y1={geo.dailySupportHighY} x2={geo.right} y2={geo.dailySupportHighY}
+            stroke="#6090d0" strokeWidth="0.5" strokeDasharray="1,3"/>}
+        {geo.dailySupportLowY!=null &&
+          <line x1={geo.left} y1={geo.dailySupportLowY} x2={geo.right} y2={geo.dailySupportLowY}
+            stroke="#6090d0" strokeWidth="0.5" strokeDasharray="1,3"/>}
+        {geo.invalidationY!=null &&
+          <line x1={geo.left} y1={geo.invalidationY} x2={geo.right} y2={geo.invalidationY}
+            stroke={invColor} strokeWidth={invStrokeW} strokeDasharray={invDash}/>}
+        {geo.weeklyResY!=null &&
+          <line x1={geo.left} y1={geo.weeklyResY} x2={geo.right} y2={geo.weeklyResY}
+            stroke="#888" strokeWidth="1.5"/>}
+        {geo.dailyResY!=null &&
+          <line x1={geo.left} y1={geo.dailyResY} x2={geo.right} y2={geo.dailyResY}
+            stroke="#888" strokeWidth="1" strokeDasharray="1,3"/>}
+        {geo.hasBreak && geo.breakPathD &&
+          <path d={geo.breakPathD} stroke="#555" strokeWidth="1" fill="none"/>}
+        {geo.hasBreakBottom && geo.breakPathDBottom &&
+          <path d={geo.breakPathDBottom} stroke="#555" strokeWidth="1" fill="none"/>}
+        {geo.farLevels.map(function(f, fi){
+          var isWk = f.key==='weekly';
+          return <g key={'far'+fi}>
+            <line x1={geo.left} y1={f.y} x2={geo.right} y2={f.y} stroke="#888"
+              strokeWidth={isWk?"1.5":"1"} strokeDasharray={isWk?"":"1,3"}/>
+            <text x={geo.right+6} y={f.y+4} fontSize={fontSz} fill="#888">
+              {isCompact
+                ? (isWk?'W $':'D $')+f.price.toFixed(2)+' +'+f.pctAway.toFixed(0)+'%'
+                : (isWk?'Weekly res $':'Daily res $')+f.price.toFixed(2)+' (+'+f.pctAway.toFixed(0)+'%)'}
+            </text>
+          </g>;
+        })}
+        {geo.farBelow &&
+          <g>
+            <line x1={geo.left} y1={geo.farBelow.y} x2={geo.right} y2={geo.farBelow.y}
+              stroke={invColor} strokeWidth={invStrokeW} strokeDasharray={invDash}/>
+            <text x={geo.right+6} y={geo.farBelow.y+4} fontSize={fontSz} fill={invColor}>
+              {isCompact
+                ? '$'+geo.farBelow.price.toFixed(2)+' -'+geo.farBelow.pctAway.toFixed(0)+'%'
+                : invLabel+'$'+geo.farBelow.price.toFixed(2)+' (-'+geo.farBelow.pctAway.toFixed(0)+'%)'}
+            </text>
+          </g>}
+        {geo.candles.map(function(c, ci){
+          return <g key={ci}>
+            <line x1={c.x} y1={c.wickTop} x2={c.x} y2={c.wickBot} stroke={c.color} strokeWidth="1"/>
+            <rect x={c.x-c.bodyW/2} y={c.bodyTop} width={c.bodyW} height={c.bodyBot-c.bodyTop} fill={c.color}/>
+          </g>;
+        })}
+        {geo.weeklyResY!=null &&
+          <text x={geo.right+6} y={geo.weeklyResY-4} fontSize={fontSz} fill="#888">{weeklyResLabel+fmtPrice(ltm.fibTarget1)}</text>}
+        {geo.dailyResY!=null &&
+          <text x={geo.right+6} y={geo.dailyResY+10} fontSize={fontSz} fill="#888">{dailyResLabel+fmtPrice(stm.fibTarget1)}</text>}
+        {/* Merged range labels — one line per zone ("Weekly S Zone $X\u2013$Y")
+            instead of 4 separate high/low numbers stacked with no clear
+            pairing between them, which was the actual point of confusion:
+            an unlabeled number gives no indication which zone/boundary it is. */}
+        {weeklyLabelY!=null &&
+          <text x={geo.right+6} y={weeklyLabelY} fontSize={fontSz} fill={zoneStroke}>
+            {zoneLabel+fmtPrice(ltm.fibSupportZoneLow)+String.fromCharCode(0x2013)+fmtPrice(ltm.fibSupportZoneHigh)}
+          </text>}
+        {dailyLabelY!=null &&
+          <text x={geo.right+6} y={dailyLabelY} fontSize={fontSz} fill="#6090d0">
+            {dailyZoneLabel+fmtPrice(stm.fibSupportZoneLow)+String.fromCharCode(0x2013)+fmtPrice(stm.fibSupportZoneHigh)}
+          </text>}
+        {geo.invalidationY!=null &&
+          <text x={geo.right+6} y={geo.invalidationY+4} fontSize={fontSz} fill={invColor}>{invLabel+fmtPrice(invalidationValue)}</text>}
+      </svg>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, supportLow, invalidation, dailySupportHigh, dailySupportLow, weeksToShow, compact) {
+  if (!weeklyBars || weeklyBars.length < 2) return null;
+  var bars = weeklyBars.slice(-(weeksToShow || 26));
+  var n = bars.length;
+  if (n < 2) return null;
+
+  var candlePrices = [];
+  bars.forEach(function(b){ if (b && b.high>0 && b.low>0) { candlePrices.push(b.high); candlePrices.push(b.low); } });
+  if (!candlePrices.length) return null;
+  var candleMax = Math.max.apply(null, candlePrices), candleMinForGap = Math.min.apply(null, candlePrices);
+  var candleSpan = Math.max(candleMax - candleMinForGap, candleMax * 0.02); // avoid div-by-~0 for flat weeks
+
+  // A resistance level counts as "far" if the empty gap it would create above the
+  // candle high is itself bigger than a large fraction of the candle range —
+  // this is what actually drives how much of the chart LOOKS empty, not the
+  // level's raw % distance above an absolute price (a $60 gap is enormous
+  // against a $165 candle range but looks tiny expressed as "% of $495"). Same
+  // logic applies symmetrically to invalidation being far BELOW the candle low —
+  // a swing-low invalidation from a much larger historical move can otherwise
+  // leave a huge empty gap between the support zone and the invalidation line.
+  var FAR_GAP_RATIO = 0.30;
+  function isFarAbove(level) { return level != null && (level - candleMax) / candleSpan > FAR_GAP_RATIO; }
+  function isFarBelow(level) { return level != null && (candleMinForGap - level) / candleSpan > FAR_GAP_RATIO; }
+
+  var farLevels = [];  // resistance levels compressed into the top break strip
+  var nearLevels = []; // everything folded into the normal linear scale
+  if (weeklyRes != null) { if (isFarAbove(weeklyRes)) farLevels.push({ key:'weekly', price:weeklyRes }); else nearLevels.push(weeklyRes); }
+  if (dailyRes  != null) { if (isFarAbove(dailyRes))  farLevels.push({ key:'daily',  price:dailyRes });  else nearLevels.push(dailyRes); }
+  farLevels.sort(function(a,b){ return a.price - b.price; });
+
+  // Support zones stay on the normal scale — in practice these track much
+  // closer to recent price than an invalidation swing-low can. Invalidation
+  // itself gets the same far-check the resistance levels get above.
+  if (supportHigh      != null) nearLevels.push(supportHigh);
+  if (supportLow       != null) nearLevels.push(supportLow);
+  if (dailySupportHigh != null) nearLevels.push(dailySupportHigh);
+  if (dailySupportLow  != null) nearLevels.push(dailySupportLow);
+  var invalidationIsFar = isFarBelow(invalidation);
+  if (invalidation != null && !invalidationIsFar) nearLevels.push(invalidation);
+
+  var allNear = candlePrices.concat(nearLevels);
+  var maxP = Math.max.apply(null, allNear), minP = Math.min.apply(null, allNear);
+  var pad = (maxP - minP) * 0.08 || maxP * 0.05;
+  maxP += pad; minP -= pad;
+  var range = maxP - minP;
+  if (!(range > 0)) return null;
+
+  var hasBreak = farLevels.length > 0;
+  var breakZoneH = hasBreak ? 46 : 0; // fixed height regardless of $ distance
+  var hasBreakBottom = invalidation != null && invalidationIsFar;
+  var breakZoneHBottom = hasBreakBottom ? 46 : 0;
+  // Compact mode (narrow panels, e.g. the mobile-style preview left panel) uses
+  // a much taller-relative viewBox (400x340 vs the wide 1400x320) — a narrow
+  // container has far less width to spread candles/labels across, so it needs
+  // proportionally more height to stay legible rather than being squished flat.
+  var vbW = compact ? 400 : 1400;
+  var vbH = compact ? 340 : 320;
+  var marginTop = 40, bottomBase = compact ? (vbH - 20) : 300;
+  var top = marginTop + breakZoneH, bottom = bottomBase - breakZoneHBottom, plotH = bottom - top;
+  var left = compact ? 40 : 70, right = compact ? 260 : 1150, plotW = right - left;
+  function y(price) { return top + (maxP - price) / range * plotH; }
+
+  var slotW = plotW / n;
+  var bodyW = Math.max(2, Math.min(12, slotW * 0.55));
+  var candles = bars.map(function(b, i) {
+    var cx = left + slotW * (i + 0.5);
+    var bull = b.close >= b.open;
+    var bodyTop = y(Math.max(b.open, b.close));
+    var bodyBot = y(Math.min(b.open, b.close));
+    if (bodyBot - bodyTop < 1.5) bodyBot = bodyTop + 1.5; // min visible height for doji bars
+    return { x: cx, wickTop: y(b.high), wickBot: y(b.low), bodyTop: bodyTop, bodyBot: bodyBot,
+             bodyW: bodyW, color: bull ? '#639922' : '#e24b4a' };
+  });
+
+  // Far levels get fixed y positions inside the break strip, stacked if there's
+  // more than one, each labelled with % distance above the visible candle high.
+  var farRendered = farLevels.map(function(f, i) {
+    return { key: f.key, price: f.price, y: 40 + 14 + i * 16, pctAway: ((f.price - candleMax) / candleMax) * 100 };
+  });
+
+  var breakPathD = null;
+  if (hasBreak) {
+    var by = 40 + breakZoneH - 6;
+    var segLen = 16, amp = 5, xCur = left, up = true;
+    var pathParts = ['M', left, by];
+    while (xCur < right) {
+      var xNext = Math.min(xCur + segLen, right);
+      pathParts.push('L', xNext, by + (up ? -amp : amp));
+      xCur = xNext; up = !up;
+    }
+    breakPathD = pathParts.join(' ');
+  }
+
+  // Bottom break strip for a far-below invalidation — mirrors the top one exactly.
+  var breakPathDBottom = null, farBelow = null;
+  if (hasBreakBottom) {
+    var byB = bottom + breakZoneHBottom - 40;
+    var segLenB = 16, ampB = 5, xCurB = left, upB = true;
+    var pathPartsB = ['M', left, byB];
+    while (xCurB < right) {
+      var xNextB = Math.min(xCurB + segLenB, right);
+      pathPartsB.push('L', xNextB, byB + (upB ? -ampB : ampB));
+      xCurB = xNextB; upB = !upB;
+    }
+    breakPathDBottom = pathPartsB.join(' ');
+    farBelow = { price: invalidation, y: bottom + breakZoneHBottom - 12, pctAway: ((candleMinForGap - invalidation) / candleMinForGap) * 100 };
+  }
+
+  function nearY(price) { return price != null ? y(price) : null; }
+
+  return {
+    candles: candles, left: left, right: right, top: top, bottom: bottom, vbW: vbW, vbH: vbH,
+    hasBreak: hasBreak, breakPathD: breakPathD, farLevels: farRendered,
+    hasBreakBottom: hasBreakBottom, breakPathDBottom: breakPathDBottom, farBelow: farBelow,
+    weeklyResY:    (weeklyRes != null && !isFarAbove(weeklyRes)) ? nearY(weeklyRes) : null,
+    dailyResY:     (dailyRes  != null && !isFarAbove(dailyRes))  ? nearY(dailyRes)  : null,
+    supportHighY:      nearY(supportHigh),
+    supportLowY:       nearY(supportLow),
+    dailySupportHighY: nearY(dailySupportHigh),
+    dailySupportLowY:  nearY(dailySupportLow),
+    invalidationY: invalidationIsFar ? null : nearY(invalidation),
+  };
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // These derive from existing fibMap / shortTermMap data — no new API calls.
 // buildKeyLevels: combine daily + weekly Fib levels into a sorted support/resistance ladder.
 // buildWaveGuide: classify current price position into a practical stage label.
@@ -12182,13 +12653,22 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
   // Fetch + calculate + save a snapshot for a single ticker.
   // Shared by refreshSnapshotsFor() (auto-load + manual refresh) and addTicker() (auto-refresh on add).
+  //
+  // Ordering note (fix — see audit "Watchlist Reversal/Technical View computed with
+  // a zeroed 52-week range"): the real 52-week high/low must be resolved BEFORE the
+  // technical snapshot / RBA verdict are built, not after. calcReversalWatch() in
+  // technicalSignals.js only evaluates its "near 52-week low + improving RSI" bullish
+  // setup indicator when hi52 > 0, so building the snapshot on hi52:0/lo52:0 silently
+  // drops that signal and can make the Watchlist row disagree with the Technical
+  // Analysis tab for the same ticker. The Yahoo chart fetch (which already existed,
+  // previously running only for Force Strike/3M Trend/price) now runs first so its
+  // real hi52/lo52 can feed the same buildScreenerSnapshot() call the Detail tab's
+  // equivalent adapter uses.
   async function refreshSingleTicker(ticker, hdrs) {
     var mRes = await fetch('/massive?sym=' + ticker, { headers: hdrs });
     if (!mRes.ok) return false;
     var mData = await mRes.json();
     if (!mData || !mData.aggs || mData.aggs.length < 10) return false;
-    var snap = buildScreenerSnapshot(ticker, mData, { hi52: 0, lo52: 0, price: 0 });
-    if (!snap) return false;
     var ms  = mData.snapshot || {};
     var aggs = mData.aggs || [];
     // Provisional price from Massive — overwritten below by Yahoo's regularMarketPrice
@@ -12202,21 +12682,13 @@ function WatchlistPage({ clerkUser, isPaid }) {
       var c0 = aggs[0].c, c1 = aggs[1].c;
       if (c0 && c1) chg = (c0 - c1) / c1 * 100;
     }
+    // Fallback 52-week range from Massive's own aggs window, used only if the
+    // Yahoo fetch below fails entirely. This is a real (if narrower) range —
+    // never silently 0 — and is replaced by Yahoo's true 52-week range when available.
     var hi52raw = 0, lo52raw = Infinity;
     aggs.forEach(function(b){ if(b.h>hi52raw) hi52raw=b.h; if(b.l>0&&b.l<lo52raw) lo52raw=b.l; });
     if (lo52raw===Infinity) lo52raw = 0;
-    var rbaSnap = buildRuleSnapshotFromRow({
-      trend: snap.trend.status, trendScore: snap.trend.score,
-      momentum: snap.momentum.status, momentumScore: snap.momentum.score,
-      reversal: snap.reversalWatch.status, reversalScore: snap.reversalWatch.score,
-      reversalDecision: snap.reversalWatch.reversalDecision,
-      bullishScore: snap.reversalWatch.bullishScore, bearishScore: snap.reversalWatch.bearishScore,
-      moneyFlow: snap.smartMoneyFlow.status, moneyFlowScore: snap.smartMoneyFlow.score,
-      smartMoneyDecision: snap.smartMoneyFlow.smartMoneyDecision,
-    });
-    var rba = generateRuleBasedAnalytics(rbaSnap);
-    var rbaVerdict = rba ? (rba.verdict || '') : '';
-    var rbaShort   = shortRuleVerdict(rbaVerdict);
+    var hi52Source = 'massive_aggs_fallback';
 
     // Force Strike: always fresh scan using Yahoo chart (same as #FORCESTRIKE screener)
     // Ensures Watchlist FS result is identical to #FORCESTRIKE for the same ticker and data window.
@@ -12224,9 +12696,14 @@ function WatchlistPage({ clerkUser, isPaid }) {
     //   - Weekly Fib Price Map: needs 26-52 weekly candles; 3mo only gave ~12, 1y gives ~50
     //   - priceHistory (~1yr daily closes, oldest-to-newest) used by 3M Trend sparkline
     //   - price fallback (meta.regularMarketPrice) if Massive returned 0
-    //   - true 52-week high/low (meta.fiftyTwoWeekHigh/Low, range-independent)
+    //   - true 52-week high/low (meta.fiftyTwoWeekHigh/Low, range-independent) —
+    //     now also feeds the technical snapshot below, not just the displayed range.
     var fsResult = null;
     var daily2 = []; // Yahoo 1-year daily bars — populated below, used for FS + 3M Trend + Weekly Fib
+    // Cross data (golden/death cross + SMA200 gap direction) — resolved below from
+    // the same daily2 bars, via the shared detectCrossData() helper the Technical
+    // Analysis tab uses, so Trend's cross-aware scoring isn't silently null here.
+    var wlCrossData = null;
     try {
       var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=1y';
       var fsAbort = new AbortController();
@@ -12255,6 +12732,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
           if (meta2.fiftyTwoWeekHigh > 0 && meta2.fiftyTwoWeekLow > 0 && meta2.fiftyTwoWeekHigh > meta2.fiftyTwoWeekLow) {
             hi52raw = meta2.fiftyTwoWeekHigh;
             lo52raw = meta2.fiftyTwoWeekLow;
+            hi52Source = 'yahoo_meta_true_52w';
           }
           // Build daily bars array oldest-to-newest — used for both FS scan and 3M Trend sparkline
           var ts2    = cr2.timestamp||[];
@@ -12264,6 +12742,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 l2=q2.low&&q2.low[di2],   cv2=q2.close&&q2.close[di2];
             if (o2&&h2&&l2&&cv2&&o2>0) daily2.push({ date:ts2[di2]*1000, open:o2, high:h2, low:l2, close:cv2, volume:(q2.volume&&q2.volume[di2])||0 });
           }
+          // Cross data from these same 1y bars (see detectCrossData doc comment —
+          // degrades to "unknown" below 201 closes, same as Detail's own fallback).
+          wlCrossData = Object.assign({ sym: ticker }, detectCrossData(daily2.map(function(b){ return b.close; })));
           if (daily2.length >= 14) {
             var closes2    = daily2.slice(-50).map(function(b){ return b.close; });
             var closes200b = daily2.map(function(b){ return b.close; });
@@ -12284,11 +12765,13 @@ function WatchlistPage({ clerkUser, isPaid }) {
             // Build techContext (technical support context) for active FS patterns,
             // using the same buildTechSnapshotFromYahoo + generateRuleBasedAnalytics
             // pattern as #FORCESTRIKE screener — gives identical FS Score / Tech Support.
+            // Pass the real 52-week range resolved above (hi52raw/lo52raw) so this
+            // Reversal Watch calc doesn't diverge from the row's own Technical View.
             if (fsResult && fsResult.triggered) {
               try {
                 var vc2 = daily2.map(function(b){ return b.close; });
                 var vv2 = daily2.map(function(b){ return b.volume||0; });
-                var techSnap2 = buildTechSnapshotFromYahoo(ticker, vc2, vv2, pr2, sma50b, sma200b);
+                var techSnap2 = buildTechSnapshotFromYahoo(ticker, vc2, vv2, pr2, sma50b, sma200b, hi52raw, lo52raw, wlCrossData);
                 if (techSnap2) {
                   var rbaRow2 = buildRuleSnapshotFromRow({
                     trend:        techSnap2.trend.status,        trendScore:      techSnap2.trend.score,
@@ -12317,6 +12800,62 @@ function WatchlistPage({ clerkUser, isPaid }) {
         }
       }
     } catch(fsErr) { fsResult = null; }
+
+    // ── Build the technical snapshot + RBA verdict now that hi52raw/lo52raw reflect
+    // the real 52-week range (Yahoo, or the Massive-aggs fallback above if Yahoo
+    // failed) — never the hardcoded 0 this used to run on. Same adapter function
+    // (buildScreenerSnapshot -> calculateTechnicalSignalSnapshot) the Detail tab's
+    // equivalent path uses, just with corrected meta.
+    var snap = buildScreenerSnapshot(ticker, mData, { hi52: hi52raw, lo52: lo52raw, price: price }, wlCrossData);
+    if (!snap) return false;
+    var rbaSnap = buildRuleSnapshotFromRow({
+      trend: snap.trend.status, trendScore: snap.trend.score,
+      momentum: snap.momentum.status, momentumScore: snap.momentum.score,
+      reversal: snap.reversalWatch.status, reversalScore: snap.reversalWatch.score,
+      reversalDecision: snap.reversalWatch.reversalDecision,
+      bullishScore: snap.reversalWatch.bullishScore, bearishScore: snap.reversalWatch.bearishScore,
+      moneyFlow: snap.smartMoneyFlow.status, moneyFlowScore: snap.smartMoneyFlow.score,
+      smartMoneyDecision: snap.smartMoneyFlow.smartMoneyDecision,
+    });
+    var rba = generateRuleBasedAnalytics(rbaSnap);
+    var rbaVerdict = rba ? (rba.verdict || '') : '';
+    var rbaShort   = shortRuleVerdict(rbaVerdict);
+
+    // ── Momentum Profile (Option B fix) ─────────────────────────────────────
+    // The Technical Analysis tab's "Momentum" headline shows a cross-timeframe
+    // classification (classifyMomentumProfile: Continuation/Recovery/Pullback/
+    // etc.), NOT the raw daily momentum status ("Strong"/"Weak") that snap.momentum
+    // holds — those two were being compared as if they were the same signal,
+    // which they aren't. This block computes the same Profile here, using the
+    // same functions and the same 2-year-lookback approach the Detail tab uses
+    // (fetchYahooHistoricalBars + buildWeeklyBars/buildMonthlyBars + calcWeeklyMomentum/
+    // calcMonthlyMomentum), so the Watchlist headline can show the identical value.
+    //
+    // IMPORTANT: this is DISPLAY-ONLY. snap.momentum.status/score (raw daily status)
+    // are left completely untouched everywhere else in this function — rbaSnap,
+    // momentumRank, and buildActionBias() all still use the raw status, since
+    // buildActionBias() string-matches on 'strong'/'weak'/'build'/'fad', which the
+    // Momentum Profile's labels (Continuation/Recovery/etc.) don't contain.
+    var momentumProfileData = null;
+    try {
+      var mpEndMs = Date.now();
+      var mpStartMs = mpEndMs - 2 * 365 * 24 * 3600 * 1000;
+      var mpFmt = function(d){ var dd=new Date(d); return dd.getFullYear()+'-'+('0'+(dd.getMonth()+1)).slice(-2)+'-'+('0'+dd.getDate()).slice(-2); };
+      var mpBars = await fetchYahooHistoricalBars(ticker, mpFmt(mpStartMs), mpFmt(mpEndMs), 20);
+      if (mpBars && mpBars.length >= 70) {
+        var wMomWL = calcWeeklyMomentum(buildWeeklyBars(mpBars));
+        var mMomWL = calcMonthlyMomentum(buildMonthlyBars(mpBars));
+        var profileFullWL = classifyMomentumProfile(snap.momentum.status, wMomWL.status);
+        var monthlyRegimeWL = classifyMonthlyRegime(mMomWL.status);
+        momentumProfileData = {
+          full: profileFullWL,
+          short: shortMomentumProfileLabel(profileFullWL),
+          daily: snap.momentum.status,
+          weekly: wMomWL.status,
+          monthlyRegime: monthlyRegimeWL,
+        };
+      }
+    } catch(mpErr) { momentumProfileData = null; } // explicit: null = "unavailable", UI falls back to raw daily status
 
     // Determine FS display status + compute FS Score / Tech Support (shared with #FORCESTRIKE)
     var fsStatus = 'none', fsPattern = null, fsScenario = null, fsAge = null,
@@ -12387,6 +12926,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
       priceChangePct:  chg,
       hi52:            hi52raw,
       lo52:            lo52raw,
+      // Debug/audit field only — "yahoo_meta_true_52w" or "massive_aggs_fallback".
+      // Lets Audit JSON confirm which 52-week range fed the Reversal Watch calc above.
+      hi52Source:      hi52Source,
       rbaVerdict:      rbaShort,
       rbaRank:         wlRbaRank(rbaShort),
       trendStatus:     snap.trend.status,
@@ -12395,6 +12937,12 @@ function WatchlistPage({ clerkUser, isPaid }) {
       momentumStatus:  snap.momentum.status,
       momentumScore:   snap.momentum.score,
       momentumRank:    wlMomRank(snap.momentum.status),
+      // Momentum Profile (Option B) — cross-timeframe classification matching the
+      // Technical Analysis tab's headline. Display-only; momentumStatus/Score/Rank
+      // above are untouched (still raw daily status, still feed Action Bias/sort).
+      // Nested object, same pattern as fibMap/keyLevels/waveGuide below. null if
+      // the 2-year fetch failed or returned insufficient history.
+      momentumProfile: momentumProfileData,
       reversalStatus:  snap.reversalWatch.status,
       reversalScore:   snap.reversalWatch.score,
       reversalRank:    wlRevRank(snap.reversalWatch.status),
@@ -12747,6 +13295,12 @@ function WatchlistPage({ clerkUser, isPaid }) {
             var shortTermMap= (snapJson.shortTermMap && snapJson.shortTermMap.priceMapStatus) ? snapJson.shortTermMap : null;
             var keyLevels   = snapJson.keyLevels   || null;
             var waveGuide   = snapJson.waveGuide   || null;
+            // Momentum Profile (Option B) — display-only override for the Momentum
+            // headline, matching the Technical Analysis tab's cross-timeframe label.
+            // momV (raw daily status, below) stays untouched for Action Bias/sorting.
+            var momentumProfile = snapJson.momentumProfile || null;
+            var momDisplayStatus = momentumProfile && momentumProfile.short ? momentumProfile.short : null;
+            var momDisplayColor  = momentumProfile && momentumProfile.short ? momentumProfileColor(momentumProfile.short) : null;
             // Locked FS — from lock record
             var lock = locks[item.ticker] || null;
             var lockedSnapJson = {};
@@ -12837,7 +13391,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     {(function(){
                       var factors = [
                         { key:'T',  status:trendV, rank:snap.trend_rank,      field:'trend_rank',      color:wlTrendColor(trendV) },
-                        { key:'M',  status:momV,   rank:snap.momentum_rank,   field:'momentum_rank',   color:wlMomColor(momV) },
+                        { key:'M',  status:(momDisplayStatus||momV), rank:snap.momentum_rank,   field:'momentum_rank',   color:(momDisplayColor||wlMomColor(momV)) },
                         { key:'R',  status:revV,   rank:snap.reversal_rank,   field:'reversal_rank',   color:wlRevColor(revV) },
                         { key:'MF', status:smfV,   rank:snap.money_flow_rank, field:'money_flow_rank', color:wlSmfColor(smfV) },
                       ];
@@ -13190,44 +13744,43 @@ function WatchlistPage({ clerkUser, isPaid }) {
                       <button onClick={function(){ setViewLockTicker(null); }} style={{fontSize:9,padding:'2px 8px',background:'none',border:'0.5px solid #333',borderRadius:4,color:'#555',cursor:'pointer'}}>Close</button>
                     </div>
                   </div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
-                    <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px'}}>
-                      <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Long-Term (Weekly Fib)</div>
-                      {!ltm ? <div style={{fontSize:10,color:'#555'}}>No data</div>
-                        : <div style={{fontSize:10,display:'flex',flexDirection:'column',gap:5}}>
-                            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>S Zone</span><span style={{color:'#6090d0',fontWeight:600}}>{fmt(ltm.fibSupportZoneHigh)+' \u2013 '+fmt(ltm.fibSupportZoneLow)}</span></div>
-                            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>Invalidation</span><span style={{color:'#e05050'}}>{fmt(ltm.fibInvalidation)}</span></div>
-                            <div style={{borderTop:'0.5px solid #222',paddingTop:5,marginTop:2}}>
-                              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R1</span><span style={{color:'#888'}}>{fmt(ltm.fibTarget1)}</span></div>
-                              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R2</span><span style={{color:'#888'}}>{fmt(ltm.fibTarget2)}</span></div>
-                              <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>R3</span><span style={{color:'#888'}}>{fmt(ltm.fibTarget3)}</span></div>
-                            </div>
-                          </div>}
-                    </div>
-                    <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px'}}>
-                      <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Short-Term (Daily Fib)</div>
-                      {!stm ? <div style={{fontSize:10,color:'#555'}}>No data</div>
-                        : <div style={{fontSize:10,display:'flex',flexDirection:'column',gap:5}}>
-                            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>S Zone</span><span style={{color:'#6090d0',fontWeight:600}}>{fmt(stm.fibSupportZoneHigh)+' \u2013 '+fmt(stm.fibSupportZoneLow)}</span></div>
-                            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>Invalidation</span><span style={{color:'#e05050'}}>{fmt(stm.fibInvalidation)}</span></div>
-                            <div style={{borderTop:'0.5px solid #222',paddingTop:5,marginTop:2}}>
-                              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R1</span><span style={{color:'#888'}}>{fmt(stm.fibTarget1)}</span></div>
-                              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{color:'#555'}}>R2</span><span style={{color:'#888'}}>{fmt(stm.fibTarget2)}</span></div>
-                              <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#555'}}>R3</span><span style={{color:'#888'}}>{fmt(stm.fibTarget3)}</span></div>
-                            </div>
-                          </div>}
-                    </div>
+                  {/* Trend / Momentum / Reversal / Money Flow — same technicalSignals.js
+                      verdict as the row above (Sig factor strip); shown full-size here. */}
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
+                    {[
+                      { label:'Trend',      status:trendV, score:snap?snap.trend_score:null,      color:wlTrendColor(trendV) },
+                      { label:'Momentum',   status:(momDisplayStatus||momV), score:snap?snap.momentum_score:null, color:(momDisplayColor||wlMomColor(momV)),
+                        // Momentum Profile subtitle mirrors the Technical Analysis tab's
+                        // "D Strong · W Building · M Neutral" format instead of Score X/100 —
+                        // falls back to Score X/100 (via sub:null below) if the profile fetch
+                        // hasn't populated this snapshot yet (older snapshot / fetch failed).
+                        sub: momentumProfile ? ('D '+(momentumProfile.daily||'--')+' \u00b7 W '+(momentumProfile.weekly||'--')+' \u00b7 M '+(momentumProfile.monthlyRegime||'--')) : null },
+                      { label:'Reversal',   status:revV,   score:snap?snap.reversal_score:null,   color:wlRevColor(revV) },
+                      { label:'Money Flow', status:smfV,   score:snap?snap.money_flow_score:null, color:wlSmfColor(smfV) },
+                    ].map(function(f){
+                      return <div key={f.label} style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px'}}>
+                        <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>{f.label}</div>
+                        <div style={{fontSize:12,fontWeight:700,color:f.color}}>{f.status || String.fromCharCode(0x2014)}</div>
+                        {f.sub ? <div style={{fontSize:9,color:'#555',marginTop:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{f.sub}</div>
+                          : (f.score!=null && <div style={{fontSize:9,color:'#555',marginTop:2}}>Score {Math.round(f.score)}/100</div>)}
+                      </div>;
+                    })}
                   </div>
-                  {(ltm||stm)&&<div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px',marginBottom:12}}>
-                    <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Wave Targets & Pullback Range</div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'5px 10px',fontSize:10}}>
-                      <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>LT Wave Target</div><div style={{color:'#888',fontWeight:600}}>{fmtR(ltm&&ltm.fibTarget1)}</div></div>
-                      <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>ST Wave Target</div><div style={{color:'#888',fontWeight:600}}>{fmtR(stm&&stm.fibTarget1)}</div></div>
-                      <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>LT Pullback Zone</div><div style={{color:'#6090d0'}}>{ltm?(fmtR(ltm.fibSupportZoneHigh)+'\u2013'+fmtR(ltm.fibSupportZoneLow)):String.fromCharCode(0x2014)}</div></div>
-                      <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>ST Pullback Zone</div><div style={{color:'#6090d0'}}>{stm?(fmtR(stm.fibSupportZoneHigh)+'\u2013'+fmtR(stm.fibSupportZoneLow)):String.fromCharCode(0x2014)}</div></div>
-                      {wg&&<div><div style={{color:'#555',fontSize:8,marginBottom:2}}>Wave Stage</div><div style={{color:'#888'}}>{wg.waveStatus||String.fromCharCode(0x2014)}</div></div>}
-                    </div>
-                  </div>}
+                  <div style={{marginBottom:12}}>
+                    <FibLevelsChart weeklyMap={ltm} dailyMap={stm} />
+                    {(ltm||stm)
+                      ? <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px',marginTop:12}}>
+                          <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Wave Targets & Pullback Range</div>
+                          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px 10px',fontSize:10}}>
+                            <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>LT Wave Target</div><div style={{color:'#888',fontWeight:600}}>{fmtR(ltm&&ltm.fibTarget1)}</div></div>
+                            <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>ST Wave Target</div><div style={{color:'#888',fontWeight:600}}>{fmtR(stm&&stm.fibTarget1)}</div></div>
+                            <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>LT Pullback Zone</div><div style={{color:'#6090d0'}}>{ltm?(fmtR(ltm.fibSupportZoneHigh)+'\u2013'+fmtR(ltm.fibSupportZoneLow)):String.fromCharCode(0x2014)}</div></div>
+                            <div><div style={{color:'#555',fontSize:8,marginBottom:2}}>ST Pullback Zone</div><div style={{color:'#6090d0'}}>{stm?(fmtR(stm.fibSupportZoneHigh)+'\u2013'+fmtR(stm.fibSupportZoneLow)):String.fromCharCode(0x2014)}</div></div>
+                            {wg&&<div style={{gridColumn:'1/-1'}}><div style={{color:'#555',fontSize:8,marginBottom:2}}>Wave Stage</div><div style={{color:'#888'}}>{wg.waveStatus||String.fromCharCode(0x2014)}</div></div>}
+                          </div>
+                        </div>
+                      : null}
+                  </div>
                   <div style={{borderRadius:6,overflow:'hidden',border:'0.5px solid #252523'}}>
                     <div style={{fontSize:9,color:'#555',padding:'5px 10px',background:'#111',letterSpacing:'0.04em',textTransform:'uppercase'}}>{tvTicker} {'\u00B7'} Daily</div>
                     <iframe key={tvTicker}
@@ -13498,7 +14051,11 @@ function ForceStrikePage({ isPaid, clerkUser }) {
             try {
               var vc2 = daily.map(function(b){ return b.close; });
               var vv2 = daily.map(function(b){ return b.volume||0; });
-              var techSnap = buildTechSnapshotFromYahoo(c.sym, vc2, vv2, pr2, sma50, sma200);
+              // Pass the real 52-week range and cross data (both computed from this
+              // same daily window) so Reversal Watch and Trend here match the
+              // Technical Analysis tab / Watchlist for the same ticker.
+              var fsCrossData = Object.assign({ sym: c.sym }, detectCrossData(vc2));
+              var techSnap = buildTechSnapshotFromYahoo(c.sym, vc2, vv2, pr2, sma50, sma200, fsResult.hi52, fsResult.lo52, fsCrossData);
               if (techSnap) {
                 var rbaRow = buildRuleSnapshotFromRow({
                   trend: techSnap.trend.status, trendScore: techSnap.trend.score,
@@ -14707,7 +15264,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.218</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.239</span>
           </div>
         </div>
 
