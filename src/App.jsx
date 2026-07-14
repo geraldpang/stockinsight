@@ -4263,7 +4263,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
     if (!massiveInfo || !sym) return;
     if (crossData && crossData.sym === sym) return;
     var ySym = sym === "BRKB" ? "BRK-B" : sym;
-    fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=2y"))
+    fetch("/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + ySym + "?interval=1d&range=5y"))
       .then(function(r){ return r.json(); })
       .then(function(data){
         var result = data&&data.chart&&data.chart.result&&data.chart.result[0];
@@ -5178,7 +5178,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.240</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.241</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5232,7 +5232,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.240</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.241</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11458,6 +11458,22 @@ function aggregateWeeklySMA(dailyBars, period) {
   return order.map(function(k){ return weeks[k]; });
 }
 
+// True weekly-PERIOD moving average — e.g. WMA50 averages the last 50 WEEKLY
+// closes, not 50 daily closes resampled onto weeks (that's what
+// aggregateWeeklySMA above computes, for the always-on SMA50/SMA200 lines).
+// Operates directly on already-aggregated weekly bars, so it's a much simpler
+// calculation with no daily/weekly alignment concerns — just returns an array
+// aligned 1:1 with weeklyBars, null before there's enough weekly history.
+function calcWeeklyPeriodSMA(weeklyBars, period) {
+  if (!weeklyBars || !weeklyBars.length) return [];
+  var closes = weeklyBars.map(function(b){ return b && b.close; });
+  return closes.map(function(_, i) {
+    if (i < period - 1) return null;
+    var slice = closes.slice(i - period + 1, i + 1);
+    return slice.reduce(function(s, v) { return s + (v || 0); }, 0) / period;
+  });
+}
+
 // Find major swing low and swing high from weekly bars.
 // Returns {swingLow, swingHigh, swingLowDate, swingHighDate} or null if structure unclear.
 // Core weekly swing-finder — shared by findFibSwings (normal 26+ week case,
@@ -11567,13 +11583,22 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
     // yet for this week" — the chart draws a gap there, not a wrong value.
     var sma50Weekly  = aggregateWeeklySMA(daily2Arr, 50);
     var sma200Weekly = aggregateWeeklySMA(daily2Arr, 200);
+    // WMA50/WMA200 — true weekly-PERIOD moving averages (50/200 weekly closes,
+    // not daily closes resampled). Only shown on the chart when the support
+    // zone is broken — the longer-term weekly-scale reference becomes more
+    // relevant once the near-term structure has failed. WMA200 needs 200
+    // WEEKS of history (~4yrs); the 5y daily fetch feeding daily2Arr gives
+    // ~260 weeks once aggregated, comfortable margin over that.
+    var wma50Weekly  = calcWeeklyPeriodSMA(weekly, 50);
+    var wma200Weekly = calcWeeklyPeriodSMA(weekly, 200);
     var swings = findFibSwings(weekly);
     if (!swings) {
       return { priceMapStatus:'No Clear Map', fibSupport:null, fibTarget:null, fibInvalidation:null, fibTimeframe:'Weekly',
                fibSwingLow:null, fibSwingHigh:null, fibSupportZoneLow:null, fibSupportZoneHigh:null,
                fibTarget1:null, fibTarget2:null, fibTarget3:null,
                priceMapCommentary:'No clear weekly swing structure detected.', swingLowDate:null, swingHighDate:null,
-               weeklyBarCount:weekly.length, weeklyBars:weekly, sma50Weekly:sma50Weekly, sma200Weekly:sma200Weekly };
+               weeklyBarCount:weekly.length, weeklyBars:weekly, sma50Weekly:sma50Weekly, sma200Weekly:sma200Weekly,
+               wma50Weekly:wma50Weekly, wma200Weekly:wma200Weekly };
     }
     var levels   = calcFibLevels(swings.swingLow, swings.swingHigh);
 
@@ -11677,6 +11702,11 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
       // near where these are computed above for the alignment/null-gap details.
       sma50Weekly:       sma50Weekly,
       sma200Weekly:      sma200Weekly,
+      // WMA50/WMA200 — true weekly-period moving averages, shown on the chart
+      // only when structureValid is false (support zone broken). See comment
+      // near where these are computed above.
+      wma50Weekly:       wma50Weekly,
+      wma200Weekly:      wma200Weekly,
     };
   } catch(e) { return null; }
 }
@@ -11856,7 +11886,12 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg, compact }) {
     26,
     isCompact,
     ltm ? ltm.sma50Weekly : null,
-    ltm ? ltm.sma200Weekly : null
+    ltm ? ltm.sma200Weekly : null,
+    // WMA50/WMA200 (true weekly-period MAs) only shown once the support zone
+    // has broken — the longer-term weekly-scale reference becomes the more
+    // relevant one once the near-term structure has failed.
+    (!ltmZoneOk && ltm) ? ltm.wma50Weekly : null,
+    (!ltmZoneOk && ltm) ? ltm.wma200Weekly : null
   ) : null;
 
   if (!geo) {
@@ -11987,18 +12022,33 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg, compact }) {
         {geo.sma200Paths && geo.sma200Paths.map(function(d, di){
           return <path key={'sma200-'+di} d={d} stroke="#a070d0" strokeWidth="1.2" fill="none"/>;
         })}
+        {/* WMA50/WMA200 (true weekly-period MAs) — dashed + distinct colours so
+            all four MA lines stay distinguishable when shown together. Only
+            present at all when the support zone is broken (see FibLevelsChart's
+            geometry call), so these render nothing in the normal/valid case. */}
+        {geo.wma50Paths && geo.wma50Paths.map(function(d, di){
+          return <path key={'wma50-'+di} d={d} stroke="#40c0c0" strokeWidth="1.2" strokeDasharray="4,2" fill="none"/>;
+        })}
+        {geo.wma200Paths && geo.wma200Paths.map(function(d, di){
+          return <path key={'wma200-'+di} d={d} stroke="#e060a0" strokeWidth="1.2" strokeDasharray="4,2" fill="none"/>;
+        })}
         {geo.candles.map(function(c, ci){
           return <g key={ci}>
             <line x1={c.x} y1={c.wickTop} x2={c.x} y2={c.wickBot} stroke={c.color} strokeWidth="1"/>
             <rect x={c.x-c.bodyW/2} y={c.bodyTop} width={c.bodyW} height={c.bodyBot-c.bodyTop} fill={c.color}/>
           </g>;
         })}
-        {/* Small legend for the SMA lines — placed in the top margin, above the
-            plot area, since the lines themselves don't carry inline labels. */}
+        {/* Small legend for the SMA/WMA lines — placed in the top margin, above
+            the plot area, since the lines themselves don't carry inline labels.
+            WMA row only appears when those lines are actually present. */}
         {geo.sma50Paths && geo.sma50Paths.length>0 &&
           <text x={geo.left} y={20} fontSize={fontSz} fill="#f0a020">SMA50</text>}
         {geo.sma200Paths && geo.sma200Paths.length>0 &&
           <text x={geo.left + (isCompact?55:70)} y={20} fontSize={fontSz} fill="#a070d0">SMA200</text>}
+        {geo.wma50Paths && geo.wma50Paths.length>0 &&
+          <text x={geo.left} y={32} fontSize={fontSz} fill="#40c0c0">WMA50</text>}
+        {geo.wma200Paths && geo.wma200Paths.length>0 &&
+          <text x={geo.left + (isCompact?55:70)} y={32} fontSize={fontSz} fill="#e060a0">WMA200</text>}
         {geo.weeklyResY!=null &&
           <text x={geo.right+6} y={geo.weeklyResY-4} fontSize={fontSz} fill="#888">{weeklyResLabel+fmtPrice(ltm.fibTarget1)}</text>}
         {geo.dailyResY!=null &&
@@ -12022,17 +12072,19 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg, compact }) {
   );
 }
 // ─────────────────────────────────────────────────────────────────────────────
-function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, supportLow, invalidation, dailySupportHigh, dailySupportLow, weeksToShow, compact, sma50Weekly, sma200Weekly) {
+function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, supportLow, invalidation, dailySupportHigh, dailySupportLow, weeksToShow, compact, sma50Weekly, sma200Weekly, wma50Weekly, wma200Weekly) {
   if (!weeklyBars || weeklyBars.length < 2) return null;
   var N = weeksToShow || 26;
   var bars = weeklyBars.slice(-N);
   var n = bars.length;
   if (n < 2) return null;
-  // sma50Weekly/sma200Weekly are aligned 1:1 with the FULL weeklyBars array
-  // (same length/order — see aggregateWeeklySMA's comment), so slicing with
-  // the same negative window keeps them lined up with `bars`.
+  // sma50Weekly/sma200Weekly/wma50Weekly/wma200Weekly are all aligned 1:1 with
+  // the FULL weeklyBars array (same length/order), so slicing with the same
+  // negative window keeps everything lined up with `bars`.
   var sma50Sliced  = (sma50Weekly  && sma50Weekly.length  === weeklyBars.length) ? sma50Weekly.slice(-N)  : null;
   var sma200Sliced = (sma200Weekly && sma200Weekly.length === weeklyBars.length) ? sma200Weekly.slice(-N) : null;
+  var wma50Sliced  = (wma50Weekly  && wma50Weekly.length  === weeklyBars.length) ? wma50Weekly.slice(-N)  : null;
+  var wma200Sliced = (wma200Weekly && wma200Weekly.length === weeklyBars.length) ? wma200Weekly.slice(-N) : null;
 
   var candlePrices = [];
   bars.forEach(function(b){ if (b && b.high>0 && b.low>0) { candlePrices.push(b.high); candlePrices.push(b.low); } });
@@ -12121,6 +12173,8 @@ function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, sup
   }
   var sma50Paths  = buildSMAPathSegments(sma50Sliced);
   var sma200Paths = buildSMAPathSegments(sma200Sliced);
+  var wma50Paths  = buildSMAPathSegments(wma50Sliced);
+  var wma200Paths = buildSMAPathSegments(wma200Sliced);
 
   // Far levels get fixed y positions inside the break strip, stacked if there's
   // more than one, each labelled with % distance above the visible candle high.
@@ -12162,6 +12216,7 @@ function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, sup
     candles: candles, left: left, right: right, top: top, bottom: bottom, vbW: vbW, vbH: vbH,
     hasBreak: hasBreak, breakPathD: breakPathD, farLevels: farRendered,
     sma50Paths: sma50Paths, sma200Paths: sma200Paths,
+    wma50Paths: wma50Paths, wma200Paths: wma200Paths,
     hasBreakBottom: hasBreakBottom, breakPathDBottom: breakPathDBottom, farBelow: farBelow,
     weeklyResY:    (weeklyRes != null && !isFarAbove(weeklyRes)) ? nearY(weeklyRes) : null,
     dailyResY:     (dailyRes  != null && !isFarAbove(dailyRes))  ? nearY(dailyRes)  : null,
@@ -12778,28 +12833,31 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
     // Force Strike: always fresh scan using Yahoo chart (same as #FORCESTRIKE screener)
     // Ensures Watchlist FS result is identical to #FORCESTRIKE for the same ticker and data window.
-    // The Yahoo range=2y chart (changed from 1y) is also the source for:
-    //   - Weekly Fib Price Map: needs 26-52 weekly candles; 1y gave ~50, 2y gives ~104
-    //   - SMA50/SMA200 overlay lines on the Fib Levels chart: SMA200 needs 200 trading
-    //     days of runway before each plotted point — 1y (~252 days) only covered the
-    //     last ~10 of 26 displayed weeks; 2y (~504 days) covers the full window
+    // The Yahoo range=5y chart (changed from 2y) is also the source for:
+    //   - Weekly Fib Price Map: needs 26-52 weekly candles; 2y gave ~104, 5y gives ~260
+    //   - SMA50/SMA200 (daily-period) overlay lines: unaffected by this change, already
+    //     had full coverage at 2y
+    //   - WMA50/WMA200 (weekly-period, shown only when the support zone is broken):
+    //     WMA200 needs 200 WEEKS of runway before each plotted point — 2y (~104 weeks)
+    //     could never reach 200 weeks at all (not even partial coverage); 5y (~260 weeks)
+    //     covers the full 26-week display window with margin. There's no "4y" range
+    //     value in Yahoo's API (valid values jump 2y -> 5y), so 5y is used.
     //   - priceHistory (~1yr daily closes, oldest-to-newest) used by 3M Trend sparkline —
-    //     explicitly sliced back to the most recent ~1yr below so this doesn't silently
-    //     become a 2yr sparkline as a side effect of the wider fetch
-    //   - Momentum Profile (weekly/monthly momentum + classifyMomentumProfile) — now
-    //     reuses daily2 directly instead of a separate 2yr fetch (see below), since
-    //     daily2 itself now covers the same range
+    //     already explicitly sliced to the most recent ~1yr below regardless of the
+    //     underlying fetch window, so this extension doesn't affect it either
+    //   - Momentum Profile (weekly/monthly momentum + classifyMomentumProfile) — reuses
+    //     daily2 directly, unaffected by the wider window (still just needs >=70 bars)
     //   - price fallback (meta.regularMarketPrice) if Massive returned 0
     //   - true 52-week high/low (meta.fiftyTwoWeekHigh/Low, range-independent) —
     //     now also feeds the technical snapshot below, not just the displayed range.
     var fsResult = null;
-    var daily2 = []; // Yahoo 2-year daily bars — populated below, used for FS + 3M Trend + Weekly Fib + SMA lines
+    var daily2 = []; // Yahoo 5-year daily bars — populated below, used for FS + 3M Trend + Weekly Fib + SMA/WMA lines
     // Cross data (golden/death cross + SMA200 gap direction) — resolved below from
     // the same daily2 bars, via the shared detectCrossData() helper the Technical
     // Analysis tab uses, so Trend's cross-aware scoring isn't silently null here.
     var wlCrossData = null;
     try {
-      var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=2y';
+      var chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=5y';
       var fsAbort = new AbortController();
       var fsTimer = setTimeout(function(){ fsAbort.abort(); }, 10000);
       var cRes2 = await fetch('/proxy?url=' + encodeURIComponent(chartUrl), { signal: fsAbort.signal });
@@ -15361,7 +15419,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.240</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.241</span>
           </div>
         </div>
 
