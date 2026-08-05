@@ -1352,6 +1352,48 @@ function enrichRowWithRuleSetup(row) {
   }
 }
 
+// ── Screener filter helpers — single source of truth for Trend/Momentum/
+// Reversal/Money Flow matching + "green signal count", used identically by
+// the fundamentals lazy-fetch scope and the main table filter so the two
+// can never drift out of sync with each other. ──────────────────────────
+//
+// Money Flow's actual computed status (technicalSignals.js buildSmfDecision)
+// is a compound string like "Daily Spike with Strong Accumulation" or
+// "Quiet Day with Mixed Flow" -- never the bare base label alone. The filter
+// chips show the base label, so matching must be substring-based, not exact.
+function screenerBaseFilterMatch(row, filterTrend, filterMomentum, filterReversal, filterSMF) {
+  if (filterTrend.length && filterTrend.indexOf(row.trend) === -1) return false;
+  if (filterMomentum.length) {
+    var _rowMom = (row.momentumProfile && row.momentumProfile.profile) ? row.momentumProfile.profile : row.momentum;
+    if (filterMomentum.indexOf(_rowMom) === -1) return false;
+  }
+  if (filterReversal.length && filterReversal.indexOf(row.reversal) === -1) return false;
+  if (filterSMF.length) {
+    var smfMatch = filterSMF.some(function(opt){ return row.moneyFlow && row.moneyFlow.indexOf(opt) !== -1; });
+    if (!smfMatch) return false;
+  }
+  return true;
+}
+
+// Counts how many of the 4 technical dot columns (Trend, Daily Momentum,
+// Reversal, Money Flow) currently render as "green" (bullish) for this row,
+// using the exact same colour functions the dots themselves are painted
+// with (summaryCardDark / momentumStateColor / revStatusColor /
+// smfStatusColor), so "2 greens" always means what the dots visually show.
+function screenerGreenCount(row) {
+  function isGreen(hex) { return hex === '#7abd00' || hex === '#9acd50'; }
+  var tC   = summaryCardDark(row.trend).text;
+  var mC   = (row.momentumProfile && row.momentumProfile.profile) ? summaryCardDark(row.momentumProfile.profile).text : momentumStateColor(row.momentum);
+  var revC = revStatusColor(row.reversal, 'main');
+  var smfC = smfStatusColor(row.moneyFlow, 'main');
+  var n = 0;
+  if (isGreen(tC)) n++;
+  if (isGreen(mC)) n++;
+  if (isGreen(revC)) n++;
+  if (isGreen(smfC)) n++;
+  return n;
+}
+
 // ── Run 6: Simulator helpers ───────────────────────────────────────────────────
 
 // ── Run 6C: Combination Performance helpers ────────────
@@ -2194,6 +2236,7 @@ function Screener() {
   var [filterReversal, setFilterReversal] = useState([]);
   var [filterSMF,      setFilterSMF]      = useState([]);
   var [filterSetupSc,  setFilterSetupSc]  = useState([]);
+  var [filterGreenMin, setFilterGreenMin] = useState(0); // 0 = off; 1-4 = "at least N green" across Trend/Momentum/Reversal/Money Flow
   var [activePreset,   setActivePreset]   = useState(null);
   var [scSortCol,      setScSortCol]      = useState('');
   var [scSortDir,      setScSortDir]      = useState('desc');
@@ -2254,7 +2297,7 @@ function Screener() {
     setActivePreset(preset.id);
   }
   function clearAllFilters() {
-    setFilterTrend([]); setFilterMomentum([]); setFilterReversal([]); setFilterSMF([]); setFilterSetupSc([]);
+    setFilterTrend([]); setFilterMomentum([]); setFilterReversal([]); setFilterSMF([]); setFilterSetupSc([]); setFilterGreenMin(0);
     setActivePreset(null);
   }
   // Scan criteria — applied client-side on cached results
@@ -2277,17 +2320,13 @@ function Screener() {
   }
 
   // Tickers currently visible under the active filters (Trend/Momentum/Reversal/
-  // Money Flow/RBA) — Financial Strength + Intrinsic Value are only computed for
-  // this set, never for the full ~50-candidate scan, per Gerald's scope decision.
+  // Money Flow/RBA/Green Signals) — Financial Strength + Intrinsic Value are
+  // only computed for this set, never for the full ~50-candidate scan, per
+  // Gerald's scope decision.
   var filteredTickers = (function(){
     var out = items.filter(function(row){
-      if (filterTrend.length    && filterTrend.indexOf(row.trend)    ===-1) return false;
-      if (filterMomentum.length) {
-        var _rowMom = (row.momentumProfile&&row.momentumProfile.profile) ? row.momentumProfile.profile : row.momentum;
-        if (filterMomentum.indexOf(_rowMom) === -1) return false;
-      }
-      if (filterReversal.length && filterReversal.indexOf(row.reversal)===-1) return false;
-      if (filterSMF.length      && filterSMF.indexOf(row.moneyFlow)  ===-1) return false;
+      if (!screenerBaseFilterMatch(row, filterTrend, filterMomentum, filterReversal, filterSMF)) return false;
+      if (filterGreenMin > 0 && screenerGreenCount(row) < filterGreenMin) return false;
       return true;
     });
     if (filterSetupSc.length) {
@@ -2422,27 +2461,33 @@ function Screener() {
 
           {/* Multi-select pill filters */}
           {(function(){
-            var SETUP_OPTS = ['Strong Bullish','Bullish','Bullish Watch','Risky Bounce','Neutral','Caution','Mixed / Caution','Bearish Watch','Bearish','Strong Bearish'];
+            // Reachable value sets audited directly against technicalSignals.js /
+            // ruleBasedAnalytics.js (2026-08) -- each list below now matches only
+            // the statuses those modules can actually produce for a scanned row.
+            var SETUP_OPTS = ['Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
             var REV_OPTS = [
-              'Bullish Reversal Spark','Bullish Reversal Watch','Bullish Reversal Setup',
+              'Bullish Reversal Spark','Bullish Reversal Watch',
               'Bullish Reversal Forming','Bullish Reversal Triggered','Bullish Reversal Confirming','Bullish Reversal Confirmed',
-              'Bearish Reversal Watch','Bearish Reversal Setup','Bearish Reversal Forming',
+              'Bearish Reversal Watch','Bearish Reversal Forming',
               'Bearish Reversal Triggered','Bearish Reversal Confirming','Bearish Reversal Confirmed',
               'Mixed Reversal Signals','No Clear Reversal'
             ];
+            // Money Flow's real status is compound (e.g. "Daily Spike with Strong
+            // Accumulation") -- these base labels are matched by substring in
+            // screenerBaseFilterMatch, not exact equality.
             var SMF_OPTS = [
               'Strong Accumulation','Steady Accumulation','Long-Term Accumulation','Early Accumulation',
               'Mixed Flow','Cooling Accumulation','Short-Term Flow Spike','Short-Term Flow Watch',
-              'No Sustained Flow','No Clear Signal'
+              'No Sustained Flow','No Clear Signal','Not Enough Data'
             ];
             var FILTER_GROUPS = [
               ['Trend',                filterTrend,    setFilterTrend,    ['Strong Uptrend','Uptrend','Sideways','Downtrend','Strong Downtrend']],
-              ['Momentum',      filterMomentum, setFilterMomentum, ['Strong','Building','Neutral','Fading','Weak','Momentum Continuation','Early Recovery Attempt','Waiting for Daily Trigger','Pullback in Larger Momentum','Weak Weekly Bounce','Bearish Momentum']],
+              ['Momentum',      filterMomentum, setFilterMomentum, ['Momentum Continuation','Early Recovery Attempt','Waiting for Daily Trigger','Pullback in Larger Momentum','Weak Weekly Bounce','Bearish Momentum','No Clear Momentum Profile','Not Enough Data','Strong','Building','Neutral','Fading','Weak']],
               ['Reversal',             filterReversal, setFilterReversal, REV_OPTS],
               ['Money Flow',           filterSMF,      setFilterSMF,      SMF_OPTS],
               ['Rule Based Analytics', filterSetupSc,  setFilterSetupSc,  SETUP_OPTS],
             ];
-            var anyActive = filterTrend.length||filterMomentum.length||filterReversal.length||filterSMF.length||filterSetupSc.length;
+            var anyActive = filterTrend.length||filterMomentum.length||filterReversal.length||filterSMF.length||filterSetupSc.length||filterGreenMin>0;
             function toggle(arr, setArr, v) { setArr(arr.indexOf(v)!==-1 ? arr.filter(function(x){return x!==v;}) : arr.concat([v])); setActivePreset(null); }
             // Semantic pill colour on selection — use platform helpers
             function pillSelColor(groupLbl, v) {
@@ -2474,6 +2519,21 @@ function Screener() {
                     </div>
                   );
                 })}
+                {/* Green Signals — "at least N" across Trend/Momentum/Reversal/Money Flow.
+                    Single-select (not multi-pill) since the options are ordered thresholds. */}
+                <div style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
+                  <span style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', minWidth:70, paddingTop:3, flexShrink:0, lineHeight:1.4 }}>{'Green Signals'}</span>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+                    {[0,1,2,3,4].map(function(n){
+                      var sel = filterGreenMin===n;
+                      var lbl = n===0 ? 'Any' : String.fromCharCode(0x2265)+n; // "\u22651" etc.
+                      return <button key={n} onClick={function(){ setFilterGreenMin(n); setActivePreset(null); }}
+                        style={{ fontSize:9, padding:'2px 8px', borderRadius:10, cursor:'pointer', fontWeight:sel?700:400,
+                          background:sel?'#1a1a16':'#1a1a18', color:sel?'#7abd00':'#555',
+                          border:'0.5px solid '+(sel?'#7abd00':'#2a2a28'), outline:'none' }}>{lbl}</button>;
+                    })}
+                  </div>
+                </div>
                 {anyActive ? <button onClick={clearAllFilters}
                   style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #444', borderRadius:5, color:'#666', cursor:'pointer', marginTop:2 }}>Clear all filters</button> : null}
               </div>
@@ -2518,15 +2578,12 @@ function Screener() {
               return s;
             }
 
-            // Filter matching — Reversal and Money Flow filters now use full labels directly
+            // Filter matching — shared with the fundamentals lazy-fetch scope via
+            // screenerBaseFilterMatch/screenerGreenCount (see their definitions
+            // near enrichRowWithRuleSetup) so the two can't drift apart.
             var filtered = items.filter(function(row){
-              if (filterTrend.length    && filterTrend.indexOf(row.trend)    ===-1) return false;
-              if (filterMomentum.length) {
-                var _rowMom = (row.momentumProfile&&row.momentumProfile.profile) ? row.momentumProfile.profile : row.momentum;
-                if (filterMomentum.indexOf(_rowMom) === -1) return false;
-              }
-              if (filterReversal.length && filterReversal.indexOf(row.reversal)===-1) return false;
-              if (filterSMF.length      && filterSMF.indexOf(row.moneyFlow)  ===-1) return false;
+              if (!screenerBaseFilterMatch(row, filterTrend, filterMomentum, filterReversal, filterSMF)) return false;
+              if (filterGreenMin > 0 && screenerGreenCount(row) < filterGreenMin) return false;
               return true;
             });
 
@@ -5320,7 +5377,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.241</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.242</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5374,7 +5431,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.241</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.242</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -15503,7 +15560,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.241</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.242</span>
           </div>
         </div>
 
