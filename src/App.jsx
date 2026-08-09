@@ -11,6 +11,7 @@ import { calculateTechnicalSignalSnapshot, calcRSI,
          classifyMomentumProfile, classifyMonthlyRegime } from "./technicalSignals.js";
 import { scanForceStrike, buildAggregateBars, formatAuditTxt } from "./forceStrikeScanner.js";
 import { generateRuleBasedAnalytics } from "./ruleBasedAnalytics.js";
+import { computeFinancialStrength, computeIntrinsicValue } from "./fundamentalAnalytics.js";
 
 // ─── Central signal colour system ─────────────────────────────────────────────
 var _CLR = {
@@ -1351,6 +1352,48 @@ function enrichRowWithRuleSetup(row) {
   }
 }
 
+// ── Screener filter helpers — single source of truth for Trend/Momentum/
+// Reversal/Money Flow matching + "green signal count", used identically by
+// the fundamentals lazy-fetch scope and the main table filter so the two
+// can never drift out of sync with each other. ──────────────────────────
+//
+// Money Flow's actual computed status (technicalSignals.js buildSmfDecision)
+// is a compound string like "Daily Spike with Strong Accumulation" or
+// "Quiet Day with Mixed Flow" -- never the bare base label alone. The filter
+// chips show the base label, so matching must be substring-based, not exact.
+function screenerBaseFilterMatch(row, filterTrend, filterMomentum, filterReversal, filterSMF) {
+  if (filterTrend.length && filterTrend.indexOf(row.trend) === -1) return false;
+  if (filterMomentum.length) {
+    var _rowMom = (row.momentumProfile && row.momentumProfile.profile) ? row.momentumProfile.profile : row.momentum;
+    if (filterMomentum.indexOf(_rowMom) === -1) return false;
+  }
+  if (filterReversal.length && filterReversal.indexOf(row.reversal) === -1) return false;
+  if (filterSMF.length) {
+    var smfMatch = filterSMF.some(function(opt){ return row.moneyFlow && row.moneyFlow.indexOf(opt) !== -1; });
+    if (!smfMatch) return false;
+  }
+  return true;
+}
+
+// Counts how many of the 4 technical dot columns (Trend, Daily Momentum,
+// Reversal, Money Flow) currently render as "green" (bullish) for this row,
+// using the exact same colour functions the dots themselves are painted
+// with (summaryCardDark / momentumStateColor / revStatusColor /
+// smfStatusColor), so "2 greens" always means what the dots visually show.
+function screenerGreenCount(row) {
+  function isGreen(hex) { return hex === '#7abd00' || hex === '#9acd50'; }
+  var tC   = summaryCardDark(row.trend).text;
+  var mC   = (row.momentumProfile && row.momentumProfile.profile) ? summaryCardDark(row.momentumProfile.profile).text : momentumStateColor(row.momentum);
+  var revC = revStatusColor(row.reversal, 'main');
+  var smfC = smfStatusColor(row.moneyFlow, 'main');
+  var n = 0;
+  if (isGreen(tC)) n++;
+  if (isGreen(mC)) n++;
+  if (isGreen(revC)) n++;
+  if (isGreen(smfC)) n++;
+  return n;
+}
+
 // ── Run 6: Simulator helpers ───────────────────────────────────────────────────
 
 // ── Run 6C: Combination Performance helpers ────────────
@@ -1985,6 +2028,10 @@ function Screener() {
   var [scanStatus, setScanStatus] = useState('loading');
   var [results,    setResults]    = useState(null);
   var [scanMsg,    setScanMsg]    = useState('');
+  // Financial Strength / Intrinsic Value -- computed lazily, only for rows
+  // that pass the current filters (see fundamentals useEffect below).
+  // Keyed by ticker: { finRating, finScore, ivLabel, ivScore, ivPct, ivSublabel, oracle }
+  var [fundamentals, setFundamentals] = useState({});
 
   useEffect(function() {
     // Read 12-hour KV cache on mount
@@ -1994,7 +2041,7 @@ function Screener() {
         if (d && d.hit && d.value) {
           var parsed = JSON.parse(d.value);
           var ageHrs = (Date.now() - new Date(parsed.cachedAt).getTime()) / 3600000;
-          if (ageHrs < 12 && parsed.results && parsed.screenerSchemaVersion === 'v6') { setResults(parsed); setScanStatus('done'); return; }
+          if (ageHrs < 12 && parsed.results && parsed.screenerSchemaVersion === 'v7') { setResults(parsed); setFundamentals(parsed.fundamentals || {}); setScanStatus('done'); return; }
         }
         setScanStatus('idle');
       })
@@ -2080,7 +2127,7 @@ function Screener() {
         scanNote = 'Using fallback ticker list (Yahoo screener unavailable).';
       }
 
-      if (!candidates.length){ setScanMsg('No candidates after filtering.'); setScanStatus('done'); setResults({ cachedAt:new Date().toISOString(), screenerSchemaVersion:'v6', results:[] }); return; }
+      if (!candidates.length){ setScanMsg('No candidates after filtering.'); setScanStatus('done'); setFundamentals({}); setResults({ cachedAt:new Date().toISOString(), screenerSchemaVersion:'v7', results:[], fundamentals:{} }); return; }
       setScanMsg(scanNote+' Scanning '+candidates.length+' candidates...');
 
       // Step 2: Batch technical scans, 5 at a time
@@ -2169,11 +2216,16 @@ function Screener() {
       matched.sort(function(a,b){ return (b.reversalScore+b.moneyFlowScore)-(a.reversalScore+a.moneyFlowScore); });
 
       var finalMsg = matched.length+' of '+candidates.length+' candidates scanned successfully'+(failedCount>0?' ('+failedCount+' failed — missing data)':'')+'.';
-      var cacheObj = { cachedAt:new Date().toISOString(), screenerSchemaVersion:'v6', candidateCount:candidates.length, failedCount:failedCount, results:matched };
+      // fundamentals map starts empty on every fresh scan -- Financial Strength /
+      // Intrinsic Value are computed lazily (see fundamentals useEffect below)
+      // only for tickers that pass the currently active filters, then persisted
+      // back into this same cache entry.
+      var cacheObj = { cachedAt:new Date().toISOString(), screenerSchemaVersion:'v7', candidateCount:candidates.length, failedCount:failedCount, results:matched, fundamentals:{} };
       var postHdrs = { 'Content-Type':'text/plain' };
       if (window.__clerkToken) postHdrs['Authorization']='Bearer '+window.__clerkToken;
       fetch('/cache?sym=__SCREENER&tab=results', { method:'POST', headers:postHdrs, body:JSON.stringify(cacheObj) }).catch(function(){});
 
+      setFundamentals({});
       setResults(cacheObj); setScanStatus('done'); setScanMsg(finalMsg);
     } catch(e) { setScanStatus('error'); setScanMsg('Scan failed: '+(e.message||'Unknown error')); }
   }
@@ -2184,6 +2236,7 @@ function Screener() {
   var [filterReversal, setFilterReversal] = useState([]);
   var [filterSMF,      setFilterSMF]      = useState([]);
   var [filterSetupSc,  setFilterSetupSc]  = useState([]);
+  var [filterGreenMin, setFilterGreenMin] = useState(0); // 0 = off; 1-4 = "at least N green" across Trend/Momentum/Reversal/Money Flow
   var [activePreset,   setActivePreset]   = useState(null);
   var [scSortCol,      setScSortCol]      = useState('');
   var [scSortDir,      setScSortDir]      = useState('desc');
@@ -2244,7 +2297,7 @@ function Screener() {
     setActivePreset(preset.id);
   }
   function clearAllFilters() {
-    setFilterTrend([]); setFilterMomentum([]); setFilterReversal([]); setFilterSMF([]); setFilterSetupSc([]);
+    setFilterTrend([]); setFilterMomentum([]); setFilterReversal([]); setFilterSMF([]); setFilterSetupSc([]); setFilterGreenMin(0);
     setActivePreset(null);
   }
   // Scan criteria — applied client-side on cached results
@@ -2252,6 +2305,101 @@ function Screener() {
 
   function fmtVol(v){ if(!v||v===0) return String.fromCharCode(0x2014); if(v>=1e9) return (v/1e9).toFixed(1)+'B'; if(v>=1e6) return (v/1e6).toFixed(1)+'M'; return (v/1e3).toFixed(0)+'K'; }
   function fmtDate(iso){ if(!iso) return ''; var d=new Date(iso); return d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+', '+d.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'}); }
+
+  // ── Financial Strength / Intrinsic Value — lazy, filtered-only compute ──
+  // Colour helper local to Screener (mirrors Detail page's pillColor; kept as
+  // an independent copy since Detail's version is a nested function and not
+  // exported — see fundamentalAnalytics.js header comment for the math source).
+  function pillColorSc(text) {
+    if (!text) return { fg:'#555' };
+    var v = (text+'').toLowerCase();
+    if (v.indexOf('exceptional')!==-1||v.indexOf('strong')!==-1||v.indexOf('undervalued')!==-1) return { fg:'#7abd00' };
+    if (v.indexOf('moderate')!==-1||v.indexOf('fair')!==-1||v.indexOf('premium')!==-1) return { fg:'#EF9F27' };
+    if (v.indexOf('weak')!==-1||v.indexOf('overvalued')!==-1||v.indexOf('poor')!==-1) return { fg:'#e05050' };
+    return { fg:'#888' };
+  }
+
+  // Tickers currently visible under the active filters (Trend/Momentum/Reversal/
+  // Money Flow/RBA/Green Signals) — Financial Strength + Intrinsic Value are
+  // only computed for this set, never for the full ~50-candidate scan, per
+  // Gerald's scope decision.
+  var filteredTickers = (function(){
+    var out = items.filter(function(row){
+      if (!screenerBaseFilterMatch(row, filterTrend, filterMomentum, filterReversal, filterSMF)) return false;
+      if (filterGreenMin > 0 && screenerGreenCount(row) < filterGreenMin) return false;
+      return true;
+    });
+    if (filterSetupSc.length) {
+      out = out.filter(function(row){
+        var rr = enrichRowWithRuleSetup(row);
+        return filterSetupSc.indexOf(rr.ruleShortVerdict)!==-1;
+      });
+    }
+    return out.map(function(row){ return { ticker:row.ticker, price:row.price||0 }; });
+  })();
+
+  // Fetches quoteSummary (getOverview — same module-level cache Detail uses),
+  // EPS history, and SimFin, then calls the SAME fundamentalAnalytics.js
+  // functions the Detail page's math was extracted from. Populates the shared
+  // window.__simfinData cache too, so opening the ticker in Detail afterwards
+  // reuses this fetch instead of re-requesting it.
+  async function fetchFundamentalsForTicker(sym, price) {
+    try {
+      var hdrsF = window.__clerkToken ? { Authorization:'Bearer '+window.__clerkToken } : {};
+      var ovP  = getOverview(sym).catch(function(){ return null; });
+      var epsP = fetch('/eps?sym='+sym).then(function(r){ return r.json(); }).catch(function(){ return null; });
+      var sfCached = window.__simfinData && window.__simfinData[sym];
+      var sfP = sfCached ? Promise.resolve(sfCached) : fetch('/simfin?sym='+sym, { headers:hdrsF })
+        .then(function(r){ return r.text(); })
+        .then(function(t){ try { return JSON.parse(t); } catch(e){ return null; } })
+        .catch(function(){ return null; });
+      var res = await Promise.all([ovP, epsP, sfP]);
+      var ov = res[0], epsD = res[1], sfData = res[2];
+      if (sfData) { if (!window.__simfinData) window.__simfinData = {}; window.__simfinData[sym] = sfData; }
+      if (!ov) return { ticker:sym, finRating:null, finScore:0, ivLabel:null, ivScore:0, ivPct:0, ivSublabel:null, oracle:0, error:true };
+      var epsHistory = (epsD && epsD.ok && epsD.rows && epsD.rows.length > 0) ? epsD.rows.slice(0,10) : null;
+      var fs = computeFinancialStrength(ov);
+      var iv = computeIntrinsicValue({ ov:ov, epsHistory:epsHistory, price:price||0, simfinData:sfData });
+      return {
+        ticker: sym,
+        finRating: fs.classification, finScore: fs.score,
+        ivLabel: iv.ivLabel, ivScore: iv.ivScore, ivPct: iv.ivPct, ivSublabel: iv.ivSublabel,
+        oracle: iv.oracleNum,
+      };
+    } catch(e) {
+      return { ticker:sym, finRating:null, finScore:0, ivLabel:null, ivScore:0, ivPct:0, ivSublabel:null, oracle:0, error:true };
+    }
+  }
+
+  function persistFundamentals(mergedMap) {
+    if (!results) return;
+    var cacheObj = Object.assign({}, results, { fundamentals: mergedMap });
+    var postHdrs = { 'Content-Type':'text/plain' };
+    if (window.__clerkToken) postHdrs['Authorization']='Bearer '+window.__clerkToken;
+    fetch('/cache?sym=__SCREENER&tab=results', { method:'POST', headers:postHdrs, body:JSON.stringify(cacheObj) }).catch(function(){});
+  }
+
+  useEffect(function() {
+    if (!filteredTickers.length) return;
+    var toFetch = filteredTickers.filter(function(t){ return !fundamentals[t.ticker]; });
+    if (!toFetch.length) return;
+    var cancelled = false;
+    (async function() {
+      var BATCH = 5;
+      var merged = Object.assign({}, fundamentals);
+      for (var i = 0; i < toFetch.length; i += BATCH) {
+        if (cancelled) return;
+        var batch = toFetch.slice(i, i+BATCH);
+        var batchResults = await Promise.all(batch.map(function(t){ return fetchFundamentalsForTicker(t.ticker, t.price); }));
+        if (cancelled) return;
+        batch.forEach(function(t, idx){ merged[t.ticker] = batchResults[idx]; });
+        setFundamentals(Object.assign({}, merged));
+      }
+      if (!cancelled) persistFundamentals(merged);
+    })();
+    return function(){ cancelled = true; };
+    // eslint-disable-next-line
+  }, [filteredTickers.map(function(t){ return t.ticker; }).join(',')]);
 
   return (
     <div style={{ minHeight:'100vh', background:'#0e0e0c', color:'#f0ede6', padding:'32px 24px', fontFamily:"'Inter','SF Pro',sans-serif" }}>
@@ -2262,7 +2410,7 @@ function Screener() {
         <div style={{ fontSize:11, color:'#555', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:6 }}>Screener</div>
         <div style={{ fontSize:22, fontWeight:800, color:LIME, marginBottom:8 }}>Technical Signals Screener</div>
         <div style={{ fontSize:13, color:'#666', lineHeight:1.7, maxWidth:620 }}>
-          {'Screens active US stocks across Trend, Momentum, Reversal, Money Flow, and Rule Based Analytics signals.'}
+          {'Screens active US stocks across Trend, Momentum, Reversal, Money Flow, and Rule Based Analytics signals. Financial Strength and Intrinsic Value are computed for tickers matching your current filters.'}
         </div>
         <div style={{ fontSize:11, color:'#444', marginTop:6, lineHeight:1.6 }}>
           {'Results reflect the current technical signal model. Cached for 12 hours. Research use only — not financial advice.'}
@@ -2313,27 +2461,33 @@ function Screener() {
 
           {/* Multi-select pill filters */}
           {(function(){
-            var SETUP_OPTS = ['Strong Bullish','Bullish','Bullish Watch','Risky Bounce','Neutral','Caution','Mixed / Caution','Bearish Watch','Bearish','Strong Bearish'];
+            // Reachable value sets audited directly against technicalSignals.js /
+            // ruleBasedAnalytics.js (2026-08) -- each list below now matches only
+            // the statuses those modules can actually produce for a scanned row.
+            var SETUP_OPTS = ['Strong Bullish','Bullish','Bullish Watch','Neutral','Caution','Bearish Watch','Bearish','Strong Bearish'];
             var REV_OPTS = [
-              'Bullish Reversal Spark','Bullish Reversal Watch','Bullish Reversal Setup',
+              'Bullish Reversal Spark','Bullish Reversal Watch',
               'Bullish Reversal Forming','Bullish Reversal Triggered','Bullish Reversal Confirming','Bullish Reversal Confirmed',
-              'Bearish Reversal Watch','Bearish Reversal Setup','Bearish Reversal Forming',
+              'Bearish Reversal Watch','Bearish Reversal Forming',
               'Bearish Reversal Triggered','Bearish Reversal Confirming','Bearish Reversal Confirmed',
               'Mixed Reversal Signals','No Clear Reversal'
             ];
+            // Money Flow's real status is compound (e.g. "Daily Spike with Strong
+            // Accumulation") -- these base labels are matched by substring in
+            // screenerBaseFilterMatch, not exact equality.
             var SMF_OPTS = [
               'Strong Accumulation','Steady Accumulation','Long-Term Accumulation','Early Accumulation',
               'Mixed Flow','Cooling Accumulation','Short-Term Flow Spike','Short-Term Flow Watch',
-              'No Sustained Flow','No Clear Signal'
+              'No Sustained Flow','No Clear Signal','Not Enough Data'
             ];
             var FILTER_GROUPS = [
               ['Trend',                filterTrend,    setFilterTrend,    ['Strong Uptrend','Uptrend','Sideways','Downtrend','Strong Downtrend']],
-              ['Momentum',      filterMomentum, setFilterMomentum, ['Strong','Building','Neutral','Fading','Weak','Momentum Continuation','Early Recovery Attempt','Waiting for Daily Trigger','Pullback in Larger Momentum','Weak Weekly Bounce','Bearish Momentum']],
+              ['Momentum',      filterMomentum, setFilterMomentum, ['Momentum Continuation','Early Recovery Attempt','Waiting for Daily Trigger','Pullback in Larger Momentum','Weak Weekly Bounce','Bearish Momentum','No Clear Momentum Profile','Not Enough Data','Strong','Building','Neutral','Fading','Weak']],
               ['Reversal',             filterReversal, setFilterReversal, REV_OPTS],
               ['Money Flow',           filterSMF,      setFilterSMF,      SMF_OPTS],
               ['Rule Based Analytics', filterSetupSc,  setFilterSetupSc,  SETUP_OPTS],
             ];
-            var anyActive = filterTrend.length||filterMomentum.length||filterReversal.length||filterSMF.length||filterSetupSc.length;
+            var anyActive = filterTrend.length||filterMomentum.length||filterReversal.length||filterSMF.length||filterSetupSc.length||filterGreenMin>0;
             function toggle(arr, setArr, v) { setArr(arr.indexOf(v)!==-1 ? arr.filter(function(x){return x!==v;}) : arr.concat([v])); setActivePreset(null); }
             // Semantic pill colour on selection — use platform helpers
             function pillSelColor(groupLbl, v) {
@@ -2365,6 +2519,21 @@ function Screener() {
                     </div>
                   );
                 })}
+                {/* Green Signals — "at least N" across Trend/Momentum/Reversal/Money Flow.
+                    Single-select (not multi-pill) since the options are ordered thresholds. */}
+                <div style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
+                  <span style={{ fontSize:9, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', minWidth:70, paddingTop:3, flexShrink:0, lineHeight:1.4 }}>{'Green Signals'}</span>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+                    {[0,1,2,3,4].map(function(n){
+                      var sel = filterGreenMin===n;
+                      var lbl = n===0 ? 'Any' : String.fromCharCode(0x2265)+n; // "\u22651" etc.
+                      return <button key={n} onClick={function(){ setFilterGreenMin(n); setActivePreset(null); }}
+                        style={{ fontSize:9, padding:'2px 8px', borderRadius:10, cursor:'pointer', fontWeight:sel?700:400,
+                          background:sel?'#1a1a16':'#1a1a18', color:sel?'#7abd00':'#555',
+                          border:'0.5px solid '+(sel?'#7abd00':'#2a2a28'), outline:'none' }}>{lbl}</button>;
+                    })}
+                  </div>
+                </div>
                 {anyActive ? <button onClick={clearAllFilters}
                   style={{ fontSize:10, padding:'3px 10px', background:'none', border:'0.5px solid #444', borderRadius:5, color:'#666', cursor:'pointer', marginTop:2 }}>Clear all filters</button> : null}
               </div>
@@ -2409,15 +2578,12 @@ function Screener() {
               return s;
             }
 
-            // Filter matching — Reversal and Money Flow filters now use full labels directly
+            // Filter matching — shared with the fundamentals lazy-fetch scope via
+            // screenerBaseFilterMatch/screenerGreenCount (see their definitions
+            // near enrichRowWithRuleSetup) so the two can't drift apart.
             var filtered = items.filter(function(row){
-              if (filterTrend.length    && filterTrend.indexOf(row.trend)    ===-1) return false;
-              if (filterMomentum.length) {
-                var _rowMom = (row.momentumProfile&&row.momentumProfile.profile) ? row.momentumProfile.profile : row.momentum;
-                if (filterMomentum.indexOf(_rowMom) === -1) return false;
-              }
-              if (filterReversal.length && filterReversal.indexOf(row.reversal)===-1) return false;
-              if (filterSMF.length      && filterSMF.indexOf(row.moneyFlow)  ===-1) return false;
+              if (!screenerBaseFilterMatch(row, filterTrend, filterMomentum, filterReversal, filterSMF)) return false;
+              if (filterGreenMin > 0 && screenerGreenCount(row) < filterGreenMin) return false;
               return true;
             });
 
@@ -2428,9 +2594,16 @@ function Screener() {
             );
 
             // Enrich + Rule Based Analytics filter + sort
-            var enriched = filtered.map(enrichRowWithRuleSetup);
+            var enriched = filtered.map(function(row){
+              var base = enrichRowWithRuleSetup(row);
+              var fnd  = fundamentals[row.ticker];
+              return fnd ? Object.assign({}, base, {
+                finRating:fnd.finRating, finScore:fnd.finScore,
+                ivLabel:fnd.ivLabel, ivScore:fnd.ivScore, ivPct:fnd.ivPct, ivSublabel:fnd.ivSublabel, oracle:fnd.oracle,
+              }) : base;
+            });
             if (filterSetupSc.length) enriched = enriched.filter(function(row){ return filterSetupSc.indexOf(row.ruleShortVerdict)!==-1; });
-            var SC_KEY = {ticker:'ticker',company:'company',price:'price',chg:'changePct',vol:'volume',trend:'trend',momentum:'momentum',reversal:'reversal',moneyFlow:'moneyFlow',setup:'ruleShortVerdict'};
+            var SC_KEY = {ticker:'ticker',company:'company',price:'price',chg:'changePct',vol:'volume',trend:'trend',momentum:'momentum',reversal:'reversal',moneyFlow:'moneyFlow',setup:'ruleShortVerdict',finStrength:'finScore',intrinsicValue:'ivScore'};
             if (scSortCol && SC_KEY[scSortCol]) {
               var _sk = SC_KEY[scSortCol];
               enriched = enriched.slice().sort(function(a,b){
@@ -2446,8 +2619,8 @@ function Screener() {
                 {label}{active?(scSortDir==='asc'?' ▲':' ▼'):''}
               </div>;
             }
-            // Column order: Ticker|Price|52W Range|Technical View|3M Trend|Trend|Daily Mom|Reversal|Money Flow|View
-            var GRID = '70px 90px 155px 120px 72px 78px 78px 105px 115px 46px';
+            // Column order: Ticker|Price|52W Range|Technical View|3M Trend|Trend|Daily Mom|Reversal|Money Flow|Fin. Strength|Intrinsic Value|View
+            var GRID = '70px 90px 155px 120px 72px 78px 78px 105px 115px 92px 108px 46px';
             // Inline dot for supporting signals (matches Watchlist SigDot style)
             function ScDot(dotColor, label, type) {
               var shortLbl = shortSignalLabel(label, type);
@@ -2463,6 +2636,7 @@ function Screener() {
                   {ScTh('setup','Tech View')}{ScTh('sparkline','3M Trend')}
                   {ScTh('trend','Trend')}{ScTh('momentum','Daily Mom')}
                   {ScTh('reversal','Reversal')}{ScTh('moneyFlow','Money Flow')}
+                  {ScTh('finStrength','Fin. Strength')}{ScTh('intrinsicValue','Intrinsic Value')}
                   <div></div>
                 </div>
                 {enriched.map(function(row,i){
@@ -2517,6 +2691,31 @@ function Screener() {
                       {ScDot(revC, row.reversal, 'reversal')}
                       {/* Money Flow — dot + neutral */}
                       {ScDot(smfC, row.moneyFlow, 'moneyFlow')}
+                      {/* Financial Strength — computed lazily, only for filtered rows; same
+                          math as Detail (fundamentalAnalytics.js: computeFinancialStrength) */}
+                      <div style={{ overflow:'hidden' }}>
+                        {row.finRating ? (
+                          <div style={{ fontSize:11, fontWeight:700, color:pillColorSc(row.finRating).fg, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{row.finRating}</div>
+                        ) : row.finRating===null && fundamentals[row.ticker] ? (
+                          <span style={{ color:'#555', fontSize:11 }}>{String.fromCharCode(0x2014)}</span>
+                        ) : (
+                          <span style={{ color:'#444', fontSize:10 }}>{'\u2026'}</span>
+                        )}
+                      </div>
+                      {/* Intrinsic Value — computed lazily; same math as Detail
+                          (fundamentalAnalytics.js: computeIntrinsicValue) */}
+                      <div style={{ overflow:'hidden' }}>
+                        {row.ivLabel ? (
+                          <div>
+                            <div style={{ fontSize:11, fontWeight:700, color:pillColorSc(row.ivLabel).fg, whiteSpace:'nowrap' }}>{row.ivLabel}</div>
+                            <div style={{ fontSize:9, color:'#555', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{row.ivSublabel||''}</div>
+                          </div>
+                        ) : row.ivLabel===null && fundamentals[row.ticker] ? (
+                          <span style={{ color:'#555', fontSize:11 }}>{String.fromCharCode(0x2014)}</span>
+                        ) : (
+                          <span style={{ color:'#444', fontSize:10 }}>{'\u2026'}</span>
+                        )}
+                      </div>
                       <button onClick={function(){ window.open(window.location.origin+'/#'+row.ticker,'_blank','noopener,noreferrer'); }}
                         style={{ background:'none', border:'0.5px solid #333', borderRadius:6, color:'#888', fontSize:10, cursor:'pointer', padding:'4px 6px' }}>View</button>
                     </div>
@@ -5178,7 +5377,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.240</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.242</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5232,7 +5431,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.240</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.242</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -15361,7 +15560,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.240</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.242</span>
           </div>
         </div>
 
