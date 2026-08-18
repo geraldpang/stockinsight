@@ -13,9 +13,21 @@ export function fmtDate(val) {
 }
 
 // ── Step 1: Build 2-day aggregated bars ─────────────────────────────────────
+// Pairing is anchored to the END of the array (most recent day), not the
+// start. dailyCandles arrays fetched from different sources/windows (e.g.
+// Force Strike's own ~3mo fetch vs the Screener's much longer reused
+// history) will very often have different total lengths whose odd/even
+// parity has no relationship to each other. Pairing from index 0 meant an
+// odd-length array silently dropped the single most recent trading day from
+// pattern detection -- which could make the same real pattern trigger in
+// one scan and not the other purely due to window length, not real market
+// data. Skipping the oldest day when the count is odd guarantees the most
+// recent day is always included as the second element of the final pair,
+// regardless of how far back the array happens to start.
 export function buildAggregateBars(dailyCandles) {
   var aggs = [];
-  for (var i = 0; i + 1 < dailyCandles.length; i += 2) {
+  var startIdx = dailyCandles.length % 2; // 0 if even, 1 if odd (skips oldest day only)
+  for (var i = startIdx; i + 1 < dailyCandles.length; i += 2) {
     var d1 = dailyCandles[i], d2 = dailyCandles[i + 1];
     aggs.push({
       date: d1.date + '/' + d2.date, date1: d1.date, date2: d2.date,
