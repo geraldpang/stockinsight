@@ -5431,7 +5431,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.244</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.245</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5485,7 +5485,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.244</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.245</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -12852,9 +12852,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
   var [loading,      setLoading]     = useState(true);
   var [addInput,     setAddInput]    = useState('');
   var [addLoading,   setAddLoading]  = useState(false);
-  var [addDest,      setAddDest]     = useState('watchlist'); // 'watchlist' | 'portfolio' — where a newly-added ticker goes
-  var [addAvgBuy,    setAddAvgBuy]   = useState(''); // only used when addDest==='portfolio'
-  var [addQty,       setAddQty]      = useState(''); // only used when addDest==='portfolio'
+  var [addAvgBuy,    setAddAvgBuy]   = useState(''); // only used when adding on the Portfolio tab
+  var [addQty,       setAddQty]      = useState(''); // only used when adding on the Portfolio tab
   var [refreshing,   setRefreshing]  = useState(false);
   var [msg,          setMsg]         = useState('');
   var [lastUpdated,  setLastUpdated] = useState(null);
@@ -12933,10 +12932,10 @@ function WatchlistPage({ clerkUser, isPaid }) {
   async function addTicker() {
     var sym = addInput.trim().toUpperCase();
     if (!sym) return;
-    var toPortfolio = addDest === 'portfolio';
+    var toPortfolio = activeTab === 'portfolio'; // whichever tab you're on is where the new ticker goes
     var avg = null, qty = null;
     if (toPortfolio) {
-      if (!addAvgBuy.trim() || !addQty.trim()) { setMsg('Enter Avg Buy Price and Qty to add straight to Portfolio, or switch to Watchlist.'); return; }
+      if (!addAvgBuy.trim() || !addQty.trim()) { setMsg('Enter Avg Buy Price and Qty to add on the Portfolio tab, or switch to the Watchlist tab.'); return; }
       avg = parseFloat(addAvgBuy); qty = parseFloat(addQty);
       if (isNaN(avg) || avg <= 0) { setMsg('Invalid avg buy price'); return; }
       if (isNaN(qty) || qty <= 0) { setMsg('Invalid qty'); return; }
@@ -12967,8 +12966,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
       } else {
         setMsg('');
       }
-      setAddAvgBuy(''); setAddQty(''); setAddDest('watchlist');
-      setActiveTab(toPortfolio ? 'portfolio' : 'watchlist');
+      setAddAvgBuy(''); setAddQty('');
       loadWatchlist();
     } catch(e) {
       setMsg('Add failed: ' + e.message);
@@ -13480,21 +13478,15 @@ function WatchlistPage({ clerkUser, isPaid }) {
           </div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-          {/* Destination toggle — where a newly-added ticker lands */}
-          <div style={{display:'flex',border:'0.5px solid #333',borderRadius:6,overflow:'hidden'}}>
-            {[{key:'watchlist',label:'Watchlist'},{key:'portfolio',label:'Portfolio'}].map(function(o){
-              var on = addDest === o.key;
-              return <button key={o.key} type="button" onClick={function(){ setAddDest(o.key); }}
-                style={{fontSize:11,fontWeight:700,padding:'6px 10px',background:on?LIME:'none',border:'none',color:on?'#0e0e0c':'#888',cursor:'pointer'}}>
-                {o.label}
-              </button>;
-            })}
-          </div>
+          {/* Whichever tab is active is where a newly-added ticker goes — no separate toggle. */}
+          <span style={{fontSize:10,color:'#555',whiteSpace:'nowrap'}}>
+            Adding to <span style={{color:'#888',fontWeight:700}}>{activeTab==='portfolio'?'Portfolio':'Watchlist'}</span>
+          </span>
           <input value={addInput} onChange={function(e){setAddInput(e.target.value.toUpperCase());}}
             onKeyDown={function(e){if(e.key==='Enter')addTicker();}}
             placeholder="Ticker e.g. AAPL" maxLength={6}
             style={{fontSize:12,padding:'6px 10px',background:'#1a1a18',border:'0.5px solid #333',borderRadius:6,color:'#f0ede6',width:130,outline:'none'}} />
-          {addDest === 'portfolio' && <>
+          {activeTab === 'portfolio' && <>
             <input value={addAvgBuy} onChange={function(e){setAddAvgBuy(e.target.value);}}
               onKeyDown={function(e){if(e.key==='Enter')addTicker();}}
               placeholder="Avg buy $" type="number" step="0.01"
@@ -13504,8 +13496,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
               placeholder="Qty" type="number" step="0.01"
               style={{fontSize:12,padding:'6px 10px',background:'#1a1a18',border:'0.5px solid #333',borderRadius:6,color:'#f0ede6',width:70,outline:'none'}} />
           </>}
-          <button onClick={addTicker} disabled={addLoading||!addInput.trim()||(addDest==='portfolio'&&(!addAvgBuy.trim()||!addQty.trim()))}
-            style={{fontSize:12,padding:'6px 14px',background:LIME,border:'none',borderRadius:6,color:'#0e0e0c',fontWeight:700,cursor:'pointer',opacity:addLoading||!addInput.trim()||(addDest==='portfolio'&&(!addAvgBuy.trim()||!addQty.trim()))?0.5:1}}>
+          <button onClick={addTicker} disabled={addLoading||!addInput.trim()||(activeTab==='portfolio'&&(!addAvgBuy.trim()||!addQty.trim()))}
+            style={{fontSize:12,padding:'6px 14px',background:LIME,border:'none',borderRadius:6,color:'#0e0e0c',fontWeight:700,cursor:'pointer',opacity:addLoading||!addInput.trim()||(activeTab==='portfolio'&&(!addAvgBuy.trim()||!addQty.trim()))?0.5:1}}>
             {addLoading ? 'Adding…' : 'Add'}
           </button>
           <button onClick={refreshSnapshots} disabled={refreshing||!items.length}
@@ -15717,7 +15709,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.244</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.245</span>
           </div>
         </div>
 
