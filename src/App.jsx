@@ -5431,7 +5431,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.245</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.246</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5485,7 +5485,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.245</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.246</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -13427,8 +13427,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
   if (!clerkUser) return (
     <div style={{minHeight:'100vh',background:'#0e0e0c',display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{textAlign:'center',color:'#888'}}>
-        <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:12}}>My Watchlist</div>
-        <div style={{fontSize:14,marginBottom:20}}>Sign in to use Watchlist.</div>
+        <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:12}}>My Investments</div>
+        <div style={{fontSize:14,marginBottom:20}}>Sign in to track your investments.</div>
       </div>
     </div>
   );
@@ -13437,8 +13437,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
   if (!canAccess) return (
     <div style={{minHeight:'100vh',background:'#0e0e0c',display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{textAlign:'center',color:'#888',maxWidth:420,padding:24}}>
-        <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:12}}>My Watchlist</div>
-        <div style={{fontSize:14,marginBottom:8,color:'#aaa'}}>Watchlist is a premium feature.</div>
+        <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:12}}>My Investments</div>
+        <div style={{fontSize:14,marginBottom:8,color:'#aaa'}}>My Investments is a premium feature.</div>
         <div style={{fontSize:12,color:'#555',marginBottom:20}}>Upgrade to track stocks with live technical signals and direction arrows.</div>
         <button onClick={function(){ window.location.hash=''; }} style={{fontSize:12,padding:'8px 18px',background:'none',border:'0.5px solid #444',borderRadius:8,color:'#888',cursor:'pointer'}}>Back to App</button>
       </div>
@@ -13471,35 +13471,13 @@ function WatchlistPage({ clerkUser, isPaid }) {
       {/* Header */}
       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:20,flexWrap:'wrap',gap:12}}>
         <div>
-          <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:4}}>My Watchlist</div>
+          <div style={{fontSize:22,fontWeight:800,color:LIME,marginBottom:4}}>My Investments</div>
           <div style={{fontSize:12,color:'#555',lineHeight:1.6}}>Track stocks you follow and see whether each signal is improving or weakening.</div>
           <div style={{fontSize:10,color:'#444',marginTop:4}}>
             {'\u2191'} improving{'\u00A0\u00B7\u00A0'}{'\u2192'} stable{'\u00A0\u00B7\u00A0'}{'\u2193'} weakening{'\u00A0\u00B7\u00A0'}— not enough history (signal vs 5-day avg)
           </div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-          {/* Whichever tab is active is where a newly-added ticker goes — no separate toggle. */}
-          <span style={{fontSize:10,color:'#555',whiteSpace:'nowrap'}}>
-            Adding to <span style={{color:'#888',fontWeight:700}}>{activeTab==='portfolio'?'Portfolio':'Watchlist'}</span>
-          </span>
-          <input value={addInput} onChange={function(e){setAddInput(e.target.value.toUpperCase());}}
-            onKeyDown={function(e){if(e.key==='Enter')addTicker();}}
-            placeholder="Ticker e.g. AAPL" maxLength={6}
-            style={{fontSize:12,padding:'6px 10px',background:'#1a1a18',border:'0.5px solid #333',borderRadius:6,color:'#f0ede6',width:130,outline:'none'}} />
-          {activeTab === 'portfolio' && <>
-            <input value={addAvgBuy} onChange={function(e){setAddAvgBuy(e.target.value);}}
-              onKeyDown={function(e){if(e.key==='Enter')addTicker();}}
-              placeholder="Avg buy $" type="number" step="0.01"
-              style={{fontSize:12,padding:'6px 10px',background:'#1a1a18',border:'0.5px solid #333',borderRadius:6,color:'#f0ede6',width:90,outline:'none'}} />
-            <input value={addQty} onChange={function(e){setAddQty(e.target.value);}}
-              onKeyDown={function(e){if(e.key==='Enter')addTicker();}}
-              placeholder="Qty" type="number" step="0.01"
-              style={{fontSize:12,padding:'6px 10px',background:'#1a1a18',border:'0.5px solid #333',borderRadius:6,color:'#f0ede6',width:70,outline:'none'}} />
-          </>}
-          <button onClick={addTicker} disabled={addLoading||!addInput.trim()||(activeTab==='portfolio'&&(!addAvgBuy.trim()||!addQty.trim()))}
-            style={{fontSize:12,padding:'6px 14px',background:LIME,border:'none',borderRadius:6,color:'#0e0e0c',fontWeight:700,cursor:'pointer',opacity:addLoading||!addInput.trim()||(activeTab==='portfolio'&&(!addAvgBuy.trim()||!addQty.trim()))?0.5:1}}>
-            {addLoading ? 'Adding…' : 'Add'}
-          </button>
           <button onClick={refreshSnapshots} disabled={refreshing||!items.length}
             style={{fontSize:12,padding:'6px 14px',background:'none',border:'0.5px solid #444',borderRadius:6,color:'#aaa',cursor:'pointer',opacity:refreshing?0.6:1}}>
             {refreshing ? 'Refreshing…' : 'Refresh Signals'}
@@ -13584,6 +13562,31 @@ function WatchlistPage({ clerkUser, isPaid }) {
             </button>
           );
         })}
+      </div>
+
+      {/* Add ticker — contextual to whichever tab is active above */}
+      <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:16}}>
+        <span style={{fontSize:10,color:'#555',whiteSpace:'nowrap'}}>
+          Adding to <span style={{color:'#888',fontWeight:700}}>{activeTab==='portfolio'?'Portfolio':'Watchlist'}</span>
+        </span>
+        <input value={addInput} onChange={function(e){setAddInput(e.target.value.toUpperCase());}}
+          onKeyDown={function(e){if(e.key==='Enter')addTicker();}}
+          placeholder="Ticker e.g. AAPL" maxLength={6}
+          style={{fontSize:12,padding:'6px 10px',background:'#1a1a18',border:'0.5px solid #333',borderRadius:6,color:'#f0ede6',width:130,outline:'none'}} />
+        {activeTab === 'portfolio' && <>
+          <input value={addAvgBuy} onChange={function(e){setAddAvgBuy(e.target.value);}}
+            onKeyDown={function(e){if(e.key==='Enter')addTicker();}}
+            placeholder="Avg buy $" type="number" step="0.01"
+            style={{fontSize:12,padding:'6px 10px',background:'#1a1a18',border:'0.5px solid #333',borderRadius:6,color:'#f0ede6',width:90,outline:'none'}} />
+          <input value={addQty} onChange={function(e){setAddQty(e.target.value);}}
+            onKeyDown={function(e){if(e.key==='Enter')addTicker();}}
+            placeholder="Qty" type="number" step="0.01"
+            style={{fontSize:12,padding:'6px 10px',background:'#1a1a18',border:'0.5px solid #333',borderRadius:6,color:'#f0ede6',width:70,outline:'none'}} />
+        </>}
+        <button onClick={addTicker} disabled={addLoading||!addInput.trim()||(activeTab==='portfolio'&&(!addAvgBuy.trim()||!addQty.trim()))}
+          style={{fontSize:12,padding:'6px 14px',background:LIME,border:'none',borderRadius:6,color:'#0e0e0c',fontWeight:700,cursor:'pointer',opacity:addLoading||!addInput.trim()||(activeTab==='portfolio'&&(!addAvgBuy.trim()||!addQty.trim()))?0.5:1}}>
+          {addLoading ? 'Adding…' : 'Add'}
+        </button>
       </div>
 
       {msg && <div style={{fontSize:11,color:'#EF9F27',marginBottom:12,padding:'6px 10px',background:'rgba(239,159,39,0.08)',borderRadius:6}}>{msg}</div>}
@@ -15709,7 +15712,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.245</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.246</span>
           </div>
         </div>
 
@@ -15837,7 +15840,7 @@ export default function App() {
                 {[
                   { label:'Force Strike', sub:'M\u2192B\u2192X\u2192T Scanner', hash:'FORCESTRIKE', color:'#c8f000', icon:'\u26A1' },
                   { label:'Screener',     sub:'Trend \u00B7 Momentum \u00B7 Flow',  hash:'SCREENER',    color:'#6090d0', icon:'\uD83D\uDD0D' },
-                  { label:'Watchlist',    sub:'Track your stocks',      hash:'WATCHLIST',   color:'#EF9F27', icon:'\u2605' },
+                  { label:'Investments',  sub:'Track your stocks',      hash:'WATCHLIST',   color:'#EF9F27', icon:'\u2605' },
                 ].map(function(tool){
                   return <button key={tool.hash}
                     onClick={function(){ window.location.hash = tool.hash; }}
