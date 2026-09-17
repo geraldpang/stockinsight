@@ -838,14 +838,23 @@ export async function onRequest(context) {
             ).all();
             (snaps.results || []).forEach(function(s){ snapMap[s.ticker] = s; });
 
-            // Previous 5 snapshots per ticker for arrow calculation
+            // Previous 5 snapshots per ticker for arrow calculation.
+            // FIX: previously "ORDER BY snapshot_date DESC LIMIT 6" with no exclusion of
+            // today's own snapshot_date — since there's exactly one row per (user,ticker,day)
+            // (see ON CONFLICT upsert in the "snapshot" action below), row 0 of that query was
+            // always the SAME row as snapMap[ticker] (today's just-saved snapshot), not a real
+            // prior day. The frontend's wlArrow() then averaged today's own rank in alongside
+            // the last 4 real days, diluting every improving/weakening arrow toward "stable".
+            // Explicitly exclude the latest snapshot_date (rather than a blind OFFSET 1) so
+            // this still returns 5 genuine prior days even before today's snapshot exists yet.
             var prevMap = {};
             for (var ti = 0; ti < tickers.length; ti++) {
               var prevSnaps = await wDB.prepare(
                 "SELECT snapshot_date,rba_rank,trend_rank,momentum_rank,reversal_rank,money_flow_rank " +
                 "FROM watchlist_signal_snapshots WHERE user_id=? AND ticker=? " +
-                "ORDER BY snapshot_date DESC LIMIT 6"
-              ).bind(wUserId, tickers[ti]).all();
+                "AND snapshot_date < (SELECT MAX(snapshot_date) FROM watchlist_signal_snapshots WHERE user_id=? AND ticker=?) " +
+                "ORDER BY snapshot_date DESC LIMIT 5"
+              ).bind(wUserId, tickers[ti], wUserId, tickers[ti]).all();
               prevMap[tickers[ti]] = (prevSnaps.results || []);
             }
             snapMap["__prev"] = prevMap;
