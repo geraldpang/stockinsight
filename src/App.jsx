@@ -12852,6 +12852,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
   var [loading,      setLoading]     = useState(true);
   var [addInput,     setAddInput]    = useState('');
   var [addLoading,   setAddLoading]  = useState(false);
+  var [addDest,      setAddDest]     = useState('watchlist'); // 'watchlist' | 'portfolio' — where a newly-added ticker goes
+  var [addAvgBuy,    setAddAvgBuy]   = useState(''); // only used when addDest==='portfolio'
+  var [addQty,       setAddQty]      = useState(''); // only used when addDest==='portfolio'
   var [refreshing,   setRefreshing]  = useState(false);
   var [msg,          setMsg]         = useState('');
   var [lastUpdated,  setLastUpdated] = useState(null);
@@ -12927,26 +12930,51 @@ function WatchlistPage({ clerkUser, isPaid }) {
       .catch(function(e){ setMsg('Reset failed: '+e.message); });
   }
 
-  function addTicker() {
+  async function addTicker() {
     var sym = addInput.trim().toUpperCase();
     if (!sym) return;
+    var toPortfolio = addDest === 'portfolio';
+    var avg = null, qty = null;
+    if (toPortfolio) {
+      if (!addAvgBuy.trim() || !addQty.trim()) { setMsg('Enter Avg Buy Price and Qty to add straight to Portfolio, or switch to Watchlist.'); return; }
+      avg = parseFloat(addAvgBuy); qty = parseFloat(addQty);
+      if (isNaN(avg) || avg <= 0) { setMsg('Invalid avg buy price'); return; }
+      if (isNaN(qty) || qty <= 0) { setMsg('Invalid qty'); return; }
+    }
     setAddLoading(true); setMsg('');
-    fetch('/watchlist?action=add', {
-      method: 'POST', headers: wlHeaders(),
-      body: JSON.stringify({ ticker: sym })
-    }).then(function(r){ return r.json(); })
-      .then(async function(d){
-        if (d.ok) {
-          setAddInput('');
-          setMsg('Fetching ' + sym + ' data...');
-          try { await refreshSingleTicker(sym, wlHeaders()); } catch(e) { /* fall through to plain load */ }
-          setMsg('');
-          loadWatchlist();
-        }
-        else setMsg(d.error || 'Add failed');
-      })
-      .catch(function(e){ setMsg('Add failed: ' + e.message); })
-      .finally(function(){ setAddLoading(false); });
+    var hdrs = wlHeaders();
+    try {
+      var r = await fetch('/watchlist?action=add', { method:'POST', headers: hdrs, body: JSON.stringify({ ticker: sym }) });
+      var d = await r.json();
+      if (!d.ok) { setMsg(d.error || 'Add failed'); setAddLoading(false); return; }
+      setAddInput('');
+      setMsg('Fetching ' + sym + ' data...');
+      try { await refreshSingleTicker(sym, hdrs); } catch(e) { /* fall through to plain load */ }
+      if (toPortfolio) {
+        // Pull the snapshot refreshSingleTicker() just saved server-side (it POSTs,
+        // it doesn't return the row) so postPositionSnapshot() has a baseline to lock.
+        try {
+          var sr = await fetch('/watchlist', { headers: hdrs });
+          var sd = await sr.json();
+          var freshSnap = sd && sd.snapshots ? sd.snapshots[sym] : null;
+          if (freshSnap) {
+            var pd = await postPositionSnapshot(sym, avg, qty, freshSnap);
+            setMsg(pd.ok ? '' : (sym + ' added, but position save failed: ' + (pd.error || 'unknown error')));
+          } else {
+            setMsg(sym + ' added, but no signal data yet to lock a position — open it and use + Add Position once Refresh Signals completes.');
+          }
+        } catch(e) { setMsg(sym + ' added, but position save failed: ' + e.message); }
+      } else {
+        setMsg('');
+      }
+      setAddAvgBuy(''); setAddQty(''); setAddDest('watchlist');
+      setActiveTab(toPortfolio ? 'portfolio' : 'watchlist');
+      loadWatchlist();
+    } catch(e) {
+      setMsg('Add failed: ' + e.message);
+    } finally {
+      setAddLoading(false);
+    }
   }
 
   function removeTicker(ticker) {
@@ -12958,12 +12986,11 @@ function WatchlistPage({ clerkUser, isPaid }) {
       .catch(function(e){ setMsg('Remove failed: ' + e.message); });
   }
 
-  // Save Avg Buy Price + Qty for a ticker position.
-  // Captures the current signal snapshot at the moment of saving — this becomes
-  // the locked position baseline for signal improvement/weakening comparison.
-  // avgBuyPrice and qty can be null (removes the position).
-  function savePosition(ticker, avgBuyPrice, qty, snap) {
-    if (!snap) { setMsg('No signal data for ' + ticker + ' — Refresh Signals first.'); return; }
+  // POSTs an avgBuyPrice/qty position lock, captured against the given signal
+  // snapshot as its baseline. Shared by the Position-column editor (savePosition,
+  // below) and addTicker()'s "add straight to Portfolio" path. Returns the parsed
+  // response ({ok:true} or {ok:false,error:...}) — callers decide how to react.
+  async function postPositionSnapshot(ticker, avgBuyPrice, qty, snap) {
     var sj = {};
     try { if (snap.signal_snapshot_json) sj = JSON.parse(snap.signal_snapshot_json); } catch(e) {}
     var payload = {
@@ -12983,10 +13010,19 @@ function WatchlistPage({ clerkUser, isPaid }) {
         forceStrike:     sj.forceStrike || null,
       },
     };
-    fetch('/watchlist?action=savePosition', {
-      method: 'POST', headers: wlHeaders(),
-      body: JSON.stringify(payload)
-    }).then(function(r){ return r.json(); })
+    var r = await fetch('/watchlist?action=savePosition', {
+      method: 'POST', headers: wlHeaders(), body: JSON.stringify(payload)
+    });
+    return await r.json();
+  }
+
+  // Save Avg Buy Price + Qty for a ticker position from the Position-column editor.
+  // Captures the current signal snapshot at the moment of saving — this becomes
+  // the locked position baseline for signal improvement/weakening comparison.
+  // avgBuyPrice and qty can be null (removes the position).
+  function savePosition(ticker, avgBuyPrice, qty, snap) {
+    if (!snap) { setMsg('No signal data for ' + ticker + ' — Refresh Signals first.'); return; }
+    postPositionSnapshot(ticker, avgBuyPrice, qty, snap)
       .then(function(d){ if (d.ok) loadWatchlist(); else setMsg(d.error || 'Position save failed'); })
       .catch(function(e){ setMsg('Position save failed: ' + e.message); });
   }
@@ -13444,12 +13480,32 @@ function WatchlistPage({ clerkUser, isPaid }) {
           </div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          {/* Destination toggle — where a newly-added ticker lands */}
+          <div style={{display:'flex',border:'0.5px solid #333',borderRadius:6,overflow:'hidden'}}>
+            {[{key:'watchlist',label:'Watchlist'},{key:'portfolio',label:'Portfolio'}].map(function(o){
+              var on = addDest === o.key;
+              return <button key={o.key} type="button" onClick={function(){ setAddDest(o.key); }}
+                style={{fontSize:11,fontWeight:700,padding:'6px 10px',background:on?LIME:'none',border:'none',color:on?'#0e0e0c':'#888',cursor:'pointer'}}>
+                {o.label}
+              </button>;
+            })}
+          </div>
           <input value={addInput} onChange={function(e){setAddInput(e.target.value.toUpperCase());}}
             onKeyDown={function(e){if(e.key==='Enter')addTicker();}}
             placeholder="Ticker e.g. AAPL" maxLength={6}
             style={{fontSize:12,padding:'6px 10px',background:'#1a1a18',border:'0.5px solid #333',borderRadius:6,color:'#f0ede6',width:130,outline:'none'}} />
-          <button onClick={addTicker} disabled={addLoading||!addInput.trim()}
-            style={{fontSize:12,padding:'6px 14px',background:LIME,border:'none',borderRadius:6,color:'#0e0e0c',fontWeight:700,cursor:'pointer',opacity:addLoading||!addInput.trim()?0.5:1}}>
+          {addDest === 'portfolio' && <>
+            <input value={addAvgBuy} onChange={function(e){setAddAvgBuy(e.target.value);}}
+              onKeyDown={function(e){if(e.key==='Enter')addTicker();}}
+              placeholder="Avg buy $" type="number" step="0.01"
+              style={{fontSize:12,padding:'6px 10px',background:'#1a1a18',border:'0.5px solid #333',borderRadius:6,color:'#f0ede6',width:90,outline:'none'}} />
+            <input value={addQty} onChange={function(e){setAddQty(e.target.value);}}
+              onKeyDown={function(e){if(e.key==='Enter')addTicker();}}
+              placeholder="Qty" type="number" step="0.01"
+              style={{fontSize:12,padding:'6px 10px',background:'#1a1a18',border:'0.5px solid #333',borderRadius:6,color:'#f0ede6',width:70,outline:'none'}} />
+          </>}
+          <button onClick={addTicker} disabled={addLoading||!addInput.trim()||(addDest==='portfolio'&&(!addAvgBuy.trim()||!addQty.trim()))}
+            style={{fontSize:12,padding:'6px 14px',background:LIME,border:'none',borderRadius:6,color:'#0e0e0c',fontWeight:700,cursor:'pointer',opacity:addLoading||!addInput.trim()||(addDest==='portfolio'&&(!addAvgBuy.trim()||!addQty.trim()))?0.5:1}}>
             {addLoading ? 'Adding…' : 'Add'}
           </button>
           <button onClick={refreshSnapshots} disabled={refreshing||!items.length}
