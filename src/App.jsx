@@ -1361,7 +1361,7 @@ function enrichRowWithRuleSetup(row) {
 // is a compound string like "Daily Spike with Strong Accumulation" or
 // "Quiet Day with Mixed Flow" -- never the bare base label alone. The filter
 // chips show the base label, so matching must be substring-based, not exact.
-function screenerBaseFilterMatch(row, filterTrend, filterMomentum, filterReversal, filterSMF) {
+function screenerBaseFilterMatch(row, filterTrend, filterMomentum, filterReversal, filterSMF, filterForceStrike) {
   if (filterTrend.length && filterTrend.indexOf(row.trend) === -1) return false;
   if (filterMomentum.length) {
     var _rowMom = (row.momentumProfile && row.momentumProfile.profile) ? row.momentumProfile.profile : row.momentum;
@@ -1371,6 +1371,9 @@ function screenerBaseFilterMatch(row, filterTrend, filterMomentum, filterReversa
   if (filterSMF.length) {
     var smfMatch = filterSMF.some(function(opt){ return row.moneyFlow && row.moneyFlow.indexOf(opt) !== -1; });
     if (!smfMatch) return false;
+  }
+  if (filterForceStrike && filterForceStrike.length) {
+    if (!row.forceStrike || !row.forceStrike.triggered || filterForceStrike.indexOf(row.forceStrike.scenario) === -1) return false;
   }
   return true;
 }
@@ -2041,7 +2044,7 @@ function Screener() {
         if (d && d.hit && d.value) {
           var parsed = JSON.parse(d.value);
           var ageHrs = (Date.now() - new Date(parsed.cachedAt).getTime()) / 3600000;
-          if (ageHrs < 12 && parsed.results && parsed.screenerSchemaVersion === 'v7') { setResults(parsed); setFundamentals(parsed.fundamentals || {}); setScanStatus('done'); return; }
+          if (ageHrs < 12 && parsed.results && parsed.screenerSchemaVersion === 'v8') { setResults(parsed); setFundamentals(parsed.fundamentals || {}); setScanStatus('done'); return; }
         }
         setScanStatus('idle');
       })
@@ -2127,7 +2130,7 @@ function Screener() {
         scanNote = 'Using fallback ticker list (Yahoo screener unavailable).';
       }
 
-      if (!candidates.length){ setScanMsg('No candidates after filtering.'); setScanStatus('done'); setFundamentals({}); setResults({ cachedAt:new Date().toISOString(), screenerSchemaVersion:'v7', results:[], fundamentals:{} }); return; }
+      if (!candidates.length){ setScanMsg('No candidates after filtering.'); setScanStatus('done'); setFundamentals({}); setResults({ cachedAt:new Date().toISOString(), screenerSchemaVersion:'v8', results:[], fundamentals:{} }); return; }
       setScanMsg(scanNote+' Scanning '+candidates.length+' candidates...');
 
       // Step 2: Batch technical scans, 5 at a time
@@ -2186,6 +2189,35 @@ function Screener() {
             var _closes = _aggs.slice().reverse().map(function(b){ return b.c; }).filter(Boolean);
             var _sparkline = makeSparkline(_closes.slice(-16));
 
+            // Force Strike pattern scan — reuses the SAME yhBars already fetched for
+            // Momentum Profile above (no extra fetch) and the Screener's own
+            // calcTrendScore()-based trend status (snap.trend.status), not the
+            // simplified SMA50/200 crossover #FORCESTRIKE computes inline. Also
+            // reuses calcFsScore/calcTechSupport (already module-level in App.jsx)
+            // and this row's own trend/momentum/reversal/moneyFlow status instead
+            // of re-deriving a separate techContext like #FORCESTRIKE does.
+            var forceStrike = null;
+            try {
+              if (yhBars && yhBars.length >= 70) {
+                var fsRaw = scanForceStrike(c.sym, yhBars, snap.trend.status);
+                if (fsRaw && fsRaw.triggered) {
+                  var fsScoreObj = calcFsScore(fsRaw);
+                  var fsTechSupport = calcTechSupport({ trend:snap.trend.status, momentum:snap.momentum.status, reversal:rev.status, moneyFlow:smf.status });
+                  forceStrike = {
+                    triggered: true,
+                    scenario: fsRaw.scenario || null,
+                    pattern: fsRaw.pattern || null,
+                    triggerType: fsRaw.triggerType || null,
+                    triggerPosition: fsRaw.triggerPosition != null ? fsRaw.triggerPosition : null,
+                    patternAge: fsRaw.patternAge != null ? fsRaw.patternAge : null,
+                    fsScore: fsScoreObj.pts, fsStars: fsScoreObj.stars,
+                    tradeQualityStars: fsRaw.tradeQualityStars,
+                    techSupport: fsTechSupport.label, techSupportColor: fsTechSupport.color,
+                  };
+                }
+              }
+            } catch(fsErr) { forceStrike = null; }
+
             return {
               ticker:c.sym, company:(mData.ticker&&mData.ticker.name)||c.name||c.sym,
               price:c.price||ms.close||0, changePct:c.changePct||ms.change||0, volume:c.volume||ms.volume||0,
@@ -2206,6 +2238,7 @@ function Screener() {
               todayLabel:smf.todayLabel||null,
               fiveDayLabel:smf.fiveDayLabel||null,
               thirtyDayLabel:smf.thirtyDayLabel||null,
+              forceStrike: forceStrike,
             };
           } catch(e){ failedCount++; return null; }
         }));
@@ -2220,7 +2253,7 @@ function Screener() {
       // Intrinsic Value are computed lazily (see fundamentals useEffect below)
       // only for tickers that pass the currently active filters, then persisted
       // back into this same cache entry.
-      var cacheObj = { cachedAt:new Date().toISOString(), screenerSchemaVersion:'v7', candidateCount:candidates.length, failedCount:failedCount, results:matched, fundamentals:{} };
+      var cacheObj = { cachedAt:new Date().toISOString(), screenerSchemaVersion:'v8', candidateCount:candidates.length, failedCount:failedCount, results:matched, fundamentals:{} };
       var postHdrs = { 'Content-Type':'text/plain' };
       if (window.__clerkToken) postHdrs['Authorization']='Bearer '+window.__clerkToken;
       fetch('/cache?sym=__SCREENER&tab=results', { method:'POST', headers:postHdrs, body:JSON.stringify(cacheObj) }).catch(function(){});
@@ -2237,6 +2270,7 @@ function Screener() {
   var [filterSMF,      setFilterSMF]      = useState([]);
   var [filterSetupSc,  setFilterSetupSc]  = useState([]);
   var [filterGreenMin, setFilterGreenMin] = useState(0); // 0 = off; 1-4 = "at least N green" across Trend/Momentum/Reversal/Money Flow
+  var [filterForceStrike, setFilterForceStrike] = useState([]); // Force Strike scenario labels (Shakeout/Recovery/Trend Pullback)
   var [activePreset,   setActivePreset]   = useState(null);
   var [scSortCol,      setScSortCol]      = useState('');
   var [scSortDir,      setScSortDir]      = useState('desc');
@@ -2297,7 +2331,7 @@ function Screener() {
     setActivePreset(preset.id);
   }
   function clearAllFilters() {
-    setFilterTrend([]); setFilterMomentum([]); setFilterReversal([]); setFilterSMF([]); setFilterSetupSc([]); setFilterGreenMin(0);
+    setFilterTrend([]); setFilterMomentum([]); setFilterReversal([]); setFilterSMF([]); setFilterSetupSc([]); setFilterGreenMin(0); setFilterForceStrike([]);
     setActivePreset(null);
   }
   // Scan criteria — applied client-side on cached results
@@ -2325,7 +2359,7 @@ function Screener() {
   // Gerald's scope decision.
   var filteredTickers = (function(){
     var out = items.filter(function(row){
-      if (!screenerBaseFilterMatch(row, filterTrend, filterMomentum, filterReversal, filterSMF)) return false;
+      if (!screenerBaseFilterMatch(row, filterTrend, filterMomentum, filterReversal, filterSMF, filterForceStrike)) return false;
       if (filterGreenMin > 0 && screenerGreenCount(row) < filterGreenMin) return false;
       return true;
     });
@@ -2410,7 +2444,7 @@ function Screener() {
         <div style={{ fontSize:11, color:'#555', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:6 }}>Screener</div>
         <div style={{ fontSize:22, fontWeight:800, color:LIME, marginBottom:8 }}>Technical Signals Screener</div>
         <div style={{ fontSize:13, color:'#666', lineHeight:1.7, maxWidth:620 }}>
-          {'Screens active US stocks across Trend, Momentum, Reversal, Money Flow, and Rule Based Analytics signals. Financial Strength and Intrinsic Value are computed for tickers matching your current filters.'}
+          {'Screens active US stocks across Trend, Momentum, Reversal, Money Flow, and Rule Based Analytics signals. Financial Strength and Intrinsic Value are computed for tickers matching your current filters. Force Strike pattern detection runs on every scanned ticker.'}
         </div>
         <div style={{ fontSize:11, color:'#444', marginTop:6, lineHeight:1.6 }}>
           {'Results reflect the current technical signal model. Cached for 12 hours. Research use only — not financial advice.'}
@@ -2480,14 +2514,16 @@ function Screener() {
               'Mixed Flow','Cooling Accumulation','Short-Term Flow Spike','Short-Term Flow Watch',
               'No Sustained Flow','No Clear Signal','Not Enough Data'
             ];
+            var FS_OPTS = ['Shakeout Reversal','Recovery Reversal','Trend Pullback'];
             var FILTER_GROUPS = [
               ['Trend',                filterTrend,    setFilterTrend,    ['Strong Uptrend','Uptrend','Sideways','Downtrend','Strong Downtrend']],
               ['Momentum',      filterMomentum, setFilterMomentum, ['Momentum Continuation','Early Recovery Attempt','Waiting for Daily Trigger','Pullback in Larger Momentum','Weak Weekly Bounce','Bearish Momentum','No Clear Momentum Profile','Not Enough Data','Strong','Building','Neutral','Fading','Weak']],
               ['Reversal',             filterReversal, setFilterReversal, REV_OPTS],
               ['Money Flow',           filterSMF,      setFilterSMF,      SMF_OPTS],
               ['Rule Based Analytics', filterSetupSc,  setFilterSetupSc,  SETUP_OPTS],
+              ['Force Strike',         filterForceStrike, setFilterForceStrike, FS_OPTS],
             ];
-            var anyActive = filterTrend.length||filterMomentum.length||filterReversal.length||filterSMF.length||filterSetupSc.length||filterGreenMin>0;
+            var anyActive = filterTrend.length||filterMomentum.length||filterReversal.length||filterSMF.length||filterSetupSc.length||filterGreenMin>0||filterForceStrike.length>0;
             function toggle(arr, setArr, v) { setArr(arr.indexOf(v)!==-1 ? arr.filter(function(x){return x!==v;}) : arr.concat([v])); setActivePreset(null); }
             // Semantic pill colour on selection — use platform helpers
             function pillSelColor(groupLbl, v) {
@@ -2496,6 +2532,7 @@ function Screener() {
               if (groupLbl === 'Reversal')   return revStatusColor(v, 'main');
               if (groupLbl === 'Money Flow') return smfStatusColor(v, 'main');
               if (groupLbl === 'Rule Based Analytics') return summaryCardDark(v).text;
+              if (groupLbl === 'Force Strike') return '#EF9F27';
               return '#c8f000';
             }
             return (
@@ -2582,7 +2619,7 @@ function Screener() {
             // screenerBaseFilterMatch/screenerGreenCount (see their definitions
             // near enrichRowWithRuleSetup) so the two can't drift apart.
             var filtered = items.filter(function(row){
-              if (!screenerBaseFilterMatch(row, filterTrend, filterMomentum, filterReversal, filterSMF)) return false;
+              if (!screenerBaseFilterMatch(row, filterTrend, filterMomentum, filterReversal, filterSMF, filterForceStrike)) return false;
               if (filterGreenMin > 0 && screenerGreenCount(row) < filterGreenMin) return false;
               return true;
             });
@@ -2597,13 +2634,16 @@ function Screener() {
             var enriched = filtered.map(function(row){
               var base = enrichRowWithRuleSetup(row);
               var fnd  = fundamentals[row.ticker];
-              return fnd ? Object.assign({}, base, {
+              var withFnd = fnd ? Object.assign({}, base, {
                 finRating:fnd.finRating, finScore:fnd.finScore,
                 ivLabel:fnd.ivLabel, ivScore:fnd.ivScore, ivPct:fnd.ivPct, ivSublabel:fnd.ivSublabel, oracle:fnd.oracle,
               }) : base;
+              // Flat sort key for Force Strike column — untriggered rows sort lowest.
+              withFnd.fsSortScore = (row.forceStrike && row.forceStrike.triggered) ? row.forceStrike.fsScore : -1;
+              return withFnd;
             });
             if (filterSetupSc.length) enriched = enriched.filter(function(row){ return filterSetupSc.indexOf(row.ruleShortVerdict)!==-1; });
-            var SC_KEY = {ticker:'ticker',company:'company',price:'price',chg:'changePct',vol:'volume',trend:'trend',momentum:'momentum',reversal:'reversal',moneyFlow:'moneyFlow',setup:'ruleShortVerdict',finStrength:'finScore',intrinsicValue:'ivScore'};
+            var SC_KEY = {ticker:'ticker',company:'company',price:'price',chg:'changePct',vol:'volume',trend:'trend',momentum:'momentum',reversal:'reversal',moneyFlow:'moneyFlow',setup:'ruleShortVerdict',finStrength:'finScore',intrinsicValue:'ivScore',forceStrike:'fsSortScore'};
             if (scSortCol && SC_KEY[scSortCol]) {
               var _sk = SC_KEY[scSortCol];
               enriched = enriched.slice().sort(function(a,b){
@@ -2619,8 +2659,8 @@ function Screener() {
                 {label}{active?(scSortDir==='asc'?' ▲':' ▼'):''}
               </div>;
             }
-            // Column order: Ticker|Price|52W Range|Technical View|3M Trend|Trend|Daily Mom|Reversal|Money Flow|Fin. Strength|Intrinsic Value|View
-            var GRID = '70px 90px 155px 120px 72px 78px 78px 105px 115px 92px 108px 46px';
+            // Column order: Ticker|Price|52W Range|Technical View|3M Trend|Trend|Daily Mom|Reversal|Money Flow|Fin. Strength|Intrinsic Value|Force Strike|View
+            var GRID = '70px 90px 155px 120px 72px 78px 78px 105px 115px 92px 108px 100px 46px';
             // Inline dot for supporting signals (matches Watchlist SigDot style)
             function ScDot(dotColor, label, type) {
               var shortLbl = shortSignalLabel(label, type);
@@ -2637,6 +2677,7 @@ function Screener() {
                   {ScTh('trend','Trend')}{ScTh('momentum','Daily Mom')}
                   {ScTh('reversal','Reversal')}{ScTh('moneyFlow','Money Flow')}
                   {ScTh('finStrength','Fin. Strength')}{ScTh('intrinsicValue','Intrinsic Value')}
+                  {ScTh('forceStrike','Force Strike')}
                   <div></div>
                 </div>
                 {enriched.map(function(row,i){
@@ -2714,6 +2755,19 @@ function Screener() {
                           <span style={{ color:'#555', fontSize:11 }}>{String.fromCharCode(0x2014)}</span>
                         ) : (
                           <span style={{ color:'#444', fontSize:10 }}>{'\u2026'}</span>
+                        )}
+                      </div>
+                      {/* Force Strike — computed inline during the scan itself (reuses the
+                          same yhBars + trend status already on this row, no extra fetch);
+                          see scanForceStrike() call in runScan() above. */}
+                      <div style={{ overflow:'hidden' }}>
+                        {row.forceStrike && row.forceStrike.triggered ? (
+                          <div title={row.forceStrike.pattern||''}>
+                            <div style={{ fontSize:11, fontWeight:700, color:'#EF9F27', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{row.forceStrike.scenario||'Triggered'}</div>
+                            <div style={{ fontSize:9, color:'#555', whiteSpace:'nowrap' }}>{renderStars(row.forceStrike.fsStars, 9)}</div>
+                          </div>
+                        ) : (
+                          <span style={{ color:'#444', fontSize:11 }}>{String.fromCharCode(0x2014)}</span>
                         )}
                       </div>
                       <button onClick={function(){ window.open(window.location.origin+'/#'+row.ticker,'_blank','noopener,noreferrer'); }}
@@ -5377,7 +5431,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.242</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.244</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5431,7 +5485,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.242</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.244</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -15560,7 +15614,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.242</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.244</span>
           </div>
         </div>
 
