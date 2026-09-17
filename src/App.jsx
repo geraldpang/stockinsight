@@ -12862,6 +12862,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
   var [editPosQty,   setEditPosQty]  = useState('');       // position editor: qty input
   var [sortField,    setSortField]   = useState('ticker'); // default alphabetical
   var [sortDir,      setSortDir]     = useState(1);        // 1=asc, -1=desc
+  var [activeTab,    setActiveTab]   = useState('watchlist'); // 'portfolio' | 'watchlist'
 
   var isAdmin = !!(clerkUser && clerkUser.publicMetadata && clerkUser.publicMetadata.role === 'admin');
   var canAccess = isPaid || isAdmin;
@@ -13410,6 +13411,21 @@ function WatchlistPage({ clerkUser, isPaid }) {
     </div>
   );
 
+  // ── Portfolio / Watchlist split ─────────────────────────────────────────────
+  // A ticker is "in the Portfolio" purely based on whether it has an active
+  // position lock with a real avg buy price + qty (same test the Position
+  // column and the summary strip already used before the split existed) —
+  // no new state, just a predicate over the existing `locks` map. Adding or
+  // removing a position (Position column's Add/Edit/Remove) therefore moves
+  // a ticker between tabs automatically on the next render.
+  function hasPosition(item) {
+    var l = locks[item.ticker];
+    return !!(l && l.avg_buy_price != null && l.avg_buy_price > 0 && l.quantity != null && l.quantity > 0);
+  }
+  var portfolioItems = items.filter(hasPosition);
+  var watchlistItems = items.filter(function(it){ return !hasPosition(it); });
+  var displayItems   = activeTab === 'portfolio' ? portfolioItems : watchlistItems;
+
   // ── Paid user UI ───────────────────────────────────────────────────────────
   // Ticker | Price | Position | Technical View | 52W Range | 3M Trend | Force Strike | Actions
   // Ticker | Price | Position | Technical View | Key Levels | Wave Guide | Force Strike | Actions
@@ -13440,8 +13456,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
             style={{fontSize:12,padding:'6px 14px',background:'none',border:'0.5px solid #444',borderRadius:6,color:'#aaa',cursor:'pointer',opacity:refreshing?0.6:1}}>
             {refreshing ? 'Refreshing…' : 'Refresh Signals'}
           </button>
-          <button disabled={!items.length} onClick={function(){
-            var allData = items.map(function(item){
+          <button disabled={!displayItems.length} onClick={function(){
+            var allData = displayItems.map(function(item){
               var snap = snapshots[item.ticker] || null;
               var lock = locks[item.ticker] || null;
               var price = snap ? snap.close_price : null;
@@ -13490,17 +13506,36 @@ function WatchlistPage({ clerkUser, isPaid }) {
             var url  = URL.createObjectURL(blob);
             var a    = document.createElement('a');
             a.href   = url;
-            a.download = 'watchlist_audit_'+new Date().toISOString().split('T')[0]+'.json';
+            a.download = activeTab+'_audit_'+new Date().toISOString().split('T')[0]+'.json';
             a.click();
             URL.revokeObjectURL(url);
-          }} style={{fontSize:12,padding:'6px 14px',background:'none',border:'0.5px solid #2a2a28',borderRadius:6,color:items.length?'#888':'#444',cursor:items.length?'pointer':'default'}}>
-            Download All {'\u2193'}
+          }} style={{fontSize:12,padding:'6px 14px',background:'none',border:'0.5px solid #2a2a28',borderRadius:6,color:displayItems.length?'#888':'#444',cursor:displayItems.length?'pointer':'default'}}>
+            {'Download '+(activeTab==='portfolio'?'Portfolio':'Watchlist')+' \u2193'}
           </button>
           <button onClick={function(){ window.location.hash=''; }}
             style={{fontSize:11,padding:'6px 12px',background:'none',border:'0.5px solid #2a2a28',borderRadius:6,color:'#555',cursor:'pointer'}}>
             ← Back
           </button>
         </div>
+      </div>
+
+      {/* Portfolio / Watchlist tabs */}
+      <div style={{display:'flex',gap:6,marginBottom:16}}>
+        {[
+          { key:'portfolio', label:'Portfolio', count:portfolioItems.length },
+          { key:'watchlist', label:'Watchlist', count:watchlistItems.length },
+        ].map(function(t){
+          var active = activeTab === t.key;
+          return (
+            <button key={t.key} onClick={function(){ setActiveTab(t.key); }}
+              style={{fontSize:12,fontWeight:700,padding:'7px 16px',borderRadius:7,cursor:'pointer',
+                background:active?LIME:'none',
+                border:active?'0.5px solid '+LIME:'0.5px solid #333',
+                color:active?'#0e0e0c':'#888'}}>
+              {t.label}{'\u00A0'}<span style={{opacity:0.7,fontWeight:600}}>{'('+t.count+')'}</span>
+            </button>
+          );
+        })}
       </div>
 
       {msg && <div style={{fontSize:11,color:'#EF9F27',marginBottom:12,padding:'6px 10px',background:'rgba(239,159,39,0.08)',borderRadius:6}}>{msg}</div>}
@@ -13514,10 +13549,27 @@ function WatchlistPage({ clerkUser, isPaid }) {
         </div>
       )}
 
-      {/* Summary strip — portfolio value */}
-      {!loading && items.length > 0 && (function(){
+      {!loading && items.length > 0 && displayItems.length === 0 && (
+        <div style={{color:'#555',fontSize:13,padding:32,textAlign:'center',border:'0.5px solid #222',borderRadius:10}}>
+          {activeTab === 'portfolio'
+            ? 'No positions yet. Open a ticker on the Watchlist tab and use + Add Position to move it here.'
+            : 'Every tracked ticker currently has a position — check the Portfolio tab.'}
+        </div>
+      )}
+
+      {/* Summary strip — Portfolio tab: position value/cost/P&L. Watchlist tab: just a count. */}
+      {!loading && items.length > 0 && activeTab === 'watchlist' && (
+        <div style={{marginBottom:12,padding:'12px 16px',background:'#161614',border:'0.5px solid #2a2a28',borderRadius:8,display:'flex',alignItems:'center',gap:28}}>
+          <div style={{display:'flex',flexDirection:'column'}}>
+            <div style={{fontSize:10,color:'#555',marginBottom:2}}>Tickers</div>
+            <div style={{fontSize:16,fontWeight:700,color:'#f0ede6'}}>{watchlistItems.length}</div>
+          </div>
+        </div>
+      )}
+
+      {!loading && items.length > 0 && activeTab === 'portfolio' && (function(){
         var totalCost = 0, totalValue = 0, positionCount = 0;
-        items.forEach(function(item){
+        portfolioItems.forEach(function(item){
           var snap = snapshots[item.ticker];
           var lock = locks[item.ticker] || null;
           var price = snap ? snap.close_price : null;
@@ -13534,38 +13586,33 @@ function WatchlistPage({ clerkUser, isPaid }) {
         var plColor    = totalPL > 0 ? '#4caf50' : totalPL < 0 ? '#e05050' : '#888';
         var fmtVal = function(v){ return '$'+(Math.abs(v)>=1e6?(Math.abs(v)/1e6).toFixed(1)+'M':Math.round(Math.abs(v)).toLocaleString()); };
         var fmtPL  = function(v){ return (v>=0?'+':'-')+'$'+(Math.abs(v)>=1e6?(Math.abs(v)/1e6).toFixed(1)+'M':Math.round(Math.abs(v)).toLocaleString()); };
+        if (positionCount === 0) return null; // snapshots not loaded yet for these positions
         return <div style={{marginBottom:12,padding:'12px 16px',background:'#161614',border:'0.5px solid #2a2a28',borderRadius:8,display:'flex',alignItems:'center',gap:28,flexWrap:'wrap'}}>
           <div style={{display:'flex',flexDirection:'column'}}>
-            <div style={{fontSize:10,color:'#555',marginBottom:2}}>Tickers</div>
-            <div style={{fontSize:16,fontWeight:700,color:'#f0ede6'}}>{items.length}</div>
+            <div style={{fontSize:10,color:'#555',marginBottom:2}}>Positions</div>
+            <div style={{fontSize:16,fontWeight:700,color:'#f0ede6'}}>{positionCount}</div>
           </div>
-          {positionCount > 0 && <>
-            <div style={{width:'0.5px',height:32,background:'#2a2a28',flexShrink:0}}></div>
-            <div style={{display:'flex',flexDirection:'column'}}>
-              <div style={{fontSize:10,color:'#555',marginBottom:2}}>Positions</div>
-              <div style={{fontSize:16,fontWeight:700,color:'#f0ede6'}}>{positionCount}</div>
+          <div style={{width:'0.5px',height:32,background:'#2a2a28',flexShrink:0}}></div>
+          <div style={{display:'flex',flexDirection:'column'}}>
+            <div style={{fontSize:10,color:'#555',marginBottom:2}}>Cost</div>
+            <div style={{fontSize:16,fontWeight:700,color:'#f0ede6'}}>{fmtVal(totalCost)}</div>
+          </div>
+          <div style={{display:'flex',flexDirection:'column'}}>
+            <div style={{fontSize:10,color:'#555',marginBottom:2}}>Value</div>
+            <div style={{fontSize:16,fontWeight:700,color:'#f0ede6'}}>{fmtVal(totalValue)}</div>
+          </div>
+          <div style={{display:'flex',flexDirection:'column'}}>
+            <div style={{fontSize:10,color:'#555',marginBottom:2}}>P/L</div>
+            <div style={{fontSize:16,fontWeight:700,color:plColor}}>
+              {fmtPL(totalPL)}
+              {totalPLPct!=null&&<span style={{fontSize:11,fontWeight:400,marginLeft:6}}>({(totalPLPct>=0?'+':'')+totalPLPct.toFixed(1)+'%'})</span>}
             </div>
-            <div style={{display:'flex',flexDirection:'column'}}>
-              <div style={{fontSize:10,color:'#555',marginBottom:2}}>Cost</div>
-              <div style={{fontSize:16,fontWeight:700,color:'#f0ede6'}}>{fmtVal(totalCost)}</div>
-            </div>
-            <div style={{display:'flex',flexDirection:'column'}}>
-              <div style={{fontSize:10,color:'#555',marginBottom:2}}>Value</div>
-              <div style={{fontSize:16,fontWeight:700,color:'#f0ede6'}}>{fmtVal(totalValue)}</div>
-            </div>
-            <div style={{display:'flex',flexDirection:'column'}}>
-              <div style={{fontSize:10,color:'#555',marginBottom:2}}>P/L</div>
-              <div style={{fontSize:16,fontWeight:700,color:plColor}}>
-                {fmtPL(totalPL)}
-                {totalPLPct!=null&&<span style={{fontSize:11,fontWeight:400,marginLeft:6}}>({(totalPLPct>=0?'+':'')+totalPLPct.toFixed(1)+'%'})</span>}
-              </div>
-            </div>
-          </>}
+          </div>
         </div>;
       })()}
 
 
-      {!loading && items.length > 0 && (
+      {!loading && displayItems.length > 0 && (
         <div style={{border:'0.5px solid #2a2a28',borderRadius:10,overflow:'auto'}}>
           {/* Table header — click to sort */}
           {(function(){
@@ -13607,7 +13654,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
               'Technical View': function(item){ var s=snapshots[item.ticker]; return s?s.rba_rank:0; },
             };
             var getFn = sortKeys[sortField] || function(item){ return item.ticker; };
-            var sortedItems = items.slice().sort(function(a,b){
+            var sortedItems = displayItems.slice().sort(function(a,b){
               var va=getFn(a), vb=getFn(b);
               if (typeof va==='string') return va<vb?-sortDir:va>vb?sortDir:0;
               return (va-vb)*sortDir;
@@ -14150,7 +14197,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
         </div>
       )}
 
-      {items.length > 0 && !loading && !refreshing && !Object.keys(snapshots).filter(function(k){return k!=='__prev'&&k!=='__locks';}).length && (
+      {displayItems.length > 0 && !loading && !refreshing && !Object.keys(snapshots).filter(function(k){return k!=='__prev'&&k!=='__locks';}).length && (
         <div style={{fontSize:11,color:'#444',marginTop:12,textAlign:'center'}}>
           No signal data yet — click Refresh Signals to fetch the latest technical signals.
         </div>
