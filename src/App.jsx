@@ -4469,15 +4469,20 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   }, [sym]);
 
   // -- Write signal cache when ov + key values are ready -----------------------
+  // v2.247: no longer gated on massiveInfo. Moat / Fin / IV Disc come from
+  // Anthropic + Yahoo + SimFin, so they must keep saving even when the Massive
+  // feed is unavailable -- otherwise AI Favourites drops tickers after 7 days
+  // (see Massive_API_Removal_Audit.md section 5). Trend/mom are included only
+  // when the window globals belong to THIS ticker, so a stale value from the
+  // previously viewed ticker can never be saved under this one.
+  // __signalWritten[sym] holds how many of the 4 groups (moat, fin, iv, trend)
+  // the last write contained; a re-write happens only when more are available.
   useEffect(function() {
-    if (!ov || !q || !sym || !massiveInfo) return; // wait for massiveInfo so trend/mom are computed
+    if (!ov || !q || !sym) return;
     if (!window.__clerkToken) return;
     if (!window.__signalWritten) window.__signalWritten = {};
-    // Allow re-write if a previous write happened but moat was missing at that time
-    var _prevHadMoat = window.__signalWritten[sym] === 'withMoat';
-    if (window.__signalWritten[sym] && _prevHadMoat) return; // already written with full data
-    var _moatNow = parsedInsights && parsedInsights["moat"] && parsedInsights["moat"].classification;
-    if (window.__signalWritten[sym] && !_moatNow) return; // written before, moat still not ready — skip
+    var _prevFilled = typeof window.__signalWritten[sym] === 'number' ? window.__signalWritten[sym] : 0;
+    if (_prevFilled >= 4) return; // already written with all four groups
     // Delay 2s to allow left-panel renders to compute window globals
     var t = setTimeout(function() {
       var ivStore  = window.__ivStore && window.__ivStore[sym];
@@ -4486,6 +4491,8 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
       var price    = q.price || 0;
       var ivDiscount = (ivOracle && price > 0) ? ((ivOracle - price) / price * 100) : null;
       var moatData = parsedInsights && parsedInsights["moat"];
+      var trendOk  = window.__trendScoreSym === sym;
+      var momOk    = window.__momScoreSym   === sym;
       var payload  = {
         moat:       moatData  ? moatData.classification : null,
         moatScore:  moatData  ? moatData.score          : null,
@@ -4493,15 +4500,17 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         finScore:   finStr    ? finStr.score            : null,
         iv:         ivOracle,
         ivDiscount: ivDiscount,
-        trend:      window.__trendLabel  || null,
-        trendScore: window.__trendScore  || null,
-        mom:        window.__momLabel    || null,
-        momScore:   window.__momScore    || null,
+        trend:      trendOk ? (window.__trendLabel || null) : null,
+        trendScore: trendOk ? (window.__trendScore || null) : null,
+        mom:        momOk   ? (window.__momLabel   || null) : null,
+        momScore:   momOk   ? (window.__momScore   || null) : null,
         updatedAt:  new Date().toISOString()
       };
-      if (!payload.moat && !payload.fin && !payload.iv && !payload.trend) return;
-      // Mark whether this write included moat so we know whether to re-write later
-      window.__signalWritten[sym] = payload.moat ? 'withMoat' : 'withoutMoat';
+      var filled = (payload.moat ? 1 : 0) + (payload.fin ? 1 : 0) + (payload.iv ? 1 : 0) + (payload.trend ? 1 : 0);
+      if (filled === 0) return;
+      var prevNow = typeof window.__signalWritten[sym] === 'number' ? window.__signalWritten[sym] : 0;
+      if (filled <= prevNow) return; // nothing new since the last write
+      window.__signalWritten[sym] = filled;
       fetch("/cache?sym=" + sym + "&tab=signal", {
         method:  "POST",
         headers: { "Content-Type": "text/plain", "Authorization": "Bearer " + window.__clerkToken },
@@ -5431,7 +5440,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.246</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.247</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5485,7 +5494,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.246</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.247</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -15712,7 +15721,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.246</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.247</span>
           </div>
         </div>
 
