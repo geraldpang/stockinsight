@@ -1621,3 +1621,106 @@ export function classifyMonthlyRegime(monthly) {
   if (monthly === 'Neutral') return 'Neutral';
   return 'Weak';
 }
+
+// ─── buildIndicatorsFromDailyBars (v2.248) ───────────────────────────────
+// Computes, from raw daily OHLCV bars, the same indicator object the Massive
+// (Polygon) /massive route returned, so every consumer of `ind` above
+// (calcTrendScore, calcMomentumScore, calcReversalWatch, calcMassiveScore ...)
+// works unchanged when the feed is Yahoo instead of Massive.
+//
+// Input : dailyBars oldest-first, each { date, open, high, low, close, volume }.
+//         Use split-adjusted (not dividend-adjusted) closes to match Polygon
+//         `adjusted=true`.
+// Output: { sma50, sma200, ema20, rsi14, rsiHistory, macd, macdHistory,
+//           wsma10, wsma40 } -- histories are NEWEST FIRST, 10 values,
+//           matching Polygon's order=desc&limit=10.
+//
+// RSI uses Wilder smoothing (the standard definition Polygon uses), NOT the
+// simple-average calcRSI() above, so values are comparable with Massive.
+// MACD is 12/26/9 on EMAs seeded with an SMA, standard definition.
+
+function _emaSeries(values, period) {
+  // Returns an array aligned to `values`: null until index period-1.
+  var out = new Array(values.length).fill(null);
+  if (!values || values.length < period) return out;
+  var k = 2 / (period + 1);
+  var seed = 0;
+  for (var i = 0; i < period; i++) seed += values[i];
+  var ema = seed / period;
+  out[period - 1] = ema;
+  for (var j = period; j < values.length; j++) {
+    ema = values[j] * k + ema * (1 - k);
+    out[j] = ema;
+  }
+  return out;
+}
+
+function _wilderRsiSeries(closes, period) {
+  // Returns an array aligned to `closes`: null until index `period`.
+  var out = new Array(closes.length).fill(null);
+  if (!closes || closes.length < period + 1) return out;
+  var gain = 0, loss = 0;
+  for (var i = 1; i <= period; i++) {
+    var d = closes[i] - closes[i - 1];
+    if (d > 0) gain += d; else loss -= d;
+  }
+  var ag = gain / period, al = loss / period;
+  out[period] = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+  for (var j = period + 1; j < closes.length; j++) {
+    var d2 = closes[j] - closes[j - 1];
+    var g = d2 > 0 ? d2 : 0, l = d2 < 0 ? -d2 : 0;
+    ag = (ag * (period - 1) + g) / period;
+    al = (al * (period - 1) + l) / period;
+    out[j] = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+  }
+  return out;
+}
+
+function _lastN(series, n) {
+  // Last n non-null values, NEWEST FIRST.
+  var res = [];
+  for (var i = series.length - 1; i >= 0 && res.length < n; i--) {
+    if (series[i] != null) res.push(series[i]);
+  }
+  return res;
+}
+
+export function buildIndicatorsFromDailyBars(dailyBars) {
+  var empty = { sma50:null, sma200:null, ema20:null, rsi14:null, rsiHistory:[],
+                macd:null, macdHistory:[], wsma10:null, wsma40:null };
+  if (!dailyBars || dailyBars.length < 15) return empty;
+  var closes = dailyBars.map(function(b) { return b.close; });
+
+  var rsiSeries = _wilderRsiSeries(closes, 14);
+  var rsiHist   = _lastN(rsiSeries, 10);
+
+  var e12 = _emaSeries(closes, 12), e26 = _emaSeries(closes, 26);
+  var macdLine = closes.map(function(_, i) {
+    return (e12[i] != null && e26[i] != null) ? e12[i] - e26[i] : null;
+  });
+  var firstMacd = macdLine.findIndex(function(v) { return v != null; });
+  var macdHist = [];
+  if (firstMacd !== -1) {
+    var compact = macdLine.slice(firstMacd);
+    var sig = _emaSeries(compact, 9);
+    for (var i = compact.length - 1; i >= 0 && macdHist.length < 10; i--) {
+      if (sig[i] == null) break;
+      macdHist.push({ macd: compact[i], signal: sig[i], histogram: compact[i] - sig[i] });
+    }
+  }
+
+  var weekly  = buildWeeklyBars(dailyBars);
+  var wCloses = weekly.map(function(b) { return b.close; });
+
+  return {
+    sma50:       calcSMA(closes, 50),
+    sma200:      calcSMA(closes, 200),
+    ema20:       calcEMA(closes, 20),
+    rsi14:       rsiHist.length ? rsiHist[0] : null,
+    rsiHistory:  rsiHist,
+    macd:        macdHist.length ? macdHist[0] : null,
+    macdHistory: macdHist,
+    wsma10:      calcSMA(wCloses, 10),
+    wsma40:      calcSMA(wCloses, 40),
+  };
+}
