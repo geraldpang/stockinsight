@@ -1934,27 +1934,14 @@ function detectCrossData(closes) {
   return { type:crossType||"none", ageDays:crossAge, gapDir:gapDir, gapNow:gapNow, sma200GapDir:sma200GapDir };
 }
 
-// ── Technical data feed: Yahoo (default) or Massive (v2.248) ───────────────
-// fetchTechFeed() returns an object with the SAME shape the /massive route
-// returns ({ aggs, snapshot, indicators, lastTrade, news, ticker, dividends,
+// ── Technical data feed: Yahoo (v2.248; Massive removed in v2.249) ───────
+// fetchTechFeed() returns an object in the shape the old /massive route
+// returned ({ aggs, snapshot, indicators, lastTrade, news, ticker, dividends,
 // splits, tenK }), so every existing consumer (Detail tabs, Screener,
-// Watchlist, AI Favourites news) works unchanged whichever source is used.
-//
-// Source switch (per browser, persists in localStorage):
-//   add ?tech=massive to the URL -> use Massive
-//   add ?tech=yahoo   to the URL -> use Yahoo (default)
-// Debug tab -> "Tech Feed Compare" shows both side by side for the ticker.
-function getTechSource() {
-  try {
-    var m = window.location.search.match(/[?&]tech=(yahoo|massive)/i);
-    if (m) { localStorage.setItem('techSource', m[1].toLowerCase()); return m[1].toLowerCase(); }
-    var s = localStorage.getItem('techSource');
-    if (s === 'massive' || s === 'yahoo') return s;
-  } catch(e) {}
-  return 'yahoo';
-}
+// Watchlist, AI Favourites news) works unchanged. The state that holds it is
+// still called `massiveInfo` -- a name only; renaming it touches ~150 lines.
 
-// Yahoo news -> Massive/Polygon news shape (title, article_url, publisher.name,
+// Yahoo news -> legacy news shape (title, article_url, publisher.name,
 // published_utc, image_url) plus `source`/`url` used by the landing page.
 async function fetchYahooNews(ySym) {
   try {
@@ -2032,51 +2019,11 @@ async function fetchYahooTechFeed(sym, opts) {
   };
 }
 
-async function fetchMassiveTechFeed(sym, hdrs) {
-  var mSym = sym === 'BRKB' ? 'BRK-B' : sym;
-  var r = await fetch('/massive?sym=' + mSym, { headers: hdrs || {} });
-  if (!r.ok) return null;
-  var d = await r.json();
-  if (!d || d.error) return null;
-  d._source = 'massive';
-  return d;
-}
-
 // Single entry point used by Detail, Screener, Watchlist and landing news.
 // Returns null on failure (callers already treat a missing feed as "skip").
+// hdrs is accepted for call-site compatibility; Yahoo needs no auth header.
 async function fetchTechFeed(sym, hdrs, opts) {
-  try {
-    if (getTechSource() === 'massive') return await fetchMassiveTechFeed(sym, hdrs);
-    return await fetchYahooTechFeed(sym, opts);
-  } catch(e) { return null; }
-}
-
-// Side-by-side comparison for the Debug tab: fetches BOTH feeds for one ticker.
-async function compareTechFeeds(sym, hdrs) {
-  var both = await Promise.all([
-    fetchMassiveTechFeed(sym, hdrs).catch(function(){ return null; }),
-    fetchYahooTechFeed(sym, {}).catch(function(){ return null; }),
-  ]);
-  var m = both[0], y = both[1];
-  function g(o, path) { return path.split('.').reduce(function(a, k) { return a == null ? null : a[k]; }, o); }
-  var fields = [
-    ['Price (snapshot.close)', 'snapshot.close'], ['Prev close', 'snapshot.prevClose'], ['Change %', 'snapshot.change'],
-    ['SMA50', 'indicators.sma50'], ['SMA200', 'indicators.sma200'], ['EMA20', 'indicators.ema20'],
-    ['RSI14', 'indicators.rsi14'], ['MACD line', 'indicators.macd.macd'], ['MACD signal', 'indicators.macd.signal'],
-    ['MACD histogram', 'indicators.macd.histogram'], ['Weekly SMA10', 'indicators.wsma10'], ['Weekly SMA40', 'indicators.wsma40'],
-    ['Latest bar close (aggs[0].c)', 'aggs.0.c'], ['Latest bar volume (aggs[0].v)', 'aggs.0.v'], ['Prior bar close (aggs[1].c)', 'aggs.1.c'],
-  ];
-  var rows = fields.map(function(f) {
-    var mv = g(m, f[1]), yv = g(y, f[1]);
-    var diff = (typeof mv === 'number' && typeof yv === 'number' && mv !== 0) ? (yv - mv) / Math.abs(mv) * 100 : null;
-    return { label: f[0], massive: mv, yahoo: yv, diffPct: diff };
-  });
-  // Bar-date alignment check: newest bar date in each feed
-  var mDate = m && m.aggs && m.aggs[0] && m.aggs[0].t ? new Date(m.aggs[0].t).toISOString().split('T')[0] : null;
-  var yDate = y && y.aggs && y.aggs[0] && y.aggs[0].t ? new Date(y.aggs[0].t).toISOString().split('T')[0] : null;
-  return { sym: sym, ranAt: new Date().toISOString(), massiveOk: !!m, yahooOk: !!y, massiveBarDate: mDate, yahooBarDate: yDate,
-           massiveAggs: m && m.aggs ? m.aggs.length : 0, yahooAggs: y && y.aggs ? y.aggs.length : 0,
-           massiveNews: m && m.news ? m.news.length : 0, rows: rows };
+  try { return await fetchYahooTechFeed(sym, opts); } catch(e) { return null; }
 }
 
 function buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData) {
@@ -3704,10 +3651,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [addlInfo,      setAddlInfo]      = useState(null);
   const [addlLoading,   setAddlLoading]   = useState(false);
   const [massiveInfo,   setMassiveInfo]   = useState(null);
-  const [techCompare,   setTechCompare]   = useState(null);
   const [crossData,     setCrossData]     = useState(null);
-  const [whaleData,     setWhaleData]     = useState(null);
-  const [whaleLoading,  setWhaleLoading]  = useState(false);
   const [debugLog,      setDebugLog]      = useState([]);
   const [adminCfg,      setAdminCfg]      = useState(null);
   const [adminStats,    setAdminStats]    = useState({});
@@ -4372,10 +4316,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         .then(function(d) {
           if (d && d.ok && d.rows && d.rows.length > 0) {
             setEpsHistory(d.rows.slice(0, 10));
-            setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "EPS history: Polygon " + d.rows.length + " years (split-adjusted)", data: { splits: d.splits, eps: d.rows.map(function(r){ return r.year + ": $" + r.eps.toFixed(2) + (r.adjFactor !== 1 ? " (adj " + r.adjFactor + "x from $" + r.epsRaw.toFixed(2) + ")" : ""); }) } }]); });
+            setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "EPS history: " + (d.source || "simfin") + " " + d.rows.length + " years (split-checked)", data: { splits: d.splits, eps: d.rows.map(function(r){ return r.year + ": $" + r.eps.toFixed(2) + (r.adjFactor !== 1 ? " (adj " + r.adjFactor + "x from $" + r.epsRaw.toFixed(2) + ")" : ""); }) } }]); });
           } else {
             // Fallback: Claude Haiku AI-estimated EPS
-            setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "EPS Polygon failed, falling back to Claude Haiku", data: d }]); });
+            setDebugLog(function(prev) { return prev.concat([{ time: new Date().toISOString(), label: "EPS history unavailable, falling back to Claude Haiku", data: d }]); });
             fetch("/anthropic", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -4515,10 +4459,10 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
         });
     })();
 
-    // Fetch Massive.com data (news + ticker reference + dividends + splits)
+    // Fetch technical feed from Yahoo (bars, indicators, news, dividends, splits)
     setAddlLoading(true);
     var debugEntries = [];
-    debugEntries.push({ time: new Date().toISOString(), label: "Fetching tech feed (" + getTechSource() + ") for " + sym });
+    debugEntries.push({ time: new Date().toISOString(), label: "Fetching tech feed (yahoo) for " + sym });
     var massiveHdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
     fetchTechFeed(sym, massiveHdrs, { news: true })
       .then(function(data) {
@@ -4544,7 +4488,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
           }, 2000);
           */
         } else {
-          debugEntries.push({ time: new Date().toISOString(), label: "Massive data empty or error", data: data });
+          debugEntries.push({ time: new Date().toISOString(), label: "Tech feed (yahoo) empty or error", data: data });
         }
         setDebugLog(function(prev) { return prev.concat(debugEntries); });
         setAddlLoading(false);
@@ -5584,7 +5528,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.248</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.249</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5638,7 +5582,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.248</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.249</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -8539,7 +8483,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                 }} style={{padding:"8px 20px",background:"#111",color:"#c8f000",border:"none",borderRadius:6,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:FONT}}>
                                   Generate 10-K Analysis + Risk Assessment
                                 </button>
-                                <div style={{fontSize:10,color:"#bbb",marginTop:6}}>Requires 10-K data from Massive.com</div>
+                                <div style={{fontSize:10,color:"#bbb",marginTop:6}}>Requires 10-K text (no current data source)</div>
                               </div>
                             );
                           }
@@ -8554,7 +8498,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               {cached}
                             </div>
                           );
-                        })() : <div style={{color:"#aaa",fontSize:12,padding:"10px 14px",background:"var(--color-background-secondary)",borderRadius:8}}>10-K data unavailable. Requires Massive.com Starter plan.</div>}
+                        })() : <div style={{color:"#aaa",fontSize:12,padding:"10px 14px",background:"var(--color-background-secondary)",borderRadius:8}}>10-K data unavailable (no current data source).</div>}
 
                         <div style={{borderTop:"0.5px solid #f0ede6",margin:"14px 0"}}></div>
 
@@ -8629,7 +8573,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         )}
 
                         <div style={{marginTop:10,fontSize:11,color:"#bbb"}}>
-                          AI analysis by Claude Haiku. Data from Yahoo Finance + Massive.com. Not financial advice.
+                          AI analysis by Claude Haiku. Data from Yahoo Finance. Not financial advice.
                         </div>
                       </div>
                     );
@@ -8648,9 +8592,9 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var SectionTitle = function(props) {
                       return (
                         <div style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10, marginTop: props.top ? 0 : 20, paddingTop: props.top ? 0 : 16, borderTop: props.top ? "none" : "1px solid #f0ede6", display:"flex", alignItems:"center", gap:6 }}>
-                          <span style={{ display:"inline-block", width:3, height:14, background: props.massive ? "#0066ff" : "#c8f000", borderRadius:2 }} />
+                          <span style={{ display:"inline-block", width:3, height:14, background: "#c8f000", borderRadius:2 }} />
                           {props.children}
-                          <span style={{ fontSize:9, fontWeight:500, background: props.massive ? "#e6f0ff" : "#f0f7e0", color: props.massive ? "#0044cc" : "#3a6000", padding:"1px 6px", borderRadius:10 }}>{props.massive ? "Massive.com" : "Yahoo Finance"}</span>
+                          <span style={{ fontSize:9, fontWeight:500, background: "#f0f7e0", color: "#3a6000", padding:"1px 6px", borderRadius:10 }}>{"Yahoo Finance"}</span>
                         </div>
                       );
                     };
@@ -9051,7 +8995,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                         <SectionTitle massive={true}>Company News</SectionTitle>
                         {addlLoading ? (
-                          <div style={{ color:"#aaa", fontSize:12 }}>Loading Massive.com data...</div>
+                          <div style={{ color:"#aaa", fontSize:12 }}>Loading market data...</div>
                         ) : massiveInfo && massiveInfo.news && massiveInfo.news.length > 0 ? (
                           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                             {massiveInfo.news.map(function(article, i) {
@@ -9074,7 +9018,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               );
                             })}
                           </div>
-                        ) : <div style={{ color:"#aaa" }}>News unavailable. Check MASSIVE_KEY in Cloudflare.</div>}
+                        ) : <div style={{ color:"#aaa" }}>News unavailable.</div>}
 
                         <SectionTitle massive={true}>Company Reference</SectionTitle>
                         {massiveInfo && massiveInfo.ticker ? (function() {
@@ -9122,82 +9066,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             </tbody>
                           </table>
                         ) : addlLoading ? null : <div style={{ color:"#aaa" }}>No dividend history found.</div>}
-
-                        <SectionTitle massive={true}>10-K Risk Factors (Latest Filing)</SectionTitle>
-                        {addlLoading ? (
-                          <div style={{ color:"#aaa", fontSize:12 }}>Loading...</div>
-                        ) : massiveInfo && massiveInfo.tenK && massiveInfo.tenK.riskFactors ? (
-                          <div>
-                            {massiveInfo.tenK.filingDate && <div style={{ fontSize:11, color:"#aaa", marginBottom:8 }}>Filing date: {massiveInfo.tenK.filingDate}</div>}
-                            <div style={{ fontSize:12, color:"#333", lineHeight:1.8, maxHeight:400, overflowY:"auto", padding:"10px 12px", background:"#f9f7f4", borderRadius:8, whiteSpace:"pre-wrap" }}>
-                              {massiveInfo.tenK.riskFactors.slice(0, 3000)}{massiveInfo.tenK.riskFactors.length > 3000 ? "..." : ""}
-                            </div>
-                          </div>
-                        ) : <div style={{ color:"#aaa" }}>Risk factors unavailable. Requires Massive.com Stocks Starter plan.</div>}
-
-                        <SectionTitle massive={true}>10-K Buffett Analysis (AI Summary)</SectionTitle>
-                        {addlLoading ? (
-                          <div style={{ color:"#aaa", fontSize:12 }}>Loading...</div>
-                        ) : massiveInfo && massiveInfo.tenK && (massiveInfo.tenK.business || massiveInfo.tenK.riskFactors) ? (function() {
-                          var [buffettSummary, setBuffettSummary] = [null, null];
-                          // Use insightCache for buffett summary
-                          var cacheKey = "buffett_" + sym;
-                          var cached = insightCache[cacheKey];
-                          if (!cached) {
-                            return (
-                              <div>
-                                <div style={{ fontSize:12, color:"#555", marginBottom:10 }}>Analyse this 10-K filing from a Warren Buffett perspective -- looking for durable competitive advantages, predictable earnings, strong management, and fair value.</div>
-                                <button onClick={function() {
-                                  setInsightCache(function(prev) {
-                                    var next = Object.assign({}, prev);
-                                    next[cacheKey] = "loading";
-                                    return next;
-                                  });
-                                  var bizText   = (massiveInfo.tenK.business    || "").slice(0, 2000);
-                                  var riskText  = (massiveInfo.tenK.riskFactors || "").slice(0, 1500);
-                                  fetch("/anthropic", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                      model: "claude-haiku-4-5-20251001",
-                                      max_tokens: 900,
-                                      messages: [{ role: "user", content: "You are Warren Buffett analysing a 10-K. For " + sym + ", analyse: 1. Business Quality 2. Competitive Moat 3. Management Quality 4. Financial Strength 5. Key Risks 6. Buffett Verdict (buy/hold/avoid and why). Be concise.\n\nBUSINESS SECTION:\n" + bizText + "\n\nRISK FACTORS:\n" + riskText }]
-                                    })
-                                  }).then(function(r) { return r.json(); })
-                                    .then(function(d) {
-                                      var text = d && d.content && d.content[0] && d.content[0].text;
-                                      setInsightCache(function(prev) {
-                                        var next = Object.assign({}, prev);
-                                        next[cacheKey] = text || "Analysis unavailable.";
-                                        return next;
-                                      });
-                                    }).catch(function() {
-                                      setInsightCache(function(prev) {
-                                        var next = Object.assign({}, prev);
-                                        next[cacheKey] = "Analysis failed. Please try again.";
-                                        return next;
-                                      });
-                                    });
-                                }} style={{ padding:"8px 18px", background:"#111", color:"#c8f000", border:"none", borderRadius:6, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
-                                  Generate Buffett Analysis
-                                </button>
-                              </div>
-                            );
-                          }
-                          if (cached === "loading") {
-                            return (
-                              <div style={{ textAlign:"center", padding:"20px 0" }}>
-                                <div style={{ fontSize:12, color:"#888", marginBottom:10 }}>Generating Buffett-style analysis...</div>
-                                <div style={{ display:"inline-block", width:22, height:22, border:"3px solid #e0dbd0", borderTop:"3px solid " + LIME, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
-                              </div>
-                            );
-                          }
-                          return (
-                            <div style={{ fontSize:13, color:"#333", lineHeight:1.85, padding:"12px 14px", background:"#f9f7f4", borderRadius:8, borderLeft:"3px solid #c8f000" }}>
-                              {cached}
-                            </div>
-                          );
-                        })() : <div style={{ color:"#aaa" }}>10-K data required. Available with Massive.com Stocks Starter plan.</div>}
 
                         <SectionTitle massive={true}>Stock Splits</SectionTitle>
                         {massiveInfo && massiveInfo.splits && massiveInfo.splits.length > 0 ? (
@@ -9453,7 +9321,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var price=q?q.price:0;
                     var hi52=ov?ov.hi52:0; var lo52=ov?ov.lo52:0;
                     var pos52=(hi52>lo52&&hi52>0)?(price-lo52)/(hi52-lo52):0.5;
-                    if (!ind||!price) return <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>Trend data requires Massive.com feed.</div>;
+                    if (!ind||!price) return <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>Trend data unavailable (Yahoo price feed did not load).</div>;
                     var wsmaG=ind.wsma10&&ind.wsma40?(ind.wsma10-ind.wsma40)/ind.wsma40*100:null;
                     var s200g=ind.sma200?(price-ind.sma200)/ind.sma200*100:null;
                     var s50g=ind.sma50?(price-ind.sma50)/ind.sma50*100:null;
@@ -9642,7 +9510,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           })()}
                         </div>
                         <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de"}}>
-                          {"Trend signals use Massive.com data. Longer timeframe = more reliable signal. Not financial advice."}
+                          {"Trend signals use Yahoo Finance data. Longer timeframe = more reliable signal. Not financial advice."}
                         </div>
                       </div>
                     );
@@ -9653,7 +9521,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                     var ind=massiveInfo&&massiveInfo.indicators?massiveInfo.indicators:null;
                     var aggs=massiveInfo&&massiveInfo.aggs?massiveInfo.aggs:[];
                     var price=q?q.price:0;
-                    if (!ind||!price) return <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>Momentum data requires Massive.com feed.</div>;
+                    if (!ind||!price) return <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>Momentum data unavailable (Yahoo price feed did not load).</div>;
                     var rsi=ind.rsi14!=null?parseFloat(ind.rsi14):null;
                     var rsiH=ind.rsiHistory||[];
                     var prevRsi=rsiH.length>=2?rsiH[1]:null;
@@ -10013,7 +9881,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         })()}
 
                         <div style={{fontSize:10,color:"#aaa",lineHeight:1.5,padding:"8px 12px",background:"#faf8f4",borderRadius:8,border:"0.5px solid #e8e4de"}}>
-                          {"Momentum signals use Massive.com and Yahoo Finance data. Research only — not financial advice."}
+                          {"Momentum signals use Yahoo Finance data. Research only — not financial advice."}
                         </div>
 
                       </div>
@@ -10610,15 +10478,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                   {insightTab === "whale" && (function() {
                     var rawAggs = massiveInfo && massiveInfo.aggs ? massiveInfo.aggs : [];
-                    // Whale/options data still loaded for secondary section
-                    if (!whaleData && !whaleLoading) {
-                      setWhaleLoading(true);
-                      var _wSym = sym === "BRKB" ? "BRK-B" : sym;
-                      fetch("/options?sym=" + _wSym)
-                        .then(function(r){ return r.json(); })
-                        .then(function(d){ setWhaleData(d); setWhaleLoading(false); })
-                        .catch(function(){ setWhaleData({ error:true }); setWhaleLoading(false); });
-                    }
+                    // Options (put/call) section removed in v2.249 with the Massive /options route.
 
                     // --- OHLCV Validation ---
                     // rawAggs is newest-first from Massive; each bar: { c, o, h, l, v, date }
@@ -10685,14 +10545,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       window.__smfScore[sym] = smCard; // store full card, not just score
                     }
 
-                    // Options secondary data
-                    var putCallOI  = whaleData && whaleData.putCallOI  ? parseFloat(whaleData.putCallOI)  : null;
-                    var putCallVol = whaleData && whaleData.putCallVol ? parseFloat(whaleData.putCallVol) : null;
-                    var callOIw  = whaleData ? (whaleData.callOI  || 0) : 0;
-                    var putOIw   = whaleData ? (whaleData.putOI   || 0) : 0;
-                    var callVolw = whaleData ? (whaleData.callVol || 0) : 0;
-                    var putVolw  = whaleData ? (whaleData.putVol  || 0) : 0;
-                    var topOIw   = whaleData && whaleData.topOI ? whaleData.topOI : [];
                     var insiderBuys = ov && ov.insiderTx ? ov.insiderTx.filter(function(t){
                       var a=(t.action||"").toLowerCase(); return a.indexOf("purchase")!==-1||a.indexOf("buy")!==-1||a.indexOf("acquisition")!==-1;
                     }) : [];
@@ -10826,50 +10678,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           </div>
                         )}
 
-                        {!whaleLoading && (putCallOI!==null||topOIw.length>0) && (
-                          <div style={{ marginBottom:12 }}>
-                            <div style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Options Context</div>
-                            <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10, overflow:"hidden", marginBottom:12 }}>
-                              {[
-                                ["Options OI Skew", putCallOI!==null?"P/C OI: "+putCallOI.toFixed(2)+"  |  Calls: "+fmtKw(callOIw)+"  Puts: "+fmtKw(putOIw):"Unavailable", putCallOI!==null&&putCallOI<0.7],
-                                ["Options Volume Skew", putCallVol!==null?"P/C Vol: "+putCallVol.toFixed(2)+"  |  Call Vol: "+fmtKw(callVolw)+"  Put Vol: "+fmtKw(putVolw):"Unavailable", putCallVol!==null&&putCallVol<0.7],
-                              ].map(function(row,i){
-                                var bullish=row[2]; var col=bullish?"#1a6a1a":"#888";
-                                return <div key={i} style={{ padding:"10px 14px", borderBottom:i===0?"0.5px solid #f0ede6":"none", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                                  <div>
-                                    <div style={{ fontSize:12, fontWeight:700, color:"#333" }}>{row[0]}</div>
-                                    <div style={{ fontSize:11, color:"#888", marginTop:2 }}>{row[1]}</div>
-                                  </div>
-                                  <span style={{ fontSize:14, color:col, fontWeight:700 }}>{bullish?"▲":"—"}</span>
-                                </div>;
-                              })}
-                            </div>
-                            {topOIw.length > 0 && (
-                              <div style={{ border:"0.5px solid #e8e4dc", borderRadius:10, overflow:"hidden", marginBottom:12 }}>
-                                <div style={{ padding:"8px 14px", background:"#faf8f4", borderBottom:"1px solid #e8e4dc" }}>
-                                  <span style={{ fontSize:10, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"0.08em" }}>Top Contracts by Open Interest</span>
-                                </div>
-                                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-                                  <thead><tr style={{ background:"#faf8f4", borderBottom:"1px solid #e8e4dc" }}>
-                                    {["Type","Strike","Expiry","OI","IV","Last"].map(function(h){ return <td key={h} style={{ padding:"6px 10px", color:"#999", fontWeight:700, textTransform:"uppercase", fontSize:9 }}>{h}</td>; })}
-                                  </tr></thead>
-                                  <tbody>
-                                    {topOIw.map(function(c,i){ var isCall=c.type==="call"; return (
-                                      <tr key={i} style={{ borderBottom:"0.5px solid #f5f2ec", background:i%2===0?"#fff":"#faf8f4" }}>
-                                        <td style={{ padding:"5px 7px", fontWeight:700, color:isCall?"#1a6a1a":"#c03030" }}>{(c.type||"").toUpperCase()}</td>
-                                        <td style={{ padding:"5px 7px", fontWeight:600 }}>{"$"+(c.strike||"-")}</td>
-                                        <td style={{ padding:"5px 7px", color:"#888" }}>{c.expiry||"-"}</td>
-                                        <td style={{ padding:"5px 7px", fontWeight:700 }}>{fmtKw(c.oi)}</td>
-                                        <td style={{ padding:"5px 7px", color:"#666" }}>{c.iv||"-"}</td>
-                                        <td style={{ padding:"5px 7px", color:"#666" }}>{c.last!=null?"$"+parseFloat(c.last).toFixed(2):"-"}</td>
-                                      </tr>
-                                    ); })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                          </div>
-                        )}
 
                         {ov && (ov.institutionPct>0||ov.insiderPct>0) && (
                           <div style={{ marginBottom:16 }}>
@@ -10983,7 +10791,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
 
                     if (!ind || !price) return (
                       <div style={{textAlign:"center",padding:"40px 0",color:"#aaa"}}>
-                        {addlLoading?"Loading market signal data...":"Market signal data unavailable. Massive.com data required."}
+                        {addlLoading?"Loading market signal data...":"Market signal data unavailable (Yahoo price feed did not load)."}
                       </div>
                     );
 
@@ -11104,7 +10912,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         </div>
 
                         <div style={{marginTop:10,fontSize:11,color:"#bbb"}}>
-                          Powered by Massive.com real-time data. Weekly/monthly horizon. Not financial advice.
+                          Based on Yahoo Finance daily data. Weekly/monthly horizon. Not financial advice.
                         </div>
                       </div>
                     );
@@ -11114,7 +10922,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                   {insightTab === "debug" && (function() {
                     var envChecks = [
                       { key: "ANTHROPIC_KEY", note: "Required for AI tabs (Moat, Financial, Technical)" },
-                      { key: "MASSIVE_KEY",   note: "Required for Company News, Reference, Dividends, Splits" },
                       { key: "FINNHUB_KEY",   note: "Optional - not currently used" },
                       { key: "FMP_KEY",       note: "Optional - Financial Modeling Prep" },
                       { key: "AV_KEY",        note: "Optional - Alpha Vantage" },
@@ -11146,62 +10953,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       <div style={{ fontSize:12 }}>
                         <div style={{ fontSize:13, fontWeight:700, color:"#111", marginBottom:12 }}>Debug Panel -- {sym}</div>
 
-                        {/* Tech Feed Compare (v2.248) -- Yahoo vs Massive for this ticker */}
-                        <div style={{ background:"#eef4ff", border:"1px solid #c9d8f5", borderRadius:10, padding:"12px 16px", marginBottom:16 }}>
-                          <div style={{ fontWeight:700, color:"#333", fontSize:12, marginBottom:8, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                            <span>{"Tech Feed Compare -- active source: " + getTechSource().toUpperCase() + (massiveInfo && massiveInfo._source ? " (loaded: " + massiveInfo._source + ")" : "")}</span>
-                            <button
-                              onClick={function() {
-                                setTechCompare({ loading: true, sym: sym });
-                                var hdrsC = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
-                                compareTechFeeds(sym, hdrsC).then(function(r) { setTechCompare(r); })
-                                  .catch(function(e) { setTechCompare({ error: String(e), sym: sym }); });
-                              }}
-                              style={{ fontSize:11, padding:"4px 10px", borderRadius:6, border:"1px solid #8aa8e0", background:"#fff", cursor:"pointer" }}>
-                              {techCompare && techCompare.loading ? "Comparing..." : "Compare Yahoo vs Massive"}
-                            </button>
-                          </div>
-                          <div style={{ fontSize:10, color:"#667", marginBottom:8 }}>
-                            {"Switch source for this browser: add ?tech=yahoo or ?tech=massive to the URL, then reload."}
-                          </div>
-                          {techCompare && techCompare.sym === sym && !techCompare.loading && (techCompare.error ? (
-                            <div style={{ color:"#c03030" }}>{"Compare failed: " + techCompare.error}</div>
-                          ) : (
-                            <div>
-                              <div style={{ fontSize:10, color:"#555", marginBottom:6 }}>
-                                {"Massive: " + (techCompare.massiveOk ? "OK" : "FAILED") + " (latest bar " + (techCompare.massiveBarDate || "-") + ", " + techCompare.massiveAggs + " bars)   |   Yahoo: " + (techCompare.yahooOk ? "OK" : "FAILED") + " (latest bar " + (techCompare.yahooBarDate || "-") + ", " + techCompare.yahooAggs + " bars)"}
-                              </div>
-                              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-                                <thead>
-                                  <tr style={{ color:"#888", textAlign:"right" }}>
-                                    <th style={{ textAlign:"left", padding:"3px 6px" }}>Field</th>
-                                    <th style={{ padding:"3px 6px" }}>Massive</th>
-                                    <th style={{ padding:"3px 6px" }}>Yahoo</th>
-                                    <th style={{ padding:"3px 6px" }}>Diff %</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {techCompare.rows.map(function(r) {
-                                    var fmtV = function(v) { return typeof v === "number" ? (Math.abs(v) >= 1e5 ? Math.round(v).toLocaleString() : v.toFixed(4)) : "-"; };
-                                    var absD = r.diffPct != null ? Math.abs(r.diffPct) : null;
-                                    var dCol = absD == null ? "#aaa" : absD < 0.5 ? "#1a6a1a" : absD < 2 ? "#b88000" : "#c03030";
-                                    return (
-                                      <tr key={r.label} style={{ borderTop:"1px solid #dde6f7", textAlign:"right" }}>
-                                        <td style={{ textAlign:"left", padding:"3px 6px", color:"#333" }}>{r.label}</td>
-                                        <td style={{ padding:"3px 6px" }}>{fmtV(r.massive)}</td>
-                                        <td style={{ padding:"3px 6px" }}>{fmtV(r.yahoo)}</td>
-                                        <td style={{ padding:"3px 6px", color:dCol, fontWeight:600 }}>{r.diffPct != null ? (r.diffPct >= 0 ? "+" : "") + r.diffPct.toFixed(2) + "%" : "-"}</td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                              <div style={{ fontSize:10, color:"#888", marginTop:6 }}>
-                                {"Green < 0.5%, amber < 2%, red >= 2%. MACD histogram can show large % on values near zero -- compare the sign instead."}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
 
                         {/* Cache Monitor */}
                         <div style={{ background:"#f5f2ec", border:"1px solid #e0dbd0", borderRadius:10, padding:"12px 16px", marginBottom:16 }}>
@@ -11252,7 +11003,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                           {[
                             { label: "Yahoo Quote",       url: "/proxy?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + sym + "?interval=1d&range=1d") },
                             { label: "Yahoo quoteSummary",url: "/proxy?url=" + encodeURIComponent("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + sym + "?modules=summaryDetail,financialData") },
-                            { label: "Massive /massive",  url: "/massive?sym=" + sym },
                             { label: "Anthropic /anthropic (POST)", url: null },
                           ].map(function(item, i) {
                             return (
@@ -11283,9 +11033,6 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                                   <td style={{ padding:"5px 8px", fontWeight:700, fontFamily:"monospace", color:"#111" }}>{e.key}</td>
                                   <td style={{ padding:"5px 8px", color:"#888" }}>{e.note}</td>
                                   <td style={{ padding:"5px 8px" }}>
-                                    <a href={"https://nervousgeek.com/massive?sym=" + sym} target="_blank" rel="noopener noreferrer" style={{ fontSize:10, color:"#0044cc" }}>
-                                      {e.key === "MASSIVE_KEY" ? "Test ->" : ""}
-                                    </a>
                                   </td>
                                 </tr>
                               );
@@ -11300,7 +11047,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                             ["Quote loaded",      q ? "YES" : "NO",       q ? "#1a6a1a" : "#c03030"],
                             ["Overview loaded",   ov ? "YES" : "NO",      ov ? "#1a6a1a" : "#c03030"],
                             ["EPS History",       epsHistory ? epsHistory.length + " rows" : "null", epsHistory ? "#1a6a1a" : "#c03030"],
-                            ["Massive data",      massiveInfo ? "YES (news:" + (massiveInfo.news ? massiveInfo.news.length : 0) + ")" : "null", massiveInfo ? "#1a6a1a" : "#c03030"],
+                            ["Tech feed (Yahoo)", massiveInfo ? "YES (news:" + (massiveInfo.news ? massiveInfo.news.length : 0) + ")" : "null", massiveInfo ? "#1a6a1a" : "#c03030"],
                             ["Moat insight",      insightCache["moat"]     ? "YES" : "pending", insightCache["moat"]     ? "#1a6a1a" : "#888"],
                             ["Financial insight", insightCache["financial"] ? "YES" : "pending", insightCache["financial"] ? "#1a6a1a" : "#888"],
                             ["Technical insight", insightCache["technical"] ? "YES" : "pending", insightCache["technical"] ? "#1a6a1a" : "#888"],
@@ -11614,7 +11361,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             </button>
           </div>
           <div style={{ fontSize:11, color:"#aaa", lineHeight:1.8 }}>
-            {"nervousgeek.com is a private, community-focused platform created to share educational content about investing and financial markets. Any fees collected are used to support the operating costs of the platform and the time and effort required to maintain and improve the service. All analysis, ratings, tools, and AI-generated insights provided on this website are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. The content on this website does not take into account your individual financial situation, objectives, or needs. Before making any investment decision, you should conduct your own research and consider seeking advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Market data provided by third-party sources, including Yahoo Finance and Massive.com, may be delayed, incomplete, or inaccurate. While reasonable efforts are made to ensure information accuracy, nervousgeek.com makes no representation or warranty regarding the completeness, reliability, or accuracy of the information provided. Use of this website and reliance on any information contained within it is entirely at your own risk. Some insights and analysis on this platform may be generated with the assistance of artificial intelligence, including models developed by Anthropic (Claude). "}{String.fromCharCode(0xA9)}{" nervousgeek.com 2026. All rights reserved."}
+            {"nervousgeek.com is a private, community-focused platform created to share educational content about investing and financial markets. Any fees collected are used to support the operating costs of the platform and the time and effort required to maintain and improve the service. All analysis, ratings, tools, and AI-generated insights provided on this website are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. The content on this website does not take into account your individual financial situation, objectives, or needs. Before making any investment decision, you should conduct your own research and consider seeking advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Market data provided by third-party sources, including Yahoo Finance and SimFin, may be delayed, incomplete, or inaccurate. While reasonable efforts are made to ensure information accuracy, nervousgeek.com makes no representation or warranty regarding the completeness, reliability, or accuracy of the information provided. Use of this website and reliance on any information contained within it is entirely at your own risk. Some insights and analysis on this platform may be generated with the assistance of artificial intelligence, including models developed by Anthropic (Claude). "}{String.fromCharCode(0xA9)}{" nervousgeek.com 2026. All rights reserved."}
           </div>
         </div>
         {/* Slim always-visible bar */}
@@ -14541,21 +14288,13 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     } catch(e) { /* cache miss — proceed with fresh scan */ }
 
     // Fetch universe incrementally — start with 20, fetch next page only when needed
-    var universeSource  = 'Polygon-Daily';
+    var universeSource  = 'Yahoo';
     var allRawQuotes    = [];
     var yahooPage       = 0;
     var yahooExhausted  = false;
     var PAGE_SIZE       = 20;
 
-    // PRIMARY: Polygon grouped daily — full market, top 500 by volume
-    async function fetchGroupedDaily() {
-      try {
-        var gRes = await fetch('/groupeddaily');
-        if (!gRes.ok) return [];
-        var gData = await gRes.json();
-        return gData.tickers || [];
-      } catch(e) { return []; }
-    }
+    // PRIMARY (v2.249): Yahoo most-actives, paged lazily (Polygon grouped daily removed)
     async function fetchNextYahooPage() {
       if (yahooExhausted) return [];
       try {
@@ -14575,14 +14314,6 @@ function ForceStrikePage({ isPaid, clerkUser }) {
         var fData = await fRes.json();
         if (!Array.isArray(fData) || !fData.length) return [];
         return fData.map(function(q){ return { symbol:q.symbol, regularMarketPrice:q.price||10, regularMarketVolume:q.volume||1000000, quoteType:'EQUITY', longName:q.name||q.symbol }; });
-      } catch(e) { return []; }
-    }
-    async function fetchPolygonActives() {
-      try {
-        var pRes2 = await fetch('/mostactive');
-        if (!pRes2.ok) return [];
-        var pData2 = await pRes2.json();
-        return (pData2.tickers || []);
       } catch(e) { return []; }
     }
 
@@ -14617,29 +14348,17 @@ function ForceStrikePage({ isPaid, clerkUser }) {
       'RIVN','LCID','NKLA','CHPT','BLNK','EVGO','FSR','GOEV','AYRO','SOLO',
     ];
 
-    // Fetch primary universe — Polygon grouped daily (top 500 by volume, prev trading day)
-    setMsg('Fetching universe from Polygon grouped daily\u2026');
+    // Fetch primary universe — Yahoo most-actives (then FMP, then hardcoded list)
+    setMsg('Fetching universe from Yahoo most-actives\u2026');
     var tUniverse0 = Date.now();
-    var gdQuotes = await fetchGroupedDaily();
+    var firstPage = await fetchNextYahooPage();
     var tUniverseMs = Date.now() - tUniverse0;
-    if (gdQuotes.length >= 50) {
-      allRawQuotes = gdQuotes;
-      universeSource = 'Polygon-Daily';
-    } else {
-      setMsg('Polygon daily unavailable \u2014 trying Yahoo\u2026');
-      var firstPage = await fetchNextYahooPage();
-      if (firstPage.length) { allRawQuotes = firstPage; universeSource = 'Yahoo'; }
-      else {
-        setMsg('Yahoo unavailable \u2014 trying FMP\u2026');
-        var fmpInit = await fetchFmpActives();
-        if (fmpInit.length) { allRawQuotes = fmpInit; universeSource = 'FMP'; yahooExhausted = true; }
-        else {
-          setMsg('FMP unavailable \u2014 trying Polygon actives\u2026');
-          var polyInit = await fetchPolygonActives();
-          if (polyInit.length) { allRawQuotes = polyInit; universeSource = 'Polygon-Actives'; yahooExhausted = true; }
-          else { universeSource = 'Fallback'; yahooExhausted = true; }
-        }
-      }
+    if (firstPage.length) { allRawQuotes = firstPage; universeSource = 'Yahoo'; }
+    else {
+      setMsg('Yahoo unavailable \u2014 trying FMP\u2026');
+      var fmpInit = await fetchFmpActives();
+      if (fmpInit.length) { allRawQuotes = fmpInit; universeSource = 'FMP'; yahooExhausted = true; }
+      else { universeSource = 'Fallback'; yahooExhausted = true; }
     }
 
     var pendingCandidates = buildCandidates(allRawQuotes);
@@ -14649,8 +14368,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     var GOAL  = 20;
     var MAX_SCAN = 600;
     var totalScanned = 0;
-    var fmpTried     = (universeSource !== 'Yahoo' && universeSource !== 'Polygon-Daily');
-    var polygonTried = (universeSource === 'Polygon-Actives' || universeSource === 'Fallback');
+    var fmpTried     = (universeSource !== 'Yahoo');
 
     if (universeSource === 'Fallback') setMsg('\u26A0\uFE0F All APIs unavailable \u2014 using fallback list.');
 
@@ -14747,7 +14465,7 @@ function ForceStrikePage({ isPaid, clerkUser }) {
     }
 
     while (validFound < GOAL && totalScanned < MAX_SCAN) {
-      // Refill — Polygon-Daily gives full universe upfront, but fall back if exhausted
+      // Refill — Yahoo pages lazily; fall back to FMP, then hardcoded list
       if (pendingCandidates.length < BATCH) {
         // If using Yahoo (fallback to lazy pages)
         if (!yahooExhausted && universeSource === 'Yahoo') {
@@ -14762,16 +14480,6 @@ function ForceStrikePage({ isPaid, clerkUser }) {
           if (fmpQ.length) {
             universeSource += '+FMP';
             pendingCandidates = pendingCandidates.concat(buildCandidates(fmpQ));
-          }
-        }
-        // Try Polygon actives if not yet tried
-        if (!pendingCandidates.length && !polygonTried) {
-          polygonTried = true;
-          setMsg('Trying Polygon actives for more candidates\u2026');
-          var polyQ = await fetchPolygonActives();
-          if (polyQ.length) {
-            universeSource += '+Polygon';
-            pendingCandidates = pendingCandidates.concat(buildCandidates(polyQ));
           }
         }
         // Final fallback — hardcoded list
@@ -15919,7 +15627,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.248</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.249</span>
           </div>
         </div>
 
@@ -16261,7 +15969,7 @@ export default function App() {
             </button>
           </div>
           <div style={{ fontSize:11, color:"#aaa", lineHeight:1.8 }}>
-            {"nervousgeek.com is a private, community-focused platform created to share educational content about investing and financial markets. Any fees collected are used to support the operating costs of the platform and the time and effort required to maintain and improve the service. All analysis, ratings, tools, and AI-generated insights provided on this website are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. The content on this website does not take into account your individual financial situation, objectives, or needs. Before making any investment decision, you should conduct your own research and consider seeking advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Market data provided by third-party sources, including Yahoo Finance and Massive.com, may be delayed, incomplete, or inaccurate. While reasonable efforts are made to ensure information accuracy, nervousgeek.com makes no representation or warranty regarding the completeness, reliability, or accuracy of the information provided. Use of this website and reliance on any information contained within it is entirely at your own risk. Some insights and analysis on this platform may be generated with the assistance of artificial intelligence, including models developed by Anthropic (Claude). "}{String.fromCharCode(0xA9)}{" nervousgeek.com 2026. All rights reserved."}
+            {"nervousgeek.com is a private, community-focused platform created to share educational content about investing and financial markets. Any fees collected are used to support the operating costs of the platform and the time and effort required to maintain and improve the service. All analysis, ratings, tools, and AI-generated insights provided on this website are for general informational and educational purposes only. They do not constitute financial product advice, investment advice, or any form of professional advice. The content on this website does not take into account your individual financial situation, objectives, or needs. Before making any investment decision, you should conduct your own research and consider seeking advice from a licensed financial adviser. Past performance is not a reliable indicator of future results. Market data provided by third-party sources, including Yahoo Finance and SimFin, may be delayed, incomplete, or inaccurate. While reasonable efforts are made to ensure information accuracy, nervousgeek.com makes no representation or warranty regarding the completeness, reliability, or accuracy of the information provided. Use of this website and reliance on any information contained within it is entirely at your own risk. Some insights and analysis on this platform may be generated with the assistance of artificial intelligence, including models developed by Anthropic (Claude). "}{String.fromCharCode(0xA9)}{" nervousgeek.com 2026. All rights reserved."}
           </div>
         </div>
         <div
