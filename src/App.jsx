@@ -8,7 +8,8 @@ import { calculateTechnicalSignalSnapshot, calcRSI,
          isPositiveReversal, isPositiveMoneyFlow,
          buildWeeklyBars, buildMonthlyBars,
          calcWeeklyMomentum, calcMonthlyMomentum,
-         classifyMomentumProfile, classifyMonthlyRegime } from "./technicalSignals.js";
+         classifyMomentumProfile, classifyMonthlyRegime,
+         buildIndicatorsFromDailyBars } from "./technicalSignals.js";
 import { scanForceStrike, buildAggregateBars, formatAuditTxt } from "./forceStrikeScanner.js";
 import { generateRuleBasedAnalytics } from "./ruleBasedAnalytics.js";
 import { computeFinancialStrength, computeIntrinsicValue } from "./fundamentalAnalytics.js";
@@ -1933,6 +1934,151 @@ function detectCrossData(closes) {
   return { type:crossType||"none", ageDays:crossAge, gapDir:gapDir, gapNow:gapNow, sma200GapDir:sma200GapDir };
 }
 
+// ── Technical data feed: Yahoo (default) or Massive (v2.248) ───────────────
+// fetchTechFeed() returns an object with the SAME shape the /massive route
+// returns ({ aggs, snapshot, indicators, lastTrade, news, ticker, dividends,
+// splits, tenK }), so every existing consumer (Detail tabs, Screener,
+// Watchlist, AI Favourites news) works unchanged whichever source is used.
+//
+// Source switch (per browser, persists in localStorage):
+//   add ?tech=massive to the URL -> use Massive
+//   add ?tech=yahoo   to the URL -> use Yahoo (default)
+// Debug tab -> "Tech Feed Compare" shows both side by side for the ticker.
+function getTechSource() {
+  try {
+    var m = window.location.search.match(/[?&]tech=(yahoo|massive)/i);
+    if (m) { localStorage.setItem('techSource', m[1].toLowerCase()); return m[1].toLowerCase(); }
+    var s = localStorage.getItem('techSource');
+    if (s === 'massive' || s === 'yahoo') return s;
+  } catch(e) {}
+  return 'yahoo';
+}
+
+// Yahoo news -> Massive/Polygon news shape (title, article_url, publisher.name,
+// published_utc, image_url) plus `source`/`url` used by the landing page.
+async function fetchYahooNews(ySym) {
+  try {
+    var nUrl = 'https://query2.finance.yahoo.com/v1/finance/search?q=' + encodeURIComponent(ySym) + '&quotesCount=0&newsCount=10';
+    var nRes = await fetch('/proxy?url=' + encodeURIComponent(nUrl));
+    if (!nRes.ok) return [];
+    var nData = await nRes.json();
+    return (nData && nData.news ? nData.news : []).map(function(n) {
+      var img = n.thumbnail && n.thumbnail.resolutions && n.thumbnail.resolutions.length ? n.thumbnail.resolutions[n.thumbnail.resolutions.length - 1].url : null;
+      var iso = n.providerPublishTime ? new Date(n.providerPublishTime * 1000).toISOString() : '';
+      return { title: n.title, article_url: n.link, url: n.link, publisher: { name: n.publisher || '' },
+               source: n.publisher || '', published_utc: iso, image_url: img };
+    });
+  } catch(e) { return []; }
+}
+
+// opts.news: also fetch news. opts.newsOnly: fetch news only (landing page).
+async function fetchYahooTechFeed(sym, opts) {
+  opts = opts || {};
+  var ySym = sym === 'BRKB' ? 'BRK-B' : sym;
+  if (opts.newsOnly) return { news: await fetchYahooNews(ySym), _source: 'yahoo' };
+  var cUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ySym + '?interval=1d&range=2y&events=div%2Csplit';
+  var newsP = opts.news ? fetchYahooNews(ySym) : Promise.resolve([]);
+  var cRes = await fetch('/proxy?url=' + encodeURIComponent(cUrl));
+  if (!cRes.ok) return null;
+  var cData = await cRes.json();
+  var res = cData && cData.chart && cData.chart.result && cData.chart.result[0];
+  if (!res || !res.timestamp) return null;
+  var meta = res.meta || {};
+  var qt   = (res.indicators && res.indicators.quote && res.indicators.quote[0]) || {};
+  // Split-adjusted OHLCV (quote.close, not adjclose) = Polygon adjusted=true
+  var bars = [];
+  for (var i = 0; i < res.timestamp.length; i++) {
+    var o = qt.open && qt.open[i], h = qt.high && qt.high[i], l = qt.low && qt.low[i], c = qt.close && qt.close[i];
+    if (o == null || h == null || l == null || c == null || c <= 0) continue;
+    var t = res.timestamp[i] * 1000;
+    bars.push({ t: t, date: new Date(t).toISOString().split('T')[0], open: o, high: h, low: l, close: c, volume: (qt.volume && qt.volume[i]) || 0 });
+  }
+  if (bars.length < 10) return null;
+  var last = bars[bars.length - 1], prev = bars.length > 1 ? bars[bars.length - 2] : null;
+  var price = meta.regularMarketPrice > 0 ? meta.regularMarketPrice : last.close;
+  // Newest-first, Polygon agg keys. Yahoo has no VWAP -> vw null (UI shows "-").
+  var aggs = bars.slice(-30).reverse().map(function(b) {
+    return { o: b.open, h: b.high, l: b.low, c: b.close, v: b.volume, vw: null, t: b.t };
+  });
+  var ev = res.events || {};
+  var dividends = Object.keys(ev.dividends || {}).map(function(k) { return ev.dividends[k]; })
+    .sort(function(a, b) { return b.date - a.date; }).slice(0, 10)
+    .map(function(d) { return { ex_dividend_date: new Date(d.date * 1000).toISOString().split('T')[0], pay_date: null, cash_amount: d.amount, frequency: null }; });
+  var splits = Object.keys(ev.splits || {}).map(function(k) { return ev.splits[k]; })
+    .sort(function(a, b) { return b.date - a.date; })
+    .map(function(s) { return { execution_date: new Date(s.date * 1000).toISOString().split('T')[0], split_from: s.denominator, split_to: s.numerator }; });
+  return {
+    _source:   'yahoo',
+    _hi52:     meta.fiftyTwoWeekHigh || 0,
+    _lo52:     meta.fiftyTwoWeekLow  || 0,
+    aggs:      aggs,
+    snapshot: {
+      open: last.open, high: last.high, low: last.low, close: price, volume: last.volume, vwap: null,
+      prevClose: prev ? prev.close : null,
+      change: prev && prev.close > 0 ? (price - prev.close) / prev.close * 100 : null,
+    },
+    indicators: buildIndicatorsFromDailyBars(bars),
+    lastTrade: { price: price, size: null, time: meta.regularMarketTime ? meta.regularMarketTime * 1000 : null },
+    news:      await newsP,
+    ticker: {
+      name: meta.longName || meta.shortName || ySym,
+      primary_exchange: meta.fullExchangeName || meta.exchangeName || null,
+      list_date: meta.firstTradeDate ? new Date(meta.firstTradeDate * 1000).toISOString().split('T')[0] : null,
+      sic_description: null, share_class_shares_outstanding: null,
+    },
+    dividends: dividends,
+    splits:    splits,
+    tenK:      { business: null, riskFactors: null, filingDate: null },
+  };
+}
+
+async function fetchMassiveTechFeed(sym, hdrs) {
+  var mSym = sym === 'BRKB' ? 'BRK-B' : sym;
+  var r = await fetch('/massive?sym=' + mSym, { headers: hdrs || {} });
+  if (!r.ok) return null;
+  var d = await r.json();
+  if (!d || d.error) return null;
+  d._source = 'massive';
+  return d;
+}
+
+// Single entry point used by Detail, Screener, Watchlist and landing news.
+// Returns null on failure (callers already treat a missing feed as "skip").
+async function fetchTechFeed(sym, hdrs, opts) {
+  try {
+    if (getTechSource() === 'massive') return await fetchMassiveTechFeed(sym, hdrs);
+    return await fetchYahooTechFeed(sym, opts);
+  } catch(e) { return null; }
+}
+
+// Side-by-side comparison for the Debug tab: fetches BOTH feeds for one ticker.
+async function compareTechFeeds(sym, hdrs) {
+  var both = await Promise.all([
+    fetchMassiveTechFeed(sym, hdrs).catch(function(){ return null; }),
+    fetchYahooTechFeed(sym, {}).catch(function(){ return null; }),
+  ]);
+  var m = both[0], y = both[1];
+  function g(o, path) { return path.split('.').reduce(function(a, k) { return a == null ? null : a[k]; }, o); }
+  var fields = [
+    ['Price (snapshot.close)', 'snapshot.close'], ['Prev close', 'snapshot.prevClose'], ['Change %', 'snapshot.change'],
+    ['SMA50', 'indicators.sma50'], ['SMA200', 'indicators.sma200'], ['EMA20', 'indicators.ema20'],
+    ['RSI14', 'indicators.rsi14'], ['MACD line', 'indicators.macd.macd'], ['MACD signal', 'indicators.macd.signal'],
+    ['MACD histogram', 'indicators.macd.histogram'], ['Weekly SMA10', 'indicators.wsma10'], ['Weekly SMA40', 'indicators.wsma40'],
+    ['Latest bar close (aggs[0].c)', 'aggs.0.c'], ['Latest bar volume (aggs[0].v)', 'aggs.0.v'], ['Prior bar close (aggs[1].c)', 'aggs.1.c'],
+  ];
+  var rows = fields.map(function(f) {
+    var mv = g(m, f[1]), yv = g(y, f[1]);
+    var diff = (typeof mv === 'number' && typeof yv === 'number' && mv !== 0) ? (yv - mv) / Math.abs(mv) * 100 : null;
+    return { label: f[0], massive: mv, yahoo: yv, diffPct: diff };
+  });
+  // Bar-date alignment check: newest bar date in each feed
+  var mDate = m && m.aggs && m.aggs[0] && m.aggs[0].t ? new Date(m.aggs[0].t).toISOString().split('T')[0] : null;
+  var yDate = y && y.aggs && y.aggs[0] && y.aggs[0].t ? new Date(y.aggs[0].t).toISOString().split('T')[0] : null;
+  return { sym: sym, ranAt: new Date().toISOString(), massiveOk: !!m, yahooOk: !!y, massiveBarDate: mDate, yahooBarDate: yDate,
+           massiveAggs: m && m.aggs ? m.aggs.length : 0, yahooAggs: y && y.aggs ? y.aggs.length : 0,
+           massiveNews: m && m.news ? m.news.length : 0, rows: rows };
+}
+
 function buildTechnicalSnapshotFromMassive(sym, massiveInfo, q, ov, crossData) {
   if (!massiveInfo || !q) return null;
   var rawAggs = massiveInfo.aggs || [];
@@ -2150,13 +2296,11 @@ function Screener() {
         setScanMsg('Scanning '+(Math.min(i+BATCH,candidates.length))+' / '+candidates.length+'...');
         var bRes = await Promise.all(batch.map(async function(c) {
           try {
-            // Fetch Massive data and Yahoo historical bars in parallel
-            var [mRes, yhBars] = await Promise.all([
-              fetch('/massive?sym='+c.sym, { headers:hdrs }),
+            // Fetch tech feed (Yahoo or Massive, see fetchTechFeed) and Yahoo historical bars in parallel
+            var [mData, yhBars] = await Promise.all([
+              fetchTechFeed(c.sym, hdrs),
               fetchYahooHistoricalBars(c.sym, _mpStartStr, _mpEndStr, 0).catch(function(){ return null; }),
             ]);
-            if (!mRes.ok) { failedCount++; return null; }
-            var mData = await mRes.json();
             if (!mData||!mData.aggs||mData.aggs.length<10) { failedCount++; return null; }
             var snap = buildScreenerSnapshot(c.sym, mData, { hi52:c.hi52||0, lo52:c.lo52||0, price:c.price||0 });
             if (!snap) { failedCount++; return null; }
@@ -3560,6 +3704,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   const [addlInfo,      setAddlInfo]      = useState(null);
   const [addlLoading,   setAddlLoading]   = useState(false);
   const [massiveInfo,   setMassiveInfo]   = useState(null);
+  const [techCompare,   setTechCompare]   = useState(null);
   const [crossData,     setCrossData]     = useState(null);
   const [whaleData,     setWhaleData]     = useState(null);
   const [whaleLoading,  setWhaleLoading]  = useState(false);
@@ -4373,12 +4518,11 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
     // Fetch Massive.com data (news + ticker reference + dividends + splits)
     setAddlLoading(true);
     var debugEntries = [];
-    debugEntries.push({ time: new Date().toISOString(), label: "Fetching /massive?sym=" + sym });
+    debugEntries.push({ time: new Date().toISOString(), label: "Fetching tech feed (" + getTechSource() + ") for " + sym });
     var massiveHdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
-    fetch("/massive?sym=" + (sym === "BRKB" ? "BRK-B" : sym), { headers: massiveHdrs })
-      .then(function(r) { return r.json(); })
+    fetchTechFeed(sym, massiveHdrs, { news: true })
       .then(function(data) {
-        debugEntries.push({ time: new Date().toISOString(), label: "Massive response received", data: { newsCount: data && data.news ? data.news.length : 0, tickerName: data && data.ticker ? data.ticker.name : null, debug: data && data._debug } });
+        debugEntries.push({ time: new Date().toISOString(), label: "Tech feed response received (" + (data && data._source ? data._source : "none") + ")", data: { newsCount: data && data.news ? data.news.length : 0, aggsCount: data && data.aggs ? data.aggs.length : 0, tickerName: data && data.ticker ? data.ticker.name : null, debug: data && data._debug } });
         // Set massiveInfo if we got any useful data back
         if (data && (data.news || data.ticker || data.dividends || data.indicators || data.aggs)) {
           setMassiveInfo(data);
@@ -5440,7 +5584,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.247</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.248</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5494,7 +5638,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.247</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.248</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -11002,6 +11146,63 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                       <div style={{ fontSize:12 }}>
                         <div style={{ fontSize:13, fontWeight:700, color:"#111", marginBottom:12 }}>Debug Panel -- {sym}</div>
 
+                        {/* Tech Feed Compare (v2.248) -- Yahoo vs Massive for this ticker */}
+                        <div style={{ background:"#eef4ff", border:"1px solid #c9d8f5", borderRadius:10, padding:"12px 16px", marginBottom:16 }}>
+                          <div style={{ fontWeight:700, color:"#333", fontSize:12, marginBottom:8, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                            <span>{"Tech Feed Compare -- active source: " + getTechSource().toUpperCase() + (massiveInfo && massiveInfo._source ? " (loaded: " + massiveInfo._source + ")" : "")}</span>
+                            <button
+                              onClick={function() {
+                                setTechCompare({ loading: true, sym: sym });
+                                var hdrsC = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
+                                compareTechFeeds(sym, hdrsC).then(function(r) { setTechCompare(r); })
+                                  .catch(function(e) { setTechCompare({ error: String(e), sym: sym }); });
+                              }}
+                              style={{ fontSize:11, padding:"4px 10px", borderRadius:6, border:"1px solid #8aa8e0", background:"#fff", cursor:"pointer" }}>
+                              {techCompare && techCompare.loading ? "Comparing..." : "Compare Yahoo vs Massive"}
+                            </button>
+                          </div>
+                          <div style={{ fontSize:10, color:"#667", marginBottom:8 }}>
+                            {"Switch source for this browser: add ?tech=yahoo or ?tech=massive to the URL, then reload."}
+                          </div>
+                          {techCompare && techCompare.sym === sym && !techCompare.loading && (techCompare.error ? (
+                            <div style={{ color:"#c03030" }}>{"Compare failed: " + techCompare.error}</div>
+                          ) : (
+                            <div>
+                              <div style={{ fontSize:10, color:"#555", marginBottom:6 }}>
+                                {"Massive: " + (techCompare.massiveOk ? "OK" : "FAILED") + " (latest bar " + (techCompare.massiveBarDate || "-") + ", " + techCompare.massiveAggs + " bars)   |   Yahoo: " + (techCompare.yahooOk ? "OK" : "FAILED") + " (latest bar " + (techCompare.yahooBarDate || "-") + ", " + techCompare.yahooAggs + " bars)"}
+                              </div>
+                              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                                <thead>
+                                  <tr style={{ color:"#888", textAlign:"right" }}>
+                                    <th style={{ textAlign:"left", padding:"3px 6px" }}>Field</th>
+                                    <th style={{ padding:"3px 6px" }}>Massive</th>
+                                    <th style={{ padding:"3px 6px" }}>Yahoo</th>
+                                    <th style={{ padding:"3px 6px" }}>Diff %</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {techCompare.rows.map(function(r) {
+                                    var fmtV = function(v) { return typeof v === "number" ? (Math.abs(v) >= 1e5 ? Math.round(v).toLocaleString() : v.toFixed(4)) : "-"; };
+                                    var absD = r.diffPct != null ? Math.abs(r.diffPct) : null;
+                                    var dCol = absD == null ? "#aaa" : absD < 0.5 ? "#1a6a1a" : absD < 2 ? "#b88000" : "#c03030";
+                                    return (
+                                      <tr key={r.label} style={{ borderTop:"1px solid #dde6f7", textAlign:"right" }}>
+                                        <td style={{ textAlign:"left", padding:"3px 6px", color:"#333" }}>{r.label}</td>
+                                        <td style={{ padding:"3px 6px" }}>{fmtV(r.massive)}</td>
+                                        <td style={{ padding:"3px 6px" }}>{fmtV(r.yahoo)}</td>
+                                        <td style={{ padding:"3px 6px", color:dCol, fontWeight:600 }}>{r.diffPct != null ? (r.diffPct >= 0 ? "+" : "") + r.diffPct.toFixed(2) + "%" : "-"}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                              <div style={{ fontSize:10, color:"#888", marginTop:6 }}>
+                                {"Green < 0.5%, amber < 2%, red >= 2%. MACD histogram can show large % on values near zero -- compare the sign instead."}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
                         {/* Cache Monitor */}
                         <div style={{ background:"#f5f2ec", border:"1px solid #e0dbd0", borderRadius:10, padding:"12px 16px", marginBottom:16 }}>
                           <div style={{ fontWeight:700, color:"#333", fontSize:12, marginBottom:10, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -13048,9 +13249,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
   // real hi52/lo52 can feed the same buildScreenerSnapshot() call the Detail tab's
   // equivalent adapter uses.
   async function refreshSingleTicker(ticker, hdrs) {
-    var mRes = await fetch('/massive?sym=' + ticker, { headers: hdrs });
-    if (!mRes.ok) return false;
-    var mData = await mRes.json();
+    var mData = await fetchTechFeed(ticker, hdrs);
     if (!mData || !mData.aggs || mData.aggs.length < 10) return false;
     var ms  = mData.snapshot || {};
     var aggs = mData.aggs || [];
@@ -15518,8 +15717,7 @@ export default function App() {
     var top = tickerSignals.slice(0, 4);
     var hdrs = window.__clerkToken ? { "Authorization": "Bearer " + window.__clerkToken } : {};
     Promise.all(top.map(function(sig) {
-      return fetch("/massive?sym=" + sig.sym, { headers: hdrs })
-        .then(function(r) { return r.json(); })
+      return fetchTechFeed(sig.sym, hdrs, { newsOnly: true })
         .then(function(d) {
           var news = d && d.news ? d.news : [];
           return news.slice(0, 5).map(function(n) {
@@ -15721,7 +15919,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.247</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.248</span>
           </div>
         </div>
 
