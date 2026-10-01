@@ -36,10 +36,42 @@ export async function onRequest(context) {
     return (v < 0 ? "-$" : "$") + a.toFixed(2);
   }
 
+  // ── adjustEpsForSplits (v2.249) ── used by /eps ───────────────────────────
+  // rows: newest first { year, epsRaw, endDate, ni }. splits: [{ date, factor }].
+  // currentShares: today's share count (post every split) from Yahoo, or null.
+  // For each row, F = product of split factors dated AFTER its endDate.
+  // Implied shares = ni / epsRaw. If implied shares * F is closer (log scale)
+  // to today's share count than implied shares alone, the row is as-reported
+  // -> eps = epsRaw / F. Otherwise it was already split-adjusted -> unchanged.
+  // Without currentShares the newest row is the reference (fine unless a split
+  // happened after the latest fiscal year). If the check cannot run (no NI,
+  // NI and EPS of opposite sign) the row is left unchanged, flagged
+  // "undetermined" in splitCheck.
+  function adjustEpsForSplits(rows, splits, currentShares) {
+    if (!rows.length) return [];
+    var refShares = currentShares > 0 ? currentShares
+                  : (rows[0].ni && rows[0].epsRaw ? rows[0].ni / rows[0].epsRaw : null);
+    return rows.map(function(r) {
+      var F = 1;
+      for (var i = 0; i < splits.length; i++) if (splits[i].date > r.endDate) F *= splits[i].factor;
+      if (F === 1) return Object.assign({}, r, { eps: r.epsRaw, adjFactor: 1, splitCheck: "no-later-split" });
+      var shares = (r.ni && r.epsRaw) ? r.ni / r.epsRaw : null;
+      if (!refShares || !shares || refShares <= 0 || shares <= 0) {
+        return Object.assign({}, r, { eps: r.epsRaw, adjFactor: 1, splitCheck: "undetermined" });
+      }
+      var dAsIs = Math.abs(Math.log(refShares / shares));
+      var dAdj  = Math.abs(Math.log(refShares / (shares * F)));
+      return dAdj < dAsIs
+        ? Object.assign({}, r, { eps: r.epsRaw / F, adjFactor: 1 / F, splitCheck: "adjusted-x" + F })
+        : Object.assign({}, r, { eps: r.epsRaw, adjFactor: 1, splitCheck: "already-adjusted" });
+    });
+  }
+
+
   try {
 
     // Only handle specific API routes -- pass everything else to the React app
-    var knownRoutes = ["/proxy", "/anthropic", "/massive", "/eps", "/cache", "/simfin", "/stripe", "/options", "/watchlist", "/mostactive", "/groupeddaily"];
+    var knownRoutes = ["/proxy", "/anthropic", "/eps", "/cache", "/simfin", "/stripe", "/watchlist"];
     var isApiRoute  = false;
     for (var ri = 0; ri < knownRoutes.length; ri++) {
       if (url.pathname === knownRoutes[ri] || url.pathname.startsWith(knownRoutes[ri])) {
@@ -56,7 +88,7 @@ export async function onRequest(context) {
     // Free tickers bypass auth. Premium tickers require a valid Clerk session.
     // -------------------------------------------------------------------------
     var FREE_TICKERS_W = ["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","TSLA","LLY","BRKB"];
-    var PREMIUM_ROUTES = ["/anthropic", "/massive", "/simfin"];
+    var PREMIUM_ROUTES = ["/anthropic", "/simfin"];
     var isPremiumRoute = PREMIUM_ROUTES.indexOf(url.pathname) !== -1;
     var reqSym = (url.searchParams.get("sym") || "").toUpperCase().trim();
     var isFreeTickerReq = FREE_TICKERS_W.indexOf(reqSym) !== -1 || reqSym === "";
@@ -122,154 +154,6 @@ export async function onRequest(context) {
           "Access-Control-Allow-Headers": "Content-Type, Authorization, Stripe-Signature",
         },
       });
-    }
-
-
-    // -------------------------------------------------------------------------
-    // /massive?sym=AAPL -- Massive.com news + ticker ref + dividends + splits
-    // Requires MASSIVE_KEY env var in Cloudflare Pages
-    // -------------------------------------------------------------------------
-    if (url.pathname === "/massive") {
-      var sym        = (url.searchParams.get("sym") || "").toUpperCase().trim();
-      if (sym === "BRKB") sym = "BRK-B";
-      var massiveKey = context.env.MASSIVE_KEY;
-      if (!sym) return new Response(JSON.stringify({ error: "Missing sym" }), { status:400, headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
-      if (!massiveKey) return new Response(JSON.stringify({ error: "MASSIVE_KEY not configured" }), { status:500, headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
-
-      var BASE = "https://api.polygon.io";
-      var HDR  = { "User-Agent": UA };
-
-      // Date helpers
-      var today     = new Date();
-      var toDate    = today.toISOString().slice(0,10);
-      var fromDate  = new Date(today.getTime() - 730 * 86400000).toISOString().slice(0,10);
-      var from1yr   = new Date(today.getTime() - 365 * 86400000).toISOString().slice(0,10);
-
-      // Group A: fast indicators needed for Signal + Reversal (no 10-K, reduced aggs)
-      var from30d  = new Date(today.getTime() - 60 * 86400000).toISOString().slice(0,10);
-      var fastResults = await Promise.all([
-        fetch(BASE + "/v2/aggs/ticker/" + sym + "/range/1/day/" + from30d + "/" + toDate + "?adjusted=true&sort=desc&limit=60&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/v2/snapshot/locale/us/markets/stocks/tickers/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=day&adjusted=true&window=50&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=day&adjusted=true&window=200&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/v1/indicators/ema/" + sym + "?timespan=day&adjusted=true&window=20&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/v1/indicators/rsi/" + sym + "?timespan=day&adjusted=true&window=14&series_type=close&order=desc&limit=10&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/v1/indicators/macd/" + sym + "?timespan=day&adjusted=true&short_window=12&long_window=26&signal_window=9&series_type=close&order=desc&limit=10&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/v2/last/trade/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=week&adjusted=true&window=10&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/v1/indicators/sma/" + sym + "?timespan=week&adjusted=true&window=40&series_type=close&order=desc&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-      ]);
-
-      // Group B: slow reference data (news, dividends, 10-K) - fire in parallel, don't await
-      var slowPromise = Promise.all([
-        fetch(BASE + "/v2/reference/news?ticker=" + sym + "&limit=10&order=desc&sort=published_utc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/vX/reference/financials/ratios?ticker=" + sym + "&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/vX/reference/financials/balance-sheets?ticker=" + sym + "&period=annual&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/vX/reference/tickers/" + sym + "?apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/v3/reference/dividends?ticker=" + sym + "&limit=10&order=desc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/v3/reference/splits?ticker=" + sym + "&order=desc&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/stocks/filings/10-K/vX/sections?ticker=" + sym + "&section=business&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        fetch(BASE + "/stocks/filings/10-K/vX/sections?ticker=" + sym + "&section=risk_factors&limit=1&apiKey=" + massiveKey, { headers: HDR }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-      ]);
-
-      var aggsData      = fastResults[0];
-      var snapData      = fastResults[1];
-      var sma50Data     = fastResults[2];
-      var sma200Data    = fastResults[3];
-      var ema20Data     = fastResults[4];
-      var rsiData       = fastResults[5];
-      var macdData      = fastResults[6];
-      var lastTradeData = fastResults[7];
-      var wsma10Data    = fastResults[8];
-      var wsma40Data    = fastResults[9];
-
-      // Await slow group now (by the time fast group finished, slow is likely done too)
-      var slowResults  = await slowPromise;
-      var newsData     = slowResults[0];
-      var ratiosData   = slowResults[1];
-      var bsData       = slowResults[2];
-      var tickerData   = slowResults[3];
-      var dividendData = slowResults[4];
-      var splitsData   = slowResults[5];
-      var tenKBizData  = slowResults[6];
-      var tenKRiskData = slowResults[7];
-
-      function indVal(d) {
-        return d && d.results && d.results.values && d.results.values[0] ? d.results.values[0].value : null;
-      }
-      function indHistory(d) {
-        if (!d || !d.results || !d.results.values) return [];
-        return d.results.values.map(function(v) { return v.value != null ? v.value : null; });
-      }
-      function macdVals(d) {
-        if (!d || !d.results || !d.results.values || !d.results.values[0]) return null;
-        var v = d.results.values[0];
-        return { macd: v.value, signal: v.signal, histogram: v.histogram };
-      }
-      function macdHistory(d) {
-        if (!d || !d.results || !d.results.values) return [];
-        return d.results.values.map(function(v) { return { macd: v.value, signal: v.signal, histogram: v.histogram }; });
-      }
-
-      var snap = snapData && snapData.ticker ? snapData.ticker : null;
-
-      return new Response(JSON.stringify({
-        news:      newsData     && newsData.results     ? newsData.results     : [],
-        ratios:    ratiosData   && ratiosData.results   ? ratiosData.results[0] : null,
-        balSheet:  bsData       && bsData.results       ? bsData.results[0]     : null,
-        ticker:    tickerData   && tickerData.results   ? tickerData.results   : null,
-        dividends: dividendData && dividendData.results ? dividendData.results : [],
-        splits:    splitsData   && splitsData.results   ? splitsData.results   : [],
-        // financials: removed - now using SimFin for balance sheet data
-        aggs:      aggsData     && aggsData.results     ? aggsData.results.slice(0, 30) : [],
-        snapshot: snap ? {
-          open:      snap.day  ? snap.day.o  : null,
-          high:      snap.day  ? snap.day.h  : null,
-          low:       snap.day  ? snap.day.l  : null,
-          close:     snap.day  ? snap.day.c  : null,
-          volume:    snap.day  ? snap.day.v  : null,
-          vwap:      snap.day  ? snap.day.vw : null,
-          prevClose: snap.prevDay ? snap.prevDay.c : null,
-          change:    snap.todaysChangePerc != null ? snap.todaysChangePerc : null,
-        } : null,
-        indicators: {
-          sma50:       indVal(sma50Data),
-          sma200:      indVal(sma200Data),
-          ema20:       indVal(ema20Data),
-          rsi14:       indVal(rsiData),
-          rsiHistory:  indHistory(rsiData),
-          macd:        macdVals(macdData),
-          macdHistory: macdHistory(macdData),
-          wsma10:      indVal(wsma10Data),
-          wsma40:      indVal(wsma40Data),
-        },
-        tenK: {
-          business:    tenKBizData  && tenKBizData.results  && tenKBizData.results[0]  ? tenKBizData.results[0].text   : null,
-          riskFactors: tenKRiskData && tenKRiskData.results && tenKRiskData.results[0] ? tenKRiskData.results[0].text  : null,
-          filingDate:  tenKBizData  && tenKBizData.results  && tenKBizData.results[0]  ? tenKBizData.results[0].filing_date : null,
-        },
-        lastTrade: lastTradeData && lastTradeData.results ? {
-          price:  lastTradeData.results.p,
-          size:   lastTradeData.results.s,
-          time:   lastTradeData.results.t,
-        } : null,
-        _debug: {
-          newsCount:    newsData     && newsData.results     ? newsData.results.length    : 0,
-          aggsCount:    aggsData     && aggsData.results     ? aggsData.results.length    : 0,
-          snapshotOk:   snap != null,
-          sma50:        indVal(sma50Data),
-          rsi14:        indVal(rsiData),
-          newsStatus:   newsData  ? (newsData.status  || "ok") : "null",
-          newsError:    newsData  ? (newsData.error   || null) : "fetch_failed",
-          snapStatus:   snapData  ? (snapData.status  || "ok") : "null",
-          aggsStatus:   aggsData  ? (aggsData.status  || "ok") : "null",
-          indStatus:    rsiData   ? (rsiData.status   || "ok") : "null",
-          tickerStatus: tickerData ? (tickerData.status || "ok") : "null",
-          tickerError:  tickerData ? (tickerData.error  || null) : "fetch_failed",
-          newsRaw:      newsData  ? JSON.stringify(newsData).slice(0, 200) : "null",
-          tickerRaw:    tickerData ? JSON.stringify(tickerData).slice(0, 200) : "null",
-        },
-      }), { headers: {"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
     }
 
 
@@ -468,74 +352,94 @@ export async function onRequest(context) {
       }
     }
 
-    // ── /eps  — 10yr annual EPS from Polygon financials ────────────────────
+    // ── /eps  — 10yr annual EPS from SimFin (v2.249, replaces Polygon) ──────
+    // Same response shape the Polygon version returned:
+    //   { ok, rows:[{ year, eps, epsRaw, adjFactor, endDate, revenue, netIncome }],
+    //     splits:[{ date, factor }], source }
+    // rows newest first; eps is split-adjusted to today's share count.
+    //
+    // SimFin does not document whether its per-share figures are restated for
+    // later splits, so each year is CHECKED rather than assumed: implied share
+    // count (Net Income / EPS) is compared with the latest year's. If a later
+    // split of factor F exists and that year's implied shares are ~F times
+    // smaller, the year is as-reported and gets divided by F; if the share
+    // counts already line up, the year is left alone (already adjusted).
     if (url.pathname === "/eps") {
       var epsSym = (url.searchParams.get("sym") || "").toUpperCase().trim();
-      var massiveKey2 = context.env.MASSIVE_KEY;
-      if (!epsSym || !massiveKey2) {
-        return new Response(JSON.stringify({ error: "Missing sym or MASSIVE_KEY" }), {
+      var sfKeyE = context.env.SIMFIN_KEY;
+      if (!epsSym || !sfKeyE) {
+        return new Response(JSON.stringify({ error: "Missing sym or SIMFIN_KEY" }), {
           status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       }
+      var SF_MAP_E = { "GOOGL": "GOOG", "BRKB": "BRK.B" };
+      var sfSymE   = SF_MAP_E[epsSym] || epsSym;
+      var ySymE    = epsSym === "BRKB" ? "BRK-B" : epsSym;
       try {
-        // Fetch EPS history and split history in parallel
-        var epsAndSplits = await Promise.all([
-          fetch("https://api.polygon.io/vX/reference/financials?ticker=" + epsSym + "&timeframe=annual&limit=10&apiKey=" + massiveKey2, { headers: { "User-Agent": UA } }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-          fetch("https://api.polygon.io/v3/reference/splits?ticker=" + epsSym + "&order=desc&apiKey=" + massiveKey2, { headers: { "User-Agent": UA } }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+        var epsSrc = await Promise.all([
+          fetch("https://backend.simfin.com/api/v3/companies/statements/compact?ticker=" + encodeURIComponent(sfSymE) + "&statements=pl&period=fy&start=2013-01-01",
+                { headers: { "Authorization": "api-key " + sfKeyE, "Accept": "application/json" } })
+            .then(function(r){ return r.json(); }).catch(function(){ return null; }),
+          fetch("https://query1.finance.yahoo.com/v8/finance/chart/" + ySymE + "?interval=1mo&range=max&events=split",
+                { headers: { "User-Agent": UA, "Accept": "application/json", "Referer": "https://finance.yahoo.com/" } })
+            .then(function(r){ return r.json(); }).catch(function(){ return null; }),
+          // Today's share count (all classes) -- reference for the split check
+          (async function() {
+            try {
+              var ck = await getYahooCrumb(ySymE);
+              if (!ck || !ck.crumb || ck.crumb.indexOf("{") !== -1) return null;
+              var ksRes = await fetch("https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + ySymE + "?modules=defaultKeyStatistics&crumb=" + encodeURIComponent(ck.crumb),
+                { headers: { "User-Agent": UA, "Accept": "application/json", "Cookie": ck.cookies, "Referer": "https://finance.yahoo.com/" } });
+              var ksJ = await ksRes.json();
+              var ks = ksJ && ksJ.quoteSummary && ksJ.quoteSummary.result && ksJ.quoteSummary.result[0] && ksJ.quoteSummary.result[0].defaultKeyStatistics;
+              var sh = ks && ((ks.impliedSharesOutstanding && ks.impliedSharesOutstanding.raw) || (ks.sharesOutstanding && ks.sharesOutstanding.raw));
+              return sh > 0 ? sh : null;
+            } catch(e) { return null; }
+          })(),
         ]);
-        var pfData    = epsAndSplits[0];
-        var splitData = epsAndSplits[1];
+        var sfPl   = epsSrc[0];
+        var yChart = epsSrc[1];
+        var curShares = epsSrc[2];
 
-        // Build cumulative split adjustment factor per date
-        // Each split: for dates BEFORE execution_date, multiply EPS by split_from/split_to
-        var splits = [];
-        if (splitData && splitData.results) {
-          for (var si = 0; si < splitData.results.length; si++) {
-            var sp = splitData.results[si];
-            if (sp.execution_date && sp.split_from && sp.split_to) {
-              splits.push({ date: sp.execution_date, factor: sp.split_from / sp.split_to });
-            }
+        // Splits from Yahoo: factor = shares multiplier (10-for-1 -> 10)
+        var splitsE = [];
+        var yRes = yChart && yChart.chart && yChart.chart.result && yChart.chart.result[0];
+        var ySplits = yRes && yRes.events && yRes.events.splits ? yRes.events.splits : {};
+        Object.keys(ySplits).forEach(function(k) {
+          var s = ySplits[k];
+          if (s && s.date && s.numerator > 0 && s.denominator > 0) {
+            splitsE.push({ date: new Date(s.date * 1000).toISOString().slice(0, 10), factor: s.numerator / s.denominator });
           }
-        }
+        });
+        splitsE.sort(function(a, b) { return a.date < b.date ? 1 : -1; });
 
-        function getAdjFactor(fiscalYearEndDate) {
-          // For each split that happened AFTER this fiscal year end, apply the adjustment
-          var factor = 1;
-          for (var fi = 0; fi < splits.length; fi++) {
-            if (splits[fi].date > fiscalYearEndDate) {
-              factor = factor * splits[fi].factor;
-            }
-          }
-          return factor;
-        }
+        // SimFin compact: [ { statements: [ { columns:[...], data:[[...]] } ] } ]
+        var stmtE = sfPl && sfPl[0] && sfPl[0].statements && sfPl[0].statements[0];
+        var colsE = stmtE ? stmtE.columns || [] : [];
+        function ci(name) { return colsE.indexOf(name); }
+        var iYr = ci("Fiscal Year"), iDate = ci("Report Date"), iEpsD = ci("Earnings Per Share, Diluted"),
+            iEpsB = ci("Earnings Per Share, Basic"), iRev = ci("Revenue"), iNi = ci("Net Income");
+        var raw = [];
+        (stmtE && stmtE.data ? stmtE.data : []).forEach(function(row) {
+          var yr  = iYr  !== -1 ? parseInt(row[iYr]) : null;
+          var eps = iEpsD !== -1 && row[iEpsD] != null ? row[iEpsD] : (iEpsB !== -1 ? row[iEpsB] : null);
+          if (!yr || eps == null) return;
+          raw.push({ year: yr, epsRaw: eps,
+                     endDate: iDate !== -1 && row[iDate] ? String(row[iDate]).slice(0, 10) : yr + "-12-31",
+                     rev: iRev !== -1 ? row[iRev] : null, ni: iNi !== -1 ? row[iNi] : null });
+        });
+        raw.sort(function(a, b) { return b.year - a.year; });
 
-        var rows = [];
-        if (pfData && pfData.results) {
-          for (var pi = 0; pi < pfData.results.length; pi++) {
-            var r = pfData.results[pi];
-            var ic = r.financials && r.financials.income_statement;
-            if (!ic) continue;
-            var epsBasic   = ic.basic_earnings_per_share   && ic.basic_earnings_per_share.value;
-            var epsDiluted = ic.diluted_earnings_per_share && ic.diluted_earnings_per_share.value;
-            var eps = epsDiluted || epsBasic || null;
-            var rev = ic.revenues && ic.revenues.value;
-            var ni  = ic.net_income_loss && ic.net_income_loss.value;
-            var yr  = r.fiscal_year ? parseInt(r.fiscal_year) : null;
-            var endDate = r.end_date || (yr + "-12-31");
-            if (yr && eps !== null) {
-              var adj = getAdjFactor(endDate);
-              rows.push({ year: yr, eps: eps * adj, epsRaw: eps, adjFactor: adj, endDate: endDate,
-                          revenue: rev ? "$" + (rev/1e9).toFixed(1) + "B" : null,
-                          netIncome: ni ? "$" + (ni/1e9).toFixed(1) + "B" : null });
-            }
-          }
-        }
-        rows.sort(function(a, b) { return b.year - a.year; });
-        return new Response(JSON.stringify({ ok: true, rows: rows, splits: splits, source: "polygon" }), {
+        var rowsE = adjustEpsForSplits(raw, splitsE, curShares).slice(0, 10).map(function(r) {
+          return { year: r.year, eps: r.eps, epsRaw: r.epsRaw, adjFactor: r.adjFactor, endDate: r.endDate, splitCheck: r.splitCheck,
+                   revenue:   r.rev ? "$" + (r.rev / 1e9).toFixed(1) + "B" : null,
+                   netIncome: r.ni  ? "$" + (r.ni  / 1e9).toFixed(1) + "B" : null };
+        });
+        return new Response(JSON.stringify({ ok: rowsE.length > 0, rows: rowsE, splits: splitsE, source: "simfin", sharesRef: curShares ? "yahoo_current" : "newest_simfin_row" }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       } catch(e) {
-        return new Response(JSON.stringify({ error: String(e), source: "polygon" }), {
+        return new Response(JSON.stringify({ error: String(e), source: "simfin" }), {
           status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       }
@@ -713,71 +617,6 @@ export async function onRequest(context) {
 
       return new Response(JSON.stringify({ error: "Unknown stripe action" }), { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
     }
-
-    // -------------------------------------------------------------------------
-    // /options?sym=AAPL -- Polygon options + indices data probe
-    // -------------------------------------------------------------------------
-    if (url.pathname === "/options") {
-      var optSym    = (url.searchParams.get("sym") || "AAPL").toUpperCase().trim();
-      var massiveKey3 = context.env.MASSIVE_KEY;
-      if (!massiveKey3) return new Response(JSON.stringify({ error: "MASSIVE_KEY not set" }), {
-        status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-      });
-      var BASE3 = "https://api.polygon.io";
-      var HDR3  = { "User-Agent": UA };
-      var today3   = new Date();
-      var expFrom  = today3.toISOString().slice(0,10);
-      var expTo    = new Date(today3.getTime() + 60 * 86400000).toISOString().slice(0,10);
-      try {
-        var optResults = await Promise.all([
-          fetch(BASE3 + "/v3/reference/options/contracts?underlying_ticker=" + optSym + "&expiration_date.gte=" + expFrom + "&expiration_date.lte=" + expTo + "&limit=250&apiKey=" + massiveKey3, { headers: HDR3 }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-          fetch(BASE3 + "/v3/snapshot/options/" + optSym + "?limit=250&apiKey=" + massiveKey3, { headers: HDR3 }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-          fetch(BASE3 + "/v3/snapshot/indices?ticker=I%3ASPX&ticker=I%3ANDX&ticker=I%3ADJI&apiKey=" + massiveKey3, { headers: HDR3 }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
-        ]);
-        var contracts = optResults[0]; var snapOptions = optResults[1]; var indices = optResults[2];
-        var putVol = 0; var callVol = 0; var putOI = 0; var callOI = 0;
-        var snapList = snapOptions && snapOptions.results ? snapOptions.results : [];
-        snapList.forEach(function(o) {
-          var type = o.details && o.details.contract_type;
-          var vol = o.day && o.day.volume ? o.day.volume : 0;
-          var oi  = o.open_interest || 0;
-          if (type === "put")  { putVol += vol; putOI += oi; }
-          if (type === "call") { callVol += vol; callOI += oi; }
-        });
-        var topOI = snapList.filter(function(o){ return o.open_interest > 0 && o.details; })
-          .sort(function(a,b){ return (b.open_interest||0) - (a.open_interest||0); }).slice(0, 10)
-          .map(function(o){ return { type: o.details.contract_type, strike: o.details.strike_price, expiry: o.details.expiration_date, oi: o.open_interest, iv: o.implied_volatility ? (o.implied_volatility*100).toFixed(1)+"%" : null, last: o.day && o.day.close ? o.day.close : null }; });
-        var idxList = indices && indices.results ? indices.results.map(function(ix){ return { ticker: ix.ticker, name: ix.name, value: ix.session && ix.session.close ? ix.session.close : null, change: ix.session && ix.session.change_percent ? ix.session.change_percent.toFixed(2) : null }; }) : [];
-        // Try EOD daily aggs for first contract if contracts available
-        var contractSample = contracts && contracts.results && contracts.results.length > 0 ? contracts.results.slice(0,3) : [];
-        var contractCount  = contracts && contracts.results ? contracts.results.length : 0;
-
-        // Count puts vs calls from reference contracts
-        var refPuts = 0; var refCalls = 0;
-        (contracts && contracts.results ? contracts.results : []).forEach(function(c) {
-          if (c.contract_type === "put") refPuts++;
-          if (c.contract_type === "call") refCalls++;
-        });
-
-        return new Response(JSON.stringify({
-          ok: true, sym: optSym,
-          putCallVol: callVol > 0 ? (putVol/callVol).toFixed(2) : null,
-          putCallOI:  callOI > 0 ? (putOI/callOI).toFixed(2)  : null,
-          putVol: putVol, callVol: callVol, putOI: putOI, callOI: callOI,
-          topOI: topOI, indices: idxList,
-          contractsStatus: contracts ? (contracts.status||"ok") : "null",
-          snapshotStatus: snapOptions ? (snapOptions.status||"ok") : "null",
-          indicesStatus: indices ? (indices.status||"ok") : "null",
-          snapshotCount: snapList.length,
-          contractCount: contractCount,
-          refPuts: refPuts, refCalls: refCalls,
-          contractSample: contractSample,
-        }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
-      } catch(e) {
-        return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
-      }
-    }
-
 
     // ── Watchlist API (D1 database, per-user) ─────────────────────────────────
     if (url.pathname.startsWith("/watchlist")) {
@@ -1037,70 +876,6 @@ export async function onRequest(context) {
         return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: wHeaders });
       } catch(wErr) {
         return new Response(JSON.stringify({ error: "Watchlist DB error: " + wErr.message }), { status: 500, headers: wHeaders });
-      }
-    }
-
-    // ── Most Active Tickers (Polygon) ─────────────────────────────────────────
-    if (url.pathname === "/mostactive") {
-      var maKey = context.env.MASSIVE_KEY;
-      var maHeaders = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
-      if (!maKey) return new Response(JSON.stringify({ error: "MASSIVE_KEY not configured" }), { status: 500, headers: maHeaders });
-      try {
-        var maRes = await fetch(
-          "https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/most_active?apiKey=" + maKey,
-          { headers: { "User-Agent": UA } }
-        );
-        var maData = await maRes.json();
-        var tickers = (maData.tickers || []).map(function(t) {
-          return {
-            symbol: t.ticker, name: t.ticker,
-            regularMarketPrice:  (t.day && t.day.c) || (t.lastTrade && t.lastTrade.p) || 10,
-            regularMarketVolume: (t.day && t.day.v) || 0,
-            quoteType: "EQUITY",
-          };
-        }).filter(function(t){ return t.regularMarketPrice > 5 && t.regularMarketVolume > 500000; });
-        return new Response(JSON.stringify({ tickers: tickers }), { headers: maHeaders });
-      } catch(e) {
-        return new Response(JSON.stringify({ error: "Polygon most-active failed: " + e.message }), { status: 500, headers: maHeaders });
-      }
-    }
-
-    // ── Grouped Daily (Polygon) — full market snapshot filtered by volume ────
-    if (url.pathname === "/groupeddaily") {
-      var gdKey = context.env.MASSIVE_KEY;
-      var gdHeaders = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
-      if (!gdKey) return new Response(JSON.stringify({ error: "MASSIVE_KEY not configured" }), { status: 500, headers: gdHeaders });
-      try {
-        // Use previous trading day — walk back up to 5 days to find a trading day
-        var gdDate = new Date();
-        for (var di = 1; di <= 5; di++) {
-          gdDate = new Date(Date.now() - di * 86400000);
-          var dow = gdDate.getDay();
-          if (dow !== 0 && dow !== 6) break; // skip weekends
-        }
-        var gdDateStr = gdDate.toISOString().slice(0, 10);
-        var gdRes = await fetch(
-          "https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/" + gdDateStr + "?adjusted=true&apiKey=" + gdKey,
-          { headers: { "User-Agent": UA } }
-        );
-        var gdData = await gdRes.json();
-        var gdResults = gdData.results || [];
-        // Filter: price > 5, volume > 1M, then sort by volume desc, take top 500
-        var filtered = gdResults
-          .filter(function(t){ return t.c > 5 && t.v > 1000000; })
-          .sort(function(a, b){ return b.v - a.v; })
-          .slice(0, 500)
-          .map(function(t){
-            return {
-              symbol: t.T, name: t.T,
-              regularMarketPrice:  t.c || 10,
-              regularMarketVolume: t.v || 0,
-              quoteType: "EQUITY",
-            };
-          });
-        return new Response(JSON.stringify({ tickers: filtered, date: gdDateStr, total: gdResults.length }), { headers: gdHeaders });
-      } catch(e) {
-        return new Response(JSON.stringify({ error: "Grouped daily failed: " + e.message }), { status: 500, headers: gdHeaders });
       }
     }
 
