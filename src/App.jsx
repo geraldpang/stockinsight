@@ -3668,6 +3668,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   // DO NOT compute S/R separately here — always use these module-level functions for consistency
   const [taKeyLevels,   setTaKeyLevels]   = useState(null); // Key Levels from Fib (same as #WATCHLIST)
   const [taFibMap,      setTaFibMap]      = useState(null); // Long-term weekly Fib map
+  const [taTwoDayMap,   setTaTwoDayMap]   = useState(null); // 2-Day Fib map + Force Strike marks (v2.251)
   const [taStMap,       setTaStMap]       = useState(null); // Short-term daily Fib map
   // ─────────────────────────────────────────────────────────────────────────────
   const [rbaConfResult,  setRbaConfResult]  = useState(null);
@@ -4127,7 +4128,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
   }
 
   useEffect(function() {
-    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); setRuleAnalytics(null); setTaKeyLevels(null); setTaFibMap(null); setTaStMap(null); setRbaConfResult(null); setRbaConfLoading(false); setRbaConfError(null); setRbaConfSym(null); window.__aiFundRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; if(window.__trendSignalWritten)delete window.__trendSignalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; if(window.__rbaFullSnap)delete window.__rbaFullSnap[sym]; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
+    setQ(null); setOv(null); setEpsHistory(null); setEpsError(false); setInsightCache({}); setInsightLoading(false); setInsightTab("business"); setParsedInsights({}); setAddlInfo(null); setAddlLoading(false); setMassiveInfo(null); setCrossData(null); setDebugLog([]); setAiFundResult(null); setAiFundLoading(false); setAiFundCachedAt(null); setAiTechResult(null); setAiTechLoading(false); setAiTechRefreshing(false); setAiTechCachedAt(null); setRuleAnalytics(null); setTaKeyLevels(null); setTaFibMap(null); setTaTwoDayMap(null); setTaStMap(null); setRbaConfResult(null); setRbaConfLoading(false); setRbaConfError(null); setRbaConfSym(null); window.__aiFundRunning=null; window.__aiFundDone=null; window.__aiTechDone=null; window.__momScore=null; window.__momScoreSym=null; window.__trendScore=null; window.__trendScoreSym=null; window.__revCount3=null; window.__revArr3=null; window.__revSym3=null; window.__volBull=null; window.__volBear=null; window.__volSym=null; if(window.__computedFinStrength)delete window.__computedFinStrength[sym]; if(window.__ivStore)delete window.__ivStore[sym]; if(window.__signalWritten)delete window.__signalWritten[sym]; if(window.__trendSignalWritten)delete window.__trendSignalWritten[sym]; window.__curOracle="0"; window.__curVals=[]; window.__curOv=null; window.__curMassive=null; if(window.__rbaFullSnap)delete window.__rbaFullSnap[sym]; setMsg("Fetching live data for " + sym + "..."); delete ovCache[sym]; delete qCache[sym];
     // Clear SimFin cache for this ticker so it re-fetches fresh data
     if (window.__simfinData)   { delete window.__simfinData[sym]; }
     if (window.__simfinLoading){ delete window.__simfinLoading[sym]; }
@@ -4643,6 +4644,12 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
             setTaFibMap(fm);
             setTaStMap(stm);
             setTaKeyLevels(kl);
+            // 2-Day view (chart toggle). Force Strike scanned on the same taD2 bars
+            // so its pattern-bar indices line up with the 2-day candles.
+            try {
+              var fsD = scanForceStrike(sym, taD2, calcFsTrendStatus(taD2));
+              setTaTwoDayMap(buildTwoDayFibMap(taD2, curPrice, fsD));
+            } catch(twoDayErr) { setTaTwoDayMap(null); }
           }
         } catch(fibErr) { /* non-fatal — Fib calculation failed */ }
         // ─────────────────────────────────────────────────────────────────────
@@ -5528,7 +5535,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                   <span style={{ fontWeight:900, fontSize:15, color:"#1a1a14", whiteSpace:"nowrap", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.250</span>
+                  <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.251</span>
                 </div>
                 <span style={{ color:"rgba(0,0,0,0.35)", fontSize:12 }}>/ {sym}</span>
               </div>
@@ -5582,7 +5589,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     <span style={{ fontWeight:900, fontSize:14, color:"#1a1a14", letterSpacing:"-0.3px", lineHeight:1.2 }}>NervousGeek</span>
-                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.250</span>
+                    <span style={{ fontSize:9, color:"rgba(0,0,0,0.35)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.251</span>
                   </div>
                   <span style={{ color:"rgba(0,0,0,0.35)", fontSize:11 }}>/ {sym}</span>
                 </div>
@@ -6678,7 +6685,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                         (already computed for this same ticker/component). cardBg
                         matches the other cards in this left panel (#1e1e1e). */}
                     <div style={{ marginBottom:8 }}>
-                      <FibLevelsChart weeklyMap={taFibMap} dailyMap={taStMap} cardBg="#1e1e1e" compact />
+                      <FibLevelsChart weeklyMap={taFibMap} dailyMap={taStMap} twoDayMap={taTwoDayMap} cardBg="#1e1e1e" compact />
                     </div>
                   </div>
 
@@ -7792,7 +7799,7 @@ function Detail({ sym, name, onBack, clerkUser, supported, isPaid, isCancelling,
                               })()}
 
                               <div style={{ borderTop:"0.5px solid #2a2a2a", marginTop:12, paddingTop:12 }}>
-                                <FibLevelsChart weeklyMap={taFibMap} dailyMap={taStMap} cardBg="rgba(0,0,0,0.25)" />
+                                <FibLevelsChart weeklyMap={taFibMap} dailyMap={taStMap} twoDayMap={taTwoDayMap} cardBg="rgba(0,0,0,0.25)" />
                               </div>
                             </div>
 
@@ -11765,24 +11772,34 @@ function normalisePriceMapStatus(s) {
 
 // Top-level entry: takes daily2 (Watchlist Yahoo chart bars) and current price.
 // Returns a fibMap object suitable for signal_snapshot_json.fibMap, or null on failure.
+// Swing-search settings per timeframe (v2.251). Weekly values are the original
+// ones (26-bar minimum, 52-bar window, 10% min move, low within 13 bars of the
+// high, 13-bar re-anchor window). 2-Day values cover the SAME calendar spans:
+// 1 year = 126 two-day bars, 13 weeks = ~32 two-day bars.
+var FIB_CFG_WEEKLY = { label:'Weekly', minBars:26, window:52,  minRangePct:0.10, proximity:13, recentBars:13 };
+var FIB_CFG_2DAY   = { label:'2-Day',  minBars:63, window:126, minRangePct:0.10, proximity:32, recentBars:32 };
+
 function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
   try {
     if (!daily2Arr || daily2Arr.length < 30) return null;
-    var weekly = aggregateWeekly(daily2Arr);
     // SMA50/SMA200 overlay lines for the Fib Levels chart — computed from daily
-    // closes (not weekly bars) since 50/200 daily-period SMAs are the standard
-    // convention, then resampled onto the same weekly buckets as `weekly` above
-    // so the two arrays line up 1:1 for rendering. null entries (common for
-    // SMA200 on a ticker with <200 days of history) mean "not enough history
-    // yet for this week" — the chart draws a gap there, not a wrong value.
-    var sma50Weekly  = aggregateWeeklySMA(daily2Arr, 50);
-    var sma200Weekly = aggregateWeeklySMA(daily2Arr, 200);
-    var swings = findFibSwings(weekly);
+    // closes, resampled onto the weekly buckets (see aggregateWeeklySMA).
+    return buildFibMapFromBars(aggregateWeekly(daily2Arr), aggregateWeeklySMA(daily2Arr, 50),
+                               aggregateWeeklySMA(daily2Arr, 200), currentPrice, FIB_CFG_WEEKLY);
+  } catch(e) { return null; }
+}
+
+// Shared core (v2.251): identical logic for every timeframe; only `cfg` differs.
+// `weekly` = the bar array for the timeframe (name kept for the existing field
+// names the chart and stored snapshots use: weeklyBars, sma50Weekly ...).
+function buildFibMapFromBars(weekly, sma50Weekly, sma200Weekly, currentPrice, cfg) {
+  try {
+    var swings = findSwingInWeeklyBars(weekly, cfg.minBars, cfg.window, cfg.minRangePct, cfg.proximity);
     if (!swings) {
-      return { priceMapStatus:'No Clear Map', fibSupport:null, fibTarget:null, fibInvalidation:null, fibTimeframe:'Weekly',
+      return { priceMapStatus:'No Clear Map', fibSupport:null, fibTarget:null, fibInvalidation:null, fibTimeframe:cfg.label,
                fibSwingLow:null, fibSwingHigh:null, fibSupportZoneLow:null, fibSupportZoneHigh:null,
                fibTarget1:null, fibTarget2:null, fibTarget3:null,
-               priceMapCommentary:'No clear weekly swing structure detected.', swingLowDate:null, swingHighDate:null,
+               priceMapCommentary:'No clear ' + cfg.label.toLowerCase() + ' swing structure detected.', swingLowDate:null, swingHighDate:null,
                weeklyBarCount:weekly.length, weeklyBars:weekly, sma50Weekly:sma50Weekly, sma200Weekly:sma200Weekly };
     }
     var levels   = calcFibLevels(swings.swingLow, swings.swingHigh);
@@ -11818,9 +11835,9 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
     // normal zone low when nothing is broken.
     var nextSupportLevel = levels.fibSupportZoneLow;
     if (lastWeeklyClose != null && lastWeeklyClose < levels.fibSupportZoneLow * 0.99) {
-      var RECENT_WEEKS = 13;
+      var RECENT_WEEKS = cfg.recentBars;
       var recentBars = weekly.slice(-RECENT_WEEKS);
-      var newSwings = findSwingInWeeklyBars(recentBars, 4, recentBars.length, 0.10);
+      var newSwings = findSwingInWeeklyBars(recentBars, 4, recentBars.length, cfg.minRangePct);
       var newLevels = newSwings ? calcFibLevels(newSwings.swingLow, newSwings.swingHigh) : null;
       if (newLevels && lastWeeklyClose >= newLevels.fibSupportZoneLow * 0.99) {
         swings = newSwings;
@@ -11862,7 +11879,7 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
       // zone is broken — null means genuinely no established support nearby,
       // never fibInvalidation directly (see bug-fix comment above).
       nextSupportLevel:  nextSupportLevel != null ? Math.round(nextSupportLevel * 100) / 100 : null,
-      fibTimeframe:      'Weekly',
+      fibTimeframe:      cfg.label,
       fibSwingLow:       Math.round(swings.swingLow  * 100) / 100,
       fibSwingHigh:      Math.round(swings.swingHigh * 100) / 100,
       fibSupportZoneLow: Math.round(levels.fibSupportZoneLow  * 100) / 100,
@@ -11888,6 +11905,104 @@ function buildFibMapFromDailyBars(daily2Arr, currentPrice) {
       sma50Weekly:       sma50Weekly,
       sma200Weekly:      sma200Weekly,
     };
+  } catch(e) { return null; }
+}
+
+
+// ── 2-Day Fib map (v2.251) ──────────────────────────────────────────────────
+// Same Fib method as the weekly map (shared buildFibMapFromBars core) run on
+// 2-day bars. The bars come from forceStrikeScanner.js's buildAggregateBars --
+// the exact pairing Force Strike scans on -- so bar N here IS Force Strike's
+// aggs[N] and the pattern bars can be marked on the chart by index.
+var TWO_DAY_BARS_SHOWN = 65; // bars kept for display (~6 months, same span as the 26-week chart)
+
+// SMA(period) on daily closes, sampled at the SECOND day of each 2-day pair --
+// same pairing/parity as buildAggregateBars, so it is aligned 1:1 with its output.
+function aggregateTwoDaySMA(dailyBars, period) {
+  var out = [];
+  if (!dailyBars || dailyBars.length < 2) return out;
+  var closes = dailyBars.map(function(b){ return b && b.close; });
+  var startIdx = dailyBars.length % 2;
+  for (var i = startIdx; i + 1 < dailyBars.length; i += 2) {
+    var e = i + 1;
+    if (e < period - 1) { out.push(null); continue; }
+    var sum = 0, ok = true;
+    for (var j = e - period + 1; j <= e; j++) { if (!(closes[j] > 0)) { ok = false; break; } sum += closes[j]; }
+    out.push(ok ? sum / period : null);
+  }
+  return out;
+}
+
+// Trend status input for scanForceStrike -- mirrors refreshSingleTicker's inline
+// calculation EXACTLY (SMA50 of last 50 closes, "SMA200" = mean of all closes in
+// the window, 3% strong-uptrend band), so Detail shows the same Force Strike
+// result as the Watchlist and #FORCESTRIKE for the same 2-year bars.
+function calcFsTrendStatus(daily) {
+  if (!daily || daily.length < 14) return 'Sideways';
+  var c50  = daily.slice(-50).map(function(b){ return b.close; });
+  var cAll = daily.map(function(b){ return b.close; });
+  var s50  = c50.length  >= 20 ? c50.reduce(function(s,v){ return s+v; },0)  / c50.length  : 0;
+  var s200 = cAll.length >= 20 ? cAll.reduce(function(s,v){ return s+v; },0) / cAll.length : 0;
+  var pr   = daily[daily.length - 1].close;
+  if (s50 > 0 && s200 > 0) {
+    if (pr > s50 && s50 > s200) return pr > s50 * 1.03 ? 'Strong Uptrend' : 'Uptrend';
+    if (pr < s50 && s50 < s200) return 'Downtrend';
+  }
+  return 'Sideways';
+}
+
+// Force Strike marks for the chart. Only active (triggered) and watch
+// (mother + baby, no trigger yet) patterns are drawn; expired ones are not.
+// Indices are converted from full-aggs positions to the trimmed display window.
+function buildFsChartMarks(fs, offset, shown) {
+  if (!fs || !fs.motherBar) return null;
+  var status = fs.triggered ? 'active'
+             : (fs.result !== 'Expired' && fs.babyBar && !fs.triggerBar) ? 'watch' : null;
+  if (!status) return null;
+  var bars = [];
+  function add(b, tag) {
+    if (!b || b.index == null) return;
+    var i = b.index - offset;
+    if (i >= 0 && i < shown) bars.push({ i: i, tag: tag });
+  }
+  add(fs.motherBar, 'M');
+  add(fs.babyBar, 'B');
+  if (fs.manipulationBar) add(fs.manipulationBar, 'X');
+  if (status === 'active') add(fs.triggerBar, 'T');
+  return {
+    status:  status,
+    pattern: fs.pattern || (status === 'watch' ? 'M→B→?' : null),
+    bars:    bars,
+    entry:   status === 'active' && fs.tradeEntry > 0 ? Math.round(fs.tradeEntry * 100) / 100 : null,
+    stop:    status === 'active' && fs.tradeStop  > 0 ? Math.round(fs.tradeStop  * 100) / 100 : null,
+  };
+}
+
+// fsResult: optional -- pass the caller's own scanForceStrike(sym, daily2, ...)
+// result when it has one (Watchlist). It MUST come from the same daily2 array so
+// its bar indices line up with the 2-day bars built here.
+function buildTwoDayFibMap(daily2Arr, currentPrice, fsResult) {
+  try {
+    if (!daily2Arr || daily2Arr.length < 30) return null;
+    var aggs = buildAggregateBars(daily2Arr);
+    var bars2 = aggs.map(function(b) {
+      var d = b.date2;
+      var iso = typeof d === 'number' ? new Date(d).toISOString().split('T')[0] : String(d || '').split('T')[0];
+      return { date: iso, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume };
+    });
+    var m = buildFibMapFromBars(bars2, aggregateTwoDaySMA(daily2Arr, 50), aggregateTwoDaySMA(daily2Arr, 200),
+                                currentPrice, FIB_CFG_2DAY);
+    if (!m) return null;
+    // Trim to the display window -- keeps Watchlist snapshots small. Swing
+    // detection above already ran on the full history.
+    var shown  = Math.min(TWO_DAY_BARS_SHOWN, bars2.length);
+    var offset = bars2.length - shown;
+    m.weeklyBars   = bars2.slice(offset);
+    m.sma50Weekly  = (m.sma50Weekly  || []).slice(offset);
+    m.sma200Weekly = (m.sma200Weekly || []).slice(offset);
+    m.barCount     = bars2.length;
+    m.forceStrike  = buildFsChartMarks(fsResult, offset, shown);
+    return m;
   } catch(e) { return null; }
 }
 
@@ -12033,9 +12148,36 @@ function buildShortTermFibMap(daily2Arr, currentPrice) {
 // cardBg lets callers match their own surrounding card color (Watchlist's
 // dark '#1a1a18' card vs the Technical Analysis RBA card's 'rgba(0,0,0,0.25)'
 // inner tile) — purely cosmetic, doesn't touch any of the chart logic itself.
-function FibLevelsChart({ weeklyMap, dailyMap, cardBg, compact }) {
-  var ltm = weeklyMap, stm = dailyMap;
+function FibLevelsChart({ weeklyMap, dailyMap, twoDayMap, cardBg, compact }) {
+  // v2.251: Weekly / 2-Day switch. Remembered per browser; the 2-Day option only
+  // appears when a 2-day map exists (older Watchlist snapshots don't have one).
+  var [fibView, setFibView] = useState(function() {
+    try { return localStorage.getItem('fibChartView') === '2day' ? '2day' : 'weekly'; } catch(e) { return 'weekly'; }
+  });
+  var is2d = fibView === '2day' && !!twoDayMap;
+  var tfName = is2d ? '2-Day' : 'Weekly';
+  var ltm = is2d ? twoDayMap : weeklyMap, stm = dailyMap;
   var isCompact = !!compact;
+  var fsMarks = is2d && ltm && ltm.forceStrike ? ltm.forceStrike : null;
+  function pickView(e, v) {
+    if (e) e.stopPropagation(); // compact card navigates on click -- don't
+    setFibView(v);
+    try { localStorage.setItem('fibChartView', v); } catch(err) {}
+  }
+  var viewToggle = twoDayMap ? (
+    <span style={{display:'inline-flex',gap:4,float:'right',textTransform:'none',letterSpacing:0}}>
+      {[['weekly','Weekly'],['2day','2-Day']].map(function(o){
+        var on = (o[0] === '2day') === is2d;
+        return <span key={o[0]} onClick={function(e){ pickView(e, o[0]); }}
+          style={{cursor:'pointer',padding:'1px 6px',borderRadius:4,fontSize:8,fontWeight:700,
+                  background: on ? '#c8f000' : 'transparent', color: on ? '#0e0e0c' : '#666',
+                  border: on ? '1px solid #c8f000' : '1px solid #333'}}>{o[1]}</span>;
+      })}
+    </span>
+  ) : null;
+  var headerEl = <div style={{ fontSize:8, fontWeight:700, color:'#444', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>
+    {'Fib Levels on ' + tfName + ' Chart'}{viewToggle}
+  </div>;
   var fmtPrice = function(v){ return v!=null?('$'+Number(v).toFixed(2)):String.fromCharCode(0x2014); };
   var cardStyle = { background: cardBg || '#1a1a18', borderRadius:6, padding:'8px 10px', cursor: isCompact?'pointer':'default' };
   var headerStyle = { fontSize:8, fontWeight:700, color:'#444', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 };
@@ -12063,7 +12205,7 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg, compact }) {
     invalidationValue,
     stmZoneOk ? stm.fibSupportZoneHigh : null,
     stmZoneOk ? stm.fibSupportZoneLow : null,
-    26,
+    is2d ? TWO_DAY_BARS_SHOWN : 26,
     isCompact,
     ltm ? ltm.sma50Weekly : null,
     ltm ? ltm.sma200Weekly : null
@@ -12072,8 +12214,8 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg, compact }) {
   if (!geo) {
     return (
       <div style={cardStyle} onClick={goToFull}>
-        <div style={headerStyle}>Fib Levels on Weekly Chart</div>
-        <div style={{fontSize:9,color:'#555'}}>No weekly chart data</div>
+        {headerEl}
+        <div style={{fontSize:9,color:'#555'}}>{'No ' + tfName.toLowerCase() + ' chart data'}</div>
       </div>
     );
   }
@@ -12098,10 +12240,10 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg, compact }) {
   // blue / bold line) from daily (lighter blue / dotted line) zones and the
   // support-vs-invalidation red/blue. Resistance lines share one grey colour
   // though, so those keep a 1-letter W/D prefix to stay disambiguated.
-  var zoneLabel      = isCompact ? '' : (ltmZoneOk ? 'Weekly S Zone ' : 'Prior zone (broken) ');
+  var zoneLabel      = isCompact ? '' : (ltmZoneOk ? tfName + ' S Zone ' : 'Prior zone (broken) ');
   var dailyZoneLabel = isCompact ? '' : 'Daily S Zone ';
   var invLabel       = isCompact ? '' : (ltmZoneOk ? 'Invalid. ' : 'Support ');
-  var weeklyResLabel = isCompact ? 'W ' : 'Weekly res ';
+  var weeklyResLabel = isCompact ? (is2d ? '2D ' : 'W ') : tfName + ' res ';
   var dailyResLabel  = isCompact ? 'D ' : 'Daily res ';
 
   // Collision avoidance for the two merged zone labels: when the weekly and
@@ -12124,12 +12266,17 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg, compact }) {
 
   return (
     <div style={cardStyle} onClick={goToFull}>
-      <div style={headerStyle}>Fib Levels on Weekly Chart</div>
+      {headerEl}
       {!ltmZoneOk && ltm &&
         <div style={{fontSize:9,color:'#EF9F27',marginBottom:6}}>
           {ltm.nextSupportLevel != null
-            ? 'Weekly zone broken ' + String.fromCharCode(0x2014) + ' ' + fmtPrice(ltm.nextSupportLevel) + ' is the next support'
-            : 'Weekly zone broken ' + String.fromCharCode(0x2014) + ' no established support near current price'}
+            ? tfName + ' zone broken ' + String.fromCharCode(0x2014) + ' ' + fmtPrice(ltm.nextSupportLevel) + ' is the next support'
+            : tfName + ' zone broken ' + String.fromCharCode(0x2014) + ' no established support near current price'}
+        </div>}
+      {fsMarks &&
+        <div style={{fontSize:9,marginBottom:6,color: fsMarks.status==='active' ? '#c8f000' : '#EF9F27'}}>
+          {'Force Strike ' + (fsMarks.pattern || '') + (fsMarks.status==='active' ? ' (active)' : ' (watch -- awaiting trigger)')
+            + (fsMarks.entry!=null ? '  ' + String.fromCharCode(0x00b7) + '  entry ' + fmtPrice(fsMarks.entry) + ' / stop ' + fmtPrice(fsMarks.stop) : '')}
         </div>}
       <svg viewBox={'0 0 '+geo.vbW+' '+geo.vbH} width="100%" style={{display:'block'}}>
         {/* Daily zone drawn first (light fill), weekly drawn on top (darker
@@ -12176,8 +12323,8 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg, compact }) {
               strokeWidth={isWk?"1.5":"1"} strokeDasharray={isWk?"":"1,3"}/>
             <text x={geo.right+6} y={f.y+4} fontSize={fontSz} fill="#888">
               {isCompact
-                ? (isWk?'W $':'D $')+f.price.toFixed(2)+' +'+f.pctAway.toFixed(0)+'%'
-                : (isWk?'Weekly res $':'Daily res $')+f.price.toFixed(2)+' (+'+f.pctAway.toFixed(0)+'%)'}
+                ? (isWk?(is2d?'2D $':'W $'):'D $')+f.price.toFixed(2)+' +'+f.pctAway.toFixed(0)+'%'
+                : (isWk?tfName+' res $':'Daily res $')+f.price.toFixed(2)+' (+'+f.pctAway.toFixed(0)+'%)'}
             </text>
           </g>;
         })}
@@ -12201,6 +12348,29 @@ function FibLevelsChart({ weeklyMap, dailyMap, cardBg, compact }) {
           return <g key={ci}>
             <line x1={c.x} y1={c.wickTop} x2={c.x} y2={c.wickBot} stroke={c.color} strokeWidth="1"/>
             <rect x={c.x-c.bodyW/2} y={c.bodyTop} width={c.bodyW} height={c.bodyBot-c.bodyTop} fill={c.color}/>
+          </g>;
+        })}
+        {/* Force Strike overlay (2-Day view only, v2.251): tags above the pattern
+            candles plus entry (trigger high) and stop (mother low) lines. Bar
+            indices come from buildFsChartMarks, already aligned to this window. */}
+        {fsMarks && fsMarks.entry!=null && geo.yOf(fsMarks.entry)!=null &&
+          <g>
+            <line x1={geo.left} y1={geo.yOf(fsMarks.entry)} x2={geo.right} y2={geo.yOf(fsMarks.entry)} stroke="#c8f000" strokeWidth="1" strokeDasharray="4,3"/>
+            <text x={geo.right+6} y={geo.yOf(fsMarks.entry)+4} fontSize={fontSz} fill="#c8f000">{(isCompact?'E ':'FS entry ')+fmtPrice(fsMarks.entry)}</text>
+          </g>}
+        {fsMarks && fsMarks.stop!=null && geo.yOf(fsMarks.stop)!=null &&
+          <g>
+            <line x1={geo.left} y1={geo.yOf(fsMarks.stop)} x2={geo.right} y2={geo.yOf(fsMarks.stop)} stroke="#e05050" strokeWidth="1" strokeDasharray="4,3"/>
+            <text x={geo.right+6} y={geo.yOf(fsMarks.stop)+4} fontSize={fontSz} fill="#e05050">{(isCompact?'S ':'FS stop ')+fmtPrice(fsMarks.stop)}</text>
+          </g>}
+        {fsMarks && fsMarks.bars.map(function(mk){
+          var c = geo.candles[mk.i];
+          if (!c) return null;
+          var col = fsMarks.status==='active' ? '#c8f000' : '#EF9F27';
+          return <g key={'fs'+mk.tag}>
+            <rect x={c.x - c.bodyW/2 - 2} y={c.wickTop - 2} width={c.bodyW + 4} height={Math.max(4, c.wickBot - c.wickTop + 4)}
+              fill="none" stroke={col} strokeWidth="1"/>
+            <text x={c.x} y={c.wickTop - 6} fontSize={fontSz} fill={col} textAnchor="middle" fontWeight="700">{mk.tag}</text>
           </g>;
         })}
         {/* Small legend for the SMA lines — placed in the top margin, above the
@@ -12380,6 +12550,9 @@ function buildFibChartGeometry(weeklyBars, weeklyRes, dailyRes, supportHigh, sup
     dailySupportHighY: nearY(dailySupportHigh),
     dailySupportLowY:  nearY(dailySupportLow),
     invalidationY: invalidationIsFar ? null : nearY(invalidation),
+    // v2.251: price -> y on the main (unbroken) scale, for extra overlay lines
+    // such as Force Strike entry/stop. Returns null outside the plotted range.
+    yOf: function(p) { return (p != null && p >= minP && p <= maxP) ? y(p) : null; },
   };
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13257,6 +13430,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
 
     // Pre-compute map objects so keyLevels and waveGuide can cross-reference them
     var snapFibMap     = buildFibMapFromDailyBars(daily2, price);
+    // 2-Day Fib map for the chart toggle (v2.251). fsResult was scanned on this same
+    // daily2 array above, so its bar indices match the 2-day candles.
+    var snapTwoDayMap  = buildTwoDayFibMap(daily2, price, fsResult);
     var snapStMap      = buildShortTermFibMap(daily2, price);
     var snapKeyLevels  = buildKeyLevels(snapFibMap, snapStMap, price);
     var snapWaveGuide  = buildWaveGuide(snapFibMap, snapStMap, price);
@@ -13308,6 +13484,9 @@ function WatchlistPage({ clerkUser, isPaid }) {
       // Pre-computed map objects (computed above so keyLevels/waveGuide can reference both)
       fibMap:          snapFibMap,
       shortTermMap:    snapStMap,
+      // 2-Day Fib map + Force Strike chart marks (display only -- Key Levels,
+      // Wave Guide and Action Bias stay on the weekly map). Bars trimmed to 65.
+      twoDayMap:       snapTwoDayMap,
       // Key Levels: combined support/resistance ladder from daily + weekly Fib levels.
       keyLevels:       snapKeyLevels,
       // Wave Guide: practical stage model based on current price vs Fib structure.
@@ -13480,6 +13659,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                 waveGuide:   wg2  || null,
                 shortTermMap:snapJson2.shortTermMap || null,
                 longTermMap: snapJson2.fibMap       || null,
+                twoDayMap:   snapJson2.twoDayMap    || null,
               };
             });
             var payload = { exportedAt:new Date().toISOString(), tickerCount:items.length, watchlist:allData };
@@ -13696,6 +13876,8 @@ function WatchlistPage({ clerkUser, isPaid }) {
             // Weekly Fib Price Map — from snapshot JSON (null for older snapshots without fibMap)
             var fibMap      = (snapJson.fibMap      && snapJson.fibMap.priceMapStatus)      ? snapJson.fibMap      : null;
             var shortTermMap= (snapJson.shortTermMap && snapJson.shortTermMap.priceMapStatus) ? snapJson.shortTermMap : null;
+            // 2-Day map (v2.251) -- absent on snapshots saved before v2.251 until the next refresh
+            var twoDayMap   = (snapJson.twoDayMap && snapJson.twoDayMap.priceMapStatus) ? snapJson.twoDayMap : null;
             var keyLevels   = snapJson.keyLevels   || null;
             var waveGuide   = snapJson.waveGuide   || null;
             // Momentum Profile (Option B) — display-only override for the Momentum
@@ -14125,6 +14307,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     },
                     shortTermMap: snapJson.shortTermMap || null,
                     longTermMap:  snapJson.fibMap       || null,
+                    twoDayMap:    snapJson.twoDayMap    || null,
                     keyLevels:    snapJson.keyLevels    || null,
                     waveGuide:    snapJson.waveGuide    || null,
                     weeklyBars:   (snapJson.fibMap && snapJson.fibMap.weeklyBars) ? snapJson.fibMap.weeklyBars : [],
@@ -14170,7 +14353,7 @@ function WatchlistPage({ clerkUser, isPaid }) {
                     })}
                   </div>
                   <div style={{marginBottom:12}}>
-                    <FibLevelsChart weeklyMap={ltm} dailyMap={stm} />
+                    <FibLevelsChart weeklyMap={ltm} dailyMap={stm} twoDayMap={twoDayMap} />
                     {(ltm||stm)
                       ? <div style={{background:'#1a1a18',borderRadius:6,padding:'8px 10px',marginTop:12}}>
                           <div style={{fontSize:8,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Wave Targets & Pullback Range</div>
@@ -15627,7 +15810,7 @@ export default function App() {
           </svg>
           <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
             <span style={{ fontSize:17, fontWeight:900, letterSpacing:0, lineHeight:1.2 }}><span style={{ color:"#ffffff" }}>nervous</span><span style={{ color:LIME }}>geek</span></span>
-            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.250</span>
+            <span style={{ fontSize:9, color:"rgba(200,240,0,0.4)", fontWeight:500, letterSpacing:"0.02em", lineHeight:1 }}>v2.251</span>
           </div>
         </div>
 
